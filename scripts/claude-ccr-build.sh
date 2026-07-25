@@ -107,6 +107,15 @@ if ! command -v go >/dev/null 2>&1; then
       esac
     fi
   fi
+  # If the resident binary IS a non-bundled (npm) doppelganger, back it up NOW
+  # so the user is never in the broken state "install says [done] but ccr is
+  # wrong". The npm binary is identifiably NOT ours: it lacks `ccr restart`.
+  # Removing it makes the failure clean and points at the ONE fix: install Go.
+  if [ -x "$_resident" ]; then
+    _dup="$BIN_DIR/ccr.npm-$(date +%Y%m%d%H%M%S)"
+    mv "$_resident" "$_dup" 2>/dev/null || true
+    cma_warn "removed non-bundled (npm) ccr at $BIN_DIR/ccr (backed up as $_dup)."
+  fi
   cma_warn "Go toolchain not found — cannot build the bundled claude-code-router (Go)."
   printf '  Install Go, then re-run: claude-ccr-build\n    Debian/Ubuntu:  sudo apt install golang-go\n    Fedora/RHEL:    sudo dnf install golang\n    Arch:           sudo pacman -S go\n    macOS:          brew install go\n    Any platform:   https://go.dev/dl/\n' >&2
   exit 1
