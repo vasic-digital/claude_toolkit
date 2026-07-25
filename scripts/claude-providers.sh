@@ -548,24 +548,152 @@ detect_kimicode_record() {
   ' | jq -s '.'
 }
 
+# --- OpenCode Zen multi-alias detection (5 aliases from one API key) ----------
+# OpenCode Zen serves 59 models via an OpenAI-compatible endpoint. One API key
+# (ApiKey_Opencode_Zen) maps to the entire catalog. This detector emits 5
+# provider records (opencode-zen1 through opencode-zen5), each with a distinct
+# strong/fast model pair spanning different capability profiles (Claude family,
+# GPT family, Gemini family, balanced reasoning, and best overall).
+#
+# Pins are loaded from providers/opencode-zen.json. Detection gates on the
+# tracked pins file AND the Zen API key being present.
+detect_opencode_zen_records() {
+  local _z_json="${CMA_OPENCODE_ZEN_PINS_FILE:-$LIB_DIR/providers/opencode-zen.json}"
+  [[ -f "$_z_json" ]] || { printf '[]\n'; return 0; }
+
+  local _key_present=0
+  if [[ -f "$CMA_KEYS_FILE" ]]; then
+    local _key_val
+    # shellcheck source=/dev/null
+    _key_val="$( ( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; printf '%s' "${ApiKey_Opencode_Zen:-}" ) )" || true
+    [[ -n "$_key_val" ]] && _key_present=1
+  fi
+  (( _key_present )) || { printf '[]\n'; return 0; }
+
+  local _z_bin="" _z_id="" _z_base="" _z_transport="" _z_strong="" _z_fast="" _z_keyvar="" _z_ctx="" _z_out=""
+  if command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        bin)           _z_bin="$_v" ;;
+        id)            _z_id="$_v" ;;
+        base_url)      _z_base="$_v" ;;
+        transport)     _z_transport="$_v" ;;
+        strong_model)  _z_strong="$_v" ;;
+        fast_model)    _z_fast="$_v" ;;
+        key_var)       _z_keyvar="$_v" ;;
+        context_limit) _z_ctx="$_v" ;;
+        max_output)    _z_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_z_json" 2>/dev/null)
+  fi
+
+  : "${_z_id:=opencode-zen}"
+  : "${_z_base:=https://opencode.ai/zen/v1}"
+  : "${_z_transport:=router}"
+  : "${_z_strong:=claude-fable-5}"
+  : "${_z_fast:=deepseek-v4-flash}"
+  : "${_z_keyvar:=ApiKey_Opencode_Zen}"
+  : "${_z_ctx:=262144}"
+  : "${_z_out:=32768}"
+
+  local _reason="OpenCode Zen multi-alias detected via pins-file (59 models, OpenAI-compatible)"
+
+  jq -n \
+    --arg keyvar "$_z_keyvar" \
+    --arg base    "$_z_base" \
+    --arg transport "$_z_transport" \
+    --arg reason  "$_reason" \
+    --argjson ctx "${_z_ctx:-null}" \
+    --argjson out "${_z_out:-null}" \
+    '[
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-zen1",
+        alias:               "opencode-zen1",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "claude-fable-5",
+        fast_model:          "deepseek-v4-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (best-reasoning: Claude Fable 5 / DeepSeek V4 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-zen2",
+        alias:               "opencode-zen2",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "claude-opus-5",
+        fast_model:          "claude-haiku-4-5",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (claude-family: Claude Opus 5 / Claude Haiku 4.5)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-zen3",
+        alias:               "opencode-zen3",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "claude-sonnet-5",
+        fast_model:          "gemini-3.6-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (balanced: Claude Sonnet 5 / Gemini 3.6 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-zen4",
+        alias:               "opencode-zen4",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "gpt-5.4",
+        fast_model:          "gpt-5.4-mini",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (gpt-family: GPT-5.4 / GPT-5.4 Mini)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-zen5",
+        alias:               "opencode-zen5",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "gemini-3.1-pro",
+        fast_model:          "gemini-3-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (gemini-family: Gemini 3.1 Pro / Gemini 3 Flash)")
+      }
+    ]'
+}
+
 # --- OpenCode Go cloud-API detection -----------------------------------------
 # OpenCode Go is a subscription tier on top of the same Zen API key. It uses a
 # different base URL (https://opencode.ai/zen/go/v1) and serves a curated subset
 # of models distinct from the full Zen catalog. Detection gates on the tracked
 # pins file (providers/opencode-go.json) AND the Zen API key being present.
 # The key var is the SAME as Zen (ApiKey_Opencode_Zen) — both tiers share one
-# account key. Provider id is opencode-go to keep it distinct from opencode-zen
-# whose base record comes through the providers_resolve.py pipeline via the
-# opencode entry in overrides.json.
+# account key. Detector emits 5 records (opencode-go1 through opencode-go5)
+# with distinct strong/fast model pairings.
 #
 # transport = router: the /zen/go/v1/chat/completions endpoint is OpenAI-compatible.
-detect_opencode_go_record() {
+detect_opencode_go_records() {
   local _og_json="${CMA_OPENCODE_GO_PINS_FILE:-$LIB_DIR/providers/opencode-go.json}"
   [[ -f "$_og_json" ]] || { printf '[]\n'; return 0; }
 
-  # Lazy-validate: the key must be present. It is read BY NAME only (no indirect
-  # expansion needed here — the sync loop does that later). We source the keys
-  # file in a subshell and check for a non-empty value.
   local _key_present=0
   if [[ -f "$CMA_KEYS_FILE" ]]; then
     local _key_val
@@ -602,21 +730,87 @@ detect_opencode_go_record() {
   : "${_og_ctx:=262144}"
   : "${_og_out:=32768}"
 
+  local _reason="OpenCode Go multi-alias detected via pins-file (23 models, OpenAI-compatible)"
+
   jq -n \
     --arg keyvar "$_og_keyvar" \
-    --arg pid     "$_og_id" \
-    --arg alias   "$_og_id" \
     --arg base    "$_og_base" \
     --arg transport "$_og_transport" \
-    --arg strong  "$_og_strong" \
-    --arg fast    "$_og_fast" \
-    --arg reason  "opencode-go detected via pins-file (same key as opencode-zen, Go subscription tier)" \
+    --arg reason  "$_reason" \
     --argjson ctx "${_og_ctx:-null}" \
     --argjson out "${_og_out:-null}" \
-    '[{key_var:$keyvar, classification:"llm", provider_id:$pid, alias:$alias,
-       base_url:$base, transport:$transport, strong_model:$strong,
-       fast_model:$fast, context_limit:$ctx, max_output:$out,
-       status:"resolved", reason:$reason}]'
+    '[
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-go1",
+        alias:               "opencode-go1",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "deepseek-v4-pro",
+        fast_model:          "deepseek-v4-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (deepseek-family: DeepSeek V4 Pro / V4 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-go2",
+        alias:               "opencode-go2",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "glm-5",
+        fast_model:          "qwen-3.7",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (glm-family: GLM-5 / Qwen 3.7)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-go3",
+        alias:               "opencode-go3",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "kimi-k2",
+        fast_model:          "deepseek-v4-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (long-context: Kimi K2 / DeepSeek V4 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-go4",
+        alias:               "opencode-go4",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "qwen-3.7",
+        fast_model:          "kimi-k2",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (qwen-family: Qwen 3.7 / Kimi K2)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "opencode-go5",
+        alias:               "opencode-go5",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "deepseek-v4-pro",
+        fast_model:          "qwen-3.7",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (balanced: DeepSeek V4 Pro / Qwen 3.7)")
+      }
+    ]'
 }
 
 # --- Chutes multi-alias detection (5 aliases from one API key) ---------------
@@ -917,9 +1111,13 @@ resolve_records() {
   if ! printf '%s' "$extra_hl" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_helixllm_records produced no/invalid JSON output"
   fi
-  extra_og="$(detect_opencode_go_record)" || true
+  extra_z="$(detect_opencode_zen_records)" || true
+  if ! printf '%s' "$extra_z" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_opencode_zen_records produced no/invalid JSON output"
+  fi
+  extra_og="$(detect_opencode_go_records)" || true
   if ! printf '%s' "$extra_og" | jq -e 'type=="array"' >/dev/null 2>&1; then
-    cma_die "detect_opencode_go_record produced no/invalid JSON output"
+    cma_die "detect_opencode_go_records produced no/invalid JSON output"
   fi
   extra_cht="$(detect_chutes_records)" || true
   if ! printf '%s' "$extra_cht" | jq -e 'type=="array"' >/dev/null 2>&1; then
@@ -929,13 +1127,13 @@ resolve_records() {
   if ! printf '%s' "$extra_hy" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_hyper_records produced no/invalid JSON output"
   fi
-  # Merge all seven sources, deduped by provider_id. The Kimi Code OAuth
+  # Merge all eight sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" '
-    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7) | unique_by(.provider_id)
   '
 }
 

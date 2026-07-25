@@ -106,5 +106,45 @@
     "base_url": "https://hyper.charm.land/v1",
     "strong_model": "deepseek-v4-pro",
     "fast_model": "deepseek-v4-flash"
+  },
+  "opencode-zen1": {
+    "strong_model": "claude-fable-5",
+    "fast_model": "deepseek-v4-flash"
+  },
+  "opencode-zen2": {
+    "strong_model": "claude-opus-5",
+    "fast_model": "claude-haiku-4-5"
+  },
+  "opencode-zen3": {
+    "strong_model": "claude-sonnet-5",
+    "fast_model": "gemini-3.6-flash"
+  },
+  "opencode-zen4": {
+    "strong_model": "gpt-5.4",
+    "fast_model": "gpt-5.4-mini"
+  },
+  "opencode-zen5": {
+    "strong_model": "gemini-3.1-pro",
+    "fast_model": "gemini-3-flash"
+  },
+  "opencode-go1": {
+    "strong_model": "deepseek-v4-pro",
+    "fast_model": "deepseek-v4-flash"
+  },
+  "opencode-go2": {
+    "strong_model": "glm-5",
+    "fast_model": "qwen-3.7"
+  },
+  "opencode-go3": {
+    "strong_model": "kimi-k2",
+    "fast_model": "deepseek-v4-flash"
+  },
+  "opencode-go4": {
+    "strong_model": "qwen-3.7",
+    "fast_model": "kimi-k2"
+  },
+  "opencode-go5": {
+    "strong_model": "deepseek-v4-pro",
+    "fast_model": "qwen-3.7"
   }
 }
