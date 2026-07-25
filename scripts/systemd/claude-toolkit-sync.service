@@ -1,0 +1,23 @@
+[Unit]
+Description=Claude Toolkit provider cache sync
+Documentation=file:///home/milos/Factory/projects/tools_and_research/claude_toolkit/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/milos/.local/bin
+ExecStart=/home/milos/.local/bin/claude-providers sync
+Nice=10
+IOSchedulingClass=idle
+
+# claude-providers sync exit codes:
+#   0 = cache fresh (no network call needed)
+#   1 = cache stale, kicked background full-sync
+#   2 = no keys/network (non-fatal, many providers skip)
+# The timer triggers on boot and daily; a failure here is
+# informational — we do NOT restart or retry (the next timer tick
+# will pick it up).
+
+[Install]
+WantedBy=default.target

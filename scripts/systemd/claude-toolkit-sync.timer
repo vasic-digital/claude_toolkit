@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Claude Toolkit provider cache refresh
+Documentation=file:///home/milos/Factory/projects/tools_and_research/claude_toolkit/README.md
+
+[Timer]
+OnBootSec=2min
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

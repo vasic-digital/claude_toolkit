@@ -100,5 +100,11 @@
   "chutes5": {
     "strong_model": "moonshotai/Kimi-K2.6-TEE",
     "fast_model": "Qwen/Qwen3.6-27B-TEE"
+  },
+  "hyper": {
+    "transport": "router",
+    "base_url": "https://hyper.charm.land/v1",
+    "strong_model": "deepseek-v4-pro",
+    "fast_model": "deepseek-v4-flash"
   }
 }

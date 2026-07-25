@@ -1,0 +1,8 @@
+{
+  "id": "hyper",
+  "base_url": "https://hyper.charm.land/v1",
+  "transport": "router",
+  "key_var": "HYPER_API_KEY",
+  "context_limit": 1000000,
+  "max_output": 384000
+}

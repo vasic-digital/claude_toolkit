@@ -748,6 +748,131 @@ detect_chutes_records() {
     ]'
 }
 
+# --- Hyper API multi-alias detection (5 aliases from one API key) ----------------
+# Hyper (https://hyper.charm.land/) serves 21 open-weight + proprietary models via
+# an OpenAI-compatible endpoint. One API key (HYPER_API_KEY) maps to the entire
+# catalog. This detector emits 5 provider records (hyper1-hyper5), each with a
+# distinct strong/fast model pair spanning different capability profiles
+# (deep-reasoning, long-context, code-focused, qwen family, GLM/Kimi).
+#
+# Model list is fetched live from the API at sync time (NOT hardcoded catalog).
+# Pins are loaded from providers/hyper.json.
+detect_hyper_records() {
+  local _hy_json="${CMA_HYPER_PINS_FILE:-$LIB_DIR/providers/hyper.json}"
+  [[ -f "$_hy_json" ]] || { printf '[]\n'; return 0; }
+
+  local _key_present=0
+  if [[ -f "$CMA_KEYS_FILE" ]]; then
+    local _key_val
+    # shellcheck source=/dev/null
+    _key_val="$( ( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; printf '%s' "${HYPER_API_KEY:-}" ) )" || true
+    [[ -n "$_key_val" ]] && _key_present=1
+  fi
+  (( _key_present )) || { printf '[]\n'; return 0; }
+
+  local _hy_base="" _hy_transport="" _hy_keyvar="" _hy_ctx="" _hy_out=""
+  if command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        base_url)      _hy_base="$_v" ;;
+        transport)     _hy_transport="$_v" ;;
+        key_var)       _hy_keyvar="$_v" ;;
+        context_limit) _hy_ctx="$_v" ;;
+        max_output)    _hy_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_hy_json" 2>/dev/null)
+  fi
+
+  : "${_hy_base:=https://hyper.charm.land/v1}"
+  : "${_hy_transport:=router}"
+  : "${_hy_keyvar:=HYPER_API_KEY}"
+  : "${_hy_ctx:=1000000}"
+  : "${_hy_out:=384000}"
+
+  local _reason="Hyper multi-alias detected via pins-file (Charm.land inference, OpenAI-compatible)"
+
+  jq -n \
+    --arg keyvar "$_hy_keyvar" \
+    --arg base    "$_hy_base" \
+    --arg transport "$_hy_transport" \
+    --arg reason  "$_reason" \
+    --argjson ctx "${_hy_ctx:-null}" \
+    --argjson out "${_hy_out:-null}" \
+    '[
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "hyper1",
+        alias:               "hyper1",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "deepseek-v4-pro",
+        fast_model:          "deepseek-v4-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (deep-reasoning: DeepSeek V4 Pro / V4 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "hyper2",
+        alias:               "hyper2",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "glm-5.2",
+        fast_model:          "qwen3.6-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (long-context: GLM-5.2 1M / Qwen3.6 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "hyper3",
+        alias:               "hyper3",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "kimi-k2.7-code",
+        fast_model:          "gemma-4-26b-a4b-it",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (code-focused: Kimi K2.7 Code / Gemma 4 26B)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "hyper4",
+        alias:               "hyper4",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "qwen3.7-max",
+        fast_model:          "qwen3.7-plus",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (qwen-family: Qwen3.7 Max / Qwen3.7 Plus)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "hyper5",
+        alias:               "hyper5",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "glm-5.1",
+        fast_model:          "kimi-k2.6",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (multimodal: GLM-5.1 / Kimi K2.6)")
+      }
+    ]'
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -800,13 +925,17 @@ resolve_records() {
   if ! printf '%s' "$extra_cht" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_chutes_records produced no/invalid JSON output"
   fi
-  # Merge all six sources, deduped by provider_id. The Kimi Code OAuth
+  extra_hy="$(detect_hyper_records)" || true
+  if ! printf '%s' "$extra_hy" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_hyper_records produced no/invalid JSON output"
+  fi
+  # Merge all seven sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" '
-    ($e2 + $base + $e3 + $e1 + $e4 + $e5) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6) | unique_by(.provider_id)
   '
 }
 
