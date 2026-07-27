@@ -12,3 +12,6 @@
 	path = submodules/claude-code-router
 	url = git@github.com:vasic-digital/claude-code-router.git
 	branch = main
+[submodule "submodules/go"]
+	path = submodules/go
+	url = https://go.googlesource.com/go
