@@ -582,7 +582,37 @@ printf '# ROUTE-APPLIED: %s\n' "${ROUTE_APPLIED:-<unproven>}" >> "$OUT"
 # --- classify ---------------------------------------------------------------
 # A trust/overwrite prompt makes the non-interactive launch hang -> timeout (124),
 # or leaves its dialog text in the transcript.
-if (( rc == 124 )); then echo "FAIL: launch hung within ${TIMEOUT}s (trust/overwrite prompt?)"; echo "# FAIL: timeout" >> "$OUT"; exit 1; fi
+#
+# But rc 124 says ONLY that the bound expired — never why, and the two causes it
+# conflates need opposite responses. Consult the transcript we just captured
+# before naming one, because guessing here has already cost real debugging time:
+# every failing alias on this host (chutes1-4, kilo, nvidia, nvidia3,
+# openrouter2/3, poe3 — long-time-to-first-token reasoning models, while every
+# fast model passed) was reported as a possible trust/overwrite dialog, and NONE
+# of them had one. Their own result JSON, written into this same evidence file,
+# says `terminal_reason":"aborted_streaming"` with output_tokens 0, cost 0 and
+# duration_api_ms 0. A dialog that was never shown is a false diagnosis of
+# exactly the kind this suite refuses to emit anywhere else, and it sends the
+# reader looking for a prompt instead of at the route.
+#
+# Be careful what the replacement claims, too. It is NOT true that "the backend
+# accepted the request and streamed nothing back" — on the run that motivated
+# this, the requests never left the host: ~/.claude-code-router/<id>/service.log
+# shows 10+ retries each answered 503 in 1-4ms by the LOCAL gateway (a route
+# whose model id carried a vendor prefix). So the marker states the observed
+# fields and points at the gateway log; it does not name a layer it cannot see.
+# For the same reason it must not advise a larger --timeout: the retries were
+# still 503ing past 180s, and no bound fixes a rejected route.
+if (( rc == 124 )); then
+  if printf '%s' "$out" | grep -qF '"terminal_reason":"aborted_streaming"'; then
+    _stui_ms="$(printf '%s' "$out" | grep -oE '"duration_ms":[0-9]+' | tail -1 | cut -d: -f2)"
+    _stui_tok="$(printf '%s' "$out" | grep -oE '"output_tokens":[0-9]+' | head -1 | cut -d: -f2)"
+    echo "FAIL: stream-aborted — the CLI produced a result (duration_ms=${_stui_ms:-unknown}) with ${_stui_tok:-0} output tokens and terminal_reason=aborted_streaming. NOT a trust/overwrite dialog. WHERE it died is not determined here: read ~/.claude-code-router/$ALIAS_ID/service.log — a burst of 503s at 1-4ms each means the LOCAL gateway rejected the route and the request never reached the provider, which no --timeout value can fix."
+    echo "# FAIL: stream-aborted (output_tokens=${_stui_tok:-0} duration_ms=${_stui_ms:-unknown} bound=${TIMEOUT}s)" >> "$OUT"
+    exit 1
+  fi
+  echo "FAIL: launch hung within ${TIMEOUT}s (trust/overwrite prompt?)"; echo "# FAIL: timeout" >> "$OUT"; exit 1
+fi
 # ATTRIBUTION GATE — runs before every transcript-derived verdict below, because
 # every one of those verdicts is a statement ABOUT A BACKEND, and a statement
 # about the wrong backend is worthless whichever way it lands. (Only the

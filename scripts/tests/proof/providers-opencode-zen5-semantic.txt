@@ -1,0 +1,17 @@
+providers-semantic[opencode-zen5]: driver rc=1
+driver json: {
+  "round1_sentinel": {
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 401: {\"type\":\"error\",\"error\":{\"type\":\"CreditsError\",\"message\":\"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing\"}}"
+  },
+  "round2_judge": {
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
+  },
+  "overall_pass": false
+}
+providers-semantic[opencode-zen5]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"type":"error","error":{"type":"CreditsError","message":"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing"}}
+semantic verdict: unverified

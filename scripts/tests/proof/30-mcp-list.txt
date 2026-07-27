@@ -1,6 +1,63 @@
 [0m
 ┌  MCP Servers
 │
+●  ✓ cloudflare-docs [90mconnected
+│      [90mhttps://docs.mcp.cloudflare.com/sse
+│
+●  ✓ commands [90mconnected
+│      [90mnpx -y mcp-server-commands
+│
+●  ✓ context7 [90mconnected
+│      [90mhttps://mcp.context7.com/mcp
+│
+●  ✓ deepwiki [90mconnected
+│      [90mhttps://mcp.deepwiki.com/mcp
+│
+●  ✓ docker [90mconnected
+│      [90mnpx -y mcp-server-docker
+│
+●  ✓ everything [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-everything
+│
+●  ✓ fetch [90mconnected
+│      [90mnpx -y mcp-fetch-server
+│
+●  ✓ filesystem [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-filesystem /home/milos
+│
+●  ✓ git [90mconnected
+│      [90mnpx -y mcp-git
+│
+●  ✓ markdown [90mconnected
+│      [90mnpx -y mcp-server-markdown
+│
+●  ✓ memory [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-memory
+│
+●  ✓ notion [90mconnected
+│      [90mnpx -y @notionhq/notion-mcp-server
+│
+●  ✓ postgres [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
+│
+●  ✓ puppeteer [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-puppeteer
+│
+●  ✓ sequential-thinking [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-sequential-thinking
+│
+●  ✓ shell [90mconnected
+│      [90mnpx -y mcp-shell-server
+│
+●  ✓ sqlite [90mconnected
+│      [90mnpx -y mcp-server-sqlite-npx /tmp/helixagent.db
+│
+●  ✓ tavily [90mconnected
+│      [90mnpx -y tavily-mcp
+│
+●  ✓ time [90mconnected
+│      [90mnpx -y @theo.foobar/mcp-time
+│
 ●  ○ Adobe-for-creativity [90mdisabled
 │      [90mhttps://adobe-creativity.adobe.io/mcp
 │
@@ -79,9 +136,6 @@
 ●  ○ canva [90mdisabled
 │      [90mhttps://mcp.canva.com/mcp
 │
-●  ○ cds-mcp [90mdisabled
-│      [90mnpx -y @cap-js/mcp-server
-│
 ●  ○ circle [90mdisabled
 │      [90mhttps://api.circle.com/v1/codegen/mcp
 │
@@ -94,9 +148,6 @@
 ●  ○ cloudflare-api [90mdisabled
 │      [90mhttps://mcp.cloudflare.com/mcp
 │
-●  ✓ cloudflare-docs [90mconnected
-│      [90mhttps://docs.mcp.cloudflare.com/mcp
-│
 ●  ○ cloudflare-bindings [90mdisabled
 │      [90mhttps://bindings.mcp.cloudflare.com/mcp
 │
@@ -107,7 +158,7 @@
 │      [90mhttps://observability.mcp.cloudflare.com/mcp
 │
 ●  ○ cockroachdb-toolbox [90mdisabled
-│      [90mtoolbox --config /home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.10/tools.yaml --stdio
+│      [90mtoolbox --config /home/milos/.claude/plugins/cache/claude-plugins-official/cockroachdb/c511ba806b17/tools.yaml --stdio
 │
 ●  ○ cockroachdb-toolbox-http [90mdisabled
 │      [90mhttp://127.0.0.1:5000/mcp
@@ -123,9 +174,6 @@
 │
 ●  ○ confidence-docs [90mdisabled
 │      [90mhttps://mcp.confidence.dev/mcp/docs
-│
-●  ✓ context7 [90mconnected
-│      [90mnpx -y @upstash/context7-mcp
 │
 ●  ○ convex [90mdisabled
 │      [90mnpx -y convex@latest mcp start
@@ -170,7 +218,7 @@
 │      [90muvx awslabs.aws-iac-mcp-server@latest
 │
 ●  ○ discord [90mdisabled
-│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4 --shell=bun --silent start
+│      [90mbun run --cwd /home/milos/.claude/plugins/cache/claude-plugins-official/discord/0.0.4 --shell=bun --silent start
 │
 ●  ○ domino_server [90mdisabled
 │      [90muv --directory $/mnt/code/.claude/mcp-servers/domino_mcp_server run domino_mcp_server.py
@@ -182,7 +230,7 @@
 │      [90mhttps://mcp.expo.dev/mcp
 │
 ●  ○ fakechat [90mdisabled
-│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1 --shell=bun --silent start
+│      [90mbun run --cwd /home/milos/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1 --shell=bun --silent start
 │
 ●  ○ fiftyone [90mdisabled
 │      [90mfiftyone-mcp
@@ -218,19 +266,19 @@
 │      [90mhttps://mcp.hunter.io/mcp
 │
 ●  ○ imessage [90mdisabled
-│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0 --shell=bun --silent start
+│      [90mbun run --cwd /home/milos/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0 --shell=bun --silent start
 │
 ●  ○ intercom [90mdisabled
 │      [90mhttps://mcp.intercom.com/mcp
+│
+●  ○ jfrog [90mdisabled
+│      [90m${JFROG_URL}/mcp
 │
 ●  ○ laravel-boost [90mdisabled
 │      [90mphp artisan boost:mcp
 │
 ●  ○ legalzoom [90mdisabled
 │      [90mhttps://www.legalzoom.com/mcp/claude/v1
-│
-●  ○ linear [90mdisabled
-│      [90mhttps://mcp.linear.app/mcp
 │
 ●  ○ logfire [90mdisabled
 │      [90mhttps://logfire-us.pydantic.dev/mcp
@@ -267,9 +315,6 @@
 │
 ●  ○ nimble [90mdisabled
 │      [90mhttps://mcp.nimbleway.com/mcp
-│
-●  ○ notion [90mdisabled
-│      [90mhttps://mcp.notion.com/mcp
 │
 ●  ○ pagerduty [90mdisabled
 │      [90mhttps://mcp.pagerduty.com/mcp
@@ -319,17 +364,14 @@
 ●  ○ Sanity [90mdisabled
 │      [90mhttps://mcp.sanity.io
 │
+●  ○ cds-mcp [90mdisabled
+│      [90mnpx -y @cap-js/mcp-server
+│
 ●  ○ fiori-mcp [90mdisabled
 │      [90mnpx --yes @sap-ux/fiori-mcp-server@latest fiori-mcp
 │
 ●  ○ mdk-mcp [90mdisabled
 │      [90mnpx -y @sap/mdk-mcp-server
-│
-●  ○ guardian [90mdisabled
-│      [90m/home/milosvasic/.claude/plugins/cache/claude-plugins-official/semgrep/2.1.2/scripts/hook.sh claude mcp
-│
-●  ✓ shopify-mcp [90mconnected
-│      [90mnpx -y @shopify/dev-mcp@latest
 │
 ●  ○ slack [90mdisabled
 │      [90mhttps://mcp.slack.com/mcp
@@ -347,13 +389,10 @@
 │      [90mhttps://mcp.sumup.com/mcp
 │
 ●  ○ telegram [90mdisabled
-│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6 --shell=bun --silent start
+│      [90mbun run --cwd /home/milos/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6 --shell=bun --silent start
 │
 ●  ○ terraform [90mdisabled
 │      [90mdocker run -i --rm -e TFE_TOKEN=${TFE_TOKEN} hashicorp/terraform-mcp-server:0.4.0
-│
-●  ○ ui5-mcp-server [90mdisabled
-│      [90mnpx -y @ui5/mcp-server
 │
 ●  ○ chrome-devtools [90mdisabled
 │      [90mnpx -y chrome-devtools-mcp@latest
@@ -376,9 +415,6 @@
 ●  ○ windsor-ai [90mdisabled
 │      [90mhttps://mcp.windsor.ai
 │
-●  ○ wix-mcp [90mdisabled
-│      [90mnpx -y @wix/mcp-remote@latest https://mcp.wix.com/mcp
-│
 ●  ○ zapier [90mdisabled
 │      [90mhttps://mcp.zapier.com/api/v1/connect
 │
@@ -395,7 +431,7 @@
 │      [90mhttps://mcp.zoominfo.com/mcp
 │
 ●  ○ zscaler-mcp-server [90mdisabled
-│      [90muvx --env-file /home/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.13.1/.env zscaler-mcp@0.13.1
+│      [90muvx --env-file /home/milos/.claude/plugins/cache/claude-plugins-official/zscaler/a2162c384e1f/.env zscaler-mcp@0.12.7
 │
-└  132 server(s)
+└  144 server(s)
 

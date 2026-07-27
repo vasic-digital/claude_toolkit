@@ -1,17 +1,15 @@
-providers-semantic[opencode3]: driver rc=1
+providers-semantic[opencode3]: driver rc=0
 driver json: {
   "round1_sentinel": {
-    "pass": false,
-    "observed": "",
-    "reason": "provider definitively rejected the request: non-200 status 401: {\"type\":\"error\",\"error\":{\"type\":\"ModelError\",\"message\":\"Model hy3-free is not supported\"}}"
+    "pass": true,
+    "observed": "ZETA-9-ORANGE-7f3a"
   },
   "round2_judge": {
-    "pass": null,
-    "score": null,
-    "skipped": true,
-    "reason": "round 1 did not pass; round 2 not attempted"
+    "pass": true,
+    "score": 2,
+    "skipped": false
   },
-  "overall_pass": false
+  "overall_pass": true
 }
-providers-semantic[opencode3]: layer-3 FAIL (cannot see code / bluffed)
-semantic verdict: unverified
+providers-semantic[opencode3]: layer-3 sentinel+judge PASS
+semantic verdict: verified

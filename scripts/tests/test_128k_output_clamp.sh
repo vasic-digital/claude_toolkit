@@ -193,14 +193,28 @@ assert_eq 007    "$(clamp_eval val 007)"     "leading-zero small stays decimal-7
 # instead: clamp(context - 160000 input floor, 8192, 128000).
 it "mislabel: output >= context -> discarded, cap carved from the context (nvidia5/kilo)"
 assert_eq 8192   "$(clamp_eval val 131072 131072)"  "output == context -> bogus value discarded, floored cap (nvidia5 400 case)"
+# SCOPE NOTE (a5e396d): clamp_eval evaluates the CLAMP STAGE only — its awk
+# extractor stops at the FIRST `export CLAUDE_CODE_MAX_OUTPUT_TOKENS`, so these
+# numbers are the carve's output, NOT necessarily the value the launch finally
+# exports. Since the compression-loop guard, a large context is rebalanced
+# downward afterwards (262144 -> 62144) to keep a viable auto-compact window.
+# That end-to-end value is asserted in test_output_tokens.sh; what is pinned
+# here is the carve arithmetic feeding it.
 assert_eq 8192   "$(clamp_eval val 262144 131072)"  "output > context -> bogus value discarded, floored cap"
-assert_eq 102144 "$(clamp_eval val 262144 262144)"  "kilo's ctx==out==262144 -> 102144, never the 128000 that overflowed"
+assert_eq 102144 "$(clamp_eval val 262144 262144)"  "kilo's ctx==out==262144 -> carve stage 102144, never the 128000 that overflowed"
 assert_eq 8192   "$(clamp_eval val 8192 32768)"     "real small budget < context -> verbatim"
 assert_eq 128000 "$(clamp_eval val 384000 1048576)" "deepseek 384000 < ctx 1M -> clamped 128000 (not raw)"
 
 # --- (d) clamp export present for BOTH transports; RAW export GONE ------------
-it "cma_run_provider exports the CLAMPED cap once (BOTH transports), never the raw value"
-assert_eq 1 "$(prov_body | grep -cF 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"')" "clamped export present"
+# TWO export sites since a5e396d (2026-07-27), not one. The first is the carve
+# (context - input floor, clamped to the CLI's 128000); the second is the
+# compression-loop guard re-exporting a LOWERED cap when the co-derived window
+# would fall under CMA_MIN_COMPACT_WINDOW. Both write the same literal
+# `export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"`, so the structural count is
+# 2. Asserting an exact count (rather than >=1) is deliberate: it is what would
+# catch a THIRD, unreviewed export site appearing in the guard block.
+it "cma_run_provider exports the CLAMPED cap (BOTH transports), never the raw value"
+assert_eq 2 "$(prov_body | grep -cF 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"')" "clamped export present at both the carve and rebalance sites"
 # Two comparisons since v1.24.0: the CLI ceiling bounds the carve-out when the
 # context is known ($_cma_cap), and still clamps the raw value when it is not.
 assert_eq 2 "$(prov_body | grep -cF -- '-gt 128000')" "clamp comparison present on both the carve-out and no-context paths"
@@ -222,7 +236,7 @@ assert_eq 0 "$(run_body  | grep -cF 'unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_
 
 it "GREEN: the migration seam re-emits the clamp + isolation on the next ensure"
 cma_ensure_alias_file
-assert_eq 1 "$(prov_body | grep -cF 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"')" "clamp export restored"
+assert_eq 2 "$(prov_body | grep -cF 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"')" "clamp export restored (both sites)"
 assert_eq 1 "$(run_body  | grep -cF 'unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW')" "isolation unset restored"
 assert_eq 128000 "$(clamp_eval val 384000)" "clamp arithmetic still 384000->128000 after re-emit"
 assert_eq 8192   "$(clamp_eval val 8192)"   "clamp arithmetic still 8192->unchanged after re-emit"

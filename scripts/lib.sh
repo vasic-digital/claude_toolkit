@@ -1479,10 +1479,17 @@ cma_run_provider() {
   # rejected BEFORE compaction could ever help, on the FIRST request. The
   # trigger must reserve for the tool payload as well:
   #   window = context - output - CMA_TOOL_TOKEN_BUDGET (default 80000).
-  # The default is deliberately conservative — this host's measured tool input
-  # with 233 enabled plugins is 70236 (the 400 above) — and a
-  # smaller-than-needed budget only compacts earlier (costs capability),
-  # while a larger one kills the alias at launch with a 400. Override per host
+  # BE EXACT ABOUT WHICH DIRECTION IS DANGEROUS — the earlier note here had it
+  # backwards. An UNDERestimate does NOT merely "compact earlier": because the
+  # output cap is derived as ctx - min_win - budget, too small a budget INFLATES
+  # the output cap, and the request then overflows and the launch dies with a
+  # 400. Measured live 2026-07-27 on a host with 227 enabled plugins: real tool
+  # input 158112 against this 80000 default gave
+  #   46536 text + 158112 tools + 62144 output = 266792  on a 262144 window.
+  # Note further that 158112 + 120000 (min window) already exceeds 262144, so on
+  # such a host NO output cap makes a 262144-context provider fit: the enabled
+  # plugin surface has to shrink, or a wider-context provider must be used
+  # (nvidia 1000000 and xiaomi 1048576 fit it comfortably). Override per host
   # via CMA_TOOL_TOKEN_BUDGET in the provider env or the shell. A context too
   # small to reserve the budget yields no window at all: that provider cannot
   # serve Claude Code's tool prefix regardless, and the launch must fail
@@ -2068,6 +2075,19 @@ cma_run_provider() {
       # in claude mode (229376-token context). HelixLLM in coder mode has only
       # 24576-token context; helixagent requires claude mode's 229376 tokens.
       if [[ "$CMA_PROVIDER_ID" == helixagent* ]]; then
+        # cma_log/cma_warn are lib.sh helpers. THIS BODY IS EMITTED INTO THE
+        # ALIAS FILE by the heredoc below, and that file never sources lib.sh —
+        # so calling them bare prints `cma_warn: command not found` and DESTROYS
+        # the message. Live-proven: providers-helixagent-superpowers.txt carries
+        # exactly that line where the operator should have seen the coder-mode
+        # remedy. Every older call site guards with `command -v cma_log && …`,
+        # but that pattern SILENTLY DROPS the text when the helper is absent,
+        # which is wrong here: for this pre-flight the message IS the feature —
+        # it is the only thing that tells an operator to flip HelixLLM out of
+        # coder mode. So emit either way, through the helper when it exists and
+        # through a plain printf when it does not.
+        _hl_log()  { if command -v cma_log  >/dev/null 2>&1; then cma_log  "$1"; else printf '[cma] %s\n' "$1" >&2; fi; }
+        _hl_warn() { if command -v cma_warn >/dev/null 2>&1; then cma_warn "$1"; else printf '[cma warn] %s\n' "$1" >&2; fi; }
         local _hl_url="${CMA_PROVIDER_BASE_URL%/v1}" _hl_mode=""
         local _hl_healthy=0
         # Try to detect mode via HelixLLM's health/metrics endpoint
@@ -2077,8 +2097,29 @@ cma_run_provider() {
             _hl_healthy=1
           fi
         fi
-        # Auto-start HelixLLM if not running and Helix Code is installed
-        if [[ "$_hl_healthy" -eq 0 ]]; then
+        # Auto-start HelixLLM if not running and Helix Code is installed.
+        #
+        # OPT-IN ONLY (operator mandate 2026-07-27). Booting a Helix service is
+        # a heavyweight, machine-wide side effect: HelixLLM claims the single
+        # GPU, and starting it in claude mode EVICTS whatever HelixCode had
+        # running in coder mode. A provider alias must not do that to a host
+        # merely because someone launched it. Default is therefore FALSE; set
+        # CMA_HELIX_AUTOSTART=1 (or true/yes/on) to allow it. When it is not
+        # enabled we still say so, and still print the exact command to run —
+        # the operator keeps the information and the choice.
+        local _hl_autostart="${CMA_HELIX_AUTOSTART:-0}"
+        case "${_hl_autostart,,}" in
+          1|true|yes|on) _hl_autostart=1 ;;
+          *)             _hl_autostart=0 ;;
+        esac
+        if [[ "$_hl_healthy" -eq 0 && "$_hl_autostart" -ne 1 ]]; then
+          _hl_warn "helixagent: HelixLLM is not answering on ${_hl_url} and auto-start is OFF by default.
+  Start it yourself (it claims the GPU and evicts HelixCode's coder mode):
+    helix_code/scripts/helixllm-mode.sh claude
+  Or opt in for this launch:
+    CMA_HELIX_AUTOSTART=1 <alias>"
+        fi
+        if [[ "$_hl_healthy" -eq 0 && "$_hl_autostart" -eq 1 ]]; then
           local _hl_mode_script=""
           # Find helixllm-mode.sh in common locations
           for _hl_candidate in \
@@ -2092,38 +2133,38 @@ cma_run_provider() {
             fi
           done
           if [[ -n "$_hl_mode_script" ]]; then
-            cma_log "helixagent: HelixLLM not running — auto-starting in claude mode via $_hl_mode_script ..."
+            _hl_log "helixagent: HelixLLM not running — auto-starting in claude mode via $_hl_mode_script ..."
             if "$_hl_mode_script" claude 2>&1 | tail -5 >&2; then
               # Wait for HelixLLM to become healthy (up to 120s)
               local _hl_wait=0
               while [[ "$_hl_wait" -lt 24 ]]; do
                 if curl -sf --max-time 5 "${_hl_url}/health" >/dev/null 2>&1; then
                   _hl_healthy=1
-                  cma_log "helixagent: HelixLLM started successfully"
+                  _hl_log "helixagent: HelixLLM started successfully"
                   break
                 fi
                 sleep 5
                 _hl_wait=$((_hl_wait + 1))
               done
               if [[ "$_hl_healthy" -eq 0 ]]; then
-                cma_warn "helixagent: HelixLLM auto-start timed out after 120s.
+                _hl_warn "helixagent: HelixLLM auto-start timed out after 120s.
   The container may still be loading the model. Check:
     podman logs helixllm-coder
     $_hl_mode_script status"
               fi
             else
-              cma_warn "helixagent: HelixLLM auto-start failed.
+              _hl_warn "helixagent: HelixLLM auto-start failed.
   Fix: manually start HelixLLM:
     $_hl_mode_script claude"
             fi
           else
-            cma_warn "helixagent: HelixLLM not running and helixllm-mode.sh not found.
+            _hl_warn "helixagent: HelixLLM not running and helixllm-mode.sh not found.
   Install Helix Code or start HelixLLM manually on port 18434."
           fi
         fi
         # Check for coder mode (even if running)
         if [[ "$_hl_healthy" -eq 1 && "$_hl_mode" -eq 24576 ]] 2>/dev/null; then
-          cma_warn "helixagent: HelixLLM detected in CODER MODE (context_limit=24576).
+          _hl_warn "helixagent: HelixLLM detected in CODER MODE (context_limit=24576).
   helixagent REQUIRES CLAUDE MODE (context_limit=229376).
   The first request (~67K system+tools) will immediately exceed the limit.
   Fix on the HelixLLM host:
@@ -2143,8 +2184,26 @@ cma_run_provider() {
       # `set -a`, so CMA_PROVIDER_BASE_URL is not otherwise inherited, and
       # cma-proxy needs it to reach the real backend (a bare --port launch would
       # fall back to its built-in default).
+      # STDIO REDIRECTION IS LOAD-BEARING, not tidiness. A backgrounded daemon
+      # that inherits the caller's stdout/stderr holds the WRITE END of whatever
+      # pipe the caller installed. Every caller that captures a launch with
+      # command substitution — verify_superpowers_tui.sh, claude-release-gate.sh
+      # — reads until EOF, and EOF never arrives while the proxy is alive: the
+      # capture hangs for the proxy's whole lifetime (measured: 30005ms vs 5ms,
+      # both rc=0). It bites hardest on the SUCCESS path, where `timeout` has
+      # already reaped its own child and can bound nothing, and it is reached
+      # deterministically whenever the proxy is orphaned by the `_proxy_pid=""`
+      # branch below (lsof is an undeclared dependency; absent, that branch is
+      # always taken). Independently and unconditionally, cma-proxy prints a
+      # startup banner to stderr, and callers apply `2>&1` to the whole
+      # cma_run_provider call — so the banner lands INSIDE the captured payload
+      # and breaks `jq` on captured JSON. Both go away by giving the daemon its
+      # own log file and closing its stdin (mirrors the router's own precedent
+      # in cmd/ccr/spawn_unix.go). $_ccr_home is in scope here and already
+      # mkdir -p'd above.
       CMA_PROVIDER_BASE_URL="$CMA_PROVIDER_BASE_URL" \
-        "$_proxy_bin" --provider "$CMA_PROVIDER_ID" --port "$_proxy_port" &
+        "$_proxy_bin" --provider "$CMA_PROVIDER_ID" --port "$_proxy_port" \
+        >>"$_ccr_home/cma-proxy.log" 2>&1 </dev/null &
       _proxy_pid=$!
       local _waited=0
       # Wait for OUR process to be listening — not merely for the port to be busy.
@@ -2158,6 +2217,16 @@ cma_run_provider() {
         # endpoint and say so loudly, rather than silently losing the shims.
         command -v cma_log >/dev/null 2>&1 && \
           cma_log "WARNING: cma-proxy for $CMA_PROVIDER_ID did not start on port $_proxy_port — using the direct endpoint (compat shims INACTIVE)" || true
+        # REAP BEFORE CLEARING. `_proxy_pid` is the ONLY handle the exit path
+        # (the `kill "$_proxy_pid"` reap further down) is guarded on, so
+        # blanking it here without killing first leaks the child: it survives
+        # the launch, keeps its port, and — pre-redirection — kept the caller's
+        # pipe open forever. This branch is not exotic: `lsof` is an undeclared
+        # dependency of this file, so on any host without it the probe ALWAYS
+        # fails and this orphan is produced on EVERY proxied launch.
+        if [[ -n "$_proxy_pid" ]] && kill -0 "$_proxy_pid" 2>/dev/null; then
+          kill "$_proxy_pid" 2>/dev/null || true
+        fi
         _proxy_pid=""
         _proxy_script=""
       fi

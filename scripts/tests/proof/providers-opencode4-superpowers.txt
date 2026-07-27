@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: opencode4/mimo-v2.5-free (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode4/mimo-v2.5-free
+{"is_error":false,"duration_api_ms":41527,"num_turns":3,"stop_reason":"end_turn","session_id":"55d08e14-910f-4868-89bd-a95fda5bb039","total_cost_usd":1.09638,"usage":{"input_tokens":218316,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":192,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"mimo-v2.5-free":{"inputTokens":218316,"outputTokens":192,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":1.09638,"contextWindow":160000,"maxOutputTokens":32000,"canonicalModel":"mimo-v2.5-free","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"Skills evolve. Read current version.","ttft_ms":12887,"ttft_stream_ms":12437,"time_to_request_ms":139,"type":"result","duration_ms":42194,"uuid":"f0e7dff8-8c07-4233-b169-5d52a64b34db"}
+# ROUTE-RESOLVED: opencode4/mimo-v2.5-free
+# ROUTE-RESOLVED-BACKGROUND: opencode4/mimo-v2.5-free
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 2335
+# PASS

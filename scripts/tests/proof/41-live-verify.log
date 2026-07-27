@@ -5,20 +5,20 @@
   • opencode resolves the generated config without error
     [32m[PASS][0m debug config exit (0)
     [32m[PASS][0m resolved config is valid JSON
-    [32m[PASS][0m mcp servers configured: 132
-    [32m[PASS][0m skill paths configured: 177
+    [32m[PASS][0m mcp servers configured: 144
+    [32m[PASS][0m skill paths configured: 163
 
   • opencode discovers the Claude plugin skills
-    [32m[PASS][0m skills resolved: 1497 (>= 200)
+    [32m[PASS][0m skills resolved: 1356 (>= 200)
 
   • every enabled MCP server connects
-    [32m[PASS][0m connected MCP servers: 10 (>= 3)
+    [32m[PASS][0m connected MCP servers: 26 (>= 3)
     [32m[PASS][0m no enabled MCP server failed to connect
 
   • user CLAUDE.md is wired as an instruction (if present)
     [32m[PASS][0m instructions configured: 1
 
-Evidence written to: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof
+Evidence written to: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof
 00-summary.txt
 10-debug-config.err
 10-debug-config.json
@@ -125,16 +125,32 @@ providers-opencode2-semantic.txt
 providers-opencode2-superpowers.txt
 providers-opencode3-semantic.txt
 providers-opencode3-superpowers.txt
+providers-opencode4-semantic.txt
+providers-opencode4-superpowers.txt
 providers-opencode-go1-semantic.txt
 providers-opencode-go1-superpowers.txt
 providers-opencode-go2-semantic.txt
 providers-opencode-go2-superpowers.txt
+providers-opencode-go3-semantic.txt
+providers-opencode-go3-superpowers.txt
+providers-opencode-go4-semantic.txt
+providers-opencode-go4-superpowers.txt
 providers-opencode-go5-semantic.txt
 providers-opencode-go5-superpowers.txt
 providers-opencode-go-semantic.txt
 providers-opencode-go-superpowers.txt
 providers-opencode-semantic.txt
 providers-opencode-superpowers.txt
+providers-opencode-zen1-semantic.txt
+providers-opencode-zen1-superpowers.txt
+providers-opencode-zen2-semantic.txt
+providers-opencode-zen2-superpowers.txt
+providers-opencode-zen3-semantic.txt
+providers-opencode-zen3-superpowers.txt
+providers-opencode-zen4-semantic.txt
+providers-opencode-zen4-superpowers.txt
+providers-opencode-zen5-semantic.txt
+providers-opencode-zen5-superpowers.txt
 providers-openrouter2-semantic.txt
 providers-openrouter2-superpowers.txt
 providers-openrouter3-semantic.txt
@@ -147,8 +163,6 @@ providers-openrouter-semantic.txt
 providers-openrouter-superpowers.txt
 providers-poe2-semantic.txt
 providers-poe2-superpowers.txt
-providers-poe3-semantic.txt
-providers-poe3-superpowers.txt
 providers-poe4-semantic.txt
 providers-poe4-superpowers.txt
 providers-poe5-semantic.txt

@@ -13,5 +13,5 @@ driver json: {
   },
   "overall_pass": false
 }
-providers-semantic[tencent-tokenhub]: layer-3 FAIL (cannot see code / bluffed)
+providers-semantic[tencent-tokenhub]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"error":{"type":"gateway_error","code":"401002","message":"The API Key does not exist or signature verification failed. Please check whether the API Key is correct. See: https://console.cloud.tencent
 semantic verdict: unverified

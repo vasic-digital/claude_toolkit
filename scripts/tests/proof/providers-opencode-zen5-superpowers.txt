@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: opencode-zen5/gemini-3.1-pro (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode-zen5/gemini-3-flash
+claude-providers: alias opencode-zen5 is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode-zen5)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode-zen5/gemini-3.1-pro; NO turn ran — route attribution is not applicable)

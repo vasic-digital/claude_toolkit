@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: opencode-go3/kimi-k2 (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode-go3/deepseek-v4-flash
+claude-providers: alias opencode-go3 is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode-go3)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode-go3/kimi-k2; NO turn ran — route attribution is not applicable)

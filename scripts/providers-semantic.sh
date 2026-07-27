@@ -7,7 +7,11 @@
 #
 # Output: one word on stdout — verified | unverified | skip. Exit: 0/1/2.
 #   verified  round-1 sentinel + round-2 judge both passed.
-#   unverified  a round failed (this alias cannot genuinely see your code / bluffed).
+#   unverified  a round reached a definitive negative — the sentinel was not
+#         reflected, the reply was a prompt-echo bluff, the judge scored below
+#         threshold, OR the provider definitively rejected the model-under-test
+#         call (HTTP 401/402/403/404). All four are exit 1; the driver's own
+#         per-round `reason` says which, and is what the verdict line reports.
 #   skip  a precondition was absent (no key/judge/go/network) — HONEST SKIP,
 #         the caller MUST NOT downgrade on this (§11.4.3).
 #
@@ -156,9 +160,57 @@ set -e
 # verdict as "keep the existence verdict", silently turning a definitive layer-3
 # FAIL into `verified`. Evidence capture must never be able to decide the verdict.
 
+# _driver_reason — the cause the DRIVER actually reported, never one we assert.
+#
+# WHY (2026-07-27 audit). Driver exit 1 does NOT mean "cannot see code /
+# bluffed". Per the driver's own contract
+# (submodules/LLMsVerifier/llm-verifier/cmd/semantic-code-visibility/main.go:44-50)
+# exit 1 ALSO covers definitive provider rejections on the model-under-test —
+# HTTP 401, 402, 403, 404 — because auth failure, depleted credit and
+# model-not-found are deterministic states, not transient infra. Printing a
+# bluff verdict for those writes a FALSE CAUSE into scripts/tests/proof/, which
+# is the audit trail this project reasons from. Measured on that corpus: 24
+# evidence files carried the old message, 22 of them alongside a driver reason
+# of `non-200 status 401/402/403/404`, and 0 were actual bluffs.
+# providers-inference-semantic.txt holds both claims twelve lines apart —
+# `non-200 status 402: "Insufficient balance for request."` and then "cannot see
+# code / bluffed".
+#
+# The honest string was ALREADY LOCAL and simply never read: the evidence block
+# ten lines above mirrors the driver's JSON, which carries a per-round `reason`.
+# So this reads the reason instead of naming one of three causes. The verdict
+# word (`unverified`) and the exit code (1) are DELIBERATELY unchanged — a 401 on
+# the model under test really does mean the alias cannot be trusted, so only the
+# human-facing cause moves.
+#
+# `set -e` is active here (line 135), and this runs inside a command
+# substitution in the verdict `case` — so every command is failure-tolerant. An
+# unreadable cache must degrade to a vaguer reason, never truncate or abort the
+# verdict, which is the same fail-open the `|| true` above exists to prevent.
+_driver_reason() {
+  local j="$REPO_ROOT/.local-cache/semantic-last.json"
+  local e="$REPO_ROOT/.local-cache/semantic-last.err"
+  local r=""
+  # First round whose `pass` is literally false owns the failure. round2_judge
+  # carries pass=null when skipped, and `select(.pass == false)` excludes null,
+  # so a round-1 rejection is never mis-attributed to the judge.
+  if [[ -s "$j" ]] && command -v jq >/dev/null 2>&1; then
+    r="$(jq -r '[.round1_sentinel?, .round2_judge?]
+                  | map(select(type == "object" and .pass == false) | .reason // empty)
+                  | first // empty' "$j" 2>/dev/null)" || r=""
+  fi
+  # Fallbacks, in descending order of specificity: the driver's stderr, then an
+  # explicit statement that no cause was reported. Never a guessed cause.
+  if [[ -z "$r" || "$r" == "null" ]]; then
+    r="$(head -c 300 "$e" 2>/dev/null | tr '\n' ' ')" || r=""
+  fi
+  [[ -n "$r" ]] || r="not reported by the driver (see the driver json/stderr mirrored above)"
+  printf '%s' "$r"
+}
+
 case "$rc" in
   0) echo verified;   echo "providers-semantic[$PROVIDER]: layer-3 sentinel+judge PASS" >&2; exit 0 ;;
-  1) echo unverified; echo "providers-semantic[$PROVIDER]: layer-3 FAIL (cannot see code / bluffed)" >&2; exit 1 ;;
+  1) echo unverified; echo "providers-semantic[$PROVIDER]: layer-3 unverified — driver exit 1; reason: $(_driver_reason)" >&2; exit 1 ;;
   3) emit_skip "round-1/round-2 API call could not complete (transport/infra error, exit 3) — honest SKIP, no downgrade (final-review I-1: a transient judge/model error must not demote the model-under-test)" ;;
   *) emit_skip "semantic command config/precondition error (exit $rc)" ;;
 esac

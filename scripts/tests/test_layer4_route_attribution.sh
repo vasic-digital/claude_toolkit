@@ -216,6 +216,24 @@ write_env nativetest native 'native-model-1' 'native-fast-1'
 # mid-stream agent death looks like.
 cat > "$ALIAS_FILE" <<EOF
 cma_run_provider() {
+  # \$FAKE_LAUNCH_HANG models the rc=124 path: the launch outlives the bound.
+  # 'aborted' first emits the real result JSON a backend-that-answered-nothing
+  # produces (verbatim shape from providers-openrouter2-superpowers.txt: the CLI
+  # completed, but served zero tokens and the stream was aborted), THEN hangs —
+  # so the evidence file carries a result AND rc is 124, the exact combination
+  # the classifier used to report as a trust/overwrite dialog.
+  # 'silent' hangs with no output at all: a genuine dialog-style hang, which must
+  # still classify as a plain timeout.
+  # The sleep redirects its own stdout: otherwise it inherits the capture pipe
+  # and keeps the command substitution open past the kill, so the harness would
+  # measure the sleep instead of the bound.
+  if [[ -n "\${FAKE_LAUNCH_HANG:-}" ]]; then
+    if [[ "\$FAKE_LAUNCH_HANG" == "aborted" ]]; then
+      printf '%s\n' '{"type":"result","is_error":true,"duration_api_ms":0,"num_turns":2,"usage":{"output_tokens":0},"total_cost_usd":0,"terminal_reason":"aborted_streaming","subtype":"error_during_execution","duration_ms":141075}'
+    fi
+    sleep 45 >/dev/null 2>&1
+    return 0
+  fi
   if [[ -n "\${FAKE_LAUNCH_RC:-}" ]]; then
     printf '%s\n' "\${FAKE_LAUNCH_MSG-claude-providers: refused}" >&2
     case "\${FAKE_LAUNCH_EMIT:-}" in
@@ -1532,5 +1550,50 @@ grep -q 'SUITE-FAILURE' <<<"$real_out"
 assert_eq 1 $? "RESTORED: the real classifier leaves the overflow uncounted — both directions of the pair proven"
 grep -q 'KNOWN-NON-WORKING: layer-4 context-inadequate' <<<"$real_out"
 assert_eq 0 $? "RESTORED: and reports it as context-inadequate known-non-working"
+
+# ===========================================================================
+# rc=124 is TWO different failures and must not be reported as one
+#
+# Field evidence (2026-07-27): every timing-out alias on this host — chutes1-4,
+# kilo, nvidia, nvidia3, openrouter2/3, poe3, all long-time-to-first-token
+# reasoning models, while every fast model PASSed — was reported as
+# "launch hung within Ns (trust/overwrite prompt?)". None of them had a dialog.
+# Their own result JSON, in the same evidence file, said
+# terminal_reason "aborted_streaming" with output_tokens 0 / cost 0 /
+# duration_api_ms 0, and openrouter2 completed in 141s INSIDE a 180s bound.
+# The bound expiring says the process outlived it; it never says why. Naming a
+# cause the captured transcript contradicts is the same defect class as the
+# "(Go version mismatch?)" misdiagnosis fixed in the same release.
+# ===========================================================================
+
+it "rc=124 WITH an aborted-stream result is reported as stream-aborted, not a dialog hang"
+ABORT_EV="$PROOF/providers-routertest-streamaborted.txt"; rm -f "$ABORT_EV"
+set_route "routertest,router-model-1" "routertest,router-fast-1"
+FAKE_LAUNCH_HANG=aborted run_stui routertest "$ABORT_EV"
+assert_eq 1 "$STUI_RC" "stream-aborted still FAILs the leg (never a pass)"
+grep -q '^FAIL: stream-aborted' <<<"$STUI_OUT"
+assert_eq 0 $? "stdout names stream-aborted explicitly"
+# Match the GUESS, not the words. The corrected message deliberately still
+# contains the phrase "trust/overwrite" — it says the failure is NOT one — so a
+# bare substring test flags the fix it is meant to protect. Pin the dialog-hang
+# verdict's own wording instead.
+grep -q 'launch hung within' <<<"$STUI_OUT"
+assert_eq 1 $? "stdout does NOT return the dialog-hang verdict for an aborted stream"
+assert_file_contains "$ABORT_EV" '# FAIL: stream-aborted' "evidence carries the distinct stream-aborted marker"
+assert_file_contains "$ABORT_EV" 'output_tokens=0' "marker records that ZERO tokens were served — the actionable fact"
+assert_file_not_contains "$ABORT_EV" '# FAIL: timeout' "the misleading generic timeout marker is gone"
+
+it "CONTROL: rc=124 with NO transcript is still a plain timeout (dialog branch kept)"
+# Both directions, so the fix is a discrimination and not a blanket rename: a
+# launch that produces nothing at all really is the dialog-hang shape, and must
+# keep its original classification.
+SILENT_EV="$PROOF/providers-routertest-silenthang.txt"; rm -f "$SILENT_EV"
+set_route "routertest,router-model-1" "routertest,router-fast-1"
+FAKE_LAUNCH_HANG=silent run_stui routertest "$SILENT_EV"
+assert_eq 1 "$STUI_RC" "silent hang FAILs the leg"
+grep -q 'trust/overwrite prompt' <<<"$STUI_OUT"
+assert_eq 0 $? "a silent hang DOES still name the dialog as the likely cause"
+assert_file_contains "$SILENT_EV" '# FAIL: timeout' "silent hang keeps the generic timeout marker"
+assert_file_not_contains "$SILENT_EV" '# FAIL: stream-aborted' "and is NOT relabelled stream-aborted"
 
 summary

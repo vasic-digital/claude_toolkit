@@ -150,7 +150,19 @@ fi
 # 3. Build ./cmd/ccr into the submodule's bin/ccr (matches the submodule
 #    Makefile's output path).
 # Prefer the vendored Go toolchain if built; fall back to system Go.
+#
+# The fallback must probe the FILE, not the string: VENDORED_GO is assigned a
+# path unconditionally above, so it is never empty and `${VENDORED_GO:-go}`
+# alone can never reach its `:-go` branch. install.sh only symlinks
+# claude-go-build (building Go from source is opt-in by the DECISION above), so
+# on a normal install ~/.local/share/claude-go does NOT exist and the bare
+# default exec'd a missing file — exit 127 reported as "(Go version mismatch?)"
+# on hosts already running the exact required Go. claude-proxy-build.sh has
+# always carried this guard; ccr-build did not.
 _go_bin="${VENDORED_GO:-go}"
+if ! command -v "$_go_bin" >/dev/null 2>&1; then
+  _go_bin="go"  # fall back to system Go
+fi
 BIN="$SUBMODULE/bin/ccr"
 cma_log "building bundled claude-code-router (Go): $(cd "$SUBMODULE" && "$_go_bin" version 2>/dev/null | awk '{print $3}') ..."
 _built_ok=0
@@ -166,21 +178,31 @@ else
   fi
 fi
 if [ "$_built_ok" != "1" ]; then
-  # Build failed — likely a Go version mismatch (the submodule's go.mod may
-  # require a newer toolchain). If a USABLE resident binary already exists,
-  # warn about staleness but do NOT fail: the artifact, not the build, is
-  # what the gate asserts (same logic as the no-Go resident check above).
+  # Build failed. Do NOT name a cause here: BOTH attempts' stderr was discarded
+  # by the `if ( … )` above and `"$_go_bin" version` is 2>/dev/null, so at this
+  # point the script knows only that two builds returned non-zero. The old text
+  # asserted "(Go version mismatch?)", which was FALSE on the very host that
+  # motivated this release — its Go was already the exact required version and
+  # the real cause was exit 127 from exec'ing a vendored toolchain that was
+  # never built. The same string equally covers a compile error, a permissions
+  # problem, a missing submodule or a full disk. Report the toolchain actually
+  # used and point at the compiler output; let the reader see the cause.
+  #
+  # If a USABLE resident binary already exists, warn about staleness but do NOT
+  # fail: the artifact, not the build, is what the gate asserts (same logic as
+  # the no-Go resident check above).
   _resident="$BIN_DIR/ccr"
   if [ -x "$_resident" ]; then
     _rrc=0; _rhelp="$(cma_probe_help "$_resident")" || _rrc=$?
     if [ "$_rrc" -ne 124 ]; then
       case "$_rhelp" in
         *"ccr restart"*)
-          cma_warn "bundled claude-code-router build FAILED (Go version mismatch?).
+          cma_warn "bundled claude-code-router build FAILED — both the plain and the GOTOOLCHAIN=auto attempt returned non-zero.
+  Toolchain used: $_go_bin ($("$_go_bin" version 2>&1 | head -1)); go.mod requires $(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$SUBMODULE/go.mod" 2>/dev/null || echo "<unreadable>").
+  The cause is in the compiler output above — this script does not guess at it.
   The existing bundled router at $_resident verified usable ('ccr restart' grammar present),
-  so this install keeps working. It WILL GO STALE on the next submodule change until Go
-  is updated to $(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$SUBMODULE/go.mod" 2>/dev/null || echo "the version go.mod requires")+.
-  Fix: install/upgrade Go (https://go.dev/dl/), then re-run: claude-ccr-build"
+  so this install keeps working. It WILL GO STALE on the next submodule change until the build succeeds.
+  Re-run to see the failure in full:  claude-ccr-build"
           exit 0
           ;;
       esac

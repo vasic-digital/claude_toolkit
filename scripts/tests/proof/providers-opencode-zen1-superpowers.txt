@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: opencode-zen1/claude-fable-5 (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode-zen1/deepseek-v4-flash
+claude-providers: alias opencode-zen1 is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode-zen1)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode-zen1/claude-fable-5; NO turn ran — route attribution is not applicable)

@@ -13,5 +13,5 @@ driver json: {
   },
   "overall_pass": false
 }
-providers-semantic[github-models]: layer-3 FAIL (cannot see code / bluffed)
+providers-semantic[github-models]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: Unauthorized
 semantic verdict: unverified

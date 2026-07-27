@@ -1,154 +1,240 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-07-19
-**Last HEAD:** `main @ a64eec1` (Phase 3 docs complete. CONST-069 resolved. Full suite 27/27 green.)
-**Working tree:** clean
+**Last updated:** 2026-07-28
+**Last commit:** `main @ 5474545` — *feat: auto-start HelixLLM for helixagent alias (v1.26.6)*
+**Working tree:** **DIRTY** — the whole `v1.26.7` payload is uncommitted (see §1.2)
 **Active branch:** `main`
-**Next action:** 11 providers still failing (account-side: suspended accounts, expired keys). No further code work scheduled — programme complete pending account-side fixes.
+**Declared version:** `1.26.7` (`package.json`, `CHANGELOG.md` entry dated 2026-07-27) — **not tagged, not released**
+**Next action:** commit + tag + push the `v1.26.7` payload (§2). Everything in it is written and the hermetic suite is green; nothing is half-implemented.
 
-## Phase 3 — COMPLETE (commits 7f2d86e, a64eec1)
+> **How to read this file.** §1 is the *current* state — trust it. §2 is what remains. §3 is the honest evidence snapshot. §4 collects known gaps. §5 is a dated archive of superseded programme history, kept only so a reader can date a claim they find elsewhere; **nothing in §5 describes the tree as it is today.**
 
-Provider verification docs delivered:
-- `docs/Provider_Verification_Guide.md` — 4-layer pipeline, status vocabulary, commands, common issues
-- `docs/Provider_FAQ.md` — general, verification, ccr, keys, sessions
-- `docs/diagrams/provider-aliases.md` — verification pipeline diagram + updated launch flow
-- `docs/superpowers/specs/2026-07-04-provider-verification-design.md` — CONST-052→CONST-069 collision resolved
-
-## v1.19.0 — DELIVERED (commit fec3c4f)
-
-All 12 active providers now route through ccr uniformly. Deepseek and xiaomi ported from native (Anthropic) transport to router (OpenAI-compatible) transport via overrides.json. IPv4 fix in providers-verify.sh (curl -4) resolves HTTP 000 on hosts with broken IPv6 routing. Full suite 27/27 green. Gh + glab releases live.
-
-## v1.18.2 — DELIVERED (commit b51228e)
-
-Follow-up to v1.18.1: the deployed alias file body was never regenerated because the migration guard at `cma_ensure_alias_file` lacked a marker for the new `ccr --help` check. Added `! grep -qF 'ccr --help'` to the guard so the provider body is rewritten on next install/sync. Full suite 27/27 green; helixagent verified.
-
-## v1.18.1 — DELIVERED (commit 0e30dfb)
-
-ccr identity guard fix: `ccr version` no longer works — positional args are profile names in the current CLI. Guard now uses `ccr --help` + `"ccr start"|"ccr serve"` patterns. 128k test hardened against harness env contamination. Full suite 27/27 green; proof all green; 8 live-verified providers. Gh + glab releases live. Constitution plugin synced (17 new commits).
-
-## v1.12.3 — DELIVERED
-`claude-session.sh` now sanitizes auto-derived session names to kebab-case: lowercase, trim leading/trailing whitespace, collapse whitespace/underscores to `-`, strip remaining characters that are not `[a-z0-9-]`, collapse consecutive `-`, and trim leading/trailing `-`. Tests added to `test_session.sh` for whitespace trimming, multi-space collapse, and special-character stripping. Full suite 20/20 green; install.sh re-run on real HOME; doc artifacts regenerated. Submodules clean.
-
-## v1.12.2 — DELIVERED
-`claude-unify.sh` now auto-registers `claude<N>` aliases for every pre-existing account dir, so existing users no longer have to run `claude-add-account` to get working `claude1..claude4` aliases. `lib.sh` account detection hardened to ignore `~/.claude-code-router` and `~/.claude-*.lock` dirs that share the `.claude-` prefix. Tests added to `test_unify.sh` (auto-registration on existing accounts) and `test_install.sh` (no bogus aliases for router/lock dirs). Full suite 20/20 green; install.sh re-run on real HOME verified all four native aliases resolve correctly. Doc artifacts regenerated. Submodules clean.
-
-## v1.12.1 — DELIVERED (commits 4240e76..7382007)
-judge.env.template default → groq/llama (different family; self-grade bias arXiv:2508.06709, verified live); providers-semantic.sh independence WARN (same-endpoint judge) + explicit exit-3→skip; overrides.json xai base_url https://api.x.ai/v1 (endpoint confirmed live); claude-providers.sh directory-keys-file clear die on BOTH cmd_sync + cmd_sync_multi; submodule I-1 (semantic cmd exit 3 for transport/infra vs exit 1 genuine-fail, 11/11 go tests) + CONST-069 (17b4bfb6). Suite 20/20 deterministic; final review READY.
-
-## Phase 2 — DELIVERED (commits ea4417f..1bedc95, 11 commits)
-- Task 1 driver `claude-semantic-visibility.sh` (ea4417f, tests 25ab80f). Task 2 adapter `providers-semantic.sh` + cmd_sync/cmd_verify (ed70c14). Submodule reconciled+pushed 7a3ae9a6 (pointer f084d9c). Task 3 layer-4 `verify_superpowers_tui.sh` (d1972b5, review-fixes f4b5ebb). Task 4 xAI generic /v1/models tests — NO-OP (f596c75). Task 5 Tier-B live verifier + live negative-case honesty PASS (1bedc95).
-- Bugs found by REAL execution + fixed: -h pre-build, JSON-evidence-to-/dev/null, judge-url doubling (bd502ef, 38ff959); `--refresh-aliases` non-idempotence — write_alias re-ran migrations per alias (5693297, root-caused from captured diff, 42 flake-loops clean).
-- Live proof: mistral→verified (round1✅+judge2/3), chutes/deepseek→unverified honestly; layer-4 classifier honesty proven live (neutral prompt did NOT false-match). Full suite 20/20 deterministic; submodule Go test ok.
+---
 
 ## 0. Out-of-the-box resumption
 
-A fresh session resumes with ZERO additional context by reading:
-1. `.remember/remember.md` (moment-valid handoff — read FIRST)
-2. this file (`docs/CONTINUATION.md`)
-3. `docs/superpowers/specs/2026-06-16-provider-aliases-design.md` (approved design foundation)
+A fresh session resumes by reading, in order:
 
-Then `git fetch --all --prune` and re-enter `superpowers:brainstorming` at the clarifying-questions step (NOT exploration — already done).
+1. `CLAUDE.md` at the repo root — the authoritative architecture + invariants document (`AGENTS.md`, `QWEN.md`, `GEMINI.md` are byte-lockstep mirrors of it; keep all four in step on any edit).
+2. this file (`docs/CONTINUATION.md`).
+3. the top entry of `CHANGELOG.md` (currently `## v1.26.7`), which carries the per-defect forensics for the release in flight.
 
-## 1. Programme state
+Then `git fetch --all --prune` and `git status` — the tree is expected to be dirty (§1.2).
 
-### Phase: Provider verification overhaul (in progress)
+> **Correction (2026-07-28).** Earlier revisions of this file told the reader to open `.remember/remember.md` FIRST and referred §4 "Binding constraints" to it. **That file does not exist** — `.remember/` contains only `.gitignore`, `logs/` and `tmp/`. Both references were dangling and have been removed; the binding constraints now live in §4.3 of this file and in `CLAUDE.md`.
 
-Overarching user request: extend provider/model validation & verification so that:
-- LLMsVerifier eliminates all unverified models; provider API integration follows official online docs.
-- Failed/unverified aliases MUST NOT bring up Claude Code — they return a clear message.
-- `claude-providers list` → only verified; add `list-all` (current behavior) and `list-faulty`.
-- A 4th semantic layer: "Do you see my codebase?" test (real confirmation, not HTTP 200).
-- Final verification: fire up the provider alias with full Claude Code TUI and start using the superpowers plugin — verify this works.
-- `install.sh` runs `claude-providers sync` on every new session via rc files.
-- Each providers alias gets its own config file (investigate + fix the overwrite prompt).
-- Full test coverage + live testing after `bash install.sh`.
-- Constitution up-to-date + followed.
-- Docs, guides, manuals, FAQs, diagrams extended + new ones created.
-- New release with proper version + change logs via `gh` + `glab`.
+---
 
-### Decomposition decision (user-approved 2026-07-04)
+## 1. Current state
 
-Decompose into sub-projects; extend LLMsVerifier generically (project-not-aware, CONST-051). Each sub-project gets its own spec→plan→implement cycle. Verification sub-project brainstormed first.
+### 1.1 Version and release status
 
-### Brainstorming progress
+| Fact | Value | Where verified |
+|---|---|---|
+| `package.json` version | `1.26.7` | `package.json` |
+| Top `CHANGELOG.md` entry | `## v1.26.7 — 2026-07-27` | `CHANGELOG.md:5` |
+| Latest commit | `5474545` (subject stamped `v1.26.6`) | `git log -1` |
+| Latest tag of any kind | `claude_toolkit-1.26.1` | `git tag` (86 tags total) |
+| Tags for 1.26.5 / 1.26.6 / 1.26.7 | **none** | `git tag \| grep 1.26` |
 
-- ✅ Phase 1: Explore project context — done. Read `claude-providers.sh`, `providers-verify.sh`, `claude-verify-providers.sh`, `model_verify.py`, `install.sh`, `test_providers.sh`, `submodules/LLMsVerifier/CLAUDE.md`, the 2026-06-16 design spec.
-- ✅ Phase 2: Both clarifying questions answered — (1) decompose + extend LLMsVerifier generically; (2) semantic test = two-round sentinel + judge (Option C).
-- ✅ Phase 3: Approach A selected — generic `semantic-code-visibility` in LLMsVerifier + toolkit-owned fixture/prompt/rubric/superpowers-TUI test.
-- ✅ Phase 4: All 8 design sections presented + approved per-section (architecture+boundaries, LLMsVerifier capability, toolkit seams, list/list-all/list-faulty+gate, install.sh session sync, per-alias config files, testing strategy, docs/release).
-- ✅ Phase 5: Spec written to `docs/superpowers/specs/2026-07-04-provider-verification-design.md`.
-- ✅ Phase 6: Spec self-review — fixed §2.1 status contradiction; no placeholders; scope tight; open questions deferred to plan.
-- ✅ Phase 7: User approved ("continue everything now!").
-- ✅ Phase 8: `superpowers:writing-plans` — Phase-1 (toolkit-side) implementation plan written to `docs/superpowers/plans/2026-07-04-provider-verification-plan.md`.
+Two numbering facts a reader will otherwise re-derive:
 
-### Implementation phases (from the plan's decomposition)
+- **`1.26.2`, `1.26.3` and `1.26.4` were never used** by any commit or tag; the sequence jumps `1.26.1 → 1.26.5`. Pre-existing, recorded rather than silently inherited.
+- **The tag prefix changed mid-stream.** Everything up to `v1.26.0` carries the bare `v` prefix; `claude_toolkit-1.26.1` is the first (and so far only) tag on the `claude_toolkit-<ver>` convention. New tags use the `claude_toolkit-` form.
+- **Owned submodules do not carry the release prefix** (`llmsverifier-v1.12.2`, `helixcode-v1.1.0`, `v0.4.9`). Standing deviation, flagged not fixed.
 
-- ✅ **Phase 1 (toolkit-side)** — COMPLETE (8/8). Commits: `249400b` T1 status cache, `49932bc` T2 cmd_sync persists status, `e6c881b` T3 list/list-all/list-faulty, `09d4618` T4 activation gate, `0d958e3` T5 --refresh-aliases/--quiet, `0323ea2` T6 install.sh session hook, T7 config-overwrite investigation (this commit — no code change, already fixed), T8 suite-green + CONTINUATION. Full suite 20/20 green throughout.
-- 🔨 **Phase 2 (semantic + live)** — Go command DONE + LIVE-PROVEN; toolkit wiring is the remaining implementation. Plan: `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` (verified). Ready to EXECUTE the 6 tasks — fully de-risked:
-  - **LIVE PROOF (real evidence, independently re-run):** `docs/qa/2026-07-04-semantic-visibility-live/report.md` — a real Groq model (llama-3.3-70b) received the toolkit fixture through the built `semantic-code-visibility` binary and returned the sentinel `ZETA-9-ORANGE-7f3a` verbatim (`overall_pass:true`, exit 0). Reproduced by the orchestrator. The headline capability WORKS end-to-end. (DeepSeek = honest 402-billing SKIP.) Groq base = `https://api.groq.com/openai` (binary appends `/v1/chat/completions`).
-  - **Infra map** (`docs/research/2026-07-04-live-verify-infra-map.md`): Phase-2 Task 5 EXTENDS the EXISTING `scripts/tests/verify_providers_live.sh` (existence-only today; append layers 3–4 before its `summary`, keep the SKIP guard; wired into `run-proof.sh:28-31`). Reuse `scripts/tests/verify_claude_live.sh`'s `--use-superpowers` PTY machinery (+ `lib/pty_drive.py`) for layer 4. Do NOT create a `proof/` duplicate. New files to ADD: `scripts/claude-semantic-visibility.sh` (driver, mirror `claude-verify-providers.sh:57-63` build-cache pattern), `scripts/providers-semantic.sh` (layer-3 adapter), `scripts/verify_superpowers_tui.sh` (layer-4).
-  - Real Go flags: `--base-url --model --api-key-env --fixture --prompt --sentinel --timeout --format` + optional `--round2-prompt --judge-base-url --judge-model --judge-api-key-env --judge-prompt --judge-threshold`. NO `--rubric` (rubric → rendered into `--judge-prompt`). Output: `round1_sentinel/round2_judge/overall_pass` (no evidence hashes). Binary cached (do not commit; `.local-cache/` now gitignored).
-  - Toolkit seam scaffolded: `scripts/providers/fixture/{code-visibility.md,prompt-template.txt}` + `rubric/code-visibility-rubric.json` (sentinel `ZETA-9-ORANGE-7f3a`).
-- ⏸ **Phase 3 (docs + release)** — separate plan: manual/FAQ/diagrams/templates + CONST-052 + v1.12.0 release across main repo + LLMsVerifier submodule via gh+glab, `<prefix>/v1.12.0` (§11.4.151), no force-push (§11.4.113).
+### 1.2 What is uncommitted
 
-### Corrections discovered during Phase 1 (MUST apply in Phase 2/3 — do not re-derive)
-
-Source: `docs/research/2026-07-04-provider-api-endpoints.md` (§11.4.99 latest-source, verified 2026-07-04):
-- **xAI premise CONTRADICTED.** Spec §4.6 said "xAI has no /models endpoint" — WRONG. xAI **does** expose `GET https://api.x.ai/v1/models` (OpenAI-shaped `{"object":"list","data":[...]}`, has `context_length`) + native `/v1/language-models`. Its docs pages point to a console table and `/v1/models` returns alias ids ("latest"), so it reads "special" per docs page — but the endpoint exists. Phase 2: treat xAI like the others (real /models), drop the "no endpoint / scrape docs" special-case; the nuance is alias-id handling, not endpoint absence.
-- **OpenRouter is the real deviation** (not xAI): `GET https://openrouter.ai/api/v1/models` is PUBLIC (no auth), returns bare `{"data":[...]}` with NO `"object":"list"`. DeepSeek/Groq/Mistral are exact OpenAI `{"object":"list",...}`. models.dev shape confirmed (keyed by provider id; `limit.{context,output}`, `cost`, `reasoning`, `tool_call`, `release_date`; no documented TTL).
-- **File-forwarding premise is STRONGER than "unconfirmed."** Anthropic's gateway-protocol docs document that the FULL Anthropic-Messages request body is POSTed to `ANTHROPIC_BASE_URL/v1/messages` (and warns gateways not to redact bodies); Read output rides in `tool_result` blocks by construction. So frame it as "documented full-body forwarding from which file-content forwarding follows" — NOT "unconfirmed." The two-round test still empirically confirms per-provider.
-
-### Config-overwrite prompt — ROOT-CAUSED (Task 7)
-
-`docs/investigations/2026-07-04-config-overwrite-prompt.md`: the prompt is Claude Code's per-workspace **trust dialog**, NOT a shared-settings-symlink overwrite. Already fixed by `c6fe153` (sticky-trust merge) + `cma_trust_project` (per-alias owned `.claude.json` + pre-launch trust seeding) + owned `settings.json` (`CMA_SHARED_ITEMS` excludes it). Tested: `test_session.sh:199-220`, `test_unify.sh`. No code change (§11.4.124). Phase-3: annotate spec §6 to reflect "already the state of the tree."
-
-### Phase-3 release blocker (from `docs/qa/2026-07-04-constitution-audit/report.md`)
-
-§11.4.157 GEMINI.md lockstep — **RESOLVED** (commit `1c53562`): `AGENTS.md`, `QWEN.md`, `GEMINI.md` created at root as byte-identical lockstep mirrors of `CLAUDE.md` (verified BODY IDENTICAL x3). All audited gates now PASS (CONST-051 decoupling PASS — zero consumer names in LLMsVerifier source; no force-push/CI; prefix=`claude_toolkit`). NOTE: keep all four in lockstep on any future CLAUDE.md edit.
-
-### Recent commits (Phase-1 close + Phase-2/3 prep)
-
-`1c53562` GEMINI/AGENTS/QWEN lockstep + spec xAI correction · `9867b0f` T7/T8 close-out · `2ecb84b` parallel subagent artifacts · `0323ea2`..`249400b` Phase-1 T1-T6. Spec §4.6 annotated with the xAI correction (struck the wrong "no endpoint" claim).
-
-### Phase-2 Go command — INTEGRATED (local commits only, NOT pushed)
-
-`cmd/semantic-code-visibility/main.go` + `main_test.go` committed INSIDE the submodule at `a48c03a5` (message: "feat(cmd): add semantic-code-visibility"). Main-repo submodule pointer bumped `86cebbf → a48c03a` (this commit). Standalone stdlib-only (no cgo/DB), CONST-051-clean (verified: zero consumer names), anti-bluff (transport/non-200/empty → fail-with-reason; judge failure hard-fails round 2). Independently verified this session: `go build` exit 0, `go test` → ok 0.006s, gofmt clean. Removed the stray `go build` binary from the submodule root (§11.4.53).
-
-**PUSH DISCIPLINE (when releasing — §11.4.71/§11.4.113):** the submodule commit `a48c03a5` is LOCAL-ONLY. Before any main-repo push that carries the bumped pointer, the submodule MUST be pushed first (fetch-before-push, no force-push), else the pointer dangles on the remote. Minor future refinement noted in review: `parseScore` takes the first integer (a chatty judge could misparse — judge prompt mandates a bare integer, round-1 unaffected).
-
-### Phase-2 plan — WRITTEN + VERIFIED + COMMITTED
-
-`docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` (897 lines). 6 tasks: (1) verify + driver the Go command (`scripts/claude-semantic-visibility.sh`, mirrors claude-verify-providers.sh; submodule fetch-before-push + separate pointer bump); (2) `providers-semantic.sh` layer-3 wiring into cmd_sync (renders rubric into `--judge-prompt`, persists via `cma_status_write`); (3) `verify_superpowers_tui.sh` layer-4 (Tier-B SKIP-able); (4) xAI CORRECTED (generic /v1/models, no docs-scrape special-case); (5) extend the EXISTING `scripts/tests/verify_providers_live.sh` (Tier-B); (6) full suite + submodule go test + CONTINUATION sync. Each task: exact paths, complete code, failing→passing test, commands+expected output, commit step. Verified before commit: xAI correction present, CONST-052-collision flagged, real `--judge-prompt` flag, no placeholders, header OK.
-
-### NEW findings from the Phase-2 plan authoring (apply in Phase 2/3)
-
-- **CONST-052 ID COLLISION (Phase-3 fix):** spec §3.4 proposes a NEW "CONST-052" for the semantic-code-visibility boundary contract, but the cascaded constitution ALREADY defines CONST-052 (lowercase-snake_case naming mandate). Renumber draft (grep-backed): `docs/research/2026-07-04-const052-collision-renumber-draft.md` — recommended next-free = **CONST-069 ⇐ §11.4.166** (highest existing: CONST-068, §11.4.165). DRAFT-ONLY; land via the §11.4.49 constitution-submodule workflow in Phase 3 (fetch/pull first → author → validate → commit+push all upstreams → bump pointer → fix spec refs). Spec §3.4 already annotated "DO NOT reuse CONST-052".
-- **Tree is AHEAD of the spec** (the plan reconciled these): Go command already implemented (flags `--judge-prompt`, NOT `--rubric`; appends `/v1/chat/completions`; exit 0/1/2; output has NO `evidence` hashes — update spec §2.3/§4.5 accordingly); a live verifier `scripts/tests/verify_providers.sh`/`verify_providers_live.sh` already exists + is wired into run-proof.sh (spec §7.3's `proof/verify_providers_live.sh` path was wrong); `cma_status_*` + gate already landed (Phase 1).
-- **Minor doc gap:** the Phase-2 plan does not mention the OpenRouter deviation (public, no `object:list`) — add it to the existence-layer handling + Phase-3 docs (it's in `docs/research/2026-07-04-provider-api-endpoints.md`).
-
-### KEY DISCOVERY (recorded so it's not re-derived)
-
-Spec §6 (per-alias config / overwrite prompt) premise is ALREADY PARTLY FIXED: `lib.sh:711-723` — `settings.json` is deliberately NOT in `CMA_SHARED_ITEMS`; each dir gets its OWN via `cma_own_settings_seed`; `.claude.json` was never shared for provider dirs. Commit `c6fe153` ("per-alias own settings + sticky trust") addressed it. So Task 7 is INVESTIGATION-FIRST (§11.4.102) — the overwrite prompt (if any) is likely Claude Code's trust dialog, NOT a shared-settings symlink. Do NOT implement the pre-supposed fix blind.
-
-## 2. Known issues / deferred
-
-- `submodules/LLMsVerifier/CONSTITUTION.md` (282.2 KB) exceeds 256 KB Read limit — use offset/limit or grep when needed.
-- The `AskUserQuestion` call for semantic-test design must be re-issued with `label` fields on every option.
-
-## 3. Recent commits (for context)
+The `v1.26.7` payload sits in the working tree. Non-proof changes:
 
 ```
-c6fe153 fix(toolkit): per-alias own settings + sticky trust; decouple aliases from atmosphere
-397035a feat(cma_run): generic opt-in CWD hook for multi-track alias→worktree entry
-cd12c54 v1.11.2: token-limit guard + re-enable provider proxies + Poe tool cap
-e9e0891 Auto-commit
-3cdcd51 v1.11.1: live per-alias Claude Code verification (CLI+TUI) + provider fixes
+ M CLAUDE.md AGENTS.md QWEN.md GEMINI.md      # router-selector + Go-toolchain sections
+ M CHANGELOG.md README.md (+ .html/.pdf/.docx renders)
+ M Claude_Multi_Account_Fine_Tuning.md
+ M package.json package-lock.json             # 1.0.0 -> 1.26.7
+ M docs/Provider_FAQ.md
+ M scripts/lib.sh                             # helix autostart opt-in, alias-file self-containment
+ M scripts/claude-ccr-build.sh                # vendored-Go `command -v` probe + honest failure text
+ M scripts/providers-semantic.sh              # layer-3 verdict reads the driver's reason
+ M scripts/verify_superpowers_tui.sh          # stream-aborted vs dialog-hang discrimination
+ M scripts/tests/verify_providers_live.sh scripts/tests/verify_aliases_live.sh
+ M scripts/tests/test_{output_tokens,128k_output_clamp,ccr_build,layer4_route_attribution}.sh
+ M submodules/{LLMsVerifier,challenges,claude-code-router}   # pointer bumps
+?? scripts/tests/test_proxy_daemon_stdio.sh
+?? scripts/tests/test_failure_cause_attribution.sh
+?? scripts/tests/test_alias_file_selfcontained.sh
 ```
 
-## 4. Binding constraints (unchanging)
+Plus a large churn under `scripts/tests/proof/` (regenerated evidence, some files newly untracked).
 
-See `.remember/remember.md` §"Binding constraints" for the verbatim list. Highlights: SSH-key-only; no force-push; no silent removals; every change reviewed; release-tag prefix from `HELIX_RELEASE_PREFIX` or lowercased project root; CI/CD disabled; GEMINI.md lockstep; submodules decoupled (CONST-051); no fixes without root cause (§11.4.102); endless autonomous loop default (§11.4.126).
+### 1.3 Submodule pointers
 
-## 5. Update protocol
+| Submodule | Pinned at | Pushed? | Note |
+|---|---|---|---|
+| `submodules/LLMsVerifier` | `2a105fe7` (`llmsverifier-v1.12.2-12-g2a105fe7`) | detached HEAD | +6 over the previous pointer |
+| `submodules/challenges` | `2e3ef88` (`helixcode-v1.1.0-18-g2e3ef88`) | detached HEAD | +2 |
+| `submodules/claude-code-router` | `9accd18` (`v0.4.9-5-g9accd18`) | **yes** — `origin/main` is 0 ahead / 0 behind | carries the release-blocking selector fix |
+| `submodules/go` | `a9ce111` = **`go1.26.4`** | — | **deliberately held**; see below |
+| `submodules/containers` | `a432efa` | — | 136 behind; not on any toolkit code path, deferred |
 
-Every commit that advances state MUST update this file in the SAME commit (§6.S / §11.4.131). The §0 "Last updated" + "Last HEAD" lines MUST track HEAD. Stale CONTINUATION = CRITICAL DEFECT.
+**`submodules/go` must never be bumped to `origin/master`.** That is the unreleased next-major dev tree and carries **no `VERSION` file**, which `claude-go-build.sh` requires — presence check at `:35`, parse hard-fails `exit 1` at `:45-51`. Only point releases on `release-branch.go1.N` are valid bump targets, and a bump must be followed by `claude-go-build` + `claude-ccr-build` + the live router legs.
+
+### 1.4 Test suite
+
+**58 test files** on disk (`ls scripts/tests/test_*.sh | wc -l`). Three are new in this release:
+
+- `test_proxy_daemon_stdio.sh` — the backgrounded `cma-proxy` must redirect its own stdio (26 cases; RED 15/26 pre-fix). Its behavioural cases **extract and execute the shipped spawn line out of the generated alias file**, so a comment that merely looks like a fix cannot satisfy them.
+- `test_failure_cause_attribution.sh` — no failure message may assert a cause its own evidence contradicts (50 cases; RED 14/50 pre-fix). Drives the real script through its `CMA_SEMANTIC_DRIVER` seam.
+- `test_alias_file_selfcontained.sh` — the **generated** alias file may not call `lib.sh`-only helpers, because the user's interactive shell sources that file and never sources `lib.sh` (7 cases; RED 4/7 pre-fix).
+
+> The captured proof bundle (`scripts/tests/proof/40-sandbox-suite.log`) records `Test files: 57 … ALL GREEN` — that run pre-dates the newest of the three additions. The CHANGELOG records a subsequent `Test files: 58   passed: 58   failed: 0   ALL GREEN`. **Re-run `bash scripts/tests/run-all.sh` before the release commit so the bundle and the tree agree.**
+
+### 1.5 Provider fleet
+
+From `~/.local/share/claude-multi-account/providers/status.json` (host state, not repo state):
+
+| Status | Count |
+|---|---|
+| `verified` (launchable) | **24** |
+| `unverified` (created, launch gate refuses) | 5 |
+| `failed` | 25 |
+| `orphaned` | 3 |
+| **total** | **57** |
+
+Most `failed` entries are account-side (unfunded keys, suspended accounts, rejected credentials), not toolkit defects — `providers-semantic.sh` now prints the driver's own reason (`non-200 status 401/402/403/404`) instead of blanket-blaming a bluff, so the distinction is readable straight off the evidence file.
+
+### 1.6 Behaviours this release turns on
+
+- **Vendor-prefixed model ids route again.** `internal/router/selector.go` treated `,` and `/` as equally trustworthy separators. A comma is this project's own on-disk route syntax and appears in no model id, so an unknown provider stays a loud caller error. A slash is ambiguous — it is both Node CCR's `Provider/model` wire format *and* the near-universal `vendor/model` catalog convention. Once `lib.sh` (`a5e396d`) began exporting `ANTHROPIC_MODEL` for the **router** transport too, the gateway read the *vendor* as a provider name, found none configured, and returned an unknown-provider error instead of falling through to `Router.default`: **503 in 1-4 ms, before any network call**, retried until the 180s launch bound expired. Blast radius **16 of the 24 verified aliases** — every one whose `CMA_PROVIDER_MODEL` carries a prefix, `helixagent` (`HelixAgent/HelixLLM`) included. The slash form is now decided from **evidence**: if a configured provider serves the whole string it is a catalog id; if nobody serves it the unknown-provider error still stands. Fixed in `9accd18`, covered by `internal/router/vendor_prefixed_model_test.go`.
+  **Why layers 1-3 were green throughout:** `providers-verify.sh` and `providers-semantic.sh` curl the provider's own `base_url` directly and never touch the ccr route path. Only the layer-4 live launch exercises the real chain — which is exactly why `claude-release-gate.sh` is mandatory before a release commit.
+- **HelixLLM auto-start is OPT-IN** (`CMA_HELIX_AUTOSTART`, default **off**). See §1.7.
+- **`claude-ccr-build.sh` can actually fall back to system Go.** `VENDORED_GO="${VENDORED_GO:-…}"` assigns a path *string* unconditionally, so `${VENDORED_GO:-go}` could never reach its `:-go` branch; with `~/.local/share/claude-go` absent on a normal install the build exec'd a missing file (exit 127). A `command -v "$_go_bin"` probe (`:163`) is the whole fallback. The failure text no longer names a cause the script cannot observe.
+
+### 1.7 `CMA_HELIX_AUTOSTART` — default OFF
+
+`cma_run_provider` probes HelixLLM's `/health` for `context_limit` before launching a `helixagent*` alias. When HelixLLM is not answering:
+
+- **Default (`CMA_HELIX_AUTOSTART` unset or not one of `1|true|yes|on`)** — the alias does **not** start anything. It warns that auto-start is off, and prints both the manual command and the opt-in form. Booting HelixLLM claims the single GPU and **evicts HelixCode's coder mode**; a provider alias must not do that to a host merely because someone launched it.
+- **Opt-in (`CMA_HELIX_AUTOSTART=1 helixagent`)** — searches four known locations for `helixllm-mode.sh`, starts it in claude mode, and polls `/health` for up to 120s.
+- **Already running in coder mode (`context_limit=24576`)** — warns regardless of the knob; the first request (~67K system+tools) would immediately overflow.
+
+The pre-flight's messages route through `_hl_log` / `_hl_warn`, which print through `cma_log`/`cma_warn` when those exist and through `printf` when they do not. This is load-bearing: the alias file is sourced by the user's interactive shell and **never sources `lib.sh`**, so the six bare calls added by `5474545`/`bee402a` printed `cma_warn: command not found` exactly where the coder-mode remedy belonged. For this pre-flight the message *is* the feature.
+
+### 1.8 Token guards — the arithmetic that now applies
+
+`lib.sh` exports both halves, **co-derived** so they can never sum past the context:
+
+1. **Carve** the output cap out of the context: `out = min(context − CMA_INPUT_FLOOR(160000), 128000)`, floored at 8192.
+2. **Window** = `context − out − CMA_TOOL_TOKEN_BUDGET(80000)`, capped at `CMA_AUTO_COMPACT_CAP(200000)`.
+3. **Compression-loop guard** — *only if* that window lands below `CMA_MIN_COMPACT_WINDOW(120000)`, buy it back out of the output cap: `out = context − 120000 − 80000`, window = `120000`.
+
+Worked example, a 262144-context provider: carve gives `out=102144`, window `262144−102144−80000 = 80000 < 120000`, so the guard rebalances to `out=62144`, `window=120000` — an exact fit (`62144+120000+80000 = 262144`).
+
+**The honest limit, measured 2026-07-27 on this host: 227 enabled plugins produce 158112 tokens of tool input.** Since `158112 + 120000 > 262144`, **no output cap makes a 262144-context provider fit on such a host.** The enabled-plugin surface has to shrink, or a wider-context provider must be used — nvidia (1000000) and xiaomi (1048576) fit comfortably. Override per host with `CMA_TOOL_TOKEN_BUDGET`.
+
+Be exact about the direction of danger: an **under**estimate of the tool budget does not merely compact earlier — because the output cap is derived as `ctx − min_win − budget`, too small a budget **inflates** the output cap and the request overflows with a 400.
+
+---
+
+## 2. What remains before the release is out
+
+1. **Re-run the hermetic suite** (`bash scripts/tests/run-all.sh`) so the proof bundle records 58, not 57.
+2. **Run the mandatory gate:** `bash scripts/claude-release-gate.sh`. It is fail-closed and layer 2 is the only thing that exercises the real ccr route path — the exact blindness that let the selector bug ship.
+3. **Commit** the payload in §1.2 (submodule pointer bumps included — `claude-code-router` `9accd18` is already on its `origin/main`, so the pointer will not dangle).
+4. **Tag** `claude_toolkit-1.26.7` and push across the four-way remote fan-out (`github`, `gitlab`, `gitflic`, `gitverse`). No force-push, ever.
+5. Optionally re-run `bash scripts/tests/run-proof.sh` to refresh `scripts/tests/proof/PROOF.md`.
+
+---
+
+## 3. Evidence snapshot (`scripts/tests/proof/PROOF.md`, generated 2026-07-27T19:58:08)
+
+The proof bundle is **honest, not all-green** — three legs exit non-zero and `PROOF.md` reports them faithfully rather than hiding them:
+
+| Leg | Result | Exit |
+|---|---|---|
+| Sandbox suite (hermetic) | `Test files: 57  passed: 57  failed: 0  ALL GREEN` | 0 |
+| Live OpenCode verification | `9 passed, 0 failed` (`skills_resolved=1356`, `mcp_connected=26`, `instructions=1`) | 0 |
+| Live provider-alias verification | `10 failed, 42 passed` | 1 |
+| Live alias verification | `PASS 23  FAIL 1  SKIP-GATED 30  TOTAL 56` | 1 |
+| Live alias end-to-end | `total 56, passed 20, failed 2` | 1 |
+| Constitution / conformance (Tier C) | `7 passed, 0 failed` | 0 |
+
+Layer-4 route attribution is now recorded per alias. Post-fix spot checks in the bundle: `kilo` (`kilo/nvidia/nemotron-3-super-120b-a12b:free`) and `nvidia` (`nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`) both carry `# ROUTE-RESOLVED:` matching `# ROUTE-INTENDED:` and `# PASS` — vendor-prefixed ids that would have 503'd before `9accd18`.
+
+**Evidence hygiene rule established this release:** an evidence file may not carry a label its own captured JSON contradicts. `providers-poe3-*.txt` were deleted rather than shipped for exactly that reason (a `# FAIL: timeout` label over a JSON recording `"terminal_reason":"aborted_streaming"`), and a sweep confirms no remaining file is in that state. **The `scripts/tests/proof/` directory holds files of mixed vintage** (2026-07-18 through 2026-07-27) — always read the timestamp inside a file before quoting it as current.
+
+---
+
+## 4. Known gaps / deferred
+
+### 4.1 Gaps introduced or left open by this release
+
+- **Nothing bumps `package.json`.** There is no `VERSION` file and `claude-release-gate.sh` has no version reference, so `1.26.7` will silently re-stale. Worse than the old obvious `1.0.0` scaffold, because a bumped-once number *looks* maintained. Add it to the release checklist.
+- **`CMA_HELIX_AUTOSTART` has no test.** `grep -rl CMA_HELIX_AUTOSTART scripts/tests/` returns nothing — neither the default-off branch nor the opt-in parse (`1|true|yes|on`) is pinned by the suite.
+- **`shellcheck` is clean only at `-S error` (0).** Warning level reports **62**, style level **203**. The README badge now says `0 errors` rather than implying a clean lint at every severity.
+- **`submodules/containers` is 136 behind** and deliberately not absorbed during a release window.
+
+### 4.2 Long-standing
+
+- `submodules/LLMsVerifier/CONSTITUTION.md` is **~284 KB** (290,921 bytes) and exceeds the 256 KB Read limit — use `offset`/`limit` or `grep`. (Earlier revisions of this file said 282.2 KB; it grows.)
+- Owned submodules do not carry the `claude_toolkit-` release prefix (§1.1).
+- The Go port of the TOON encoder (`scripts/toon/`) is built and tested but **nothing in the toolkit invokes it** — see `docs/TOON_Integration.md`.
+
+### 4.3 Binding constraints (unchanging)
+
+SSH-key-only remotes; **no force-push**; no silent removals; every change reviewed; release-tag prefix from `HELIX_RELEASE_PREFIX` or the lowercased project root (`claude_toolkit-<ver>`, no `v`); CI/CD disabled; `AGENTS.md`/`QWEN.md`/`GEMINI.md` kept in byte-lockstep with `CLAUDE.md`; submodules decoupled from consumer names (CONST-051); no fixes without a root cause (§11.4.102); no failure message may name a cause its own evidence contradicts (§11.4.201(1)).
+
+---
+
+## 5. Archive — superseded programme history
+
+> **Everything below is dated and superseded.** It is retained so a reader who finds one of these claims quoted elsewhere can date it. None of it describes the tree as it is today.
+
+### 5.1 Release log (condensed)
+
+| Version | Landed | One-line |
+|---|---|---|
+| v1.26.7 | 2026-07-27 (uncommitted) | vendor-prefixed ids routable; vendored-Go fallback; four misattributed failure messages retired |
+| v1.26.6 | `5474545` | HelixAgent auto-start + mode pre-flight (auto-start later made opt-in, §1.7) |
+| v1.26.5 | `bb29346` | `claude-ccr-build` `_built_ok` never set on a successful build; vendored Go integration |
+| v1.26.1 | `claude_toolkit-1.26.1` | ccr buildable on same-minor toolchains; launch locks that actually lock |
+| v1.26.0 | `v1.26.0` | free-tier-first per-model aliases by default; dynamic account dispatch; provider-scoped gateway paths |
+| v1.25.5 | `79529be` | fail-loud install + anti-fossil hardening |
+| v1.25.4 | `18780db` | un-fossilise the `cma-proxy` address; TOON Go port |
+| v1.19.0 | `fec3c4f` | all active providers routed through ccr uniformly; `curl -4` IPv4 fix |
+| v1.18.x | `0e30dfb`, `b51228e` | ccr identity guard moved to `ccr --help`; alias-file migration marker |
+| v1.12.x | — | kebab-case session names; auto-registered `claudeN` aliases; judge-family independence |
+
+Full forensics for every entry live in `CHANGELOG.md`.
+
+### 5.2 Provider-verification programme (2026-06-16 → 2026-07-19) — **COMPLETE**
+
+All three phases shipped. The four-layer verification pipeline (existence → semantic code-visibility → live superpowers TUI → route attribution), the `list` / `list-all` / `list-faulty` split, the launch gate that refuses non-`verified` aliases, per-alias config dirs, and the install-time session sync are all in the tree and documented in `docs/Provider_Verification_Guide.md` and `docs/Provider_FAQ.md`.
+
+Design and plan artifacts, kept for provenance:
+
+- `docs/superpowers/specs/2026-06-16-provider-aliases-design.md`
+- `docs/superpowers/specs/2026-07-04-provider-verification-design.md`
+- `docs/superpowers/plans/2026-07-04-provider-verification-plan.md`
+- `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md`
+- `docs/superpowers/plans/2026-07-08-provider-status-and-shared-files-fix-plan.md`
+
+### 5.3 Items this file previously listed as pending, now closed
+
+| Was listed as | Actual state (2026-07-28) |
+|---|---|
+| "Phase 2 (semantic + live) — toolkit wiring is the remaining implementation" | **Shipped.** `scripts/claude-semantic-visibility.sh`, `scripts/providers-semantic.sh`, `scripts/verify_superpowers_tui.sh` all exist and run in the proof suite. |
+| "Phase 3 (docs + release) — deferred, separate plan" | **Shipped** (`7f2d86e`, `a64eec1`), and eleven further releases have landed since. |
+| "CONST-052 ID collision — renumber draft, land in Phase 3" | **Resolved** as CONST-069. |
+| "GEMINI.md lockstep — Phase-3 release blocker" | **Resolved** (`1c53562`); all four root mirrors are maintained in lockstep. |
+| "Go command committed INSIDE the submodule at `a48c03a5`, LOCAL-ONLY, must be pushed first" | **Long superseded.** `submodules/LLMsVerifier` is at `2a105fe7`, hundreds of commits later. |
+| "11 providers still failing (account-side)" | Now **25 `failed` / 5 `unverified` / 24 `verified`** of 57 (§1.5). |
+| "`.remember/remember.md` — read FIRST" | **File does not exist.** Reference removed (§0). |
+| "The `AskUserQuestion` call must be re-issued with `label` fields" | Session-scoped tooling note; no longer applicable to this repo. |
+| "Full suite 27/27 green" / "20/20" / "14 suites" | All stale counts. **58 test files** (§1.4). |
+
+---
+
+## 6. Update protocol
+
+Every commit that advances state MUST update this file in the SAME commit (§6.S / §11.4.131). The header block's **Last updated** / **Last commit** / **Working tree** lines MUST track reality. **A stale CONTINUATION is a CRITICAL DEFECT** — a hand-off document that describes a state that no longer exists is worse than no hand-off at all, because it is believed.

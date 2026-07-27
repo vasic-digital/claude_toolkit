@@ -85,8 +85,16 @@ maybe_start_proxy() {
     while lsof -i ":$PROXY_PORT" >/dev/null 2>&1 && (( _pp_try < 20 )); do
       PROXY_PORT=$((PROXY_PORT + 1)); _pp_try=$((_pp_try + 1))
     done
+    # Redirect the daemon's stdio (same defect and same fix as lib.sh's
+    # cma_run_provider): a backgrounded child that inherits this script's
+    # stdout/stderr holds the write end of any pipe a CALLER of this verifier
+    # installed, so a `$(...)` capture of the run blocks until the proxy dies
+    # instead of at the run's end; and cma-proxy's stderr banner would land
+    # inside that captured payload, breaking downstream jq parsing.
+    local _proxy_log="${TMPDIR:-/tmp}/cma-proxy-${id}.$$.log"
     # shellcheck disable=SC2086
-    "$_proxy_bin" --provider "$id" --port "$PROXY_PORT" ${_up:+--upstream "$_up"} &
+    "$_proxy_bin" --provider "$id" --port "$PROXY_PORT" ${_up:+--upstream "$_up"} \
+      >>"$_proxy_log" 2>&1 </dev/null &
     PROXY_PID=$!
     # Wait for OUR pid to own the port, not merely for the port to be busy.
     local _w=0
@@ -97,7 +105,12 @@ maybe_start_proxy() {
     if lsof -a -p "$PROXY_PID" -i ":$PROXY_PORT" >/dev/null 2>&1; then
       echo "Started cma-proxy for $id on port $PROXY_PORT (pid=$PROXY_PID)" >&2
     else
-      echo "WARNING: cma-proxy for $id failed to start on port $PROXY_PORT — testing the direct endpoint (shims INACTIVE)" >&2
+      echo "WARNING: cma-proxy for $id failed to start on port $PROXY_PORT — testing the direct endpoint (shims INACTIVE); proxy log: $_proxy_log" >&2
+      # Reap before clearing: PROXY_PID is the only handle maybe_stop_proxy is
+      # guarded on, so blanking it without killing leaks a live daemon that
+      # keeps its port (and, pre-redirection, the caller's pipe) for the rest
+      # of the run.
+      if kill -0 "$PROXY_PID" 2>/dev/null; then kill "$PROXY_PID" 2>/dev/null || true; fi
       PROXY_PID=""; proxy_script=""
     fi
   fi

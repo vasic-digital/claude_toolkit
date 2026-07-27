@@ -6,7 +6,7 @@ driver json: {
   },
   "round2_judge": {
     "pass": true,
-    "score": 2,
+    "score": 3,
     "skipped": false
   },
   "overall_pass": true

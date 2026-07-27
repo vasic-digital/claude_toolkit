@@ -41,6 +41,14 @@ The semantic layer tests whether the model can actually "see" and describe code 
 **On skip (no Go, no key, no network):** keeps prior verdict (no downgrade)
 **On pass:** keeps `verified`
 
+**The reported cause is the driver's, not ours.** Driver exit 1 covers *four* determinations, not one: sentinel not reflected, prompt-echo bluff, judge below threshold, and a definitive provider rejection of the model under test (HTTP 401/402/403/404 — auth failure, depleted credit and model-not-found are deterministic states, not transient infra). All four justify refusing the alias; only two are a bluff. So the failure line now quotes the per-round `reason` out of the driver's own JSON:
+
+```
+providers-semantic[<id>]: layer-3 unverified — driver exit 1; reason: non-200 status 402: "Insufficient balance for request."
+```
+
+The previous message asserted "cannot see code / bluffed" for all four. Measured over the evidence corpus: 24 files carried it, 22 alongside a driver reason of `non-200 status 401/402/403/404`, and **0** were actual bluffs — one file held both claims twelve lines apart. The verdict word (`unverified`) and the exit code are deliberately unchanged; only the human-facing cause moved. When no reason can be read the line says so explicitly rather than guessing one.
+
 ### Layer 4: Superpowers-TUI
 
 The superpowers-TUI layer launches a real Claude Code session through the provider alias and checks whether it can engage with the superpowers plugin. This is the final, definitive test.
@@ -59,11 +67,21 @@ The superpowers-TUI layer launches a real Claude Code session through the provid
 
 Both router entries are checked, not just `.Router.default`. Claude Code dispatches background sub-requests of the *same* turn through `.Router.background`, so a turn served only partly by another backend fails with `# FAIL: route-mismatch-background`.
 
-**A config file is not a live gateway.** Reading `config.json` back proves what it *says*, not what the daemon serves: the launch wrapper runs `ccr restart` under `|| true`, and `cmdRestart` genuinely refuses to bounce an authenticated gateway when `CCR_API_KEYS` is not visible to the call (`cmd/ccr/service.go:385-390`, returns 1) — a swallowed failure leaves the *previous* provider serving while the file reads back correct. The router exposes no live-route query (its `/health` reports a provider *count*, not a route), so the leg requires a **restart receipt** bracketing the launch: either a new `gateway listening on` line appended to `~/.claude-code-router/service.log` past the pre-launch byte offset, or a changed `~/.claude-code-router/service.json` pidfile. With neither, the leg **fails closed** with `# FAIL: route-unproven`.
+**A config file is not a live gateway.** Reading `config.json` back proves what it *says*, not what the daemon serves: the launch wrapper runs `ccr restart` under `|| true`, and `cmdRestart` genuinely refuses to bounce an authenticated gateway when `CCR_API_KEYS` is not visible to the call (`cmd/ccr/service.go:525-530`, returns 1) — a swallowed failure leaves the *previous* provider serving while the file reads back correct. The router exposes no live-route query (its `/health` reports a provider *count*, not a route), so the leg requires a **restart receipt** bracketing the launch: either a new `gateway listening on` line appended to `~/.claude-code-router/<alias-id>/service.log` past the pre-launch byte offset, or a changed `~/.claude-code-router/<alias-id>/service.json` pidfile. With neither, the leg **fails closed** with `# FAIL: route-unproven`.
+
+Every one of these paths is **per alias**. Each alias owns `~/.claude-code-router/<alias-id>/` with its own `config.json`, `service.json` and `service.log`; there is no single global set to inspect.
 
 Two honest limits on that guarantee: the receipt brackets the whole launch rather than the individual request (a concurrent rewrite is excluded by the suite lock, not by this gate), and it proves that *a* config load happened, not that the loaded bytes were the ones read back.
 
 `jq` is a hard precondition for router-transport aliases, not a silent skip — without it the resolved route is unreadable and the leg takes `route-unknown`. The whole attribution check runs *before* any transcript-derived verdict, so a route failure is never explained away by the provider's status: a rejected key explains a provider that cannot answer, but nothing about an account explains evidence attributed to the wrong backend. Native-transport aliases talk to their endpoint directly, so they record an explicit `n/a` and are not route-checked.
+
+**A timeout is classified, not guessed.** Exit code 124 says only that the bound expired — never why. The leg used to print `launch hung within Ns (trust/overwrite prompt?)` for every one of them; on the run that motivated the change, *every* failing alias on the host was reported that way and **none** had a dialog. Their own result JSON, captured into the same evidence file, said `"terminal_reason":"aborted_streaming"` with `output_tokens` 0. So the leg now consults the transcript first and emits a distinct marker when it finds that record:
+
+```
+# FAIL: stream-aborted (output_tokens=0 duration_ms=… bound=180s)
+```
+
+The marker states the observed fields, says explicitly that this is **not** a trust/overwrite dialog, and — importantly — declines to name *where* the request died, because the leg cannot see that. It points instead at `~/.claude-code-router/<alias-id>/service.log`: a burst of 503s at **1-4 ms each** means the *local* gateway rejected the route and the request never reached the provider. For the same reason it does not advise a longer `--timeout`; on that run the retries were still 503ing past 180 s, and no bound fixes a rejected route. An rc-124 with no such result record still takes the original `# FAIL: timeout` path, where a dialog remains a plausible cause.
 
 **Runner:** `verify_superpowers_tui.sh`
 **On fail:** status → `unverified` with layer `superpowers_tui`
@@ -133,12 +151,16 @@ claude-providers verify <id> --force
 
 ## Common Issues
 
-### "ccr on PATH is not @musistudio/claude-code-router"
+### "resolved ccr … is not the bundled claude-code-router"
 
-The `ccr` binary on your PATH is not the claude-code-router. Fix:
+The `ccr` being used is not the toolkit's own router. The toolkit vendors a Go implementation (`submodules/claude-code-router`) and discriminates it by the `restart` subcommand: `ccr --help` shows `ccr restart` on the bundled router and does **not** on the Node `@musistudio/claude-code-router`. That missing subcommand is why route-apply failed in the field against the npm build. Fix:
+
 ```bash
-npm install -g @musistudio/claude-code-router
+claude-ccr-build                              # build + install the bundled Go router
+npm rm -g @musistudio/claude-code-router      # if an npm doppelgänger shadows it
 ```
+
+`claude-ccr-build` backs up any pre-existing `ccr` rather than clobbering it. A shadowing binary earlier on PATH is a warning, not a breakage — provider aliases resolve `~/.local/bin/ccr` directly, not by PATH order — but a bare `ccr` you type yourself still hits the other one.
 
 ### Provider shows "failed/existence"
 
@@ -149,10 +171,13 @@ The API endpoint is unreachable or the API key is invalid. Check:
 
 ### Provider shows "unverified/semantic"
 
-The semantic code-visibility test failed. This means the model can't reliably describe code content. Possible causes:
-- The model doesn't support the chat/completions format
-- The model's context window is too small for the fixture
-- The judge model is unavailable
+The semantic code-visibility test returned a definitive failure. **Read the `reason:` on the failure line before assuming anything about the model** — it is the driver's own, and it distinguishes the four cases exit 1 covers:
+
+- `non-200 status 401/402/403/404` — the provider rejected the model under test. This is account-side (rejected key, depleted balance, no access, model not served); top up or re-key and re-sync. It says nothing about the model's ability to read code.
+- a sentinel/judge reason — the genuine "can't reliably describe code content" case. Possible causes: the model doesn't support the chat/completions format, its context window is too small for the fixture, or it echoed the prompt instead of answering.
+- `not reported by the driver` — no reason could be read; the driver JSON and stderr are mirrored into the evidence file just above the verdict.
+
+Transport/infra errors and an unavailable judge are an honest **SKIP** (exit 3), not this status — they never demote a provider.
 
 ### Provider shows "unverified/superpowers_tui"
 
@@ -162,15 +187,32 @@ The superpowers-TUI test failed. This means the model can't engage with the supe
 - Claude Code couldn't launch through the alias
 - **`# FAIL: route-mismatch`** in the evidence file — the turn was served by a *different* backend than the alias under test (a gateway-based alias skipping its own `Router.default` rewrite and inheriting the previous provider's route), so it proves nothing either way. Re-run the leg on its own rather than after another router alias.
 - **`# FAIL: route-mismatch-background`** — `.Router.default` matched, but `.Router.background` named another backend, so background sub-requests of that same turn were served elsewhere. Partly-foreign evidence is refused for the same reason wholly-foreign evidence is.
-- **`# FAIL: route-unknown`** — ccr's resolved route could not be read (no `jq`, or no `Router.default` / `Router.background` in `~/.claude-code-router/config.json`). The turn is unattributable and is refused rather than passed.
-- **`# FAIL: route-unproven`** — the config file names the right route, but no `ccr restart` receipt brackets the launch (no new `gateway listening on` line in `~/.claude-code-router/service.log`, and `service.json` unchanged), so the running gateway may still be serving the previous provider. Fails closed. Usually means the restart was refused — most often an authenticated gateway restarted without `CCR_API_KEYS` visible.
+- **`# FAIL: route-unknown`** — ccr's resolved route could not be read (no `jq`, or no `Router.default` / `Router.background` in `~/.claude-code-router/<alias-id>/config.json`). The turn is unattributable and is refused rather than passed.
+- **`# FAIL: route-unproven`** — the config file names the right route, but no `ccr restart` receipt brackets the launch (no new `gateway listening on` line in `~/.claude-code-router/<alias-id>/service.log`, and `service.json` unchanged), so the running gateway may still be serving the previous provider. Fails closed. Usually means the restart was refused — most often an authenticated gateway restarted without `CCR_API_KEYS` visible.
+- **`# FAIL: stream-aborted`** — the bound expired *and* the CLI wrote a result with `terminal_reason=aborted_streaming`. Not a dialog. Read `~/.claude-code-router/<alias-id>/service.log`; 503s at 1-4 ms each mean the local gateway rejected the route (see "An alias is `verified` but every launch dies" below), and a longer `--timeout` will not help.
+- **`# FAIL: context-inadequate (backend N tokens < request M)`** — the turn reached the right backend and the key was accepted, but the backend's own window is smaller than Claude Code's tool-heavy request. Both numbers come from the backend's live 400, never from the pin (the pin may say 24576 while the server is really 3072). Provider-side: relaunch a local backend larger, or pin a wider-context model. Not counted as a suite failure.
+- **`# FAIL: account-side (HTTP 402|403 …)`** — billing/access. The toolkit cannot cause a 402/403; a malformed request is a 400. Fires even on a cached `verified` status, because that status was set by the ~512-token layers-1/2 probe before the balance ran out. Top up or re-key. Not counted as a suite failure.
+
+### An alias is `verified` but every launch dies
+
+Check the alias's own gateway log for the **vendor-prefix routing** class fixed in v1.26.7:
+
+```bash
+tail -50 ~/.claude-code-router/<alias-id>/service.log
+```
+
+A burst of 503s answered in **1-4 ms each** is the signature — no network call takes 1 ms, so the local gateway rejected the route before dialling the provider. The router recognises both `,` and `/` as explicit `provider/model` selectors; once `ANTHROPIC_MODEL` began being exported for the router transport, Claude Code sent the raw catalog id (`deepseek-ai/…`, `nvidia/…`, `Qwen/…`), the router read the **vendor** as a provider name, found none configured, and errored instead of falling through to `Router.default`. **16 of 24 verified aliases** were affected.
+
+Note which gate caught it and why the others could not: layers 1-3 curl the provider's own `base_url` directly and never touch the ccr route path, so they were green throughout. **Only the layer-4 live launch exercises the real chain** — that is the entire reason that leg exists. The fix decides the slash form from evidence (a string some configured provider actually serves is a catalog id and routes normally; one nobody serves still fails loudly), leaving comma selectors failing loudly as before.
 
 ## File Locations
 
 | File | Purpose |
 |------|---------|
 | `~/.local/share/claude-multi-account/providers/status.json` | Verification status for all providers |
-| `~/.local/share/claude-multi-account/providers/<id>.env` | Provider configuration (non-secret) |
+| `~/.local/share/claude-multi-account/providers/<id>.env` | Provider configuration (non-secret), including `CMA_PROVIDER_CONTEXT_LIMIT` |
 | `~/.local/share/claude-multi-account/aliases.sh` | Shell aliases for launching providers |
-| `~/.claude-code-router/config.json` | ccr router configuration |
+| `~/.claude-code-router/<alias-id>/config.json` | ccr router configuration — **one per alias** |
+| `~/.claude-code-router/<alias-id>/service.log` | That alias's gateway log (route rejections land here) |
+| `~/.claude-code-router/<alias-id>/service.json` | That alias's gateway pidfile (the restart receipt) |
 | `~/api_keys.sh` | API keys (sourced at launch, never stored by toolkit) |

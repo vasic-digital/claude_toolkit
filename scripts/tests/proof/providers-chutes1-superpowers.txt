@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: chutes1/deepseek-ai/DeepSeek-V3.2-TEE (transport=router)
 # ROUTE-INTENDED-BACKGROUND: chutes1/Qwen/Qwen3-32B-TEE
-claude-providers: alias chutes1 is unverified — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for chutes1)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=chutes1/deepseek-ai/DeepSeek-V3.2-TEE; NO turn ran — route attribution is not applicable)
+{"is_error":false,"duration_api_ms":7677,"num_turns":2,"stop_reason":"end_turn","session_id":"1a3cca0d-a80f-43f0-894f-e01cd64eaa40","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"deepseek-ai/DeepSeek-V3.2-TEE":{"inputTokens":0,"outputTokens":0,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0,"contextWindow":262144,"maxOutputTokens":32000,"canonicalModel":"deepseek-ai/deepseek-v3.2-tee","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"","ttft_stream_ms":4541,"time_to_request_ms":153,"type":"result","duration_ms":8154,"uuid":"83936bb7-1dab-4bcd-8248-ecfc44839fea"}
+# ROUTE-RESOLVED: chutes1/deepseek-ai/DeepSeek-V3.2-TEE
+# ROUTE-RESOLVED-BACKGROUND: chutes1/Qwen/Qwen3-32B-TEE
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 8628
+# FAIL: empty-result

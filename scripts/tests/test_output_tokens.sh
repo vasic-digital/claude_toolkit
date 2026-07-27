@@ -84,7 +84,18 @@ run_native
 # flat ceiling: min(131072, 262144 - the 160000 input floor) = 102144. The old
 # flat 128000 did not fit — 262144 must also hold Claude Code's ~137K
 # system-prompt + tool-schema floor, and 137483 + 128000 overflows it.
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "native path exports the cap carved out of the context"
+#
+# ...and then the COMPRESSION-LOOP GUARD (a5e396d, 2026-07-27) lowers it again.
+# The carve above reserves for input but not for the TOOL payload, which the
+# endpoint also counts. With out=102144 the co-derived window is
+# 262144 - 102144 - 80000(CMA_TOOL_TOKEN_BUDGET) = 80000, below the 120000
+# CMA_MIN_COMPACT_WINDOW — the state where the system prompt + tool schemas
+# alone exceed the window, so Claude Code compacts on EVERY request and never
+# makes progress. The guard buys the window back out of the output cap:
+#   out = 262144 - 120000(min window) - 80000(tools) = 62144
+# and 62144 + 120000 + 80000 = 262144 fits the context EXACTLY. This is the
+# shipped behaviour; the pre-guard 102144 expectation is what went stale.
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=62144" "$(cat "$rec_env")" "native path exports the cap rebalanced against the tool budget"
 
 it "router launch: the SAME cap reaches the router (ccr) path (the v1.16.0 fix)"
 cma_provider_write_env acmerouter ACME_KEY router https://api.test/v1 acme-big acme-fast "$HOME/.claude-prov-acmerouter" 262144 131072 acmerouter
@@ -92,7 +103,7 @@ cma_provider_write_alias acmerouter acmerouter
 cma_status_write acmerouter verified acme-big ""
 : > "$rec_env"
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" PATH="$FAKEBIN:/usr/bin:/bin" cma_run_provider acmerouter </dev/null >/dev/null 2>&1 )
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "router path exports the same carved cap (was the 128000-default bug)"
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=62144" "$(cat "$rec_env")" "router path exports the same rebalanced cap (was the 128000-default bug)"
 
 it "an unknown output limit still gets a cap carved from the known context"
 cma_provider_write_env acmeempty ACME_KEY native https://api.test/anthropic acme-big "" "$HOME/.claude-prov-acmeempty" 262144 "" acmeempty
@@ -102,8 +113,12 @@ cma_status_write acmeempty verified acme-big ""
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" CLAUDE_BIN="$recorder" cma_run_provider acmeempty </dev/null >/dev/null 2>&1 )
 # Pre-v1.24.0 this exported nothing, which is NOT neutral: Claude Code then
 # applies its own 128000 default for an unknown model. With a known 262144
-# context that default overflows, so the guard supplies 262144-160000=102144.
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "empty provider limit still yields a cap that fits the context"
+# context that default overflows, so the guard supplies 262144-160000=102144 —
+# then the compression-loop guard (a5e396d) rebalances it to 62144 exactly as
+# in the first case above: an ABSENT catalog output and a catalog output of
+# 131072 converge on the same answer, because both are capped by the context
+# before the window is co-derived.
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=62144" "$(cat "$rec_env")" "empty provider limit still yields a cap that fits context+tools"
 
 it "limit.output >= limit.context is discarded, then a cap is carved (nvidia5 400 case)"
 # nvidia5 (meta/llama-3.2-11b-vision-instruct): catalog gives context=131072
@@ -210,6 +225,6 @@ chmod +x "$FAKEBIN/ccr"
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" PATH="$FAKEBIN:/usr/bin:/bin" cma_run_provider acmemv </dev/null >/dev/null 2>&1 )
 launch_rc=$?
 assert_eq 0 "$launch_rc" "real ccr launches fine"
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "carved cap still exported through the guarded router path"
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=62144" "$(cat "$rec_env")" "rebalanced cap still exported through the guarded router path"
 
 summary

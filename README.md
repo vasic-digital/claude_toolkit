@@ -9,11 +9,11 @@ across all of them. Plus turn any LLM API key into a Claude Code alias, share
 your whole plugin ecosystem with OpenCode, and auto-name a per-project session
 on every launch.
 
-[![version](https://img.shields.io/badge/version-v1.19.0-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-v1.26.7-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#requirements)
 [![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#requirements)
-[![tests](https://img.shields.io/badge/tests-14%20suites%20green-success)](#testing)
-[![shellcheck](https://img.shields.io/badge/shellcheck-0-success)](#testing)
+[![tests](https://img.shields.io/badge/tests-58%20suites%20green-success)](#testing)
+[![shellcheck](https://img.shields.io/badge/shellcheck-0%20errors-success)](#testing)
 [![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
 [Quick start](#-quick-start) · [Features](#-features) · [Commands](#-daily-commands) · [Guides](#-documentation) · [How it works](#-how-cross-account-sync-works)
@@ -196,7 +196,8 @@ bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evid
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
-touched. The suite is **27 files, all green, shellcheck 0**; live verifiers
+touched. The suite is **58 files, all green**, and `shellcheck -S error` is
+clean (62 warning-level and 203 style-level suggestions remain); live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and
 write inspectable evidence to `scripts/tests/proof/`.
 

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
+  <meta name="generator" content="pandoc 3.10" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>Claude Multi-Account Fine Tuning</title>
   <style>
@@ -154,8 +154,12 @@ padding-left: 0;
 text-decoration: none;
 }
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 
 ul.task-list[class]{list-style: none;}
@@ -238,113 +242,134 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
-<li><a href="#claude-toolkit" id="toc-claude-toolkit">Claude Toolkit</a>
+<li><a href="#toolbox-claude-toolkit" id="toc-toolbox-claude-toolkit">🧰
+Claude Toolkit</a>
 <ul>
-<li><a href="#what-you-get" id="toc-what-you-get">What you get</a></li>
-<li><a href="#requirements" id="toc-requirements">Requirements</a></li>
-<li><a href="#install" id="toc-install">Install</a>
-<ul>
-<li><a href="#a-existing-accounts-host-already-has-1-claude--dir" id="toc-a-existing-accounts-host-already-has-1-claude--dir">A. Existing
-accounts (host already has ≥1 <code>~/.claude-*</code> dir)</a></li>
-<li><a href="#b-clean-slate-host-claude-code-installed-but-no-accounts-yet" id="toc-b-clean-slate-host-claude-code-installed-but-no-accounts-yet">B.
-Clean-slate host (Claude Code installed but no accounts yet)</a></li>
-<li><a href="#macos-notes" id="toc-macos-notes">macOS notes</a></li>
-</ul></li>
-<li><a href="#daily-commands" id="toc-daily-commands">Daily
-commands</a></li>
-<li><a href="#provider-aliases-other-llms" id="toc-provider-aliases-other-llms">Provider aliases (other
-LLMs)</a></li>
-<li><a href="#layout-after-unification" id="toc-layout-after-unification">Layout after unification</a></li>
-<li><a href="#how-cross-account-session-sync-works" id="toc-how-cross-account-session-sync-works">How cross-account session
-sync works</a></li>
-<li><a href="#opencode-integration" id="toc-opencode-integration">OpenCode integration</a></li>
-<li><a href="#testing" id="toc-testing">Testing</a></li>
-<li><a href="#rollback" id="toc-rollback">Rollback</a></li>
+<li><a href="#run-many-claude-code-accounts-on-one-host--with-one-unified-brain" id="toc-run-many-claude-code-accounts-on-one-host--with-one-unified-brain">Run
+many Claude Code accounts on one host — with one unified brain.</a></li>
+<li><a href="#why" id="toc-why">Why</a></li>
+<li><a href="#sparkles-features" id="toc-sparkles-features">✨
+Features</a></li>
+<li><a href="#rocket-quick-start" id="toc-rocket-quick-start">🚀 Quick
+start</a></li>
+<li><a href="#clipboard-daily-commands" id="toc-clipboard-daily-commands">📋 Daily commands</a></li>
+<li><a href="#books-documentation" id="toc-books-documentation">📚
+Documentation</a></li>
+<li><a href="#jigsaw-requirements" id="toc-jigsaw-requirements">🧩
+Requirements</a></li>
+<li><a href="#card_index_dividers-layout-after-unification" id="toc-card_index_dividers-layout-after-unification">🗂️ Layout after
+unification</a></li>
+<li><a href="#arrows_counterclockwise-how-cross-account-sync-works" id="toc-arrows_counterclockwise-how-cross-account-sync-works">🔄 How
+cross-account sync works</a></li>
+<li><a href="#test_tube-testing" id="toc-test_tube-testing">🧪
+Testing</a></li>
+<li><a href="#vertical_traffic_light-releasing--the-live-gate-is-mandatory" id="toc-vertical_traffic_light-releasing--the-live-gate-is-mandatory">🚦
+Releasing — the LIVE gate is mandatory</a></li>
+<li><a href="#leftwards_arrow_with_hook-rollback" id="toc-leftwards_arrow_with_hook-rollback">↩︎️ Rollback</a></li>
 <li><a href="#license" id="toc-license">License</a></li>
 </ul></li>
 </ul>
 </nav>
-<h1 id="claude-toolkit">Claude Toolkit</h1>
-<p>Bash toolkit for running <strong>multiple Claude Code accounts on one
-host</strong> while keeping conversation history, memory, todos, plans,
-plugins, and settings <strong>unified</strong> across them. Each account
-keeps only what must stay private (credentials and per-account state);
-everything else lives in a single shared store and is reachable from
-every account via symlinks.</p>
-<p>It can also <strong>share the whole Claude Code ecosystem with <a href="https://opencode.ai">OpenCode</a></strong> — every plugin&#39;s
-Skills, MCP servers, and the user <code>CLAUDE.md</code> — via one
-command (<code>claude-opencode-sync</code>). See <strong><a href="OpenCode_Integration.md">OpenCode_Integration.md</a></strong>.</p>
-<p>The companion deep-dive is
-<code>Claude_Multi_Account_Fine_Tuning.md</code> (also rendered as
-<code>.html</code> and <code>.pdf</code> siblings).</p>
-<h2 id="what-you-get">What you get</h2>
+<div align="center">
+
+<h1 id="toolbox-claude-toolkit">🧰 Claude Toolkit</h1>
+<h3 id="run-many-claude-code-accounts-on-one-host--with-one-unified-brain">Run
+many Claude Code accounts on one host — with one unified brain.</h3>
+<p>One alias per account. Shared history, memory, plugins, settings, and
+sessions across all of them. Plus turn any LLM API key into a Claude
+Code alias, share your whole plugin ecosystem with OpenCode, and
+auto-name a per-project session on every launch.</p>
+<p><a href="CHANGELOG.md"><img role="img" aria-label="version" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0idmVyc2lvbjogdjEuMjYuNyI+PHRpdGxlPnZlcnNpb246IHYxLjI2Ljc8L3RpdGxlPjxmaWx0ZXIgaWQ9ImJsdXIiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjE2Ii8+PC9maWx0ZXI+PGxpbmVhckdyYWRpZW50IGlkPSJzIiB4Mj0iMCIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2JiYiIgc3RvcC1vcGFjaXR5PSIuMSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1vcGFjaXR5PSIuMSIvPjwvbGluZWFyR3JhZGllbnQ+PGNsaXBQYXRoIGlkPSJyIj48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiByeD0iMyIvPjwvY2xpcFBhdGg+PGcgY2xpcC1wYXRoPSJ1cmwoI3IpIj48cmVjdCB3aWR0aD0iNTEiIGhlaWdodD0iMjAiIGZpbGw9IiM1NTUiLz48cmVjdCB4PSI1MSIgd2lkdGg9IjUzIiBoZWlnaHQ9IjIwIiBmaWxsPSIjMDA3ZWM2Ii8+PHJlY3Qgd2lkdGg9IjEwNCIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMjY1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iNDEwIj52ZXJzaW9uPC90ZXh0Pjx0ZXh0IHg9IjI2NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MTAiPnZlcnNpb248L3RleHQ+PC9nPjx0ZXh0IHg9IjI2NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSI0MTAiPnZlcnNpb248L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iNzY1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iNDMwIj52MS4yNi43PC90ZXh0Pjx0ZXh0IHg9Ijc2NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MzAiPnYxLjI2Ljc8L3RleHQ+PC9nPjx0ZXh0IHg9Ijc2NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSI0MzAiPnYxLjI2Ljc8L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="version" /></a> <a href="#requirements"><img role="img" aria-label="platform" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDgiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0icGxhdGZvcm06IExpbnV4IHwgbWFjT1MiPjx0aXRsZT5wbGF0Zm9ybTogTGludXggfCBtYWNPUzwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxNDgiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI1NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjU3IiB3aWR0aD0iOTEiIGhlaWdodD0iMjAiIGZpbGw9IiMwMDdlYzYiLz48cmVjdCB3aWR0aD0iMTQ4IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIyOTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0NzAiPnBsYXRmb3JtPC90ZXh0Pjx0ZXh0IHg9IjI5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0NzAiPnBsYXRmb3JtPC90ZXh0PjwvZz48dGV4dCB4PSIyOTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDcwIj5wbGF0Zm9ybTwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIxMDE1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iODEwIj5MaW51eCB8IG1hY09TPC90ZXh0Pjx0ZXh0IHg9IjEwMTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuMyIgdGV4dExlbmd0aD0iODEwIj5MaW51eCB8IG1hY09TPC90ZXh0PjwvZz48dGV4dCB4PSIxMDE1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjgxMCI+TGludXggfCBtYWNPUzwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="platform" /></a> <a href="#requirements"><img role="img" aria-label="shell" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iYmFzaDogNCsgKDMuMiBhdXRvLXJlZXhlYykiPjx0aXRsZT5iYXNoOiA0KyAoMy4yIGF1dG8tcmVleGVjKTwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxNjQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSIzNyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjM3IiB3aWR0aD0iMTI3IiBoZWlnaHQ9IjIwIiBmaWxsPSIjODllMDUxIi8+PHJlY3Qgd2lkdGg9IjE2NCIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMjcwIj5iYXNoPC90ZXh0Pjx0ZXh0IHg9IjE5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSIyNzAiPmJhc2g8L3RleHQ+PC9nPjx0ZXh0IHg9IjE5NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSIyNzAiPmJhc2g8L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iI2NjYyI+PHRleHQgeD0iOTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMTE3MCI+NCsgKDMuMiBhdXRvLXJlZXhlYyk8L3RleHQ+PHRleHQgeD0iOTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjExNzAiPjQrICgzLjIgYXV0by1yZWV4ZWMpPC90ZXh0PjwvZz48dGV4dCB4PSI5OTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iMTE3MCIgZmlsbD0iIzMzMyI+NCsgKDMuMiBhdXRvLXJlZXhlYyk8L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="shell" /></a> <a href="#testing"><img role="img" aria-label="tests" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMzIiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0idGVzdHM6IDU4IHN1aXRlcyBncmVlbiI+PHRpdGxlPnRlc3RzOiA1OCBzdWl0ZXMgZ3JlZW48L3RpdGxlPjxmaWx0ZXIgaWQ9ImJsdXIiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjE2Ii8+PC9maWx0ZXI+PGxpbmVhckdyYWRpZW50IGlkPSJzIiB4Mj0iMCIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2JiYiIgc3RvcC1vcGFjaXR5PSIuMSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1vcGFjaXR5PSIuMSIvPjwvbGluZWFyR3JhZGllbnQ+PGNsaXBQYXRoIGlkPSJyIj48cmVjdCB3aWR0aD0iMTMyIiBoZWlnaHQ9IjIwIiByeD0iMyIvPjwvY2xpcFBhdGg+PGcgY2xpcC1wYXRoPSJ1cmwoI3IpIj48cmVjdCB3aWR0aD0iMzciIGhlaWdodD0iMjAiIGZpbGw9IiM1NTUiLz48cmVjdCB4PSIzNyIgd2lkdGg9Ijk1IiBoZWlnaHQ9IjIwIiBmaWxsPSIjNGIwIi8+PHJlY3Qgd2lkdGg9IjEzMiIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMjcwIj50ZXN0czwvdGV4dD48dGV4dCB4PSIxOTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuMyIgdGV4dExlbmd0aD0iMjcwIj50ZXN0czwvdGV4dD48L2c+PHRleHQgeD0iMTk1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjI3MCI+dGVzdHM8L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iODM1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iODUwIj41OCBzdWl0ZXMgZ3JlZW48L3RleHQ+PHRleHQgeD0iODM1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9Ijg1MCI+NTggc3VpdGVzIGdyZWVuPC90ZXh0PjwvZz48dGV4dCB4PSI4MzUiIHk9IjE0MCIgdGV4dExlbmd0aD0iODUwIj41OCBzdWl0ZXMgZ3JlZW48L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="tests" /></a> <a href="#testing"><img role="img" aria-label="shellcheck" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ic2hlbGxjaGVjazogMCBlcnJvcnMiPjx0aXRsZT5zaGVsbGNoZWNrOiAwIGVycm9yczwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI2NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjY3IiB3aWR0aD0iNTMiIGhlaWdodD0iMjAiIGZpbGw9IiM0YjAiLz48cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIzNDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI1NzAiPnNoZWxsY2hlY2s8L3RleHQ+PHRleHQgeD0iMzQ1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjU3MCI+c2hlbGxjaGVjazwvdGV4dD48L2c+PHRleHQgeD0iMzQ1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjU3MCI+c2hlbGxjaGVjazwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI5MjUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0MzAiPjAgZXJyb3JzPC90ZXh0Pjx0ZXh0IHg9IjkyNSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MzAiPjAgZXJyb3JzPC90ZXh0PjwvZz48dGV4dCB4PSI5MjUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDMwIj4wIGVycm9yczwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="shellcheck" /></a> <a href="#license"><img role="img" aria-label="license" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ibGljZW5zZTogc2VlIHJlcG8iPjx0aXRsZT5saWNlbnNlOiBzZWUgcmVwbzwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI0NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjQ3IiB3aWR0aD0iNTciIGhlaWdodD0iMjAiIGZpbGw9IiM5MzkzOTMiLz48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIyNDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSIzNzAiPmxpY2Vuc2U8L3RleHQ+PHRleHQgeD0iMjQ1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjM3MCI+bGljZW5zZTwvdGV4dD48L2c+PHRleHQgeD0iMjQ1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjM3MCI+bGljZW5zZTwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI3NDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0NzAiPnNlZSByZXBvPC90ZXh0Pjx0ZXh0IHg9Ijc0NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0NzAiPnNlZSByZXBvPC90ZXh0PjwvZz48dGV4dCB4PSI3NDUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDcwIj5zZWUgcmVwbzwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="license" /></a></p>
+<p><a href="#-quick-start">Quick start</a> · <a href="#-features">Features</a> · <a href="#-daily-commands">Commands</a>
+· <a href="#-documentation">Guides</a> · <a href="#-how-cross-account-sync-works">How it works</a></p>
+</div>
+
+<hr />
+<h2 id="why">Why</h2>
+<p>Running more than one Claude Code account on a machine normally means
+siloed worlds: each account has its own conversation history, project
+memory, todos, plans, and installed plugins, and nothing carries over.
+Claude Toolkit collapses that into <strong>one shared store</strong> —
+every account is mostly symlinks into it — so switching accounts is just
+a shell alias, and your work, memory, and plugins follow you. Only the
+things that <em>must</em> stay private (credentials, auth state) remain
+per-account.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span>     <span class="co"># account 1 — your shared projects, memory, plugins, sessions</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude2</span>     <span class="co"># account 2 — the SAME shared projects, memory, plugins, sessions</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>    <span class="co"># the same ecosystem, running on DeepSeek&#39;s best model</span></span></code></pre></div>
+<h2 id="sparkles-features">✨ Features</h2>
 <ul>
-<li>One alias per account: <code>claude1</code>, <code>claude2</code>,
-... (or custom names like <code>claudework</code>) — each launches
-Claude Code with its own <code>CLAUDE_CONFIG_DIR</code>.</li>
-<li>A single shared store at <code>~/.claude-shared/</code> holding
-<code>projects/</code>, <code>todos/</code>, <code>tasks/</code>,
-<code>plans/</code>, <code>history.jsonl</code>,
-<code>settings.json</code>, <code>plugins/</code>,
-<code>CLAUDE.md</code>, and friends. Switching accounts is just a shell
-alias change; the conversation history, project memory, and installed
-plugins follow you.</li>
-<li><strong>Cross-account session resume</strong>: the
-<code>projects</code> / session index inside <code>.claude.json</code>
-is deep-merged across every account on each launch. Sessions created
-under <code>claude1</code> show up in <code>claude2</code>&#39;s
-<code>--resume</code> list the next time you launch it — and vice versa.
-Auth keys (<code>userID</code>, <code>oauthAccount</code>,
-<code>firstStartTime</code>, <code>claudeCodeFirstTokenDate</code>) stay
-per-account.</li>
-<li>Per-account directories are mostly symlinks pointing into the shared
-store. Only <code>.credentials.json</code> and
-<code>mcp-needs-auth-cache.json</code> stay strictly private;
-<code>.claude.json</code> is per-account but its non-auth contents
-(project index, MCP server status, UX state, caches) sync across
-accounts.</li>
+<li><strong>🔗 Unified multi-account store.</strong> One alias per
+account (<code>claude1</code>, <code>claude2</code>, … or custom names).
+A single <code>~/.claude-shared/</code> holds <code>projects/</code>,
+<code>todos/</code>, <code>tasks/</code>, <code>plans/</code>,
+<code>history.jsonl</code>, <code>settings.json</code>,
+<code>plugins/</code>, <code>CLAUDE.md</code> and more; each account dir
+is symlinks into it.</li>
+<li><strong>♻️ Cross-account session resume.</strong> The
+<code>projects</code>/session index in <code>.claude.json</code> is
+deep-merged across accounts on every launch — a session started under
+<code>claude1</code> shows up in <code>claude2</code>&#39;s
+<code>--resume</code> list, and vice versa. Auth keys never cross.</li>
+<li><strong>🏷️ Per-project auto-session naming.</strong> Every bare
+alias launch resumes — or first-time creates — <strong>one long-lived
+session per project root</strong>, named after the directory in
+<code>kebab-case</code> (<code>Android 15</code> →
+<code>android-15</code>). Open <code>claude2</code> in a project and
+you&#39;re back in the same ongoing work, properly named — even if the
+session was previously unnamed. <em>(Color: a deterministic per-alias
+<code>/color</code> hint is printed; Claude Code&#39;s <code>/color</code>
+is TUI-only and can&#39;t be auto-applied — see <a href="docs/SESSION_COLOR.md">SESSION_COLOR.md</a>.)</em></li>
+<li><strong>🌐 Any LLM as a Claude Code alias.</strong>
+<code>claude-providers</code> turns every API key in your keys file into
+its own alias pointed at that provider&#39;s strongest model — fully dynamic
+(no hardcoded providers/URLs/models), secrets never leave the keys file.
+<a href="docs/Provider_Aliases_User_Guide.md">Provider guide →</a></li>
+<li><strong>🔌 Share your ecosystem with OpenCode.</strong>
+<code>claude-opencode-sync</code> exposes every Claude plugin&#39;s Skills +
+MCP servers + <code>CLAUDE.md</code> to a host-installed <a href="https://opencode.ai">OpenCode</a> in one command. <a href="OpenCode_Integration.md">OpenCode guide →</a></li>
+<li><strong>🪙 TOON encoding utility.</strong> <code>toon.mjs</code> /
+<code>toon_encode.py</code> encode JSON to <a href="docs/TOON_Integration.md">TOON</a> (~40% fewer tokens for
+structured prompt data). <a href="docs/TOON_Integration.md">TOON guide
+→</a></li>
+<li><strong>🛟 Safe &amp; reversible.</strong> Every destructive step is
+backed up; <code>claude-rollback</code> restores everything. Idempotent
+installers. Verified on Linux and macOS.</li>
 </ul>
-<h2 id="requirements">Requirements</h2>
-<p><code>bash</code>, <code>rsync</code>, <code>jq</code>,
-<code>awk</code>. Optional: <code>pandoc</code> (+
-<code>weasyprint</code> or <code>wkhtmltopdf</code> or headless
-<code>chromium</code>) for regenerating the PDF/HTML docs.</p>
-<p>Verified on Linux and macOS. On macOS, install via Homebrew:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">brew</span> install jq rsync gawk pandoc weasyprint</span></code></pre></div>
-<h2 id="install">Install</h2>
-<p>Pick the path that matches your host:</p>
-<h3 id="a-existing-accounts-host-already-has-1-claude--dir">A. Existing
-accounts (host already has ≥1 <code>~/.claude-*</code> dir)</h3>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="op">&lt;</span>this repo<span class="op">&gt;</span> claude-toolkit</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/install.sh         <span class="co"># symlinks scripts to ~/.local/bin, writes</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># managed alias file, sources from rc files,</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># runs unify on existing accounts, regenerates</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># docs if pandoc is present.</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span>                  <span class="co"># reload shell so aliases load</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span>            <span class="co"># confirm setup</span></span></code></pre></div>
-<h3 id="b-clean-slate-host-claude-code-installed-but-no-accounts-yet">B.
-Clean-slate host (Claude Code installed but no accounts yet)</h3>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="op">&lt;</span>this repo<span class="op">&gt;</span> claude-toolkit</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/claude-bootstrap.sh <span class="at">--count</span> 2 <span class="at">--yes</span>     <span class="co"># provision claude1, claude2</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span> /login                  <span class="co"># authenticate each account once</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">claude2</span> /login</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span></span></code></pre></div>
-<p><code>--aliases personal,work</code> instead of <code>--count</code>
-for custom names; <code>--dir-of NAME=PATH</code> to override an alias&#39;s
-config dir.</p>
-<p>Both scripts are <strong>idempotent</strong> — safe to re-run after
-pulling updates.</p>
-<h3 id="macos-notes">macOS notes</h3>
-<ul>
-<li>macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash
-(<code>brew install bash</code>) when needed.</li>
-<li>All rc-file edits target <code>~/.zshrc</code> only on Darwin (zsh
-is the default interactive shell).</li>
-</ul>
-<h2 id="daily-commands">Daily commands</h2>
+<h2 id="rocket-quick-start">🚀 Quick start</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-fsSL</span> https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh <span class="kw">|</span> <span class="fu">bash</span></span></code></pre></div>
+<p>Clones to <code>~/claude-toolkit</code> (or pulls if present),
+installs missing dependencies via your system package manager, runs the
+full setup, and wires the aliases into your shell. Re-run anytime to
+update.</p>
+<p>Then open a new shell and:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span>     <span class="co"># see what&#39;s wired up</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span>                  <span class="co"># launch account 1 (auto-resumes this project&#39;s session)</span></span></code></pre></div>
+<details>
+<summary><b>Manual install</b></summary>
+
+<p><strong>A. Host already has ≥1 <code>~/.claude-*</code>
+account:</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/install.sh         <span class="co"># symlink scripts onto PATH, write managed alias</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># file, source from rc files, unify existing</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># accounts, install the TOON dep, refresh docs.</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span></span></code></pre></div>
+<p><strong>B. Clean-slate host (Claude Code installed, no accounts
+yet):</strong></p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/claude-bootstrap.sh <span class="at">--count</span> 2 <span class="at">--yes</span>     <span class="co"># provision claude1, claude2</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span> /login <span class="kw">&amp;&amp;</span> <span class="ex">claude2</span> /login                      <span class="co"># authenticate each once</span></span></code></pre></div>
+<p><code>--aliases personal,work</code> for custom names;
+<code>--dir-of NAME=PATH</code> to override a config dir. Both
+installers are <strong>idempotent</strong>.</p>
+</details>
+
+<h2 id="clipboard-daily-commands">📋 Daily commands</h2>
 <table>
 <thead>
 <tr>
@@ -355,11 +380,11 @@ is the default interactive shell).</li>
 <tbody>
 <tr>
 <td><code>claude-list-accounts</code></td>
-<td>Tabular status: alias, config dir, creds present, link health.</td>
+<td>Tabular status: alias, config dir, creds, link health.</td>
 </tr>
 <tr>
 <td><code>claude-add-account</code></td>
-<td>Add a new account. Interactive, or
+<td>Add an account. Interactive, or
 <code>--alias NAME --dir PATH --yes</code>.</td>
 </tr>
 <tr>
@@ -369,163 +394,161 @@ dir.</td>
 </tr>
 <tr>
 <td><code>claude-unify</code></td>
-<td>Re-merge state into the shared store. No args → auto-detects all
-<code>~/.claude-*</code> dirs.</td>
+<td>Re-merge state into the shared store (auto-detects
+<code>~/.claude-*</code>).</td>
 </tr>
 <tr>
 <td><code>claude-sync-state</code></td>
-<td>Fast JSON-level sync of <code>.claude.json</code> project/session
-index across accounts (no rsync). Run automatically by the
-<code>cma_run</code> alias wrapper before/after every claude
-launch.</td>
+<td>Fast <code>jq</code> sync of the <code>.claude.json</code> session
+index across accounts. Runs automatically around every launch.</td>
+</tr>
+<tr>
+<td><code>claude-session</code></td>
+<td>Per-project session helper (name/id/color/flags) used by the alias
+wrappers. See <a href="docs/SESSION_COLOR.md">SESSION_COLOR.md</a>.</td>
 </tr>
 <tr>
 <td><code>claude-bootstrap</code></td>
-<td>Clean-slate provisioning on a fresh host with no accounts logged in
-yet.</td>
-</tr>
-<tr>
-<td><code>claude-rollback</code></td>
-<td>Restore the <code>.preunify.*</code> backups and move the shared
-store aside.</td>
-</tr>
-<tr>
-<td><code>claude-export-docs</code></td>
-<td>Regenerate <code>Claude_Multi_Account_Fine_Tuning.{html,pdf}</code>
-from the markdown.</td>
-</tr>
-<tr>
-<td><code>claude-opencode-sync</code></td>
-<td>Expose all Claude plugin Skills + MCP servers +
-<code>CLAUDE.md</code> to a host-installed OpenCode. See <a href="OpenCode_Integration.md">OpenCode_Integration.md</a>.</td>
+<td>Clean-slate provisioning on a fresh host.</td>
 </tr>
 <tr>
 <td><code>claude-providers</code></td>
-<td>Create/refresh Claude Code aliases for <strong>other LLM
-providers</strong> (DeepSeek, Groq, Mistral, GLM, …) from your keys
-file, pointed at each provider&#39;s strongest model.
-<code>sync</code>/<code>list</code>/<code>show</code>/<code>remove</code>/<code>add</code>.
-See <a href="docs/Provider_Aliases_User_Guide.md">Provider Aliases User
-Guide</a>.</td>
+<td>Create/refresh aliases for other LLM providers from your keys
+file.</td>
+</tr>
+<tr>
+<td><code>claude-opencode-sync</code></td>
+<td>Expose Claude plugin Skills + MCP + <code>CLAUDE.md</code> to
+OpenCode.</td>
+</tr>
+<tr>
+<td><code>claude-export-docs</code></td>
+<td>Regenerate the long-form guide <code>.html</code>/<code>.pdf</code>
+from markdown.</td>
+</tr>
+<tr>
+<td><code>claude-rollback</code></td>
+<td>Restore <code>.preunify.*</code> backups and move the shared store
+aside.</td>
 </tr>
 </tbody>
 </table>
-<p>After adding an account, log in once:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude3</span> /login</span></code></pre></div>
-<h2 id="provider-aliases-other-llms">Provider aliases (other LLMs)</h2>
-<p><code>claude-providers</code> turns every LLM API key in your keys
-file (<code>~/api_keys.sh</code>) into its own Claude Code alias,
-pointed at that provider&#39;s strongest model — <strong>fully
-dynamically</strong>, with no hardcoded provider list, base URLs, or
-model IDs (everything is derived from your keys + the <a href="https://models.dev">models.dev</a> catalog, validated by the
-bundled <code>LLMsVerifier</code> submodule).</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync          <span class="co"># discover keys -&gt; create one alias per provider</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> ~/.local/share/claude-multi-account/aliases.sh</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list          <span class="co"># alias, provider, transport, strong/fast model</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>                       <span class="co"># launch Claude Code on DeepSeek&#39;s best model</span></span></code></pre></div>
-<ul>
-<li><strong>Native</strong> providers (Anthropic-compatible) run
-<code>claude</code> directly; <strong>router</strong> providers
-(OpenAI-compatible / Gemini) go through <a href="https://github.com/musistudio/claude-code-router">claude-code-router</a>.</li>
-<li>Provider config dirs (<code>~/.claude-prov-&lt;id&gt;</code>) reuse
-all your plugins + history and are <strong>excluded from account
-detection</strong>, so existing <code>claudeN</code> accounts and
-<code>claude-add-account</code> are completely unaffected.</li>
-<li>Secrets never leave the keys file — the launch wrapper injects them
-per session; nothing is written to the repo or the alias file.</li>
-</ul>
-<p>See the <a href="docs/Provider_Aliases_User_Guide.md">Provider
-Aliases User Guide</a> for overrides, verification, and the documented
-<code>/color</code> limitation.</p>
-<h2 id="layout-after-unification">Layout after unification</h2>
+<h2 id="books-documentation">📚 Documentation</h2>
+<table>
+<thead>
+<tr>
+<th>Guide</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="docs/Provider_Aliases_User_Guide.md">Provider Aliases User
+Guide</a></td>
+<td>Turning LLM keys into aliases; transports, overrides,
+verification.</td>
+</tr>
+<tr>
+<td><a href="OpenCode_Integration.md">OpenCode Integration</a></td>
+<td>Sharing Skills + MCP + <code>CLAUDE.md</code> with OpenCode.</td>
+</tr>
+<tr>
+<td><a href="docs/SESSION_COLOR.md">Session &amp; Color</a></td>
+<td>Per-project auto-session naming + the per-alias color hint
+reality.</td>
+</tr>
+<tr>
+<td><a href="docs/TOON_Integration.md">TOON Integration</a></td>
+<td>Token-efficient JSON encoding utility.</td>
+</tr>
+<tr>
+<td><a href="Claude_Multi_Account_Fine_Tuning.md">Fine-Tuning deep
+dive</a></td>
+<td>Full architecture walkthrough (<code>.html</code>/<code>.pdf</code>
+siblings).</td>
+</tr>
+<tr>
+<td><a href="CHANGELOG.md">CHANGELOG</a></td>
+<td>Release history.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="jigsaw-requirements">🧩 Requirements</h2>
+<p><code>bash</code>, <code>rsync</code>, <code>jq</code>,
+<code>awk</code>. Optional: <code>node</code>+<code>npm</code> (TOON
+utility), <code>pandoc</code> (+
+<code>weasyprint</code>/<code>wkhtmltopdf</code>/headless
+<code>chromium</code>) for doc regeneration.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># macOS (Homebrew)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">brew</span> install bash jq rsync gawk pandoc weasyprint</span></code></pre></div>
+<p>macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash
+when needed, and only touch <code>~/.zshrc</code> on Darwin.</p>
+<h2 id="card_index_dividers-layout-after-unification">🗂️ Layout after
+unification</h2>
 <pre><code>~/.claude-shared/                   # single source of truth
-  projects/  todos/  tasks/  plans/  file-history/  paste-cache/
-  plugins/  shell-snapshots/  session-env/  telemetry/  sessions/
-  backups/  cache/  CLAUDE.md  history.jsonl  settings.json
-  stats-cache.json
+  projects/ todos/ tasks/ plans/ plugins/ sessions/ …
+  CLAUDE.md  history.jsonl  settings.json  stats-cache.json
 
-~/.claude-&lt;account&gt;/                # per-account dir, mostly symlinks
+~/.claude-&lt;account&gt;/                # per-account — mostly symlinks
   .credentials.json                 # PRIVATE — account-locked
-  .claude.json                      # PRIVATE — per-account state
-  mcp-needs-auth-cache.json         # PRIVATE — auth state
-  projects -&gt; ~/.claude-shared/projects
-  ...                               # every shared item is a symlink
+  .claude.json                      # per-account state (non-auth contents sync)
+  mcp-needs-auth-cache.json         # PRIVATE
+  projects -&gt; ~/.claude-shared/projects   # every shared item is a symlink
 
-~/.local/share/claude-multi-account/
-  aliases.sh                        # managed alias file (sourced from rc files)</code></pre>
-<h2 id="how-cross-account-session-sync-works">How cross-account session
-sync works</h2>
-<p>Claude Code stores a <code>projects.&lt;path&gt;</code> map inside
-<code>~/.claude-&lt;account&gt;/.claude.json</code> that holds
-<code>lastSessionId</code>, MCP server status, project-level memory
-pointers, and other per-project state. Without intervention, account A&#39;s
-projects are invisible to account B even though the underlying JSONL
-session transcripts live in the shared <code>projects/</code>
-directory.</p>
-<p>The toolkit fixes this in two complementary layers:</p>
+~/.local/share/claude-multi-account/aliases.sh   # managed alias file</code></pre>
+<h2 id="arrows_counterclockwise-how-cross-account-sync-works">🔄 How
+cross-account sync works</h2>
+<p>Claude Code keeps a <code>projects.&lt;path&gt;</code> map inside
+each account&#39;s <code>.claude.json</code> (<code>lastSessionId</code>,
+MCP status, project memory pointers). Without intervention, account A&#39;s
+projects are invisible to account B even though the JSONL transcripts
+live in the shared <code>projects/</code>. The toolkit fixes this in two
+layers:</p>
 <ol type="1">
 <li><strong>At unify time</strong> — <code>claude-unify</code>
-deep-merges every account&#39;s <code>.claude.json</code>, biasing
-rightmost-wins on scalar conflicts and recursively unioning the
-<code>projects</code> subtree. Each account&#39;s auth-private keys
-(<code>userID</code>, <code>oauthAccount</code>,
-<code>firstStartTime</code>, <code>claudeCodeFirstTokenDate</code>) are
-written back untouched.</li>
-<li><strong>At runtime</strong> — the <code>cma_run</code> shell
-function (installed automatically by <code>install.sh</code> into the
-alias file) calls <code>claude-sync-state pull</code> before every
-claude launch and <code>claude-sync-state push</code> after exit. This
-is a cheap <code>jq</code> deep-merge — typically tens of milliseconds —
-so sessions created in one account are visible to others on the very
-next launch.</li>
+deep-merges every account&#39;s <code>.claude.json</code> (rightmost-wins on
+scalars, recursive union of the <code>projects</code> subtree), writing
+each account&#39;s auth-private keys back untouched.</li>
+<li><strong>At runtime</strong> — the <code>cma_run</code> wrapper calls
+<code>claude-sync-state pull</code> before each launch and
+<code>push</code> after exit (a fast <code>jq</code> merge), so sessions
+created in one account appear in the others on the next launch.</li>
 </ol>
-<p>If you ever need to refresh manually:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> all       <span class="co"># merge across every detected account</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> pull ~/.claude-<span class="op">&lt;</span>account<span class="op">&gt;</span>   <span class="co"># before launching account</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> push ~/.claude-<span class="op">&lt;</span>account<span class="op">&gt;</span>   <span class="co"># after exiting account</span></span></code></pre></div>
-<p>Auth keys never cross. Verified via the <code>test_sessions.sh</code>
-test suite (30 assertions covering byte-stable idempotency, identity
-preservation, cross-account visibility, and corrupt-file
-resilience).</p>
-<h2 id="opencode-integration">OpenCode integration</h2>
-<p><code>claude-opencode-sync</code> translates the portable contents of
-every installed Claude plugin into a host-installed OpenCode&#39;s
-config:</p>
-<ul>
-<li><strong>Skills</strong> → <code>skills.paths</code> (every plugin
-<code>SKILL.md</code> folder)</li>
-<li><strong>MCP servers</strong> → <code>mcp{}</code> (local + remote,
-deduped, <code>${CLAUDE_PLUGIN_ROOT}</code> expanded; a safe no-auth
-subset is enabled, the rest configured-but-disabled)</li>
-<li><strong><code>CLAUDE.md</code></strong> →
-<code>instructions[]</code></li>
-</ul>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span> <span class="at">--dry-run</span> <span class="at">--stats</span>   <span class="co"># preview</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span>                      <span class="co"># apply (additive, backs up prior config)</span></span></code></pre></div>
-<p>On the reference host this wires <strong>1,000+ skills</strong> and
-<strong>110+ MCP servers</strong> into OpenCode while preserving its
-existing providers and servers. Full guide, diagrams, enable policy, and
-auth steps: <strong><a href="OpenCode_Integration.md">OpenCode_Integration.md</a></strong>.</p>
-<h2 id="testing">Testing</h2>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                  <span class="co"># all sandboxed suites</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify sessions opencode   <span class="co"># subset by suffix</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/verify_opencode_live.sh     <span class="co"># live proof vs real OpenCode</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh                <span class="co"># both + dated evidence bundle</span></span></code></pre></div>
+<p>Auth keys (<code>userID</code>, <code>oauthAccount</code>,
+<code>firstStartTime</code>, <code>claudeCodeFirstTokenDate</code>)
+never cross accounts.</p>
+<h2 id="test_tube-testing">🧪 Testing</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                 <span class="co"># all hermetic suites (sandboxed $HOME)</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify session   <span class="co"># subset by suffix</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh               <span class="co"># hermetic + live verifiers + evidence bundle</span></span></code></pre></div>
 <p>Tests use a sandboxed <code>$HOME</code> via <code>mktemp</code> —
-your real <code>~/.claude*</code> state is never touched.
-<code>test_sessions.sh</code> verifies cross-account session/memory
-visibility with physical proofs (sha256 byte-hashes, project key
-intersection, auth-key preservation); <code>test_opencode.sh</code>
-covers the OpenCode sync (MCP translation, dedup, enable gating,
-idempotency, config preservation). <code>run-proof.sh</code> writes
-inspectable evidence to <code>scripts/tests/proof/</code>.</p>
-<h2 id="rollback">Rollback</h2>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># or equivalently:</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span> <span class="at">--rollback</span></span></code></pre></div>
-<p>Restores every <code>.preunify.&lt;timestamp&gt;</code> backup
-created during unification and moves the shared store aside to
+your real <code>~/.claude*</code> is never touched. The suite is
+<strong>58 files, all green</strong>, and
+<code>shellcheck -S error</code> is clean (62 warning-level and 203
+style-level suggestions remain); live verifiers
+(<code>verify_*_live.sh</code>) prove behavior against the real
+OpenCode/provider state and write inspectable evidence to
+<code>scripts/tests/proof/</code>.</p>
+<h2 id="vertical_traffic_light-releasing--the-live-gate-is-mandatory">🚦
+Releasing — the LIVE gate is mandatory</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                       <span class="co"># sandbox suite + LIVE alias smoke</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>    <span class="co"># + full LLMsVerifier model scan</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--provider</span> poe        <span class="co"># smoke through a different provider</span></span></code></pre></div>
+<p><strong>No release commit without a green
+<code>claude-release-gate</code>.</strong> The sandbox suite proves
+wrapper <em>logic</em> but is structurally blind to real-host state —
+v1.25.1 shipped fully green while every router alias on the real host
+was bricked by a PATH-shadowing <code>ccr</code> doppelgänger, and the
+live smoke then caught two more real defects (a mis-sliced HelixLLM
+context and ~330k tokens of auto-resumed session history) within minutes
+of existing. The gate drives the REAL generated alias through the REAL
+PATH → ccr → route-apply → proxy → backend and asserts the served reply
+plus the sink-side route. Fail-closed: any layer red = do not
+release.</p>
+<h2 id="leftwards_arrow_with_hook-rollback">↩︎️ Rollback</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span>        <span class="co"># == claude-unify --rollback</span></span></code></pre></div>
+<p>Restores every <code>.preunify.&lt;timestamp&gt;</code> backup and
+moves the shared store aside to
 <code>~/.claude-shared.removed.&lt;timestamp&gt;</code>.</p>
 <h2 id="license">License</h2>
 <p>See repository.</p>

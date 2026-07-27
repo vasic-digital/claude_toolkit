@@ -1,6 +1,6 @@
 {
   "name": "claude_tookit",
-  "version": "1.0.0",
+  "version": "1.26.7",
   "description": "Bash toolkit for running **multiple Claude Code accounts on one host** while keeping conversation history, memory, todos, plans, plugins, and settings **unified** across them. Each account keeps only what must stay private (credentials and per-account state); everything else lives in a single shared store and is reachable from every account via symlinks.",
   "main": "index.js",
   "directories": {

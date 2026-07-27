@@ -264,15 +264,42 @@ for f in "$PDIR"/*.env; do
   case "$sem" in
     verified)   _pass "layer-3 semantic PASS for $id" ;;
     # 'unverified' is NOT a transient/inconclusive outcome here: providers-semantic.sh
-    # emits it ONLY on driver exit 1 — "layer-3 FAIL (cannot see code / bluffed)".
-    # Every genuinely transient condition (transport/infra error, missing
-    # key/judge/go/network) is routed to `skip` (exit 2/3) and lands in the
-    # SKIP branch below. So this branch is a DEFINITIVE failure and must fail.
+    # emits it ONLY on driver exit 1. Every genuinely transient condition
+    # (transport/infra error, missing key/judge/go/network) is routed to `skip`
+    # (exit 2/3) and lands in the SKIP branch below. So this branch is a
+    # DEFINITIVE failure and must fail.
+    #
+    # But definitive does NOT mean "bluffed". Driver exit 1 spans four distinct
+    # determinations — sentinel not reflected, prompt-echo bluff, judge below
+    # threshold, and a definitive provider rejection of the model-under-test
+    # (HTTP 401/402/403/404). All four justify refusing the alias; only two are
+    # a bluff. So both arms below report the driver's OWN reason (which
+    # providers-semantic.sh writes into $sem_ev) rather than naming a cause.
     unverified)
       if (( gated )); then
-        _fail "layer-3 semantic" "verdict: unverified for $id — definitive layer-3 failure (alias cannot genuinely see code / bluffed); evidence: $sem_ev"
+        # Strip the source prefix AND the redundant 'layer-3 unverified' label
+        # (this line already says both), leaving just the driver's cause.
+        _sem_why="$(grep -m1 -E '^providers-semantic\[[^]]*\]: layer-3 ' "$sem_ev" 2>/dev/null \
+                    | sed -E -e 's/^providers-semantic\[[^]]*\]: //' \
+                             -e 's/^layer-3 unverified — //')"
+        _fail "layer-3 semantic" "verdict: unverified for $id — definitive layer-3 failure (${_sem_why:-no driver reason captured}); evidence: $sem_ev"
       else
-        echo "KNOWN-NON-WORKING: layer-3 unverified for '$id' (provider status=$status — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: $sem_ev"
+        # REPORT THE OBSERVED CAUSE, NEVER ASSERT ONE (2026-07-27 audit).
+        # `status` being non-'verified' is why this is not COUNTED; it is not
+        # evidence of WHY layer-3 failed. status=unverified in particular means
+        # INCONCLUSIVE, not rejected — providers-verify.sh emits it for HTTP
+        # 429, for any non-4xx code, and even when no verifier binary exists
+        # (providers-verify.sh:226,248,252,258). Naming "key rejected /
+        # unfunded / quota" there states an account fact nothing measured.
+        # providers-semantic.sh already writes the driver's own reason into
+        # $sem_ev; surface that instead. Gating is untouched — this branch
+        # counts exactly what it counted before.
+        # Strip the source prefix AND the redundant 'layer-3 unverified' label
+        # (this line already says both), leaving just the driver's cause.
+        _sem_why="$(grep -m1 -E '^providers-semantic\[[^]]*\]: layer-3 ' "$sem_ev" 2>/dev/null \
+                    | sed -E -e 's/^providers-semantic\[[^]]*\]: //' \
+                             -e 's/^layer-3 unverified — //')"
+        echo "KNOWN-NON-WORKING: layer-3 unverified for '$id' — ${_sem_why:-no driver reason captured} (provider status=$status, so not counted as a suite failure); evidence: $sem_ev"
       fi ;;
     *)          echo "SKIP: layer-3 preconditions absent for $id" ;;
   esac
@@ -475,7 +502,29 @@ for f in "$PDIR"/*.env; do
       elif (( gated )); then
         _fail "layer-4 superpowers-TUI" "live launch through '$id' FAILED (${tui_out}); evidence: $tui_ev"
       else
-        echo "KNOWN-NON-WORKING: layer-4 FAIL for '$id' (provider status=$status — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: $tui_ev"
+        # REPORT THE OBSERVED CLASSIFICATION, NEVER ASSERT A CAUSE (2026-07-27
+        # audit). This is the catch-all reached only after the FOUR
+        # evidence-based classifiers above (route attribution, backend context
+        # inadequacy, billing 402/403, strict function-name grammar) each
+        # declined — so by construction the failure here is NOT one they
+        # recognised. It fires for
+        # '# FAIL: timeout', 'stream-aborted', 'no-engagement', 'empty-result',
+        # 'api-error' and 'launch-refused-unverified', none of which implies an
+        # account state; the genuinely account-shaped case (402/403) was already
+        # taken by its own branch above. Worse, status=unverified means
+        # INCONCLUSIVE rather than rejected (providers-verify.sh emits it for
+        # HTTP 429, non-4xx codes, and a missing verifier binary), so the old
+        # text asserted a billing fact about accounts nothing had measured.
+        # Live: 42-live-providers.log claimed account-side for 'chutes5' while
+        # providers-chutes5-superpowers.txt records
+        # '# FAIL: launch-refused-unverified (rc=3 … NO turn ran)' — the launch
+        # was refused locally and nothing was ever sent to that account.
+        #
+        # `status` still decides whether this COUNTS (that is gate_for_status,
+        # unchanged and still the reason this is not a suite failure); it just
+        # no longer masquerades as the diagnosis. $tui_out is the driver's own
+        # verdict line and $tui_ev holds its durable '# FAIL: <class>' marker.
+        echo "KNOWN-NON-WORKING: layer-4 for '$id' — ${tui_out} (provider status=$status, so not counted as a suite failure); evidence: $tui_ev"
       fi ;;
     *)      tui_label=skip;       echo "SKIP: ${tui_out:-layer-4 preconditions absent for $id}" ;;
   esac

@@ -1,7 +1,8 @@
-# ROUTE-INTENDED: nvidia5/meta/llama-3.1-8b-instruct (transport=router)
-# ROUTE-INTENDED-BACKGROUND: nvidia5/meta/llama-3.2-11b-vision-instruct
-claude-providers: alias nvidia5 is unverified — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for nvidia5)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=nvidia5/meta/llama-3.1-8b-instruct; NO turn ran — route attribution is not applicable)
+# ROUTE-INTENDED: nvidia5/mistralai/mistral-nemotron (transport=router)
+# ROUTE-INTENDED-BACKGROUND: nvidia5/mistralai/mistral-small-4-119b-2603
+{"is_error":true,"duration_api_ms":0,"num_turns":1,"stop_reason":"stop_sequence","session_id":"10c6cfce-6ba8-47c7-a177-94bfc85c575a","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":400,"result":"API Error: 400  Function name was mcp__plugin_apollo-skills_graphos-tools__GetPersistedQueryListStatus but must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.","type":"result","duration_ms":6352,"uuid":"197f67ea-8623-40ef-9206-57b26a490a1b"}
+# ROUTE-RESOLVED: nvidia5/mistralai/mistral-nemotron
+# ROUTE-RESOLVED-BACKGROUND: nvidia5/mistralai/mistral-small-4-119b-2603
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 2953
+# FAIL: api-error
+# FAIL: environment-incompatible (provider rejects MCP tool name mcp__plugin_apollo-skills_graphos-tools__GetPersistedQueryListStatus — strict function-name grammar)

@@ -20,7 +20,7 @@ existing providers.
 | The toolkit installed | provides `lib.sh`, the alias file, sync-state | `bash scripts/install.sh` |
 | A keys file | one `export NAME_API_KEY=...` per provider | `~/api_keys.sh` (default) or pass `--keys-file` |
 | `jq`, `python3`, `curl` | catalog parse + resolve + fetch | system package manager |
-| `claude-code-router` *(only for routed providers)* | translate Anthropic↔OpenAI/Gemini | `npm install -g @musistudio/claude-code-router` |
+| `claude-code-router` *(only for routed providers)* | translate Anthropic↔OpenAI/Gemini | `claude-ccr-build` — builds the **bundled Go** router from `submodules/claude-code-router`. Do **not** `npm install -g @musistudio/claude-code-router`; that is a different binary the toolkit treats as a doppelgänger (it lacks the `ccr restart` subcommand every route-apply needs). |
 | `submodules/LLMsVerifier` built *(optional)* | full "does this model work?" verification | see §7 |
 
 Your keys file is the **only** place secrets live. `claude-providers` reads the
@@ -150,8 +150,8 @@ cd /path/to/my-project
 deepseek          # bare launch: auto-creates the project's session
 # ... work for a while, then exit
 
-# Continue the same project as opencode
-opencode          # bare launch: AUTO-RESUMES the same project session — no /resume needed
+# Continue the same project as opencode-zen
+opencode-zen      # bare launch: AUTO-RESUMES the same project session — no /resume needed
 ```
 
 A **bare** alias launch (no arguments) now auto-resumes — or first-time creates
@@ -268,9 +268,11 @@ logic never second-guesses an explicit operator decision, so the launch failure
 that follows an unfunded key is then yours to expect.
 
 > **Do not copy transport/base_url from an example.** As of **v1.19.0** every
-> provider — DeepSeek and Xiaomi included — is pinned to `router` transport on
-> its OpenAI-compatible endpoint, because both were verified working there and
-> a single uniform path is far easier to debug. The shipped pins are:
+> *hosted* provider — DeepSeek and Xiaomi included — is pinned to `router`
+> transport on its OpenAI-compatible endpoint, because both were verified
+> working there and a single uniform path is far easier to debug. Every
+> `transport` pin in `overrides.json` today is `router`: deepseek, xiaomi,
+> opencode, opencode-go, chutes, kimi-for-coding, hyper. Two of them:
 >
 > ```json
 > "deepseek": { "transport": "router", "base_url": "https://api.deepseek.com" }
@@ -280,6 +282,11 @@ that follows an unfunded key is then yours to expect.
 > Pasting an older `"transport": "native"` / `.../anthropic` block would revert
 > that fix. Always check the live values in `scripts/providers/overrides.json`
 > before overriding transport or base_url.
+>
+> The one shipped `native` pin left is the **local** `helixagent-native`
+> (`scripts/providers/helixagent-native.json`), which is a separate provider
+> record rather than an `overrides.json` entry — it is not a counter-example
+> for a hosted provider.
 
 ### `scripts/providers/key-aliases.json`
 
@@ -348,17 +355,34 @@ sub-requests of the same turn through it — a mismatch there is
 `# FAIL: route-mismatch-background`. And because reading the config file back
 only proves what it *says*, the leg also demands a **restart receipt**
 bracketing the launch (a fresh `gateway listening on` line in
-`~/.claude-code-router/service.log`, or a changed `service.json`): the wrapper's
-`ccr restart` runs under `|| true` and can legitimately be refused, which would
-leave the previous provider serving while the file reads back correct. Without a
-receipt the leg fails closed with `# FAIL: route-unproven`. For router-transport
-aliases `jq` is a hard precondition — without it the route is unreadable and the
-leg refuses rather than skipping.
+`~/.claude-code-router/<alias-id>/service.log`, or a changed `service.json` in
+that same directory): the wrapper's `ccr restart` runs under `|| true` and can
+legitimately be refused, which would leave the previous provider serving while
+the file reads back correct. Without a receipt the leg fails closed with
+`# FAIL: route-unproven`. For router-transport aliases `jq` is a hard
+precondition — without it the route is unreadable and the leg refuses rather
+than skipping.
+
+Every ccr path above is **per alias**: each alias owns
+`~/.claude-code-router/<alias-id>/` with its own `config.json`, `service.json`
+and `service.log`. There is no single global set to inspect.
+
+Two further refinements to what the leg *prints*, both of which matter when you
+are triaging rather than releasing. A timeout (rc 124) whose transcript carries
+`"terminal_reason":"aborted_streaming"` is now marked
+`# FAIL: stream-aborted (output_tokens=… duration_ms=… bound=…s)` and states
+that it is **not** a trust/overwrite dialog — the old message guessed a dialog
+for every rc-124 and was wrong for all of them on the run that motivated the
+change. And a layer-3 failure now quotes the driver's own `reason` instead of
+asserting "cannot see code / bluffed": driver exit 1 also covers definitive
+provider rejections (401/402/403/404) of the model under test, so the message
+can now say `non-200 status 402: "Insufficient balance for request."` and send
+you to the account rather than to the model.
 
 ## 8. Known limitation — default session color
 
 The original goal was for each provider session to default its `/color` to
-**purple**. Investigation of the installed Claude Code (2.1.195) found that
+**purple**. Investigation of Claude Code 2.1.195 found that
 `/color` is **session-scoped and TUI-only — it is never persisted to disk**, and
 there is no settings key, hook, or environment variable to set a default color.
 So this cannot be automated with the current Claude Code.
@@ -371,7 +395,8 @@ setting, `sync` will seed it automatically.
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| `provider 'X' needs claude-code-router` | Routed provider, ccr not installed → `npm install -g @musistudio/claude-code-router`. |
+| `provider 'X' needs claude-code-router` | Routed provider, the bundled `ccr` gateway is not installed → `claude-ccr-build` (builds the vendored Go router; needs the Go toolchain). |
+| `resolved ccr … is not the bundled claude-code-router` / `Profile not found` | The `ccr` in use is stale or is the npm `@musistudio` doppelgänger — it lacks the `ccr restart` subcommand, so `restart` is read as a profile name. → `claude-ccr-build`, and `npm rm -g @musistudio/claude-code-router` if that is where the other one came from. |
 | `$NAME_API_KEY is empty` | The key isn't set in your keys file. |
 | `offline and no models.dev cache` | Run `claude-providers sync` once online to populate the cache. |
 | A key didn't become an alias | It's `unmapped` (no models.dev match) or classified `vcs`/`infra`. Map it with `add`, or check `scripts/providers/evidence/mapping-report.md`. |
@@ -380,6 +405,99 @@ setting, `sync` will seed it automatically.
 | `# FAIL: route-mismatch` in a `--deep` evidence file | The verification turn was served by a different backend than the alias under test (see §7). Re-run that leg on its own rather than after another router alias. |
 | `# FAIL: route-mismatch-background` | Same, for the `.Router.background` entry: background sub-requests of that turn went to another backend (see §7). |
 | `# FAIL: route-unproven` | The route was written but nothing proves the live gateway loaded it — the `ccr restart` was refused or never happened. Most often an authenticated gateway restarted without `CCR_API_KEYS` visible; re-run the leg with the gateway's keys in the environment. |
+| Alias is `verified`, config looks right, **every launch dies as an apparent timeout/hang** | The vendor-prefix routing class fixed in **v1.26.7** — see §9.1. Confirm with `tail ~/.claude-code-router/<alias-id>/service.log`: a burst of 503s at **1-4 ms each** means the *local* gateway rejected the route before any network call, so no `--timeout` value helps. Rebuild the router (`claude-ccr-build`) if you are on an older build. |
+| `# FAIL: stream-aborted` in a `--deep` evidence file | The bound expired *and* the CLI wrote a result with `terminal_reason=aborted_streaming` (the marker carries `output_tokens`, `duration_ms`, `bound`). Explicitly **not** a trust/overwrite dialog. Where it died is not determined by the leg — read the alias's `service.log` as above. |
+| 400 naming `… of tool input …` and a total over the window | Your enabled-plugin surface is larger than `CMA_TOOL_TOKEN_BUDGET` (default 80000), which **inflates** the derived output cap. See §9.2 — raise the budget, cut plugins, or move to a wider-context provider. |
+
+### 9.1 Vendor-prefixed model ids (fixed in v1.26.7)
+
+A route is `provider,model` on disk, but the router also accepts a
+**client-supplied** selector in the request's `model` field, and it recognises
+*two* separators — comma and slash, leftmost wins
+(`submodules/claude-code-router/internal/router/selector.go`).
+
+Once `lib.sh` began exporting `ANTHROPIC_MODEL` for the **router** transport
+too, Claude Code put the raw catalog id in the request body —
+`deepseek-ai/DeepSeek-V3.2-TEE`, `nvidia/nemotron-…`, `Qwen/…` — the router read
+the **vendor** as a provider name, found none configured in the per-alias
+config, and returned an unknown-provider error instead of falling through to
+`Router.default`. The gateway answered **503 in 1-4 ms — before any network
+call** — and retried with backoff until the launch bound expired. **16 of 24
+verified aliases** were affected.
+
+What made it hard to see: the on-disk route was correct the whole time
+(`"kilo,nvidia/nemotron-…"` parses fine, its comma comes first), so the config
+looked healthy while every launch died. And layers 1-3 of verification curl the
+provider's own `base_url` directly and never touch the ccr route path, so they
+stayed green throughout. **Only the layer-4 live launch exercises the real
+chain.**
+
+The fix decides the slash form from **evidence, not from the separator**:
+
+- if some configured provider actually serves the whole string, it is a catalog
+  id and routes normally;
+- if a vendor prefix *collides* with a real provider name (provider `nvidia`
+  serving `nvidia/nemotron-…`), the whole id wins — the split half is absent
+  from `Models` while the full string is present;
+- if nobody serves it, the unknown-provider error still stands, so
+  `Ghost/whatever` cannot silently reach `Router.default`.
+
+**Comma selectors are unchanged and still fail loudly.** A comma is this
+project's own route syntax and appears in no model id, so an unknown provider
+really is a caller error; silently redirecting it to `Router.default` would bill
+an upstream you never chose.
+
+### 9.2 The launch token guards and your plugin surface
+
+The launch wrapper exports two co-derived guards for every alias with a known
+context: `CLAUDE_CODE_MAX_OUTPUT_TOKENS` (output cap) and
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` (compaction trigger). The window must reserve
+for the **tool payload** as well as text and output, because the endpoint counts
+all three against the same window:
+
+```
+window = context - output - CMA_TOOL_TOKEN_BUDGET        # budget default 80000
+```
+
+and when that window would fall below `CMA_MIN_COMPACT_WINDOW` (default 120000),
+the wrapper buys the window back by lowering the output cap instead:
+
+```
+CLAUDE_CODE_MAX_OUTPUT_TOKENS = context - CMA_MIN_COMPACT_WINDOW - CMA_TOOL_TOKEN_BUDGET
+```
+
+**Be exact about which direction is dangerous.** An *under*estimate does not
+merely compact earlier — because the output cap is derived by subtracting the
+budget, too small a budget **inflates** the cap and the launch dies with a 400
+naming the real numbers. Measured live on a host with **227 enabled plugins**,
+real tool input **158112** against the 80000 default gave:
+
+```
+46536 text + 158112 tools + 62144 output = 266792     against a 262144 window
+```
+
+Critically, `158112 + 120000 > 262144`: on such a host **no output cap makes a
+262144-context provider fit**, because the tool payload plus the minimum
+compaction window already exceed the whole context. The only remedies are
+reducing the enabled-plugin surface or moving to a wider-context provider.
+
+**Override per host** with `CMA_TOOL_TOKEN_BUDGET`, either as a line in the
+provider's resolved `.env` or in the shell. To measure your own tool input, read
+it out of the 400 itself — the provider's message names it, e.g.
+`you requested about 371727 tokens (199347 of text input, 70236 of tool input,
+102144 in the output)`.
+
+**Verify the context before calling an alias "wide enough."** Read the resolved
+env file rather than any table in this guide, since the value is derived per
+selected model at sync time:
+
+```bash
+grep CMA_PROVIDER_CONTEXT_LIMIT ~/.local/share/claude-multi-account/providers/<alias>.env
+```
+
+A context too small to reserve the budget at all yields no window: that provider
+cannot serve Claude Code's tool prefix regardless, and the launch fails loudly
+rather than being lied to by a guard that cannot hold.
 
 ## 10. Remote distributed deployment & heavy testing
 
@@ -521,13 +639,13 @@ zai-coding-plan -p "explain this function"   # non-interactive print mode
 
 ### Xiaomi MiMo (xiaomi)
 
-[Xiaomi MiMo](https://mimo.mi.com) is Xiaomi's LLM platform. Unlike most
-OpenAI-compatible providers in this toolkit, MiMo exposes a genuine
-**Anthropic-native endpoint** (`https://api.xiaomimimo.com/anthropic`,
-`POST /anthropic/v1/messages`) that accepts `Authorization: Bearer <key>` and
-returns native Anthropic-format responses. Because of this, the `xiaomi` alias
-uses **native transport** — Claude Code talks to MiMo directly with no
-`claude-code-router` (`ccr`) dependency, the same way the `deepseek` alias works.
+[Xiaomi MiMo](https://mimo.mi.com) is Xiaomi's LLM platform. MiMo does expose a
+genuine **Anthropic-native endpoint** (`https://api.xiaomimimo.com/anthropic`,
+`POST /anthropic/v1/messages`), and the `xiaomi` alias originally used it —
+but as of **v1.19.0** the alias is pinned to **router transport** on MiMo's
+OpenAI-compatible `/v1` endpoint instead, along with every other hosted
+provider. Both paths were verified working; the uniform one is far easier to
+debug. Launches therefore go through `claude-code-router` (`ccr`).
 
 #### How the alias works
 
@@ -536,15 +654,19 @@ models.dev `xiaomi` provider's documented env name (`XIAOMI_API_KEY`), so
 `scripts/providers/key-aliases.json` maps `XIAOMI_MIMO_API_KEY → xiaomi`. An
 override in `scripts/providers/overrides.json` pins:
 
-- **transport** `native`
-- **base_url** `https://api.xiaomimimo.com/anthropic` (the Anthropic-native
-  endpoint, overriding the catalog's OpenAI-compat `/v1` URL)
+- **transport** `router`
+- **base_url** `https://api.xiaomimimo.com/v1` (the OpenAI-compatible endpoint)
 - **strong_model** `mimo-v2.5-pro`
-- **fast_model** `mimo-v2-flash`
+- **fast_model** `mimo-v2.5`
 
 The pinning is deliberate: models.dev lists a `mimo-v2.5-pro-ultraspeed` id
 that the **live API does not serve**, so the override guarantees only
 live-served model ids are used.
+
+The resolved alias carries a **1048576-token** context (verify with
+`grep CMA_PROVIDER_CONTEXT_LIMIT ~/.local/share/claude-multi-account/providers/xiaomi.env`),
+which makes it one of the few aliases that comfortably absorbs a large
+enabled-plugin tool payload — see §9.2.
 
 #### Models
 
@@ -553,11 +675,11 @@ reasoning; verified live 2026-06-19):
 
 | Model | Context | Reasoning | Tool Call | Notes |
 |-------|---------|-----------|-----------|-------|
-| **mimo-v2.5-pro** | 1M tokens | Yes | Yes | Flagship — strongest (alias default) |
-| mimo-v2.5 | 1M tokens | Yes | Yes | Omni / multimodal (image, audio, video) |
+| **mimo-v2.5-pro** | 1M tokens | Yes | Yes | Flagship — strongest (alias strong) |
+| **mimo-v2.5** | 1M tokens | Yes | Yes | Omni / multimodal (image, audio, video) — **alias fast** |
 | mimo-v2-pro | — | Yes | Yes | Legacy v2 Pro |
 | mimo-v2-omni | 256k tokens | Yes | Yes | Omni / multimodal (v2) |
-| **mimo-v2-flash** | 256k tokens | Yes | Yes | Fast model — cheapest tier (alias fast) |
+| mimo-v2-flash | 256k tokens | Yes | Yes | Cheapest tier (no longer the pinned fast model) |
 
 Non-text models exist (`mimo-v2.5-asr`, `mimo-v2.5-tts*`, `mimo-v2-tts`) but
 are speech-recognition / text-to-speech and cannot serve chat or code, so they
@@ -569,7 +691,8 @@ are intentionally not wired as aliases.
   ASR/TTS).
 - `POST /anthropic/v1/messages` with `Authorization: Bearer` → HTTP 200,
   native Anthropic response (`type:"message"`, `content:[{type:"text"},{type:"thinking"}]`)
-  for both `mimo-v2.5-pro` and `mimo-v2-flash`.
+  for both `mimo-v2.5-pro` and `mimo-v2-flash`. *(The Anthropic-native endpoint
+  works; the alias no longer uses it — see the transport note above.)*
 - `POST /v1/chat/completions` with `tools[]` → `finish_reason:"tool_calls"`,
   valid tool-call array, `reasoning_content` present (tool calling works).
 - Streaming (`stream:true`) → SSE `chat.completion.chunk` deltas.
@@ -592,7 +715,7 @@ xiaomi                             # launch Claude Code on mimo-v2.5-pro
 xiaomi -p "explain this function"  # non-interactive print mode
 ```
 
-### OpenCode Zen (opencode)
+### OpenCode Zen (provider id `opencode`, alias `opencode-zen`)
 
 [OpenCode Zen](https://opencode.ai/zen) is OpenCode's curated AI gateway — a
 tested and verified list of models from multiple providers, accessed through a
@@ -610,10 +733,18 @@ The key variable `ZEN_API_KEY` (or `ApiKey_Opencode_Zen`) in your keys file is
 mapped to the `opencode` provider ID via `scripts/providers/key-aliases.json`.
 An override in `scripts/providers/overrides.json` pins:
 
+- **alias** `opencode-zen` — so the launcher is `opencode-zen`, not the bare
+  provider id. Hosts synced before that pin may still carry an `opencode` alias
+  as well; `claude-providers list` is authoritative for what exists on yours.
 - **strong_model** `big-pickle` — free stealth model, 200K context, reasoning +
   tool_call
 - **fast_model** `deepseek-v4-flash-free` — free, 200K context, reasoning +
   tool_call
+
+Those two are the *pins*. The per-model multi-alias phase (§5) additionally
+generates `opencode-zen1`, `opencode-zen2`, … over the free-tier models it
+verifies, each with its own strong/fast pair, so the resolved model for a given
+alias is whatever its `.env` says — check with `claude-providers show <id>`.
 
 Transport is **router** — the alias launches through `claude-code-router`
 (`ccr default-claude-code`), which translates the Anthropic protocol to the OpenAI-compatible
@@ -676,13 +807,14 @@ Everything is already configured, but for a fresh install:
 2. Run `claude-providers sync` to discover the key and create the alias.
 3. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new
    shell).
-4. Run `opencode` to start a Claude Code session on `big-pickle` (via ccr).
+4. Run `opencode-zen` to start a Claude Code session on `big-pickle` (via ccr).
 
 #### Usage example
 
 ```bash
-opencode                            # launch Claude Code on big-pickle (via ccr)
-opencode -p "explain this function" # non-interactive print mode
+opencode-zen                            # launch Claude Code on big-pickle (via ccr)
+opencode-zen -p "explain this function" # non-interactive print mode
+claude-providers list                   # which opencode-zenN aliases exist here
 ```
 
 #### Notes
@@ -710,10 +842,22 @@ provider ID. An override in `scripts/providers/overrides.json` pins:
 
 - **strong_model** `zai-org/GLM-5.2-TEE` — newest GLM model, 202K context
 - **fast_model** `Qwen/Qwen3.6-27B-TEE` — fast Qwen model, 262K context
+- **context_limit** `262144` and **max_output** `65536`
 
 Transport is **router** — the alias launches through `claude-code-router`
 (`ccr default-claude-code`), which translates the Anthropic protocol to the OpenAI-compatible
 Chutes API.
+
+Two things follow from those pins and are worth knowing before you debug a
+Chutes launch:
+
+- Every Chutes model id is **vendor-prefixed** (`zai-org/…`, `Qwen/…`,
+  `deepseek-ai/…`, `moonshotai/…`) — the exact shape that made 16 of 24 verified
+  aliases unroutable before **v1.26.7**. If launches die as apparent timeouts,
+  read §9.1 and confirm your router is current (`claude-ccr-build`).
+- The **262144** context is the window §9.2 works through: on a host with a
+  large enabled-plugin surface the tool payload alone can make it unusable
+  regardless of the output cap.
 
 #### Models available on Chutes
 
@@ -775,11 +919,18 @@ The key variable `POE_API_KEY` (or `ApiKey_Poe`) in your keys file maps to the
 
 #### Aliases
 
+Only one Poe alias is **pinned**; `scripts/providers/overrides.json` sets:
+
 | Alias | Strong Model | Fast Model | Focus |
 |-------|-------------|------------|-------|
 | **poe** | claude-sonnet-4.6 | gpt-5.4-mini | Primary — best Claude |
-| **poe2** | gpt-5.5 | deepseek-v4-pro-e | GPT-focused |
-| **poe3** | grok-4 | gemini-3.1-pro | Alternative providers |
+
+Any additional `poe2`, `poe3`, … aliases are **generated dynamically** by the
+per-model multi-alias phase (§5), not pinned here — and since that phase probes
+**free-tier models only** by default, a provider whose catalogue is entirely
+paid produces no extra aliases unless you opt in with `--include-paid`. Run
+`claude-providers list` to see what actually exists on your host rather than
+assuming the numbered aliases are present.
 
 #### Model categories (382 total)
 
@@ -814,9 +965,8 @@ The key variable `POE_API_KEY` (or `ApiKey_Poe`) in your keys file maps to the
 
 ```bash
 poe                                 # launch Claude Code on claude-sonnet-4.6 (via ccr)
-poe2                                # launch on gpt-5.5 (via ccr)
-poe3                                # launch on grok-4 (via ccr)
 poe -p "explain this function"      # non-interactive print mode
+claude-providers list               # check which poeN aliases exist on this host
 ```
 
 #### Verified
@@ -870,6 +1020,40 @@ helixagent
 
 Switch back with `helixllm-mode.sh coder` when you need HelixCode again. The two
 modes cannot run at once on the shared GPU.
+
+#### Auto-start is opt-in — `CMA_HELIX_AUTOSTART`
+
+Launching `helixagent` does **not** start HelixLLM for you by default. Opt in
+per launch (or export it) with any of the truthy values `1`, `true`, `yes`,
+`on` — matched case-insensitively; anything else, unset included, means off:
+
+```bash
+CMA_HELIX_AUTOSTART=1 helixagent
+```
+
+The default is off because booting HelixLLM is a **machine-wide** side effect,
+not a private one: it claims the single GPU, and starting it in claude mode
+**evicts whatever HelixCode had running in coder mode**. A provider alias must
+not do that to a host merely because someone launched it.
+
+Turning it off costs you no information. When HelixLLM is not answering, the
+pre-flight still says so and still prints the exact command:
+
+```
+helixagent: HelixLLM is not answering on http://127.0.0.1:18434 and auto-start is OFF by default.
+  Start it yourself (it claims the GPU and evicts HelixCode's coder mode):
+    helix_code/scripts/helixllm-mode.sh claude
+  Or opt in for this launch:
+    CMA_HELIX_AUTOSTART=1 <alias>
+```
+
+With the opt-in set, the wrapper searches the usual Helix Code locations (and
+`$HELIX_CODE_DIR`) for `helixllm-mode.sh`, runs it in claude mode, then polls
+`/health` for up to 120 s — reporting a timeout with `podman logs helixllm-coder`
+and `<script> status` as next steps rather than proceeding silently. Auto-start
+only covers the *not running* case: a backend that is up but sitting in coder
+mode (`context_limit=24576`) gets the separate coder-mode warning above, and is
+never switched out from under HelixCode.
 
 #### Minimal-launch (`--bare`) trim mode — `CMA_PROVIDER_TRIM='bare'`
 
@@ -925,7 +1109,7 @@ The layers, fail-closed — any failure means **DO NOT RELEASE**:
    **PATH → ccr → route-apply → proxy → provider backend**, and asserts (a) the
    launch exited 0, (b) the served reply contained `GATE-OK`, and (c) for a
    router-transport provider, that the gateway's **sink-side route**
-   (`.Router.default` in `~/.claude-code-router/config.json`) actually names the
+   (`.Router.default` in `~/.claude-code-router/<alias-id>/config.json`) actually names the
    provider under test. A write-then-apply route that silently served the wrong
    backend fails here.
 3. **Provider scan** *(opt-in, `--verify-providers`)* — runs

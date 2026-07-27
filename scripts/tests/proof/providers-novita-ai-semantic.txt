@@ -3,7 +3,7 @@ driver json: {
   "round1_sentinel": {
     "pass": false,
     "observed": "",
-    "reason": "provider definitively rejected the request: non-200 status 401: {\"code\":401,\"reason\":\"FAILED_TO_AUTH\",\"message\":\"failed to authenticate API key\",\"metadata\":{}}"
+    "reason": "provider definitively rejected the request: non-200 status 401: {\"code\":401, \"reason\":\"FAILED_TO_AUTH\", \"message\":\"failed to authenticate API key\", \"metadata\":{}}"
   },
   "round2_judge": {
     "pass": null,
@@ -13,5 +13,5 @@ driver json: {
   },
   "overall_pass": false
 }
-providers-semantic[novita-ai]: layer-3 FAIL (cannot see code / bluffed)
+providers-semantic[novita-ai]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"code":401, "reason":"FAILED_TO_AUTH", "message":"failed to authenticate API key", "metadata":{}}
 semantic verdict: unverified

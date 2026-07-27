@@ -1,23 +1,12 @@
-# ROUTE-INTENDED: helixagent//models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf (transport=router)
-# ROUTE-INTENDED-BACKGROUND: helixagent//models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
-cma-proxy listening on http://127.0.0.1:3457 (provider=helixagent -> http://127.0.0.1:18434, Hermes tool-call recovery active)
-{"type":"result","subtype":"success","is_error":true,"api_error_status":400,"duration_ms":999,"duration_api_ms":0,"num_turns":1,"result":"API Error: 400 request (67972 tokens) exceeds the available context size (3072 tokens), try increasing it","stop_reason":"stop_sequence","session_id":"fd08e512-70eb-4633-8317-0d173d587fe3","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","uuid":"f355708d-7c9d-40cd-8f0c-fd8458e1c201"}
-# ROUTE-RESOLVED: helixagent//models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
-# ROUTE-RESOLVED-BACKGROUND: helixagent//models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 1523769
-# FAIL: api-error
-# FAIL: context-inadequate (backend 3072 tokens < request 67972)
-# SKIP Sat Jul 25 11:15:01 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 12:53:52 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 08:59:13 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 09:15:53 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 10:25:00 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 11:49:54 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 01:44:49 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 02:49:47 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 04:02:35 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 05:12:02 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 06:22:29 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 07:09:37 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 07:51:37 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
-# SKIP Sun Jul 26 09:31:02 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# ROUTE-INTENDED: helixagent/HelixAgent/HelixLLM (transport=router)
+# ROUTE-INTENDED-BACKGROUND: helixagent/HelixAgent/HelixLLM
+[cma warn] helixagent: HelixLLM is not answering on http://127.0.0.1:18434 and auto-start is OFF by default.
+  Start it yourself (it claims the GPU and evicts HelixCode's coder mode):
+    helix_code/scripts/helixllm-mode.sh claude
+  Or opt in for this launch:
+    CMA_HELIX_AUTOSTART=1 <alias>
+{"is_error":true,"duration_api_ms":0,"num_turns":2,"stop_reason":null,"session_id":"1631e9ad-3b71-42af-b0d8-793fcee217ab","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"aborted_streaming","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"],"type":"result","duration_ms":168809,"uuid":"18af0d75-16c8-4945-97c1-c37c63a037ca"}
+# ROUTE-RESOLVED: helixagent/HelixAgent/HelixLLM
+# ROUTE-RESOLVED-BACKGROUND: helixagent/HelixAgent/HelixLLM
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 10407
+# FAIL: stream-aborted (output_tokens=0 duration_ms=168809 bound=180s)

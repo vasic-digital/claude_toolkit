@@ -1,7 +1,7 @@
-# ROUTE-INTENDED: poe/claude-sonnet-4.6 (transport=router)
-# ROUTE-INTENDED-BACKGROUND: poe/gpt-5.4-mini
-claude-providers: alias poe is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for poe)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=poe/claude-sonnet-4.6; NO turn ran — route attribution is not applicable)
+# ROUTE-INTENDED: poe/google/gemma-4-31b (transport=router)
+# ROUTE-INTENDED-BACKGROUND: poe/google/gemma-4-31b
+{"is_error":false,"duration_api_ms":2099,"num_turns":2,"stop_reason":"end_turn","session_id":"164c2e63-0bb0-4e56-beb9-21df017af7d1","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"google/gemma-4-31b":{"inputTokens":0,"outputTokens":0,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0,"contextWindow":65536,"maxOutputTokens":32000,"canonicalModel":"google/gemma-4-31b","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"","ttft_stream_ms":1450,"time_to_request_ms":144,"type":"result","duration_ms":2516,"uuid":"4587630c-1f36-4b19-9619-8603bfd24609"}
+# ROUTE-RESOLVED: poe/google/gemma-4-31b
+# ROUTE-RESOLVED-BACKGROUND: poe/google/gemma-4-31b
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 3369
+# FAIL: empty-result
