@@ -149,6 +149,35 @@ fi
 BIN="$SUBMODULE/bin/ccr"
 cma_log "building bundled claude-code-router (Go): $(cd "$SUBMODULE" && go version 2>/dev/null | awk '{print $3}') ..."
 if ! ( cd "$SUBMODULE" && mkdir -p bin && go build -o bin/ccr ./cmd/ccr ); then
+  # Retry with GOTOOLCHAIN=auto — lets Go download the exact toolchain version
+  # from go.mod when the system Go is too old (live defect: host Go 1.26.2 vs
+  # submodule requiring 1.26.4, with GOTOOLCHAIN=local refusing to auto-fetch).
+  if ( cd "$SUBMODULE" && GOTOOLCHAIN=auto go build -o bin/ccr ./cmd/ccr ); then
+    cma_log "GOTOOLCHAIN=auto build succeeded"
+    _built_ok=1
+  fi
+fi
+if [ "${_built_ok:-0}" != "1" ]; then
+  # Build failed — likely a Go version mismatch (the submodule's go.mod may
+  # require a newer toolchain). If a USABLE resident binary already exists,
+  # warn about staleness but do NOT fail: the artifact, not the build, is
+  # what the gate asserts (same logic as the no-Go resident check above).
+  _resident="$BIN_DIR/ccr"
+  if [ -x "$_resident" ]; then
+    _rrc=0; _rhelp="$(cma_probe_help "$_resident")" || _rrc=$?
+    if [ "$_rrc" -ne 124 ]; then
+      case "$_rhelp" in
+        *"ccr restart"*)
+          cma_warn "bundled claude-code-router build FAILED (Go version mismatch?).
+  The existing bundled router at $_resident verified usable ('ccr restart' grammar present),
+  so this install keeps working. It WILL GO STALE on the next submodule change until Go
+  is updated to $(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$SUBMODULE/go.mod" 2>/dev/null || echo "the version go.mod requires")+.
+  Fix: install/upgrade Go (https://go.dev/dl/), then re-run: claude-ccr-build"
+          exit 0
+          ;;
+      esac
+    fi
+  fi
   printf 'claude-ccr-build: go build failed in %s\n' "$SUBMODULE" >&2
   exit 1
 fi

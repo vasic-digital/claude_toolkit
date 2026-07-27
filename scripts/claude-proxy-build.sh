@@ -45,8 +45,12 @@ fi
 BIN="$PROXY_SRC/bin/cma-proxy"
 cma_log "building compatibility proxy (Go): $(cd "$PROXY_SRC" && go version 2>/dev/null | awk '{print $3}') ..."
 if ! ( cd "$PROXY_SRC" && mkdir -p bin && go build -o bin/cma-proxy . ); then
-  cma_warn "cma-proxy build failed."
-  exit 1
+  if ( cd "$PROXY_SRC" && GOTOOLCHAIN=auto go build -o bin/cma-proxy . ); then
+    cma_log "GOTOOLCHAIN=auto build succeeded"
+  else
+    cma_warn "cma-proxy build failed."
+    exit 1
+  fi
 fi
 
 # 2. Install into the shared proxy dir (where the launch wrapper looks) and
