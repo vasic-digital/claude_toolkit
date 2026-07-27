@@ -1768,29 +1768,12 @@ cma_run_provider() {
       */chat/completions|*/v1beta/models/|*/v1beta/models) ;;
       *) base="${base%/}/chat/completions" ;;
     esac
-    # --- anti-fossil bookkeeping (live defect 2026-07-22) --------------------
-    # An EPHEMERAL address must never OUTLIVE the process that owns it.
-    # Below, a transform-declaring provider gets a cma-proxy on a scan-until-free
-    # port and `base` is REPLACED by that proxy address — which is then persisted
-    # into a DURABLE config and left behind when the proxy is killed on exit. The
-    # result is a fossil: `Router.default` naming a provider whose api_base_url is
-    # a 127.0.0.1 port with no listener, so every consumer of the gateway gets
-    # `502 … dial tcp … connection refused` while the provider's real backend is
-    # perfectly healthy. Measured: `helixagent` and `poe` both fossilised on
-    # 127.0.0.1:3457, and the fossil was misread as two provider outages.
-    #
-    # Two guards, both compare-and-swap so a CONCURRENT launch is never clobbered
-    # (restoring unconditionally would re-create the silent-wrong-model failure
-    # this file already fights: a launch that finishes late must not yank the
-    # route out from under a launch that is still running):
-    #   (1) on exit, repair OUR ephemeral address back to the REAL endpoint —
-    #       only while it is still ours (see _cma_ccr_unfossilise below);
-    #   (2) at start, reap fossils whose owning launch died without running (1)
-    #       — SIGKILL, host reboot. §11.4.180: only a PROVABLY dead holder
-    #       (`kill -0` fails) is reaped; a live holder is never touched.
-    # The real endpoint is recorded in a sidecar marker, NOT in config.json, so
-    # the router never sees a field it does not model.
-    local _real_base="$base" _eph_base=""
+    # Preserve the original CMA_PROVIDER_BASE_URL for the fossil marker.
+    # `base` is mutated above (appends /chat/completions) but the fossil
+    # marker must record the REAL backing endpoint, not the ephemeral proxy
+    # address. RC4 (2026-07-27): the fix was to capture $CMA_PROVIDER_BASE_URL
+    # BEFORE the case statement mutates it.
+    local _real_base="$CMA_PROVIDER_BASE_URL" _eph_base=""
     local _eph_marker="$HOME/.claude-code-router/.cma-ephemeral.json"
     local _eph_lock="${_eph_marker}.lock"
     local _prior_default="" _prior_background=""
@@ -2080,6 +2063,25 @@ cma_run_provider() {
       fi
     fi
     if [[ -n "$_proxy_script" ]]; then
+      # HelixAgent pre-flight: check HelixLLM mode (coder vs claude).
+      # HelixLLM in coder mode has only 24576-token context; helixagent requires
+      # claude mode's 229376 tokens. The first request (system prompt + tool
+      # schemas ~67K) would immediately exceed the coder-mode limit.
+      if [[ "$CMA_PROVIDER_ID" == helixagent* ]]; then
+        local _hl_url="${CMA_PROVIDER_BASE_URL%/v1}" _hl_mode=""
+        # Try to detect mode via HelixLLM's health/metrics endpoint
+        if command -v curl >/dev/null 2>&1; then
+          _hl_mode="$(curl -sf --max-time 3 "${_hl_url}/health" 2>/dev/null | grep -o '"context_limit" *: *[0-9]*' | head -1 | sed 's/.*: *//' || true)"
+        fi
+        if [[ "$_hl_mode" -eq 24576 ]] 2>/dev/null; then
+          cma_warn "helixagent: HelixLLM detected in CODER MODE (context_limit=24576).
+  helixagent REQUIRES CLAUDE MODE (context_limit=229376).
+  The first request (~67K system+tools) will immediately exceed the limit.
+  Fix on the HelixLLM host:
+    helix_code/scripts/helixllm-mode.sh claude
+  Then re-run the alias."
+        fi
+      fi
       # Port-squatter guard (live-proven 2026-07-19: `poe: FAIL tools-params`).
       # Find a genuinely free port, then confirm OUR pid owns it — never point
       # `base` at a squatter (ccr once held 3457 for 21h, silently disabling the
