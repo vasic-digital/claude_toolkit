@@ -2063,17 +2063,66 @@ cma_run_provider() {
       fi
     fi
     if [[ -n "$_proxy_script" ]]; then
-      # HelixAgent pre-flight: check HelixLLM mode (coder vs claude).
-      # HelixLLM in coder mode has only 24576-token context; helixagent requires
-      # claude mode's 229376 tokens. The first request (system prompt + tool
-      # schemas ~67K) would immediately exceed the coder-mode limit.
+      # HelixAgent pre-flight: check HelixLLM availability and mode.
+      # If HelixLLM is not running and Helix Code is installed, auto-start it
+      # in claude mode (229376-token context). HelixLLM in coder mode has only
+      # 24576-token context; helixagent requires claude mode's 229376 tokens.
       if [[ "$CMA_PROVIDER_ID" == helixagent* ]]; then
         local _hl_url="${CMA_PROVIDER_BASE_URL%/v1}" _hl_mode=""
+        local _hl_healthy=0
         # Try to detect mode via HelixLLM's health/metrics endpoint
         if command -v curl >/dev/null 2>&1; then
           _hl_mode="$(curl -sf --max-time 3 "${_hl_url}/health" 2>/dev/null | grep -o '"context_limit" *: *[0-9]*' | head -1 | sed 's/.*: *//' || true)"
+          if [[ -n "$_hl_mode" ]]; then
+            _hl_healthy=1
+          fi
         fi
-        if [[ "$_hl_mode" -eq 24576 ]] 2>/dev/null; then
+        # Auto-start HelixLLM if not running and Helix Code is installed
+        if [[ "$_hl_healthy" -eq 0 ]]; then
+          local _hl_mode_script=""
+          # Find helixllm-mode.sh in common locations
+          for _hl_candidate in \
+            "$HOME/projects/helix_code/scripts/helixllm-mode.sh" \
+            "$HOME/helix_code/scripts/helixllm-mode.sh" \
+            "/run/media/milosvasic/DATA4TB/Projects/helix_code/scripts/helixllm-mode.sh" \
+            "${HELIX_CODE_DIR:-}/scripts/helixllm-mode.sh"; do
+            if [[ -x "$_hl_candidate" ]]; then
+              _hl_mode_script="$_hl_candidate"
+              break
+            fi
+          done
+          if [[ -n "$_hl_mode_script" ]]; then
+            cma_log "helixagent: HelixLLM not running — auto-starting in claude mode via $_hl_mode_script ..."
+            if "$_hl_mode_script" claude 2>&1 | tail -5 >&2; then
+              # Wait for HelixLLM to become healthy (up to 120s)
+              local _hl_wait=0
+              while [[ "$_hl_wait" -lt 24 ]]; do
+                if curl -sf --max-time 5 "${_hl_url}/health" >/dev/null 2>&1; then
+                  _hl_healthy=1
+                  cma_log "helixagent: HelixLLM started successfully"
+                  break
+                fi
+                sleep 5
+                _hl_wait=$((_hl_wait + 1))
+              done
+              if [[ "$_hl_healthy" -eq 0 ]]; then
+                cma_warn "helixagent: HelixLLM auto-start timed out after 120s.
+  The container may still be loading the model. Check:
+    podman logs helixllm-coder
+    $_hl_mode_script status"
+              fi
+            else
+              cma_warn "helixagent: HelixLLM auto-start failed.
+  Fix: manually start HelixLLM:
+    $_hl_mode_script claude"
+            fi
+          else
+            cma_warn "helixagent: HelixLLM not running and helixllm-mode.sh not found.
+  Install Helix Code or start HelixLLM manually on port 18434."
+          fi
+        fi
+        # Check for coder mode (even if running)
+        if [[ "$_hl_healthy" -eq 1 && "$_hl_mode" -eq 24576 ]] 2>/dev/null; then
           cma_warn "helixagent: HelixLLM detected in CODER MODE (context_limit=24576).
   helixagent REQUIRES CLAUDE MODE (context_limit=229376).
   The first request (~67K system+tools) will immediately exceed the limit.
