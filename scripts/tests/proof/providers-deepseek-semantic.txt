@@ -1,15 +1,17 @@
-providers-semantic[deepseek]: driver rc=0
+providers-semantic[deepseek]: driver rc=1
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
   },
   "round2_judge": {
-    "pass": true,
-    "score": 2,
-    "skipped": false
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
-  "overall_pass": true
+  "overall_pass": false
 }
-providers-semantic[deepseek]: layer-3 sentinel+judge PASS
-semantic verdict: verified
+providers-semantic[deepseek]: layer-3 FAIL (cannot see code / bluffed)
+semantic verdict: unverified

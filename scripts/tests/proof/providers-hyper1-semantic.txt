@@ -1,0 +1,17 @@
+providers-semantic[hyper1]: driver rc=1
+driver json: {
+  "round1_sentinel": {
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\":{\"message\":\"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing\",\"type\":\"billing_error\",\"code\":null}}\n"
+  },
+  "round2_judge": {
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
+  },
+  "overall_pass": false
+}
+providers-semantic[hyper1]: layer-3 FAIL (cannot see code / bluffed)
+semantic verdict: unverified

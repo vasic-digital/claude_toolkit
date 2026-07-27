@@ -1,8 +1,7 @@
 # ROUTE-INTENDED: inference/glm-5.2 (transport=router)
 # ROUTE-INTENDED-BACKGROUND: inference/gpt-4.1-nano
-{"type":"result","subtype":"success","is_error":true,"api_error_status":402,"duration_ms":18165,"duration_api_ms":13941,"num_turns":3,"result":"API Error: 402 Insufficient balance for request.","stop_reason":"stop_sequence","session_id":"de0db612-e5da-48a9-a2e8-7d8647e3162c","total_cost_usd":0.364205,"usage":{"input_tokens":66886,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1191,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":66886,"outputTokens":1191,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.364205,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","uuid":"266ba256-d261-4ff0-89e7-ee5cdef39bfc"}
-# ROUTE-RESOLVED: inference/glm-5.2
-# ROUTE-RESOLVED-BACKGROUND: inference/gpt-4.1-nano
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 1525538
-# FAIL: api-error
-# FAIL: account-side (HTTP 402 — provider billing/access, not toolkit)
+claude-providers: alias inference is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for inference)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=inference/glm-5.2; NO turn ran — route attribution is not applicable)

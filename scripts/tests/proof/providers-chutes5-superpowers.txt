@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: chutes5/moonshotai/Kimi-K2.6-TEE (transport=router)
+# ROUTE-INTENDED-BACKGROUND: chutes5/Qwen/Qwen3.6-27B-TEE
+{"is_error":true,"duration_api_ms":0,"num_turns":2,"stop_reason":null,"session_id":"d84b0da1-57b5-45b7-b60e-36f2b7fe04f3","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"aborted_streaming","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"],"type":"result","duration_ms":166890,"uuid":"5ec8ce17-b374-481d-8c53-229cde801938"}
+# ROUTE-RESOLVED: chutes5/moonshotai/Kimi-K2.6-TEE
+# ROUTE-RESOLVED-BACKGROUND: chutes5/Qwen/Qwen3.6-27B-TEE
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 16382
+# FAIL: timeout

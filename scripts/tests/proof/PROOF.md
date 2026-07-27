@@ -1,45 +1,45 @@
 # Toolkit proof of work
 
-- generated: `2026-07-22T01:23:37+0500`
-- host: `Linux 6.12.41-6.12-alt1 x86_64`
+- generated: `2026-07-26T21:04:06+0300`
+- host: `Linux 6.12.61-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
 ```
-Test files: 41   passed: 41   failed: 0   (skipped-prereq: 0) ALL GREEN 
+Test files: 55   passed: 55   failed: 0   (skipped-prereq: 0) ALL GREEN 
 ```
 exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 
 ## Live OpenCode verification (real binary + real config)
 ```
 # OpenCode live verification proof
-generated: 2026-07-18T18:24:05+0300
+generated: 2026-07-26T21:14:30+0300
 host:      Linux 6.12.61-6.12-alt1 x86_64
-opencode:  1.17.11
+opencode:  1.18.5
 config:    /home/milosvasic/.config/opencode/opencode.json
-mcp_total=150 mcp_enabled=9 skill_paths=174
-skills_resolved=1432 (threshold 200)
-mcp_connected=29 mcp_failed=0
+mcp_total=132 mcp_enabled=10 skill_paths=177
+skills_resolved=1497 (threshold 200)
+mcp_connected=10 mcp_failed=0
 instructions=1
 
 result: see PASS/FAIL tally below
 ```
-result: `SKIP: opencode not installed on this host — live verification skipped.`  ·  exit code: `0`
+result: `✓ 9 passed, 0 failed`  ·  exit code: `0`
 
 ## Live provider-alias verification (real installed state)
 ```
-✓ 21 passed, 0 failed
+✗ 10 failed, 34 passed
 ```
-exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
+exit code: `1`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
 ## Live alias verification (real provider + Claude aliases)
 ```
-PASS: 8 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 13 TOTAL: 21
+PASS: 15 FAIL: 0 SKIP-QUOTA: 6 SKIP-AUTH: 1 SKIP-TRANSIENT: 0 SKIP-GATED: 32 TOTAL: 57
 ```
 exit code: `0`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
 
 ## Live alias end-to-end verification (provider endpoints)
 ```
-  "total": 21,   "passed": 8,   "failed": 0, 
+  "total": 54,   "passed": 15,   "failed": 0, 
 ```
 exit code: `0`  ·  full log: [44-alias-e2e.log](44-alias-e2e.log)
 

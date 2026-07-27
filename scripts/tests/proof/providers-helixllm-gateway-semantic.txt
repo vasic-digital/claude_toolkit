@@ -1,0 +1,2 @@
+providers-semantic[helixllm-gateway]: skip — no key in $HELIXLLM_GATEWAY_KEY for model under test
+semantic verdict: skip

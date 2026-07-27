@@ -1,54 +1,131 @@
-Alias verification: Wed Jul 22 01:42:38 AM +05 2026
-Testing 21 aliases
+Alias verification: Sun Jul 26 10:04:31 PM MSK 2026
+Testing 54 aliases
+--- chutes1 (deepseek-ai/DeepSeek-V3.2-TEE) ---
+verdict=SKIP-GATED status=unverified
+--- chutes2 (Qwen/Qwen3.5-397B-A17B-TEE) ---
+verdict=SKIP-GATED status=unverified
+--- chutes3 (Qwen/Qwen3-235B-A22B-Thinking-2507-TEE) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'id': 'chatcmpl-to
+verdict=PASS
+--- chutes4 (zai-org/GLM-5.2-TEE) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_4c5fd6
+verdict=PASS
+--- chutes5 (moonshotai/Kimi-K2.6-TEE) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=16chunks test6(tool)=[{'id': 'functions.c
+verdict=PASS
 --- chutes (zai-org/GLM-5.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=11chunks test6(tool)=[{'id': 'call_edb564
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'id': 'call_65147a
 verdict=PASS
+--- deepseek2 (deepseek-v4-pro) ---
+verdict=SKIP-GATED status=failed
 --- deepseek (deepseek-v4-pro) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- fireworks-ai (accounts/fireworks/routers/glm-5p2-fast) ---
 verdict=SKIP-GATED status=failed
---- github-models (deepseek/deepseek-r1-0528) ---
+--- hyper1 (deepseek-v4-pro) ---
 verdict=SKIP-GATED status=failed
---- helixagent (/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'type': 'function'
-verdict=PASS
---- huggingface (Qwen/Qwen3-Coder-480B-A35B-Instruct) ---
+--- hyper2 (glm-5.2) ---
+verdict=SKIP-GATED status=failed
+--- hyper3 (kimi-k2.7-code) ---
+verdict=SKIP-GATED status=failed
+--- hyper4 (qwen3.7-max) ---
+verdict=SKIP-GATED status=failed
+--- hyper5 (glm-5.1) ---
 verdict=SKIP-GATED status=failed
 --- inference (glm-5.2) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'id': 'call_2dc066
-verdict=PASS
+verdict=SKIP-GATED status=failed
 --- kilo (nvidia/nemotron-3-super-120b-a12b:free) ---
-verdict=SKIP-GATED status=unverified
---- kimi-for-coding (kimi-for-coding) ---
-verdict=SKIP-GATED status=failed
---- novita-ai (deepseek/deepseek-v3.2) ---
-verdict=SKIP-GATED status=failed
---- nvidia (nvidia/nemotron-3-ultra-550b-a55b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=5chunks test6(tool)=[{'id': 'call-6080fe
-verdict=PASS
---- opencode (big-pickle) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=7chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- openrouter (nvidia/nemotron-3-super-120b-a12b:free) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
 verdict=PASS
---- poe (claude-sonnet-4.6) ---
+--- kimi-for-coding (kimi-for-coding) ---
+test1(basic)=QUOTA test2(no_params)=You've reached your usage limit for this test3(ref)=You've reached your usage limit for this test4(cache)=You've reached your usage limit for this test5(stream)=0chunks test6(tool)=QUOTA
+verdict=SKIP-QUOTA
+--- kimi-for-coding-highspeed (kimi-for-coding-highspeed) ---
+test1(basic)=QUOTA test2(no_params)=You've reached your usage limit for this test3(ref)=You've reached your usage limit for this test4(cache)=You've reached your usage limit for this test5(stream)=0chunks test6(tool)=QUOTA
+verdict=SKIP-QUOTA
+--- kimi-k2p7 (k2p7) ---
+verdict=SKIP-GATED status=orphaned
+--- kimi-k3-256k (k3-256k) ---
+test1(basic)=QUOTA test2(no_params)=You've reached your usage limit for this test3(ref)=You've reached your usage limit for this test4(cache)=You've reached your usage limit for this test5(stream)=0chunks test6(tool)=QUOTA
+verdict=SKIP-QUOTA
+--- kimi-k3 (k3) ---
+test1(basic)=QUOTA test2(no_params)=You've reached your usage limit for this test3(ref)=You've reached your usage limit for this test4(cache)=You've reached your usage limit for this test5(stream)=0chunks test6(tool)=QUOTA
+verdict=SKIP-QUOTA
+--- nvidia2 (stepfun-ai/step-3.7-flash) ---
 verdict=SKIP-GATED status=unverified
+--- nvidia3 (meta/llama-3.2-90b-vision-instruct) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'chatcmpl-to
+verdict=PASS
+--- nvidia4 (mistralai/mistral-small-4-119b-2603) ---
+verdict=SKIP-GATED status=unverified
+--- nvidia5 (meta/llama-3.1-8b-instruct) ---
+verdict=SKIP-GATED status=unverified
+--- nvidia (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=35chunks test6(tool)=[{'id': 'call-c97c00
+verdict=PASS
+--- opencode2 (nemotron-3-ultra-free) ---
+verdict=SKIP-GATED status=unverified
+--- opencode3 (hy3-free) ---
+verdict=SKIP-GATED status=orphaned
+--- opencode (ling-3.0-flash-free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- opencode-go1 (deepseek-v4-pro) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- opencode-go2 (glm-5) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_9516',
+verdict=PASS
+--- opencode-go5 (deepseek-v4-pro) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- opencode-go (deepseek-v4-pro) ---
+verdict=SKIP-GATED status=orphaned
+--- openrouter2 (inclusionai/ling-3.0-flash:free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'type': 'function'
+verdict=PASS
+--- openrouter3 (nvidia/nemotron-3-super-120b-a12b:free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
+verdict=PASS
+--- openrouter4 (poolside/laguna-xs-2.1:free) ---
+verdict=SKIP-GATED status=unverified
+--- openrouter5 (cohere/north-mini-code:free) ---
+verdict=SKIP-GATED status=unverified
+--- openrouter (nvidia/nemotron-3-ultra-550b-a55b:free) ---
+verdict=SKIP-GATED status=unverified
+--- poe2 (openai/gpt-5.2-codex) ---
+verdict=SKIP-GATED status=orphaned
+--- poe4 (xai/grok-3) ---
+verdict=SKIP-GATED status=orphaned
+--- poe5 (empiriolabs/deepseek-v4-pro-el) ---
+verdict=SKIP-GATED status=orphaned
+--- poe (claude-sonnet-4.6) ---
+verdict=SKIP-GATED status=failed
+--- sarvam (sarvam-105b) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'id': 'call_610973
+verdict=PASS
+--- siliconflow2 (ByteDance-Seed/Seed-OSS-36B-Instruct) ---
+verdict=SKIP-GATED status=orphaned
+--- siliconflow3 (moonshotai/Kimi-K2.5) ---
+verdict=SKIP-GATED status=orphaned
+--- siliconflow4 (deepseek-ai/DeepSeek-R1) ---
+verdict=SKIP-GATED status=orphaned
+--- siliconflow5 (zai-org/GLM-5V-Turbo) ---
+verdict=SKIP-GATED status=orphaned
 --- siliconflow (zai-org/GLM-5.2) ---
 verdict=SKIP-GATED status=failed
---- tencent-tokenhub (hy3-preview) ---
-verdict=SKIP-GATED status=failed
---- upstage (solar-pro3) ---
-verdict=SKIP-GATED status=failed
 --- xiaomi (mimo-v2.5-pro) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=11chunks test6(tool)=[{'id': 'call_42f659
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=14chunks test6(tool)=[{'id': 'call_c32df2
 verdict=PASS
 --- zai-coding-plan (glm-5.2) ---
 verdict=SKIP-GATED status=unverified
 --- zhipuai-coding-plan (glm-5.2) ---
-verdict=SKIP-GATED status=unverified
---- zhipuai (glm-5.2) ---
 verdict=SKIP-GATED status=orphaned
+--- zhipuai (glm-4.7-flash) ---
+verdict=SKIP-GATED status=unverified
+◌ milos85vasic: SKIP-AUTH (OAuth session expired — re-login with claude /login; not a toolkit failure)
+  detail(milos85vasic): Failed to authenticate: OAuth session expired and could not be refreshed | stderr: SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: Hook c
+◌ milos85vasic2nd: SKIP-QUOTA (account limit — not a toolkit failure)
+  detail(milos85vasic2nd): You've hit your weekly limit · resets 12pm (Europe/Moscow) | stderr: SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: Hook cancelled
+◌ milos85vasic3rd: SKIP-QUOTA (account limit — not a toolkit failure)
+  detail(milos85vasic3rd): You've hit your weekly limit · resets 11am (Europe/Moscow) | stderr: SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: Hook cancelled
 
-PASS: 8 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 13 TOTAL: 21
+PASS: 15 FAIL: 0 SKIP-QUOTA: 6 SKIP-AUTH: 1 SKIP-TRANSIENT: 0 SKIP-GATED: 32 TOTAL: 57

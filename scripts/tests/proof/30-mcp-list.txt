@@ -1,69 +1,6 @@
 [0m
 ┌  MCP Servers
 │
-●  ✓ cloudflare-docs [90mconnected
-│      [90mhttps://docs.mcp.cloudflare.com/sse
-│
-●  ✓ commands [90mconnected
-│      [90mnpx -y mcp-server-commands
-│
-●  ✓ context7 [90mconnected
-│      [90mhttps://mcp.context7.com/mcp
-│
-●  ✓ deepwiki [90mconnected
-│      [90mhttps://mcp.deepwiki.com/mcp
-│
-●  ✓ docker [90mconnected
-│      [90mnpx -y mcp-server-docker
-│
-●  ✓ everything [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-everything
-│
-●  ✓ fetch [90mconnected
-│      [90mnpx -y mcp-fetch-server
-│
-●  ✓ filesystem [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-filesystem /home/milosvasic
-│
-●  ✓ git [90mconnected
-│      [90mnpx -y mcp-git
-│
-●  ✓ github [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-github
-│
-●  ✓ markdown [90mconnected
-│      [90mnpx -y mcp-server-markdown
-│
-●  ✓ memory [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-memory
-│
-●  ✓ notion [90mconnected
-│      [90mnpx -y @notionhq/notion-mcp-server
-│
-●  ✓ postgres [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
-│
-●  ✓ puppeteer [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-puppeteer
-│
-●  ✓ sequential-thinking [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-sequential-thinking
-│
-●  ✓ shell [90mconnected
-│      [90mnpx -y mcp-shell-server
-│
-●  ✓ sqlite [90mconnected
-│      [90mnpx -y mcp-server-sqlite-npx /tmp/helixagent.db
-│
-●  ✓ tavily [90mconnected
-│      [90mnpx -y tavily-mcp
-│
-●  ✓ time [90mconnected
-│      [90mnpx -y @theo.foobar/mcp-time
-│
-●  ✓ codegraph [90mconnected
-│      [90mcodegraph serve --mcp
-│
 ●  ○ Adobe-for-creativity [90mdisabled
 │      [90mhttps://adobe-creativity.adobe.io/mcp
 │
@@ -71,7 +8,7 @@
 │      [90mnpx -y endorctl ai-tools mcp-server
 │
 ●  ○ aikido-mcp [90mdisabled
-│      [90mnpx -y @aikidosec/mcp@1.0.12
+│      [90mnpx -y @aikidosec/mcp@1.0.14
 │
 ●  ○ airtable [90mdisabled
 │      [90mhttps://mcp.airtable.com/mcp
@@ -157,6 +94,9 @@
 ●  ○ cloudflare-api [90mdisabled
 │      [90mhttps://mcp.cloudflare.com/mcp
 │
+●  ✓ cloudflare-docs [90mconnected
+│      [90mhttps://docs.mcp.cloudflare.com/mcp
+│
 ●  ○ cloudflare-bindings [90mdisabled
 │      [90mhttps://bindings.mcp.cloudflare.com/mcp
 │
@@ -167,7 +107,7 @@
 │      [90mhttps://observability.mcp.cloudflare.com/mcp
 │
 ●  ○ cockroachdb-toolbox [90mdisabled
-│      [90mtoolbox --config /home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/c511ba806b17/tools.yaml --stdio
+│      [90mtoolbox --config /home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.10/tools.yaml --stdio
 │
 ●  ○ cockroachdb-toolbox-http [90mdisabled
 │      [90mhttp://127.0.0.1:5000/mcp
@@ -183,6 +123,9 @@
 │
 ●  ○ confidence-docs [90mdisabled
 │      [90mhttps://mcp.confidence.dev/mcp/docs
+│
+●  ✓ context7 [90mconnected
+│      [90mnpx -y @upstash/context7-mcp
 │
 ●  ○ convex [90mdisabled
 │      [90mnpx -y convex@latest mcp start
@@ -259,6 +202,9 @@
 ●  ○ fullstory [90mdisabled
 │      [90mhttps://api.fullstory.com/mcp/fullstory
 │
+●  ○ github [90mdisabled
+│      [90mhttps://api.githubcopilot.com/mcp/
+│
 ●  ○ gitlab [90mdisabled
 │      [90mhttps://gitlab.com/api/v4/mcp
 │
@@ -276,9 +222,6 @@
 │
 ●  ○ intercom [90mdisabled
 │      [90mhttps://mcp.intercom.com/mcp
-│
-●  ○ jfrog [90mdisabled
-│      [90m${JFROG_URL}/mcp
 │
 ●  ○ laravel-boost [90mdisabled
 │      [90mphp artisan boost:mcp
@@ -325,6 +268,9 @@
 ●  ○ nimble [90mdisabled
 │      [90mhttps://mcp.nimbleway.com/mcp
 │
+●  ○ notion [90mdisabled
+│      [90mhttps://mcp.notion.com/mcp
+│
 ●  ○ pagerduty [90mdisabled
 │      [90mhttps://mcp.pagerduty.com/mcp
 │
@@ -362,7 +308,7 @@
 │      [90mhttps://mcp.railway.com
 │
 ●  ○ resend [90mdisabled
-│      [90mhttps://mcp.resend.com
+│      [90mhttps://mcp.resend.com/mcp
 │
 ●  ○ rill-developer [90mdisabled
 │      [90mhttp://localhost:9009/mcp
@@ -451,5 +397,5 @@
 ●  ○ zscaler-mcp-server [90mdisabled
 │      [90muvx --env-file /home/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.13.1/.env zscaler-mcp@0.13.1
 │
-└  150 server(s)
+└  132 server(s)
 

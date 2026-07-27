@@ -62,7 +62,8 @@ QUOTA_RE = re.compile(
 # transient-skip (never a pass, never a toolkit failure).
 TRANSIENT_RE = re.compile(
     r"maximum capacity|try again later|overloaded|temporarily unavailable|"
-    r"timed? ?out|service unavailable|HTTP (429|5\d\d)",
+    r"bad gateway|gateway timeout|"
+    r"timed? ?out|service unavailable|HTTP (Error )?(429|5\d\d)",
     re.IGNORECASE,
 )
 
@@ -223,6 +224,27 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
         result["tests"].append({"name": "env_check", "pass": False, "error": "No base URL"})
         return result
 
+    # Aliases the activation gate has already filtered out (unverified/failed/
+    # pending) are intentionally not launchable — skip them honestly instead of
+    # scoring a guaranteed failure. This gate MUST run before key resolution:
+    # an unverified alias typically has NO key either (it never verified), and
+    # failing key_check first reported it as a broken alias — the exact
+    # false-FAIL the gate exists to prevent (live: helixagent family 2026-07-26).
+    status_file = os.path.join(providers_dir, "status.json")
+    if os.path.exists(status_file):
+        try:
+            with open(status_file) as f:
+                st = json.load(f).get(alias_name, {}).get("status", "pending")
+        except Exception:
+            st = "pending"
+        if st != "verified":
+            result["gated_skip"] = True
+            result["tests"].append({
+                "name": "gated_check", "pass": False,
+                "error": f"SKIP-GATED (status={st} — filtered by the verification gate, not tested)",
+            })
+            return result
+
     # Resolve the chat endpoint the way the runtime does (native /anthropic
     # bases serve /v1/messages under the kept prefix; versioned router bases
     # take only /chat/completions — see chat_endpoint_for).
@@ -284,24 +306,6 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     if not api_key:
         result["tests"].append({"name": "key_check", "pass": False, "error": f"No API key for {key_var}"})
         return result
-
-    # Aliases the activation gate has already filtered out (unverified/failed/
-    # pending) are intentionally not launchable — skip them honestly instead of
-    # scoring a guaranteed failure.
-    status_file = os.path.join(providers_dir, "status.json")
-    if os.path.exists(status_file):
-        try:
-            with open(status_file) as f:
-                st = json.load(f).get(alias_name, {}).get("status", "pending")
-        except Exception:
-            st = "pending"
-        if st != "verified":
-            result["gated_skip"] = True
-            result["tests"].append({
-                "name": "gated_check", "pass": False,
-                "error": f"SKIP-GATED (status={st} — filtered by the verification gate, not tested)",
-            })
-            return result
 
     # Test 1: Direct request (should work for OpenAI-compatible endpoints)
     model = env.get("CMA_PROVIDER_MODEL", "")

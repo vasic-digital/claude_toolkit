@@ -144,7 +144,7 @@ keyvar="$( set -a; . "$PDIR/$ALIAS_ID.env"; set +a; printf '%s' "${CMA_PROVIDER_
 # to `ccr default-claude-code` -- EXCEPT when the provider's base_url IS the ccr
 # gateway itself, which trips lib.sh's self-reference guard and skips the
 # rewrite entirely. Such an alias INHERITS whatever the previously-launched
-# provider left in ~/.claude-code-router/config.json.
+# provider left in that alias's own ~/.claude-code-router/<provider-id>/config.json.
 #
 # That is not hypothetical. `helixagent` (base_url http://127.0.0.1:3456/v1)
 # never talked to helixagent: in the v1.23.0 proof run it inherited a ~1M-context
@@ -153,13 +153,13 @@ keyvar="$( set -a; . "$PDIR/$ALIAS_ID.env"; set +a; printf '%s' "${CMA_PROVIDER_
 # provider happened to run last, and would have named a different backend had
 # the run order changed. A pass attributable to a different backend is not a
 # weak pass; it is a false claim, and worse than a failure.
-IFS=$'\t' read -r P_TRANSPORT P_MODEL P_FAST_MODEL < <(
+IFS=$'\t' read -r P_TRANSPORT P_MODEL P_FAST_MODEL P_ID < <(
   set -a
   # shellcheck source=/dev/null  # runtime provider env file, path known only at execution
   . "$PDIR/$ALIAS_ID.env"
   set +a
-  printf '%s\t%s\t%s' "${CMA_PROVIDER_TRANSPORT:-native}" "${CMA_PROVIDER_MODEL:-}" \
-                      "${CMA_PROVIDER_FAST_MODEL:-}"
+  printf '%s\t%s\t%s\t%s' "${CMA_PROVIDER_TRANSPORT:-native}" "${CMA_PROVIDER_MODEL:-}" \
+                      "${CMA_PROVIDER_FAST_MODEL:-}" "${CMA_PROVIDER_ID:-$ALIAS_ID}"
 )
 ROUTE_INTENDED="$ALIAS_ID/$P_MODEL"
 # BOTH router entries must be attributed, not just .default. cma_run_provider
@@ -170,7 +170,32 @@ ROUTE_INTENDED="$ALIAS_ID/$P_MODEL"
 # same attribution hole as the original bluff, one router key over. The
 # background intent mirrors lib.sh's own fallback: fast model, else strong.
 ROUTE_INTENDED_BG="$ALIAS_ID/${P_FAST_MODEL:-$P_MODEL}"
-CCR_DIR="$HOME/.claude-code-router"
+# Per-alias CCR_HOME (lib.sh cma_run_provider router branch, ~1618-1627): every
+# router-transport alias runs its OWN ccr gateway whose config.json, pidfile
+# (service.json) and service.log live under ~/.claude-code-router/<provider-id>/,
+# with CCR_HOME passed to `ccr restart` / `ccr default-claude-code`. That
+# isolation landed in lib.sh on 2026-07-24 (5f9d82f, refined by 8695577) — THREE
+# DAYS AFTER this script's route reads were last touched (88b4695, 2026-07-21),
+# which still pointed at the GLOBAL ~/.claude-code-router/. Nothing writes the
+# global config any more, so every router leg resolved a STALE route left there
+# by the pre-isolation launcher (observed live: intended=xiaomi/mimo-v2.5-pro,
+# resolved=deepseek/deepseek-v4-pro from Jul 20) and failed attribution. The
+# reads below must name the SAME per-alias dir the launcher writes. P_ID is
+# CMA_PROVIDER_ID from the alias's own env file — the exact value the launcher
+# uses for the subdirectory.
+#
+# The deterministic per-alias port (CMA_CCR_PORT in the env file, else
+# 3460 + java-hash(id) % 500, scripts/lib.sh — see _ccr_port/_ccr_mgmt_port)
+# is deliberately NOT mirrored here: both restart receipts are filesystem
+# facts INSIDE CCR_HOME (a new 'gateway listening on' line / a changed
+# pidfile), not a port probe, so the port never enters the gate.
+if [[ "$P_TRANSPORT" == "router" ]]; then
+  CCR_DIR="$HOME/.claude-code-router/$P_ID"
+else
+  # Native transport never launches ccr; the n/a path below never reads these,
+  # so the base dir is only a placeholder.
+  CCR_DIR="$HOME/.claude-code-router"
+fi
 CCR_CFG="$CCR_DIR/config.json"
 # Written by the Go router's startService (cmd/ccr/service.go:264) on every
 # successful (re)start: pid + StartedAt of the CURRENTLY running daemon.
@@ -207,7 +232,7 @@ ccr_route_for() {
 #
 # That failure mode is reachable, not theoretical: cmdRestart REFUSES to restart
 # an authenticated gateway when CCR_API_KEYS is not visible to the call
-# (service.go:385-390, "refusing to restart ... would bring the gateway back
+# (service.go:556-560, "refusing to restart ... would bring the gateway back
 # UNAUTHENTICATED") and returns 1 — which `|| true` discards.
 #
 # (The often-cited lib.sh:930 comment claiming "config.json is not re-imported

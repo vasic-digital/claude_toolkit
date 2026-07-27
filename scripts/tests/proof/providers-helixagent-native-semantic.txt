@@ -1,0 +1,2 @@
+providers-semantic[helixagent-native]: skip — no key in $HELIXLLM_GATEWAY_KEY for model under test
+semantic verdict: skip

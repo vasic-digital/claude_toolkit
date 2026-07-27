@@ -1,2 +1,15 @@
-providers-semantic[chutes4]: layer-3 FAIL (cannot see code / bluffed)
-semantic verdict: unverified
+providers-semantic[chutes4]: driver rc=0
+driver json: {
+  "round1_sentinel": {
+    "pass": true,
+    "observed": "ZETA-9-ORANGE-7f3a"
+  },
+  "round2_judge": {
+    "pass": true,
+    "score": 3,
+    "skipped": false
+  },
+  "overall_pass": true
+}
+providers-semantic[chutes4]: layer-3 sentinel+judge PASS
+semantic verdict: verified

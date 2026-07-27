@@ -99,7 +99,7 @@ done
 CMA_INSTALL_FAILURES=()
 CMA_INSTALL_DEGRADED=()
 if ! bash "$LIB_DIR/claude-ccr-build.sh"; then
-  CMA_INSTALL_FAILURES+=("bundled claude-code-router (Go) did NOT build/install — provider aliases on the router transport cannot launch. Fix: install Go (https://go.dev/dl/), then run: claude-ccr-build")
+  CMA_INSTALL_FAILURES+=("bundled claude-code-router (Go) did NOT build/install — provider aliases on the router transport cannot launch. Fix: ensure a Go toolchain new enough for submodules/claude-code-router/go.mod is available (install/upgrade Go: https://go.dev/dl/ — or, with an older Go already installed and network access: GOTOOLCHAIN=auto claude-ccr-build), then run: claude-ccr-build")
 fi
 
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc

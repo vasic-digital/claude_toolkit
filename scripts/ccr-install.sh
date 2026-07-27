@@ -47,6 +47,27 @@ if ! command -v go >/dev/null 2>&1; then
   die "Go toolchain not found and no existing ccr at $BIN_DIR/ccr — install Go first."
 fi
 
+# --- toolchain-version advisory --------------------------------------------
+# With GOTOOLCHAIN=local an OLDER toolchain does not download the newer one
+# go.mod asks for — the build then fails with a bare "go.mod requires go >= X"
+# that does not say what to do. Report it up front with both remedies. Purely
+# advisory (best-effort text compare): the build below remains the authority.
+_need="$(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$SUBMODULE/go.mod" 2>/dev/null || true)"
+_have="$(go env GOVERSION 2>/dev/null | sed 's/^go//; s/-.*$//' || true)"
+# Portable dotted-version compare (BSD sort has no -V): true when _have < _need.
+_have_older="$(awk -v a="$_have" -v b="$_need" 'BEGIN{
+  if (a == "" || b == "") { print 0; exit }
+  na=split(a,x,"."); nb=split(b,y,".")
+  for (i=1; i<=3; i++) { ai=(i in x ? x[i] : 0)+0; bi=(i in y ? y[i] : 0)+0
+    if (ai < bi) { print 1; exit } ; if (ai > bi) { print 0; exit } }
+  print 0 }')"
+if [ -n "$_need" ] && [ -n "$_have" ] \
+   && [ "$_need" != "$_have" ] \
+   && [ "$_have_older" = "1" ]; then
+  warn "Go $_have is older than the $_need this router requires (GOTOOLCHAIN=$(go env GOTOOLCHAIN 2>/dev/null))."
+  printf '  If the build below fails on the toolchain version, either:\n    export GOTOOLCHAIN=auto     # let Go fetch %s itself (needs network)\n  or upgrade your Go to %s+ (https://go.dev/dl/).\n' "$_need" "$_need" >&2
+fi
+
 # --- build ---------------------------------------------------------------
 
 log "building bundled claude-code-router (Go) ..."

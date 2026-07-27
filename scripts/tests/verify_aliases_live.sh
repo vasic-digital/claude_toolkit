@@ -44,7 +44,7 @@ set +a
 [[ -f "$HOME/.local/share/claude-multi-account/aliases.sh" ]] && source "$HOME/.local/share/claude-multi-account/aliases.sh" 2>/dev/null || true
 
 PDIR="$HOME/.local/share/claude-multi-account/providers"
-total=0 passed=0 failed=0 qskip=0 tskip=0 gated=0
+total=0 passed=0 failed=0 qskip=0 askip=0 tskip=0 gated=0
 
 if [[ -n "$TARGET_ALIAS" ]]; then
   f="$PDIR/$TARGET_ALIAS.env"
@@ -329,19 +329,37 @@ test_claude_alias() {
   total=$((total+1))
   export CLAUDE_CONFIG_DIR="$config_dir"
 
-  # Basic test. Account-level quota states (weekly/usage limits) are NOT
-  # toolkit failures — same FUNDS distinction as the provider checks.
-  result=$(cma_run -p "Say OK" 2>/dev/null || echo "FAIL")
-  if printf '%s' "$result" | grep -qiE 'weekly limit|usage limit|rate limit|hit your.*limit|insufficient'; then
+  # Basic test. Account-level states are NOT toolkit failures — quota
+  # (weekly/usage limits) and an expired OAuth session (live-proven
+  # 2026-07-26: milos85vasic FAILed this leg on "Failed to authenticate:
+  # OAuth session expired and could not be refreshed" — its
+  # .credentials.json refresh token had lapsed 4 days earlier, an
+  # account-SIDE state needing an interactive `claude /login`; the toolkit
+  # never touches .credentials.json, a PRIVATE_ITEM). stderr is captured
+  # separately and consulted ONLY for classification + detail: the auth
+  # error is not guaranteed to arrive on stdout, but merging stderr into
+  # the PASS grep below would risk a false PASS from hook noise.
+  local _errf result errtxt
+  _errf=$(mktemp "${TMPDIR:-/tmp}/cma-alias-err.XXXXXX")
+  result=$(cma_run -p "Say OK" 2>"$_errf" || true)
+  errtxt=$(cat "$_errf" 2>/dev/null); rm -f "$_errf"
+  if printf '%s\n%s' "$result" "$errtxt" | grep -qiE 'failed to authenticate|oauth session expired|not logged in'; then
+    askip=$((askip+1))
+    echo "◌ $alias_name: SKIP-AUTH (OAuth session expired — re-login with claude /login; not a toolkit failure)" | tee -a "$EV"
+  elif printf '%s\n%s' "$result" "$errtxt" | grep -qiE 'weekly limit|usage limit|rate limit|hit your.*limit|insufficient'; then
     qskip=$((qskip+1))
     echo "◌ $alias_name: SKIP-QUOTA (account limit — not a toolkit failure)" | tee -a "$EV"
-  elif echo "$result" | grep -qi "OK\|ready\|help"; then
+  elif printf '%s' "$result" | grep -qi "OK\|ready\|help"; then
     passed=$((passed+1))
     echo "✓ $alias_name: PASS" | tee -a "$EV"
   else
     failed=$((failed+1))
     echo "✗ $alias_name: FAIL" | tee -a "$EV"
   fi
+  # Detail for EVERY verdict: a bare "✗ name: FAIL" with the captured output
+  # discarded is undiagnosable — that is exactly how the 2026-07-26
+  # milos85vasic FAIL shipped with no error text in any artifact.
+  printf '  detail(%s): %.300s\n' "$alias_name" "${result}${errtxt:+ | stderr: $errtxt}" >> "$EV"
   unset CLAUDE_CONFIG_DIR
 }
 
@@ -373,7 +391,7 @@ if (( total == 0 )); then
 fi
 
 echo | tee -a "$EV"
-echo "PASS: $passed FAIL: $failed SKIP-QUOTA: ${qskip:-0} SKIP-TRANSIENT: ${tskip:-0} SKIP-GATED: ${gated:-0} TOTAL: $total" | tee -a "$EV"
+echo "PASS: $passed FAIL: $failed SKIP-QUOTA: ${qskip:-0} SKIP-AUTH: ${askip:-0} SKIP-TRANSIENT: ${tskip:-0} SKIP-GATED: ${gated:-0} TOTAL: $total" | tee -a "$EV"
 # Exit code counts only GENUINE failures. SKIP-QUOTA aliases are account-level
 # funds states, SKIP-TRANSIENT aliases are provider capacity/timeout states,
 # and SKIP-GATED aliases are intentionally not launchable (the verification

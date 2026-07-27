@@ -1,3 +1,7 @@
-Service not running, starting service...
-{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":15006,"duration_api_ms":13191,"ttft_ms":7099,"ttft_stream_ms":4903,"time_to_request_ms":705,"num_turns":2,"result":"I need to read the `using-superpowers` skill file to proceed. Could you please approve the file read permission? This will let me access the skill instructions and help you properly.","stop_reason":"end_turn","session_id":"3c458adc-9147-42f7-8903-eda1de124079","total_cost_usd":0.0477456,"usage":{"input_tokens":8013,"cache_creation_input_tokens":0,"cache_read_input_tokens":70272,"output_tokens":175,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-sonnet-5":{"inputTokens":8013,"outputTokens":175,"cacheReadInputTokens":70272,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.0477456,"contextWindow":200000,"maxOutputTokens":64000}},"permission_denials":[{"tool_name":"Read","tool_use_id":"functions.Read:0","tool_input":{"file_path":"/home/milosvasic/.claude-shared/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/using-superpowers/SKILL.md"}}],"terminal_reason":"completed","fast_mode_state":"off","uuid":"d172ca37-b9d1-4d74-b68e-e291fc06a317"}
-# FAIL: no-engagement
+# ROUTE-INTENDED: siliconflow3/moonshotai/Kimi-K2.5 (transport=router)
+# ROUTE-INTENDED-BACKGROUND: siliconflow3/moonshotai/Kimi-K2.6
+claude-providers: alias siliconflow3 is orphaned — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for siliconflow3)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=siliconflow3/moonshotai/Kimi-K2.5; NO turn ran — route attribution is not applicable)

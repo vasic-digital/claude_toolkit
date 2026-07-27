@@ -238,8 +238,1675 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 </style>
 </head>
 <body>
+<header id="title-block-header">
+<h1 class="title">CHANGELOG</h1>
+</header>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v1.26.1-2026-07-25-ccr-buildable-on-same-minor-toolchains-launch-locks-that-actually-lock-honest-toolchain-skew-guidance">v1.26.1
+— 2026-07-25 — ccr buildable on same-minor toolchains + launch locks
+that actually lock + honest toolchain-skew guidance</h2>
+<p>Patch release on top of v1.26.0. Root-caused from a live install
+failure (<code>ccr: no router found</code> on a host WITH Go installed)
+and the launch-path investigation it triggered; every fix carries a
+RED-&gt;GREEN regression test observed to fail on the pre-fix
+artifact.</p>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong>Cross-alias gateway port-collision chain (live-proven:
+xiaomi and opencode2 both hashed to 3519).</strong> Three links closed:
+(1) the 100-slot per-alias port spaces collided under ~50 router aliases
+— widened to 500 slots each (gateway [3460,3959], management
+[3960,4459]; a surviving collision now fails loudly with rc=78 instead
+of silently degrading); (2) ccr’s <code>waitForReady</code> accepted a
+FOREIGN gateway’s <code>/health</code> as the child’s readiness, so a
+colliding child that died on bind was recorded “ready” in the pidfile —
+a 200 now counts only when the port’s holder IS the child
+(<code>cmd/ccr/waitforready_test.go</code>); (3)
+<code>ccr default-claude-code</code>’s fresh-start path rebuilt the dead
+service with environment DEFAULTS, silently reverting the per-alias
+ports to the shared 3456/3458 — a dead pidfile’s recorded flags are now
+replayed. The <code>claude-sonnet-5</code> 404s seen on
+opencode2/openrouter were transient fallout of this landscape
+(default-port gateways serving mismatched configs mid-sweep); with the
+chain closed those aliases route correctly again.</li>
+<li><strong>Live-proof classifier learned two more honest classes (it
+was pinning the suite red on non-toolkit conditions).</strong> (1)
+<code>context-inadequate</code> now matches the no-“about” phrasing —
+live on nvidia3/mistral-small:
+<code>maximum context length is 32768 tokens. However, you requested 113865 tokens (…)</code>
+— the branch regex used to REQUIRE “about”, so this genuine
+provider-side overflow fell through to a counted api-error; extraction
+is also pinned against the trailing-parenthesis trap (the request is
+113865, never the 65536 completion budget). (2) New
+<code>environment-incompatible</code> KNOWN-NON-WORKING class: the
+provider’s own 400 rejects an MCP tool NAME from the host’s plugin
+environment (live on nvidia4:
+<code>Function name was mcp__plugin_aws-startup-advisor_… but must be … maximum length of 64</code>)
+— the toolkit neither mints nor rewrites MCP tool names, so a strict
+provider’s grammar rejection is not a routing defect; the marker stays
+on the evidence’s face and a name-sanitizing transform is the tracked
+follow-up. Both classes: evidence-based, re-derived every run, PASS
+never reaches them, generic 400s stay counted (covered by new cases in
+<code>test_layer4_route_attribution.sh</code>, 214/214 incl. a re-scoped
+mutation anchor).</li>
+<li><strong>Every router alias shared ccr’s default management port 3458
+— only ONE per-alias gateway could be up at a time (live defect, sarvam
+rc=78).</strong> Per-alias CCR_HOME isolation gave each alias its own
+gateway port but left the management port at 3458 for all of them, so
+every second alias’s <code>ccr restart</code> child died with
+<code>start management interface: listen on 127.0.0.1:3458: bind: address already in use</code>
+and the launch refused with <code>rc=78</code> (“route was written but
+never applied” — live-captured: 4 child starts, 4 bind failures). Worse,
+the child binds its gateway socket BEFORE the management bind fails, so
+<code>waitForReady</code> could WIN the race against the dying child — a
+launch that “succeeded” against a gateway that was already exiting. The
+launcher now derives a per-alias management port from the same
+provider-id hash in the disjoint [3960,4459] space
+(<code>CMA_CCR_MGMT_PORT</code> in the provider env pins it) and passes
+it to every <code>ccr restart</code> call;
+<code>ccr default-claude-code</code>’s recovery path replays the pidfile
+flags, so the port survives restarts. Covered by new
+<code>test_mgmt_port_isolation.sh</code> (both port spaces, per-alias
+distinctness, the pin; green on the fix, red on the pre-fix body).</li>
+<li><strong>Live route-attribution verifier read the STALE GLOBAL ccr
+dir; every router proof leg failed attribution (29 FAILs).</strong>
+<code>verify_superpowers_tui.sh</code> read
+<code>~/.claude-code-router/config.json</code> (+
+<code>service.json</code>/<code>service.log</code> for the restart
+receipt) — a layout nothing writes any more since per-alias CCR_HOME
+isolation landed (<code>5f9d82f</code>, 2026-07-24): router launches
+write <code>~/.claude-code-router/&lt;provider-id&gt;/config.json</code>
+and run their gateway with <code>CCR_HOME</code> pointed at the same
+per-alias dir. The global file still held a Jul-20 route
+(<code>deepseek</code>), so every router leg resolved the wrong backend
+(<code>intended=xiaomi … resolved=deepseek/deepseek-v4-pro</code>). The
+verifier now reads the same per-alias dir the launcher writes (gate
+semantics unchanged: intended-vs-resolved on
+<code>default</code>+<code>background</code>, restart receipt
+fail-closed — only WHERE the files are read).
+<code>claude-release-gate.sh</code> had the same drift in its sink-side
+route proof and is fixed identically;
+<code>test_layer4_route_attribution.sh</code> fixtures moved to the
+per-alias layout with a stale-global decoy planted so the drift cannot
+silently return (205/205 green; the same suite fails 22 ways against the
+pre-fix verifier).</li>
+<li><strong><code>_cma_ccr_unfossilise</code> leaked the cfg lock fd and
+the held flock on its early returns.</strong> The CAS-1 mismatch and
+mktemp-failure paths returned between <code>_cma_cfg_lock</code> and
+<code>_cma_cfg_unlock</code>; in the operator’s INTERACTIVE shell (which
+never dies) the kernel never releases a leaked flock, so each occurrence
+held the lock for the shell’s life, stacked +1 leaked fd, and stalled
+every later cfg-lock on that config for the full 5s budget while
+silently degrading it to unlocked — precisely under the
+concurrent-launch conditions the lock exists for (found by independent
+audit, live-proven). Both returns now pass through the unlock;
+<code>test_lock_fd_persistence.sh</code> covers both paths (fd var
+cleared, contender acquires immediately, zero fd delta).</li>
+<li><strong>Bundled ccr no longer refuses to build on a same-minor Go
+toolchain (install blocker).</strong> The submodule’s
+<code>go.mod</code> pinned <code>go 1.26.4</code>; on a host running
+go1.26.2 with <code>GOTOOLCHAIN=local</code> (distro default on this
+toolchain build), <code>go build</code> refuses with
+<code>go.mod requires go &gt;= 1.26.4</code>, so <code>install.sh</code>
+correctly hard-failed — but the fix text said “install Go” on a host
+that HAD Go. Patch releases never add language features, so the
+directive is now <code>go 1.26</code> (matching the sibling
+<code>cma-proxy</code> module, which built fine the whole time). Guarded
+by a new <code>test_ccr_build.sh</code> invariant asserting the
+directive stays major.minor-only.</li>
+<li><strong>The eph/cfg launch locks silently never locked — every
+config/marker critical section ran without mutual exclusion.</strong>
+<code>_cma_eph_lock</code> / <code>_cma_cfg_lock</code> opened their
+lock fd as <code>{ exec 9&gt;&gt;FILE; } 2&gt;/dev/null</code>:
+hardcoded LOW fds (9/10) collide with the shell’s OWN redirection
+bookkeeping (bash saves/restores fds around compound-command
+redirections and command substitutions onto low free fds), so the fd the
+inner <code>exec</code> opened did not survive the group — proven live
+on bash 5.2.37: the next <code>flock -w 5 9</code> failed “Bad file
+descriptor” (hidden by the group’s own <code>2&gt;/dev/null</code>), the
+“5s timeout” handler fired spuriously, and the interactive launch leaked
+<code>bash: line 1: 10: Bad file descriptor</code> onto the operator’s
+terminal. Both locks now use dynamic fd allocation
+(<code>exec {var}&gt;&gt;FILE</code> — the shell picks a guaranteed-free
+fd), which also removes the need for the stderr suppression that caused
+the original permanent-stderr-silencing defect. New
+<code>scripts/tests/test_lock_fd_persistence.sh</code> extracts the
+SHIPPED function bodies and proves: lock really held against an external
+contender, really released on unlock, stderr alive, no bad-fd noise, and
+two racing writers serialize to the exact count (fails 10 ways on the
+pre-fix code, including the lost-update race ending at 40 of 80).</li>
+<li><strong>Misleading “install Go” remediation texts.</strong>
+<code>install.sh</code>’s failure record,
+<code>claude-install-verify.sh</code>’s absent-router failure, and the
+standalone <code>ccr-install.sh</code> now diagnose toolchain VERSION
+SKEW accurately: they name both remedies
+(<code>GOTOOLCHAIN=auto claude-ccr-build</code> when an older Go is
+present with network access, or upgrade Go) instead of telling operators
+to install what is already installed. <code>ccr-install.sh</code> gained
+the same up-front skew advisory <code>claude-ccr-build.sh</code> already
+had.</li>
+</ul>
+<h3 id="fixed-ccr-submodule-vasic-digitalclaude-code-router">Fixed (ccr
+submodule, vasic-digital/claude-code-router)</h3>
+<ul>
+<li><strong><code>test/livereload</code> drift after ATM-870 (graceful
+route swap).</strong> <code>a6a24e0</code> added
+<code>gw.SwapConfig</code> (atomic in-place config swap;
+<code>/health</code>, <code>/ready</code> and routing all follow it
+per-request) but the live reload tests still waited for the retired
+sentinel <code>config reloaded and validated:</code> — all three
+<code>TestConfigHotReloadLive</code> subtests timed out at 30s each.
+<code>ValidReload_AcceptLineNamesNewConfig</code> and
+<code>CleanShutdown_WatcherStops</code> re-sentinelled to the real
+accept line (<code>config reloaded and applied in-place:</code>); the
+dead-premise <code>HonestBoundary_NotSwappedLive</code> was rewritten as
+<code>InPlaceSwap_HealthReflectsNewConfig</code> (asserts the swapped
+config IS served live; documents the two things that do NOT follow a
+swap: the startup-built outbound proxy client and in-flight request
+snapshots). Stale “only a process bounce applies config” claims
+corrected in <code>serve.go</code>, <code>reload.go</code>,
+<code>service.go</code>, <code>restart_test.go</code> and the submodule
+docs (<code>ADMIN_MANUAL</code>, <code>DOC-AUDIT</code>,
+<code>LIVE_TESTING</code>). <code>ccr restart</code> remains the
+toolkit’s deterministic apply-point; <code>go test ./...</code> fully
+green.</li>
+</ul>
+<h2 id="v1.26.0-2026-07-24-free-tier-first-per-model-aliases-by-default-dynamic-account-dispatch-provider-scoped-gateway-paths">v1.26.0
+— 2026-07-24 — free-tier-first per-model aliases by default + dynamic
+account dispatch + provider-scoped gateway paths</h2>
+<p>Minor release on top of v1.25.5 covering the ATM-850/851/852/853/860
+defect batch (2026-07-23/24). Every fix carries
+RED-on-the-broken-artifact -&gt; GREEN -&gt; a paired §1.1 mutation
+observed to FAIL, plus live captured evidence where a live path exists
+(<code>qa-results/toolkit_defects_20260723/</code>).</p>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong>Free-tier-first per-model provider aliases are now the
+DEFAULT sync behaviour (ATM-860, operator decision D14).</strong> The
+per-model verification + multi-alias pipeline
+(<code>model_verify.py</code> + <code>providers_generate.py</code>) —
+previously reachable only through the opt-in <code>sync --multi</code>
+that no default path ever invoked (a CONFIGURED-but-not-IN-USE gap,
+§11.4.196(F)) — now runs as part of every plain
+<code>claude-providers sync</code>, restricted to FREE-tier models.
+Free-vs-paid derives from REAL data only, never a roster: models.dev
+<code>cost</code> rows (0/0 on both sides = free), the provider
+<code>:free</code> id convention, and — for models no commercial catalog
+knows — a self-hosted loopback/RFC1918 endpoint. A model whose tier is
+underivable is treated as PAID and skipped unprobed (fail-safe on
+spend); skips are recorded honestly in
+<code>&lt;provider&gt;_verified.json</code> (<code>free_only</code>,
+<code>skipped_models</code> with per-model tier + reason), never as
+failures. Paid probing is an explicit opt-in:
+<code>sync --include-paid</code> or
+<code>CMA_SYNC_INCLUDE_PAID=1</code>; <code>CMA_SYNC_MULTI=0</code>
+restores the legacy single-alias-only default. Verification remains a
+REAL completion round-trip per model (existence + <code>VERIFY_OK</code>
+sentinel + tool-call + streaming probes) — a models-list entry is not
+evidence, and a listed-free model whose completion fails is never
+admitted. Alias generation is idempotent + re-runnable with
+deterministic, collision-free naming (<code>provider</code>,
+<code>provider2</code>, …): ranking and pairing now tie-break on
+<code>model_id</code>, so equal-score models can no longer swap aliases
+between runs on concurrent-probe completion order (verification cache
+bumped to v3). Native-first ordering (§11.4.196(A)) is structural and
+unchanged: generated aliases are provider-class
+(<code>cma_run_provider</code>, <code>~/.claude-prov-*</code>), a
+namespace the account-class dispatcher refuses. Live proof: default sync
+against the real opencode free tier (models.dev fetched live; free
+models probed with real completions, paid/unknown skipped unprobed,
+second run byte-identical).</li>
+<li><strong>Bare account names dispatch dynamically —
+<code>claude5</code> works in shells older than its alias file
+(ATM-850).</strong> A <code>command_not_found_handle(r)</code>
+(bash+zsh) emitted into the managed alias block resolves
+<code>&lt;name&gt;</code> -&gt; <code>~/.claude-&lt;name&gt;</code> at
+INVOCATION time, so a tmux pane shell that sourced an older
+<code>aliases.sh</code> still launches a newly-added account out of the
+box. Defined names always win; a pre-existing handler is chained;
+<code>prov-*</code>/<code>code-router</code> are refused; a non-account
+miss keeps rc=127. <code>claude-add-account</code> now detects live tmux
+servers holding stale pane shells and prints the exact
+re-source/broadcast commands (broadcast only on an interactive
+default-No confirm — never autonomous send-keys).</li>
+</ul>
+<h3 id="fixed-1">Fixed</h3>
+<ul>
+<li><strong>Pinned helixagent facade models survive a live sync
+(ATM-851).</strong> When the live <code>/v1/models</code> listing did
+not contain the pinned facade id, the positional fallback overwrote the
+explicitly pinned <code>CMA_HELIXAGENT_STRONG/FAST</code> with the
+endpoint-reported <code>.gguf</code> path. Pin provenance is now
+captured before built-in defaults: an explicit pin is authoritative; the
+live listing (still fetched as reachability evidence) never overwrites
+it; unpinned selection stays data-driven.</li>
+<li><strong>Provider-scoped gateway paths (ATM-852, ccr
+submodule).</strong> The ccr gateway now serves
+<code>/:provider/v1/{messages,chat/completions}</code> — the provider
+name is carried in the base URL path, validated against configured
+providers (unknown segment = 404), and stripped before the protocol
+classifier; bare <code>/v1/*</code> and <code>/proxy/v1/*</code> are
+untouched. The router-transport launcher exports the provider-scoped
+base URL. Activation on the running gateway requires
+<code>claude-ccr-build</code> + an operator-coordinated ccr
+restart.</li>
+<li><strong>Opencode context-compression loop (ATM-853).</strong>
+<code>derive_limits()</code> read only <code>limit.context</code> and
+ignored <code>limit.input</code>, so big-pickle’s
+200k-context/160k-input catalog row produced a compact window ABOVE the
+model’s real input cap — the client-side compact guard could never fire
+before the endpoint rejected, looping reject-&gt;compact-&gt;reject.
+<code>derive_limits</code> now clamps
+<code>ctx = min(limit.context, limit.input)</code> when the catalog
+publishes a smaller real input cap; big-pickle resolves (160000, 8192)
+and the guard fires first. On-alias loop-gone retest remains pending a
+coordinated ccr window.</li>
+<li><strong>Uncatalogued live-proven models are no longer demoted on an
+absent catalog row (ATM-860 finding 2).</strong>
+<code>model_verify.py</code> read an ABSENT catalog context as
+<code>0</code> and failed the <code>&lt; 8000</code> gate — a
+capacity-vs-unknown false refusal (§11.4.201(9)) that zeroed
+helixagent’s whole live-enumerated roster. Only a KNOWN small context
+demotes; unknown earns no context score but keeps the live-probe
+verdict.</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>Regression state at draft time: see
+<code>qa-results/toolkit_defects_20260723/evidence/d6_regression_sweep.log</code>
+(providers suite, helixagent 46, pins 10, dispatch 8, tmux-notice 12,
+free-tier multi-sync 28, ccr <code>go test ./...</code>).</li>
+</ul>
+<h2 id="v1.25.5-2026-07-23-fail-loud-install-over-brokenmissing-ccr-interactive-shell-stderr-fix-anti-fossil-r-m-w-hardening">v1.25.5
+— 2026-07-23 — fail-loud install over broken/missing ccr +
+interactive-shell stderr fix + anti-fossil r-m-w hardening</h2>
+<p>Patch release on top of v1.25.4. Every change independently reviewed
+to a zero-finding / zero-warning GO on Fable-xhigh (Opus-xhigh fallback
+while Fable is weekly-limited; §11.4.209/§11.4.134); install suite 46/46
+green (<code>suite_rc=0</code>).</p>
+<h3 id="fixed-2">Fixed</h3>
+<ul>
+<li><strong><code>install.sh</code> no longer prints
+<code>[done] installed</code> over a broken or missing
+<code>ccr</code>.</strong> The build/verify seam now probes the ARTIFACT
+through its real invocation path (not a build-prerequisite’s presence):
+a usable resident <code>ccr</code> with no Go toolchain passes with an
+honest will-go-stale warning; a broken / npm-doppelganger / wedged /
+absent <code>ccr</code> hard-fails exit 1 instead of a false success
+(§11.4.201(11)).</li>
+<li><strong>The probe watchdog no longer stalls install/verify by +15s
+on a healthy host.</strong> A watchdog subshell spawned inside a
+<code>$(...)</code> command-substitution held the pipe write-end via its
+orphaned <code>sleep</code>, so every seam blocked to the full timeout
+budget on instant work. The watchdog’s fds are redirected away from the
+cmd-subst pipe; the fast path returns in ~0s and a genuinely-wedged
+probe is still bounded at <code>rc=124</code>. (Codified as
+shell-instrument footgun I7 in the constitution.)</li>
+<li><strong>Bare <code>exec N&gt;&gt;file 2&gt;/dev/null</code> in the
+sourced eph-lock helper no longer silences the interactive shell’s
+stderr for the shell’s lifetime.</strong> The side redirection is
+brace-scoped; the eph-lock wait is bounded (best-effort, proceeds
+unlocked with an honest log on timeout).</li>
+<li><strong>Anti-fossil marker read-modify-write hardened</strong>
+against lost updates + word-split.</li>
+</ul>
+<h3 id="verified">Verified</h3>
+<ul>
+<li>Provider <code>helixagent</code> (local Qwen3-Coder-30B on
+<code>127.0.0.1:18434</code>) re-verified + proven end-to-end:
+<code>model_verify.py</code> anti-bluff scoring PASS + a live captured
+answer correctly naming the working repo (no <code>--force</code>, no
+bluff). ## v1.25.4 — 2026-07-22 — un-fossilise ephemeral cma-proxy
+addresses (kill the 502 class) + toon Go port</li>
+</ul>
+<p>Patch + feature release on top of v1.25.3.</p>
+<h3 id="fixed-3">Fixed</h3>
+<ul>
+<li><strong>Ephemeral cma-proxy address no longer fossilises into
+<code>Router.default</code>.</strong> A transform-declaring provider
+gets a cma-proxy on a scan-until-free port and its <code>base</code> is
+rewritten to that proxy address — which was then persisted into the
+durable <code>config.json</code> and left behind when the proxy died on
+exit, so <code>Router.default</code> named a dead
+<code>127.0.0.1:&lt;port&gt;</code> with no listener and every gateway
+consumer hit <code>502 dial tcp … connection refused</code> while the
+provider’s real backend was healthy. Two compare-and-swap guards now (1)
+repair our own ephemeral address back to the real endpoint on exit and
+(2) reap fossils whose owning launch died — reaping only a provably-dead
+holder (<code>kill -0</code>, §11.4.180) and never clobbering a
+concurrent live route; the real endpoint is kept in a sidecar marker,
+not <code>config.json</code>. Measured: <code>helixagent</code> and
+<code>poe</code> had both fossilised on <code>127.0.0.1:3457</code> and
+were misread as provider outages. Live re-verification post-fix: all 8
+valid aliases launch clean (PING-OK) and <code>poe</code> surfaces its
+real upstream status instead of a dead-port 502.</li>
+</ul>
+<h3 id="added-1">Added</h3>
+<ul>
+<li><strong><code>scripts/toon/</code> — Go port of
+<code>toon_encode.py</code></strong> (added alongside the Python, which
+remains the sole caller). Byte-parity with the real <code>python3</code>
+encoder over the realistic numeric + structural input space (42 golden
+vectors + a 4000-iteration float-repr sweep), with two
+honestly-documented, test-gated divergences (bare
+<code>NaN</code>/<code>Infinity</code>; the <code>findToonScript</code>
+walk-up superset).</li>
+</ul>
+<h2 id="v1.25.3-2026-07-22-trim-knob-survives-generator-regen-operator-docs-for-trimgatecontainer-mode">v1.25.3
+— 2026-07-22 — trim knob survives generator regen + operator docs for
+trim/gate/container-mode</h2>
+<p>Patch follow-up to v1.25.2.</p>
+<h3 id="fixed-4">Fixed</h3>
+<ul>
+<li><strong><code>CMA_PROVIDER_TRIM</code> now survives a provider
+re-add.</strong> The v1.25.2 trim knob was a hand-added line on the
+provider <code>.env</code>, which the generator
+(<code>cma_provider_write_env</code>) would have dropped on the next
+<code>claude-providers add</code>/sync (the file is machine-generated).
+The generator now READS the existing <code>CMA_PROVIDER_TRIM</code>
+value before it truncates the file and re-emits it — matching the
+existing “preserve-existing-value” pattern; emitted only when set, and
+the ambient var is unset first so a shell export can never leak onto the
+file. (<code>scripts/tests/test_provider_trim_persist.sh</code>,
+red→green.)</li>
+</ul>
+<h3 id="added-2">Added</h3>
+<ul>
+<li><strong>Operator documentation</strong> for the v1.25.2 features in
+<code>docs/Provider_Aliases_User_Guide.md</code> (+ synchronized
+HTML/PDF/DOCX) and <code>docs/Provider_FAQ.md</code>:
+<code>CMA_PROVIDER_TRIM=&#39;bare&#39;</code> trim mode, the
+<code>claude-release-gate</code> live gate, and the helixagent HelixLLM
+container-mode dependency (claude mode = one 229k slot vs coder mode =
+8×3072).</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>GitLab upstream repointed to the renamed <code>claude_toolkit</code>
+(underscore) repo (<code>upstreams/GitLab.sh</code> + local remotes) —
+GitLab, like GitHub, has completed the §11.4.29 snake_case rename.
+GitFlic/GitVerse still host the dash name (underscore absent there) and
+remain on dash until renamed operator-side.</li>
+</ul>
+<h2 id="v1.25.2-2026-07-22-ccr-resolved-by-stable-path-path-shadowing-doppelgänger-provider-trim-mode-mandatory-live-release-gate">v1.25.2
+— 2026-07-22 — ccr resolved by stable path (PATH-shadowing
+doppelgänger), provider trim mode, mandatory live release gate</h2>
+<p>Patch. A second field failure on the v1.25.1 shape, with a DIFFERENT
+root cause the self-heal could never fix: the npm
+<code>@musistudio/claude-code-router</code> package installs its own
+<code>ccr</code> into nvm’s bin dir, which precedes
+<code>~/.local/bin</code> on PATH. Its <code>--help</code> carries the
+same “ccr start / ccr serve” fingerprint (it passes the identity gate)
+but it has NO <code>restart</code> subcommand — so every router launch
+failed exactly like a stale bundled build, the self-heal rebuilt the
+BUNDLED binary (which was never the one being invoked), retried bare
+<code>ccr restart</code>, hit the doppelgänger again, and refused. A
+rebuild cannot fix PATH shadowing. Investigation of the live helixagent
+chain then surfaced two more stacked defects: the HelixLLM container
+serving 8 × 3,072-token slots (<code>-c 24576 --parallel 8</code> —
+llama.cpp splits <code>-c</code> across slots), and ~330k tokens of
+auto-resumed session history + ~110k of plugin/MCP tool schemas
+overflowing the local model’s window on every launch (a direct
+<code>claude --bare -p hi</code> request measures 4,891 bytes — the
+client was never the problem).</p>
+<h3 id="fixed-5">Fixed</h3>
+<ul>
+<li><strong><code>cma_run_provider</code> resolves OUR router by its
+stable install identity, never by PATH order.</strong> Resolution:
+<code>$CMA_CCR_BIN</code> override, else
+<code>$HOME/.local/bin/ccr</code> (the symlink
+<code>claude-ccr-build</code> maintains), PATH only as a last resort
+when the bundled install is absent — and the resolved path is used for
+EVERY invocation (identity probe, <code>restart</code>, post-rebuild
+retry, and the launch itself). A PATH-shadowing doppelgänger can no
+longer brick router aliases nor masquerade as a stale bundled build.
+(<code>scripts/tests/test_ccr_path_shadowing.sh</code>, executed
+red→green against the real generated wrapper.)</li>
+</ul>
+<h3 id="added-3">Added</h3>
+<ul>
+<li><strong><code>CMA_PROVIDER_TRIM=&#39;bare&#39;</code> — per-provider
+minimal-launch mode</strong> for local-model providers: conversation
+launches get <code>--bare</code> (drops the hook/plugin/MCP/CLAUDE.md
+surface) and BOTH history seams stay closed — the conversation-args
+<code>--resume</code> auto-injection AND the interactive (zero-args)
+stored-session-flags injection are skipped, so every launch is a fresh
+session that actually fits a local window. Explicit user session
+selectors (<code>--resume</code>, <code>--session-id</code>, …) are
+honored verbatim; non-conversation subcommands are untouched; untrimmed
+providers are byte-identical to before. Wired for
+<code>helixagent</code> (whose HelixLLM backend belongs in
+<code>helixllm-mode.sh claude</code> — one 229,376-token slot).
+(<code>scripts/tests/test_provider_trim.sh</code>, 11 scenarios
+red→green.)</li>
+<li><strong><code>claude-release-gate</code> — the mandatory LIVE
+pre-release gate.</strong> Sandbox suite + a live smoke that drives the
+REAL generated alias through the REAL PATH → ccr → route-apply → proxy →
+provider backend, asserting the served reply and the sink-side route
+(<code>--verify-providers</code> adds the LLMsVerifier scan). The
+sandbox suite is structurally blind to real-host state — this release’s
+defect class shipped green through it — so releases now require the live
+layer. See README “Releasing”.</li>
+</ul>
+<h2 id="v1.25.1-2026-07-22-router-aliases-refused-to-launch-on-a-stale-bundled-ccr-self-healing-rebuild">v1.25.1
+— 2026-07-22 — router aliases refused to launch on a stale bundled ccr
+(self-healing rebuild)</h2>
+<p>Patch. A field failure caught immediately after v1.25.0: from a
+normal interactive shell, EVERY router-transport provider alias
+(helixagent, poe, kimi, …) could refuse to launch —</p>
+<pre><code>claude-providers: refusing to launch &lt;id&gt; — its ccr route was NOT applied.
+  &#39;ccr restart&#39; failed (rc=1): Profile &quot;restart&quot; was not found or is disabled.</code></pre>
+<h3 id="fixed-6">Fixed</h3>
+<ul>
+<li><strong>A stale bundled <code>ccr</code> binary no longer bricks
+router-alias launches.</strong> The vendored Go router <code>ccr</code>
+is a gitignored BUILD ARTIFACT, so a submodule bump that added the
+<code>ccr restart</code> subcommand — which every router launch runs to
+apply its route — does NOT rebuild an existing install’s binary. A stale
+ccr parsed <code>restart</code> as a profile NAME and replied
+<code>Profile &quot;restart&quot; was not found or is disabled</code> (rc=1); the
+launch’s fail-safe then (correctly, so it never serves the wrong model)
+REFUSED — but that refusal bricked every router alias at once, with an
+opaque message. <code>cma_run_provider</code> now SELF-HEALS on exactly
+that shape: it rebuilds once via <code>claude-ccr-build</code> and
+retries <code>ccr restart</code>; only if that cannot resolve it does it
+refuse, now with an actionable “rebuild it: claude-ccr-build” message.
+The heal is bounded (one rebuild, one retry), gated on the stale-binary
+shape alone (a 401/402/403 auth failure or a timeout is NOT a rebuild
+trigger and still counts), and fail-closed if the rebuild does not help.
+Regression-guarded by <code>test_ccr_restart_selfheal.sh</code>, which
+EXECUTES the real wrapper against a stale-ccr stub (not a text grep):
+self-heal fires + retries, the launch proceeds after a successful heal,
+an actionable fail-closed refusal when it cannot, and non-stale shapes
+excluded.</li>
+</ul>
+<h3 id="verification-gap-that-let-it-ship-honest">Verification gap that
+let it ship (honest)</h3>
+<ul>
+<li>v1.25.0’s live verification launched helixagent through the
+scrubbed-env <code>verify --deep</code> / superpowers-TUI path AND ran
+the run-proof AFTER the ccr binary happened to be rebuilt — so it never
+exercised a plain interactive <code>&lt;alias&gt;</code> launch against
+a <em>stale</em> build artifact, which is the exact path that failed for
+the operator. Green internal-harness tests masked a broken user-facing
+path. The regression test above now covers that path.</li>
+</ul>
+<h3 id="verified-1">Verified</h3>
+<ul>
+<li><strong>Hermetic sandbox suite: 42 files, 42 passed, 0 failed — ALL
+GREEN.</strong> Includes the new
+<code>test_ccr_restart_selfheal.sh</code> (9/0), which EXECUTES the real
+<code>cma_run_provider</code> against a stale-ccr stub and pins: the
+self-heal fires + retries, the launch proceeds after a successful heal,
+an actionable fail-closed refusal when it cannot, and — a real
+behavioral Scenario C, not a literal grep — that a NON-stale restart
+failure (a <code>CCR_API_KEYS</code> auth refusal) does NOT trigger a
+rebuild and is not mislabeled. <code>test_ccr_conformance.sh</code>
+12/0; <code>test_coverage.sh</code> 70/0 (its SIGPIPE-pipeline lint
+first caught the new test).</li>
+<li><strong>The live install:</strong> <code>ccr</code> rebuilt from the
+released submodule (<code>904effb</code>); <code>ccr restart</code> →
+rc=0; a direct interactive <code>helixagent</code> launch now passes the
+ccr-restart gate (reproduced) instead of refusing.</li>
+<li><strong>Independently reviewed SOUND:</strong> the self-heal is
+trigger-specific (stale shape only; auth/5xx/timeout still count),
+bounded (one rebuild, one retry), and fail-closed (a failed rebuild
+returns 78 before <code>ccr default-claude-code</code>, never serving an
+unapplied route).</li>
+</ul>
+<h2 id="v1.25.0-2026-07-22-the-compatibility-proxy-goes-go-cma-proxy-helixagent-fully-working-routed-capacity-sized-tool-engaging-provider-verification-honesty-rc-safety">v1.25.0
+— 2026-07-22 — the compatibility proxy goes Go (cma-proxy) + HelixAgent
+fully working (routed + capacity-sized + tool-engaging) +
+provider-verification honesty + rc-safety</h2>
+<p>Minor release. Two headline changes make it a minor:</p>
+<ol type="1">
+<li><strong>A new user-facing component</strong>: the toolkit’s
+provider-compatibility proxy is now a single Go binary,
+<strong><code>cma-proxy</code></strong> (<code>scripts/proxy/</code>,
+module <code>cmaproxy</code>), consolidating the three former
+per-provider python proxies (poe/kimi/sarvam) plus a net-new helixagent
+tool-call transform. Python is fully removed from the proxy layer.</li>
+<li><strong>HelixAgent goes from a broken facade to a working local
+provider</strong> — genuinely routed (the :18434 repoint),
+capacity-sized (the 229376 pin), and <strong>tool-engaging</strong> (the
+Go proxy’s Hermes tool-call recovery). A live, route- attributed
+<code>verify helixagent --deep</code> turn in claude mode PASSED
+end-to-end.</li>
+</ol>
+<p>Alongside those it carries provider-verification honesty (a
+context-inadequate classification so a too-small backend is not
+miscounted as toolkit breakage), a shell-rc safety fix (§11.4.167 — the
+toolkit can no longer erode a user’s <code>.bashrc</code>), and repo/CI
+hygiene. The GPU mode-switch that reallocates the shared HelixLLM
+backend between HelixCode and Claude Code still ships in the companion
+<code>helix_code</code> repo, not this toolkit. <strong>Version chosen:
+v1.25.0</strong> (a new shipped component plus a previously-dead
+provider made to work is additive, backward- compatible functionality —
+see the closing note).</p>
+<h3 id="proxy-framework-python-proxies-replaced-by-one-go-binary-cma-proxy">Proxy
+framework — python proxies replaced by one Go binary
+(<code>cma-proxy</code>)</h3>
+<ul>
+<li><strong>The three former python proxies (<code>poe_proxy.py</code>,
+<code>kimi_proxy.py</code>, <code>sarvam_proxy.py</code>) are gone,
+folded into ONE Go binary <code>cma-proxy</code></strong>
+(<code>scripts/proxy/</code>, module <code>cmaproxy</code>) — which ALSO
+carries a net-new <code>helixagent</code> transform. (There was never a
+<code>helixagent_proxy.py</code> in the repo: helixagent’s prior break
+was routing/<code>base_url</code> (the :3456→:18434 repoint), not
+tool-format; its Hermes recovery is brand-new, written directly in Go.)
+Motivated by an operator directive that the toolkit carry no python; a
+streaming HTTP proxy is not bash-appropriate, so Go — which also matches
+the already-Go bundled ccr.</li>
+<li><strong>Structure</strong> (each provider is a self-contained file
+that registers itself in an <code>init()</code>, so a new provider needs
+no edit to <code>main.go</code>):
+<ul>
+<li><code>hermes.go</code> — helixagent Hermes/Qwen tool-call recovery
+(response-side; <code>registerResponse(&quot;helixagent&quot;)</code>).</li>
+<li><code>poe.go</code> / <code>kimi.go</code> / <code>sarvam.go</code>
+— request-schema fixes (<code>registerRequest</code>): Poe tool-param
+injection + <code>$ref</code>/<code>$defs</code> resolve + ~216
+tool-count cap + <code>cache_control</code> strip; Kimi
+moonshot-flavored <code>#/$defs/</code> schema normalization; Sarvam
+content-block flatten + <code>max_tokens</code> tier clamp.</li>
+<li><code>registry.go</code> — <code>init()</code>-time registration
+plus family resolution (<code>providerKey</code>: exact id, then
+id-up-to-first-digit <code>poe2 → poe</code>, then
+id-up-to-first-<code>-</code> <code>kimi-for-coding → kimi</code>).</li>
+<li><code>main.go</code> — HTTP server: request-transform-then-forward →
+response-transform (only on a 200, only for a response-transform
+provider) → otherwise verbatim passthrough; a clean
+<strong>502-JSON</strong> body on any upstream/connection error (never
+an empty reply); and the <code>--has-transform &lt;id&gt;</code>
+discovery gate (exit 0/1).</li>
+</ul></li>
+<li><strong>Correctness win over the python it replaces</strong>: the
+Hermes parser is now <strong>delimiter-robust</strong> — blocks split on
+the OPENING tags (<code>&lt;function=</code>,
+<code>&lt;parameter=</code>), a parameter value ends at the
+<em>last</em> <code>&lt;/parameter&gt;</code> in its segment, and a
+balance guard bails to passthrough on unbalanced opening tags — so a
+tool-arg VALUE that itself contains <code>&lt;/function&gt;</code> or
+<code>&lt;/parameter&gt;</code> (e.g. Write-ing a file <em>about</em>
+tool-calling) is preserved verbatim instead of being silently
+truncated/dropped, which is exactly what the python parser did. Found in
+review (2026-07-22) and pinned by a Go regression test.</li>
+<li><strong>Wiring</strong>: <code>claude-proxy-build.sh</code> builds +
+installs <code>cma-proxy</code> (mirroring
+<code>claude-ccr-build.sh</code>: <code>go build</code> → copy into
+<code>$SHARED_DIR/proxy</code> → symlink onto PATH, with a
+<code>--has-transform</code> self-check); <code>install.sh</code> §4b
+now runs that build (was: copy <code>scripts/proxy/*.py</code> into the
+shared store); and <code>cma_run_provider</code> gates on
+<code>cma-proxy --has-transform &lt;id&gt;</code> then launches
+<code>cma-proxy --provider &lt;id&gt; --port &lt;port&gt;</code> with
+the upstream (<code>CMA_PROVIDER_BASE_URL</code>) exported inline to the
+child. <code>install.sh</code> already treats the proxy build as
+best-effort (Go-gated, like ccr): with no <code>go</code>, install still
+completes and the proxied aliases fall back to their direct endpoint
+with the compat shims INACTIVE.</li>
+<li><strong>Tests</strong>: co-located Go tests
+(<code>poe_test.go</code> 11, <code>kimi_test.go</code> 12,
+<code>sarvam_test.go</code> 8, plus <code>hermes_test.go</code>’s
+recovery/passthrough/<code>&lt;/function&gt;</code>- in-value regression
+cases) driven by the new <code>scripts/tests/test_cma_proxy.sh</code>
+(<code>go build</code> + <code>go vet</code> + <code>go test</code> +
+<code>gofmt</code> + the <code>--has-transform</code> family gate). The
+python-only proxy tests were removed (<code>test_poe_proxy.sh</code>,
+<code>test_sarvam_proxy.sh</code>) and <code>test_kimi.sh</code>’s proxy
+section migrated.</li>
+<li><strong>Honest scope</strong>: this migrates ONLY the proxy layer.
+The remaining python — six tooling scripts
+(<code>providers_resolve.py</code>, <code>model_verify.py</code>,
+<code>opencode_sync.py</code>, <code>providers_generate.py</code>,
+<code>toon_encode.py</code>, <code>alias_e2e_test.py</code>) plus two
+test-lib helpers (<code>tests/lib/classify_live.py</code>,
+<code>tests/lib/pty_drive.py</code>) — is a planned follow-up,
+<strong>not</strong> in this release.</li>
+</ul>
+<h3 id="fixed-7">Fixed</h3>
+<ul>
+<li><strong>HelixAgent was a non-attributable facade — now genuinely
+routes to the real HelixLLM server, and a mode-switch makes its
+big-context turn actually serveable.</strong>
+<code>scripts/providers/helixagent.json</code> pinned
+<code>base_url</code> to the ccr gateway itself
+(<code>127.0.0.1:3456</code>) — self-defeating, since a router provider
+cannot route through the gateway it <em>is</em>:
+<code>cma_run_provider</code>’s self-reference guard refuses it and
+v1.24.0’s route-attribution gate correctly marks it <code>failed</code>
+(before those gates it was badged <code>verified</code> on turns
+actually served by whichever provider ran last — the exact bluff v1.24.0
+exposed), so after the v1.24.0 sync it dropped out of
+<code>claude-providers list</code>. Repointed at the real backing server
+<code>127.0.0.1:18434</code> (the OpenAI-style endpoint the operator’s
+local HelixLLM / Qwen3-Coder-30B actually serves): confirmed live (a
+real chat call returns 200 with the existing key), Gate 0 passes (base ≠
+gateway), and <code>claude-providers verify helixagent</code> returns
+<code>verified</code> at the probe layer. The remaining obstacle was
+capacity, not routing: one 32 GB GPU cannot simultaneously serve
+HelixCode’s eight concurrent 3072-token slots and Claude Code’s large
+single-slot request. That is resolved by a <strong>mode-switch</strong>
+(<code>helix_code/scripts/helixllm-mode.sh</code>) that flips the shared
+HelixLLM container between two mutually-exclusive modes on the one GPU,
+one at a time: <strong>coder</strong>
+(<code>-c 24576 --parallel 8</code> — eight 3072-token slots, serving
+HelixCode) and <strong>claude</strong>
+(<code>-c 229376 --parallel 1</code> — one large slot, serving the
+toolkit <code>helixagent</code> alias / Claude Code). The helixagent
+pin’s <code>context_limit</code> is corrected to <strong>229376</strong>
+(was 180224 in the prior draft, itself a correction of the old per-slot
+value): 180224 fit Claude Code’s first ~67K request, but once tools
+actually fire (see the proxy bullet below) the multi-turn agent loop
+accumulates to ~182,128 tokens, which overflowed a 180224 slot with the
+exact
+<code>400 … exceeds the available context size (180224 tokens)</code> on
+~2 of 3 runs. 229376 gives headroom — the auto-compact window still
+operates at its 200000 design cap with ~21K slack — and it fits VRAM,
+measured live in claude mode at 30,244 MiB used / 1,854 free / 32,607
+total (the KV estimate VRAM ≈ 18128 + 0.053·ctx MiB validated across
+24576→19434, 180224→27676, 229376→30244). A live, route-attributed
+<code>verify helixagent --deep</code> turn in claude mode proves the two
+routing/capacity things the pin exists to fix: the alias genuinely
+reaches HelixLLM (ccr’s resolved route matches intent for BOTH the
+foreground and the background request, with a restart receipt bracketing
+the launch — not another backend), and Claude Code’s real system+tool
+request (66,693 input tokens) fits the 229376 slot with zero context
+overflow — the old per-slot <code>400 exceeds context</code> that
+demoted it is gone. Because HelixCode is the common case, the
+<strong>default release state is coder mode</strong>, so helixagent
+ships demoted to <code>unverified</code> (shown in
+<code>list-faulty</code>, refused by the launch gate) until the operator
+switches HelixLLM to claude mode (<code>helixllm-mode.sh claude</code>)
+— this is provider-side capacity to be reallocated, not toolkit
+breakage, and the suite classifies the coder-mode deep-turn overflow as
+a distinct context-inadequate class (see Reliability), never an account
+or routing failure. An audit confirmed helixagent was the ONLY provider
+with this facade misconfiguration and that a plain <code>sync</code>
+cannot re-break the repoint (the pin is the single source; the gates
+fail closed). (<code>f72a756</code>; two stale “base_url → :3456”
+comments corrected in <code>9bb6f1f</code>, all other
+<code>:3456</code>/facade references left as correct history of the
+incident that motivated the guard.)</li>
+<li><strong>The tool-call format gap is fixed by the new Go proxy
+(<code>cma-proxy</code>, <code>scripts/proxy/hermes.go</code>), so
+Claude Code’s tools actually fire in the HelixAgent path.</strong>
+Root-caused live: the container already runs llama.cpp with
+<code>--jinja</code>, and a direct request to :18434 returns proper
+structured <code>tool_calls</code>. But Claude Code’s system prompt
+induces the model to write a conversational preamble BEFORE the call, in
+Qwen’s native Hermes/XML form
+(<code>&lt;function=NAME&gt;&lt;parameter=P&gt;V&lt;/parameter&gt;&lt;/function&gt;&lt;/tool_call&gt;</code>);
+llama.cpp’s parser only extracts a call that <em>leads</em> the
+generation, so once prose precedes it the whole thing is returned as
+<code>content</code> text (<code>finish_reason:&quot;stop&quot;</code>,
+<code>tool_calls:null</code>) and Claude Code never engages.
+<code>cma-proxy</code> sits inline (ccr → proxy → :18434) — the launch
+wrapper starts it when <code>--has-transform helixagent</code> matches —
+buffers the response, and ONLY when it finds a complete Hermes block
+llama.cpp did not already parse rewrites it into structured
+<code>tool_calls</code> (streaming and non-streaming), keeps the
+preamble as <code>content</code>, coerces each parameter by the
+request’s own tool schema (a string stays a string;
+integer/number/boolean/object/array parsed), and passes everything else
+through byte-for-byte untouched so the common path is never altered.
+Proven hermetically with no network or GPU: <code>hermes_test.go</code>
+(streaming
+<ul>
+<li>non-streaming recovery, passthrough safety, and the
+<code>&lt;/function&gt;</code>/<code>&lt;/parameter&gt;</code>- in-value
+regression) plus <code>test_cma_proxy.sh</code>’s
+build/vet/gofmt/go-test gate all pass, and a live unit request through
+the proxy turns the exact leaking generation into a clean
+<code>Read({&quot;file_path&quot;:&quot;README.md&quot;})</code>. End-to-end, the strict
+layer-4 engagement gate now records a <strong>verified</strong> result:
+a live, route- attributed <code>verify helixagent --deep</code> turn —
+launched through the real wrapper, which started the Go
+<code>cma-proxy</code> — PASSED, the model returned the exact
+skill-content challenge answer (“Skills evolve. Read current version.”),
+the route resolved to helixagent for both the foreground and the
+background request, input grew to 143,776 tokens and fit the 229376
+slot, and status flipped to <code>verified</code>. Reliability at 229376
+is <strong>2 of 3</strong> (the third miss was a slow-turn timeout of
+the local 30B, not an overflow — the 180224 overflow is gone). Because
+coder is the default operational state, helixagent still ships demoted
+to <code>unverified</code> until the operator switches HelixLLM to
+claude mode. <code>claude-proxy-build.sh</code> builds
+<code>cma-proxy</code> and <code>install.sh</code> §4b runs it, so the
+proxy ships on the normal release path.</li>
+</ul></li>
+</ul>
+<h3 id="reliability">Reliability</h3>
+<ul>
+<li><strong>run-proof honestly classifies a context-inadequate backend
+instead of counting it as fresh toolkit breakage.</strong> A verified
+router provider whose backing model returns a context-overflow
+<code>400</code> on the large, tool/skill-heavy layer-4 turn is now its
+own KNOWN-NON-WORKING class — beside account-dead and route-integrity —
+reported
+<code># FAIL: context-inadequate (backend M tokens &lt; request N)</code>
+and NOT counted as a suite failure: it is provider-side (relaunch a
+local backend larger, or pin a larger-context model for a hosted one)
+exactly as an unfunded key is (top it up). <strong>Two</strong> live
+overflow phrasings are recognized — the llama.cpp shape (local backends,
+e.g. a HelixLLM in coder mode, whose per-slot context is small) and the
+OpenAI/OpenRouter shape (hosted models, e.g. an OpenRouter model whose
+window is under Claude Code’s request) — with phrasing-aware extraction,
+since the two put the request/window numbers in <em>reversed</em> order
+and the marker must never swap them. This is a state of a backend, not a
+permanent property of any provider — a mode-switch or a larger pin
+removes it. The counts are read from the live 400, never a
+pinned/declared context, and the verdict is re-derived from the live
+layer-4 error on every run (not a persisted status a re-sync could
+overwrite), so it is durable and cannot false-positive a provider that
+genuinely answers layer-4. Paired-mutation proven both directions; the
+existence layer names the same distinct reason. (Follow-up: tune the
+output-reservation guard so a hosted model whose window is only modestly
+above Claude Code’s tool-heavy input can <em>work</em> rather than be
+excused.)</li>
+<li><strong>run-proof no longer counts an account-side
+<code>402</code>/<code>403</code> as toolkit breakage — the billing
+analogue of the context-inadequate class.</strong> A provider funded
+when the ~512-token layers-1/2 probe verified it, but whose balance
+depletes (or key is revoked / access suspended) before the large layer-4
+turn, returns a <code>402</code> (“Insufficient balance”) or
+<code>403</code> on a <em>correctly-routed</em> turn — a fresh red on
+every proof run for a condition the toolkit cannot fix. A
+<code>402</code>/<code>403</code> can only come from the provider’s
+billing/authz, never from how a request was formed (a malformed request
+is a <code>400</code>, which still counts), so it is now its own
+KNOWN-NON-WORKING class —
+<code># FAIL: account-side (HTTP 402|403 …)</code>, reported on its face
+(top up or re-key the account) and swept-exempt like context-inadequate.
+It is ordered <em>below</em> the route-integrity gate (a mis-routed turn
+still counts) and matches only <code>402</code>/<code>403</code> —
+<code>401</code> (a toolkit-attributable bad auth header),
+<code>429</code>, <code>500</code>, and timeouts still fail the suite.
+Evidence-based (the live status, never a persisted one), and it cannot
+false-positive a paying account. Found live on this release’s own proof:
+<code>inference/glm-5.2</code> returned “402 Insufficient balance” on a
+route-attributed turn. (Guards it: <code>test_providers_gate.sh</code> —
+402 detected, a 400 overflow NOT swallowed, sweep-exempt.)</li>
+</ul>
+<h3 id="safety-shell-rc-writes-11.4.167">Safety — shell-rc writes
+(§11.4.167)</h3>
+<ul>
+<li><strong>The toolkit can no longer erode a user’s
+<code>.bashrc</code>/<code>.zshrc</code>.</strong> A pre-v1.24.0
+prune→ensure race (fired on every non-interactive shell via
+<code>BASH_ENV</code>) could strip an rc file’s body — orphaned
+managed-headers accumulating while the user’s own <code>export</code>s
+were lost with no backup (this is what erased a set of local env vars
+during v1.24.0 development). v1.24.0 fixed the main prune path; this
+release closes the <strong>two residual rc-write paths</strong> that
+still bypassed it: the <code>install.sh</code> migrate rewrite (now
+gated + backup-first, and a silent last-line drop fixed) and the
+<code>claude-bootstrap.sh</code> append (now backup-first). Every rc
+write now funnels through one committer
+(<code>cma_rc_safe_rewrite</code>) mirroring the alias committer — a
+no-op guard, a sanity gate that parks a content-losing candidate as
+<code>.rejected.&lt;ts&gt;</code>, a mandatory pristine
+<code>.cma-orig</code> backup-or-refuse, and an INT/TERM-masked publish
+— so no rc write can proceed without a recovery point. Verified by four
+paired-mutation tests (rc-safety 35/0) that each fail when a guard is
+removed. (Follow-up: mint the committer’s temp adjacent to the rc so the
+publish is a true same-filesystem rename.)</li>
+</ul>
+<h3 id="repo-ci-hygiene">Repo &amp; CI hygiene</h3>
+<ul>
+<li><strong>GitHub push-protection no longer trips on the redaction
+test’s fixtures.</strong> <code>scripts/tests/test_redact.sh</code>’s 23
+synthetic provider-token fixtures were high-entropy random strings, so
+GitHub flagged two as real credentials and blocked the v1.24.0 push.
+Every synthetic token is now an obviously-fake
+<code>FAKE</code>+zero-padding body — each token’s exact length, prefix,
+and separator preserved so redaction behaviour and the mutation topology
+are byte-for-byte unchanged (46/0, both mutations retain teeth) — and
+the <code>sk-underscore</code> fixture uses <code>sk_</code> not
+<code>sk_live_</code> (GitHub’s Stripe detector matches the
+<code>sk_live_</code> prefix on pattern alone, entropy-immune). No
+pattern-flaggable token remains. (<code>80b07ff</code>,
+<code>084a77d</code>)</li>
+<li><strong>Stray build binaries untracked; LLMsVerifier
+<code>GEMINI.md</code> added.</strong> Two ~24 MB Go build outputs
+(<code>fixed-challenge</code>, <code>model-verification</code>) tracked
+in the LLMsVerifier <code>llm-verifier/</code> subdirectory — re-added
+by an Auto-commit after a prior BFG purge, referenced by no script — are
+<code>git rm --cached</code> + gitignored (CONST-053); the stray root
+<code>ccr</code> build binary is gitignored in the router submodule; and
+LLMsVerifier’s missing <code>GEMINI.md</code> (§11.4.157 lockstep gap)
+was added as a faithful Gemini-CLI mirror of its <code>QWEN.md</code>
+(same 135-anchor set through §11.4.167). (<code>3b21f79</code>)</li>
+<li><strong>CHANGELOG accuracy.</strong> The v1.24.0 “Verified” section
+cited <code>test_providers.sh</code> 294/0; the shipped proof log shows
+405/0 (tests were added since the credit-aware work). Corrected to match
+the on-disk evidence. (<code>8e8fb96</code>)</li>
+</ul>
+<h3 id="submodules">Submodules</h3>
+<ul>
+<li><code>LLMsVerifier</code> <code>af8d703b</code> →
+<code>bb729f2b</code> (binary untrack + <code>GEMINI.md</code>)</li>
+<li><code>claude-code-router</code> <code>6d787fd</code> →
+<code>904effb</code> (gitignore stray <code>ccr</code> binary)</li>
+</ul>
+<h3 id="verified-2">Verified</h3>
+<ul>
+<li><strong>Hermetic sandbox suite: 41 files, 41 passed, 0
+failed</strong> (<code>run-all.sh</code>, ALL GREEN) — including the new
+<code>test_cma_proxy.sh</code> (Go proxy: <code>go build</code> +
+<code>go vet</code>
+<ul>
+<li><code>go test</code> across hermes/poe/kimi/sarvam + the
+<code>--has-transform</code> family gate) and
+<code>test_providers_gate.sh</code> (the context-inadequate + new
+account-side classifiers, 17/0). The migration’s three fallout failures
+— <code>test_providers</code>’s stale <code>_family_id</code> marker,
+<code>test_sandbox_hygiene</code>’s vacuity flag on the gofmt assertion,
+and the §11.4.157 governance-doc lockstep — were each root-caused and
+fixed.</li>
+</ul></li>
+<li><strong>Go proxy unit tests: <code>go test ./...</code> in
+<code>scripts/proxy</code> → <code>ok</code></strong> (hermes 14, poe
+11, kimi 12, sarvam 8); <code>go vet</code> clean; <code>gofmt</code>
+clean.</li>
+<li><strong>HelixAgent live end-to-end, claude mode (229376): layer-4
+PASS via the Go <code>cma-proxy</code>.</strong> A route-attributed
+<code>verify helixagent --deep</code>, launched through the real wrapper
+(which started <code>cma-proxy</code> on :3457 → :18434), returned the
+exact skill-content challenge answer, resolved to helixagent for both
+the foreground and background request, with Claude Code’s 143,776-token
+request fitting the 229376 slot and no overflow — status → verified.
+VRAM measured live at 30,244 MiB used / 1,854 free of 32,607.</li>
+<li><strong>Full <code>run-proof.sh</code> — ALL GREEN, exit 0</strong>
+(coder default): hermetic 41/41; live provider-alias verification 21/0;
+live alias TUI 8 PASS / 0 FAIL / 13 SKIP-GATED (TOTAL 21); alias
+end-to-end 8/8; constitution 7/0. In coder default, helixagent is
+correctly reported KNOWN-NON-WORKING context-inadequate (backend 3072
+&lt; request 67 966), and the new account-side classifier reclassified
+<code>inference/glm-5.2</code>’s live
+<code>402 Insufficient balance</code> — plus every unfunded/rejected
+provider — as KNOWN-NON-WORKING, so no account-side condition pins the
+suite red and no toolkit regression is masked. Evidence in
+<code>scripts/tests/proof/</code> (<code>PROOF.md</code> + per-leg
+logs).</li>
+</ul>
+<hr />
+<p>Version note: <strong>v1.25.0 (minor)</strong> — this release adds a
+new user-facing component (the Go <code>cma-proxy</code>, replacing the
+python proxy layer) and, with its Hermes recovery, closes the last gap
+keeping <code>helixagent</code> from working, taking that provider from
+a non-attributable broken facade to a routed, capacity-sized,
+tool-engaging local provider. Semver reserves a minor for
+backward-compatible added functionality; that is exactly this. It
+ships.</p>
+<h2 id="v1.24.0-2026-07-21-credit-aware-model-selection-and-the-v1.23.0-launch-regression-the-false-all-green-claim-that-hid-it">v1.24.0
+— 2026-07-21 — credit-aware model selection; and the v1.23.0 launch
+regression + the false “ALL GREEN” claim that hid it</h2>
+<p>Two things ship together here. The <strong>new capability</strong> is
+credit-aware model selection (below). The <strong>regression</strong> is
+that v1.23.0 made the bundled Go <code>claude-code-router</code> the
+sole router but never implemented the launch grammar the toolkit speaks,
+so <strong>every router-transport provider alias was dead at
+launch</strong> for the whole life of that release — and it shipped
+anyway because the verification suite counted a layer-4 FAIL as a pass
+and no gate read the evidence it had just written. Both the capability
+and the regression (with the false claim that hid it) are documented
+below. This is a minor bump because it adds a new user-facing
+capability, not only a fix.</p>
+<h3 id="added-credit-aware-model-selection-mandatory-tier-policy">Added
+— credit-aware model selection (mandatory tier policy)</h3>
+<ul>
+<li><strong>Every provider alias now picks its model by whether the
+account can be billed.</strong> Credit / purchased tokens available ⇒
+the strongest <em>paid</em> model the provider serves that verifies; no
+credit ⇒ the strongest <em>free</em> model; credit state
+<em>unknown</em> ⇒ treated conservatively as no-credit ⇒ the free
+choice. The unknown branch is deliberately conservative and asymmetric:
+picking a paid model on an unfunded key fails at launch with 402/403 and
+leaves a dead alias, whereas picking a free model on a funded key only
+gives up capability and the next <code>sync</code> corrects it. A human
+<code>strong_model</code>/<code>fast_model</code> pin (or
+<code>model_policy=free|paid</code>) in
+<code>providers/overrides.json</code> still wins; the tier logic only
+decides when nothing is pinned. Implemented in
+<code>scripts/providers_resolve.py</code> (<code>tier_preference</code>,
+<code>model_cost_tier</code>, <code>select_models</code>); the matching
+credit/cost-aware selection capability landed in the LLMsVerifier
+submodule (<code>llm-verifier/{providers,scoring,selection}</code>),
+kept project-agnostic per its decoupling rules.</li>
+<li><strong>Free vs paid is classified from real catalog pricing, and
+“zero-cost” is not assumed to mean free.</strong> A catalog
+<code>cost:{input:0,output:0}</code> is often a subscription/plan-gated
+entry that needs a specific key — classifying it free would pick a model
+that fails at launch. Models with missing or partial pricing are
+reported as tier <code>unknown</code>, never guessed as free; the
+OpenRouter <code>:free</code> id suffix is honoured. Deep research
+established that reliable programmatic balance APIs are rare across
+providers (most are console-only), so credit state is inferred from the
+verification probe’s response — 402/403 ⇒ no credit, 429 ⇒ transient
+(never demotes), 401 ⇒ bad key — with a schema-versioned 24h cache so
+stale results are never replayed. Covered by
+<code>scripts/tests/test_provider_credit.sh</code> (127 assertions) and
+the <code>providers/credit-endpoints.json</code> signal table.</li>
+<li><strong>Cost note (honest trade-off):</strong> credit detection adds
+one bounded paid-model probe per provider (30s cap), so the
+<em>first</em> full <code>claude-providers sync</code> after a cache
+reset is slower than before; the result is cached for 24h, so subsequent
+syncs skip it. The probes are bounded and never hang; a slow provider is
+a duration cost, not a stall.</li>
+</ul>
+<h3 id="fixed-8">Fixed</h3>
+<ul>
+<li><strong>Token-limit guards were derived independently and could not
+both be satisfied, killing an alias at launch with a 400.</strong>
+<code>openrouter</code> died on every real turn with
+<code>maximum context length is 262144 tokens. However, you requested about 265483 (33796 of text input, 103687 of tool input, 128000 in the output)</code>.
+Three separate defects converged:
+<ul>
+<li><code>limit.output</code> was copied verbatim from models.dev, which
+is not internally consistent: <strong>1099 of 5696 catalogued models
+report <code>limit.output &gt;= limit.context</code></strong> (counted
+over raw published values, including the 104 rows whose
+<code>context</code> is 0 — the resolver later treats those as unknown
+rather than as a cap of zero, which is why the both-fields-positive
+count is 995), which is physically impossible — the output budget is
+carved out of the context, so it is strictly smaller. A record in that
+shape has a context-sized number sitting in its output slot
+(<code>kilo</code>’s row is the pure form:
+<code>{context:262144, output:262144}</code>).</li>
+<li>models.dev stores limits per <code>(provider, model)</code> PAIR,
+and only openrouter’s row inflates this model to <code>1000000</code>
+while parking its true context (262144) in <code>output</code>. The same
+model id reads 262144 under nvidia, kilo and nano-gpt.</li>
+<li><code>scripts/lib.sh</code> exported the input guard <strong>only
+when the context was ≤ 200000</strong> — fail-open, so precisely the
+large-context providers got no guard at all. The pre-existing “output ≥
+context ⇒ don’t export” branch was actively harmful: declining to export
+hands the decision to Claude Code’s own 128000 default. (The
+<code>128000</code> in the error above was this clamp, which
+coincidentally equals that default.)
+<code>providers_resolve.py:derive_limits()</code> fixes this in two
+independent ways. First, the output cap is always
+<strong>carved</strong> out of the context rather than trusted verbatim,
+which by itself corrects every one of those 1099 rows — a separate
+<code>output &gt;= context</code> detector was written for them and
+later removed once it was proven to change the result on <strong>0 of
+5696 rows</strong>: whenever <code>output &gt;= context</code> the carve
+already yields <code>cap &lt; context &lt;= output</code>, so
+<code>min(output, cap) == cap</code> regardless. Second, a
+<code>:free</code> record claiming a larger output budget than its paid
+sibling now raises only a <em>suspicion</em>, which is adjudicated
+against the rest of the catalog: a context is lowered only when at least
+<strong>three distinct providers, not counting the accused record’s own
+provider</strong>, publishing the same model (matched after normalising
+<code>:free</code> suffixes, vendor prefixes and case, and gated so an
+unrelated vendor’s same-named model cannot vote) contradict it — and
+only to a value one of them actually publishes. Both halves of that rule
+are load-bearing and were learned the hard way: while the accused
+counted itself and the threshold was two, a single peer decided every
+verdict, because at two voters the lower median <em>is</em> the minimum.
+That cut a genuine 1,000,000-token window to 8,192 under a note claiming
+two independent providers had agreed, when nothing had agreed with
+anything. Adjudication is further restricted to records where
+<code>output &lt; context</code>; where the two are equal the record
+shows the catalog’s commonest mislabel — output copied <em>from</em>
+context — which the carve already corrects, and comparing that copy
+against a sibling’s genuine output cap is a category error that produced
+three wrong reductions before it was caught. What this mechanism can
+establish is only that a claim is not credible <strong>as data</strong>
+— a plausibility ceiling drawn from peers, never a measurement. It
+cannot establish “the model’s real context”, because there is no such
+quantity: each (provider, model) pair is its own deployment, and
+<code>llama-3.2-3b-instruct</code> is genuinely served at 16000, 32768,
+80000 and 131072 by different hosts with none of them wrong. It
+therefore has a permanent, deliberate blind spot in the opposite
+direction: a genuinely throttled <code>:free</code> tier is corroborated
+at its paid siblings’ value and left alone. The earlier single-sibling
+version was wrong on half its live firings — it collapsed
+<code>nemotron-3-ultra-550b:free</code> from 1,000,000 to 65,536 (93.4%
+of the window lost) and <code>gemma-4-26b:free</code> from 262,144 to
+32,768, even though NVIDIA’s own record and 14 of 15 providers
+respectively publish the larger value. Corroboration restores both while
+preserving the two genuine catches. The guiding asymmetry — understating
+a window only costs capability, whereas overstating one kills the alias
+at launch — is bounded by a second one learned here: an 8192-token
+output cap on a coding model is itself a dead alias, so a detector that
+fires wrongly is not made safe by erring small. A large but credible
+record does not trip either detector: xiaomi’s
+<code>mimo-v2.5-pro</code> genuinely serves
+<code>{context:1048576, output:131072}</code>, and its <strong>context
+is not collapsed</strong> — it derives <code>1048576 / 128000</code>,
+where the output is reduced only by the separate, pre-existing clamp to
+Claude Code’s 128000 ceiling, not by the mislabel detectors. The guards
+are now <strong>co-derived</strong> in <code>scripts/lib.sh</code> —
+<code>window = min(context - output, 200000)</code>, exported for every
+known context — which closes both the fail-open gate and the 200k–270k
+dead zone in which a real window got no input guard.
+<code>openrouter</code>/<code>kilo</code> now derive
+<code>262144 / 102144</code>, leaving 22517 tokens of headroom.
+<strong>This defect predates v1.24.0</strong>: HEAD’s resolver produced
+<code>1048576/1048576</code> for openrouter — limits belonging to a
+different model entirely — so the credit-aware pin re-derivation already
+improved it.</li>
+</ul></li>
+<li><strong>A concurrency race could destroy the user’s alias file on a
+clean run.</strong> <code>cma_ensure_alias_file</code> performed six
+sequential temp+rename migrations plus two direct
+<code>cat &gt;&gt; &quot;$ALIAS_FILE&quot;</code> appends, racing
+<code>cma_provider_write_alias</code> — which
+<code>claude-providers list --refresh-aliases</code> fires <strong>21×
+on every shell start</strong> via the session hook. No lock existed on
+the alias file anywhere. Each writer was atomic and preserving <em>in
+isolation</em>, which is exactly why no single-function bug could be
+found: the second writer’s read predates the first writer’s rename, so
+it faithfully writes back a stale whole file. This was observed live —
+the file went <code>37288 → 282 → 32112 → 974 → 909 → 25682 → 130</code>
+bytes within four seconds, losing both wrapper functions and all four
+<code>claude1..4</code> account aliases, leaving every alias pointing at
+an undefined function. It is <strong>not</strong> interrupt-only: the
+corruption timestamp preceded the suspected <code>SIGTERM</code> by ~14
+minutes. All alias-file writes now funnel through a single committer
+(<code>cma_alias_commit</code>): the COMPLETE file (header + both
+wrappers + every account alias + every provider alias) is rendered into
+one temp and published with a single <code>mv</code>, behind an
+exclusive lock (<code>flock(1)</code>, falling back to an
+atomic-<code>mkdir</code> lock with rename-verified stale breaking for
+hosts without <code>flock</code>, e.g. macOS). A byte-identical no-op
+guard renders and compares <em>before</em> taking the lock, so a settled
+host performs <strong>zero renames per shell start</strong> and the
+common path cannot enter the race at all; the session hook additionally
+pins a zero-wait acquire so it can never block a shell.
+<code>INT</code>/ <code>TERM</code> are masked across the critical
+section, and a sanity gate (header, both wrappers, the exact alias-name
+set, an account-alias floor) parks a rejected candidate as
+<code>&lt;alias-file&gt;.rejected.&lt;ts&gt;</code> rather than
+publishing it. The render-once design also retires the
+drop-and-re-append migrations that leaked ~15 orphaned
+<code># Wrapper:</code> comment blocks and reordered the file. Covered
+by <code>scripts/tests/test_alias_file_concurrency.sh</code> (69
+assertions). Teeth: against the pre-fix code the storm test records
+<strong>115 structurally broken states published during a single
+storm</strong> — a 35KB file collapsed to 1274 bytes with both wrappers
+gone, reproducing the live incident — and reports
+<code>16 failed, 17 passed</code>; after the fix, three consecutive runs
+give <code>69 passed, 0 failed</code> with an identical 35257-byte
+result (the storm case’s three runs were <code>37 passed</code> when
+first landed; the file has since grown its lock-release /
+gate-integration / account-floor coverage). <code>test_lib.sh</code> now
+also lints that exactly <strong>one</strong> code path writes or renames
+onto <code>$ALIAS_FILE</code>.</li>
+<li><strong>Unknown or partial model limits failed open.</strong> A
+pinned model absent from the catalog produced
+<code>context_limit=None, max_output=None</code>, so neither guard was
+exported and Claude Code fell back to its own 128000 default against an
+unmeasured window — the same fail-open class as the gate above.
+<code>inference</code> shipped <code>verified</code> and launchable in
+exactly that state. Unknown limits now resolve to a conservative
+<em>number</em> rather than to silence:
+<code>UNKNOWN_MODEL_CONTEXT = 128000</code> (measured, not invented —
+<strong>93.95%</strong> of the <strong>4544</strong> tool-call-capable
+models in the live catalog publish ≥128000, and p10 = 128000), narrowed
+further by the provider’s <em>own</em> p10 over its tool-call-capable
+models, with <code>output &lt; context</code> enforced in a single
+place. A bare provider ceiling was not enough. Measured as <em>“how
+often does this mechanism pull the fallback below the 128000
+default”</em>: the bare ceiling (<code>published = pool[-1]</code>, all
+the old mechanism was) did so for only 3 of 167 providers (1.8%) —
+<code>inference</code> 125000, <code>llmtr</code> 16384,
+<code>morph</code> 32000 — leaving the default free to overstate a small
+window (pin an uncatalogued 32k model on a provider whose ceiling is
+10,000,000 and the wrapper would have exported a ~120k input window
+against it). The per-provider percentile does so for 32 of 167 (19.2%)
+instead — both counts unaffected by the median clamp: the ceiling
+expression reads no floor term at all, and the clamp moves only two
+estimates (<code>inference</code> 65536→16000, <code>atomic-chat</code>
+65536→32768), both already below 128000 either way. It carries a
+<code>MIN_USABLE_UNKNOWN_CONTEXT</code> floor of 65536 because an
+unfloored percentile swings the other way (poe’s raw p10 is 480 tokens,
+which would trade a 400 for an unusable alias). (A different question —
+“is <code>pool[-1]</code> the term that decides the returned value” —
+answers 1 of 167 under the shipped clamp and 2 before it; that is the
+reading the old “2 of 167” was computed under.) Operator overrides in
+<code>providers/overrides.json</code> are now validated rather than
+trusted: <code>true</code>, <code>-1</code>, <code>0</code>,
+<code>1</code> and <code>50000.5</code> each previously produced a state
+in which the launch wrapper exported <strong>neither</strong> guard —
+silently reproducing the exact fail-open being closed — and a quoted
+<code>&quot;200000&quot;</code> was dropped without a word. Non-positive, boolean
+and fractional values are rejected with the reason recorded, clean digit
+strings are honoured, and an override that cannot carve a usable cap
+rolls back to the derived pair. Catalog rows with
+<code>&quot;output&quot;: 0</code> (166 rows) or <code>&quot;context&quot;: 0</code> (104
+rows) are treated as unknown rather than as a binding cap of zero; this
+removes the resolver’s silent dependence on the launch wrapper
+re-deriving a cap on its behalf. A launch-gate refusal was deliberately
+rejected as the remedy: it would destroy a proven-working alias, and the
+operator’s realistic response is <code>--force</code>, which bypasses
+the gate <em>and still exports no guards</em>. This also surfaced a
+second defect: the <code>MIN_SAFE_OUTPUT</code> floor was applied
+unconditionally, so any window below it came out
+<strong>inverted</strong> — <strong>136 of 5696 catalogued rows emitted
+<code>output &gt;= context</code></strong>
+(<code>mistral/open-mistral-7b</code> at 8000/8000 → 8192). <em>Method:
+replay the pre-fix carve
+(<code>cap = max(min(ctx − 160000, 128000), 8192)</code>, no halving
+branch) over every catalog row and count rows whose emitted output
+(<code>min(published_output, cap)</code>) is ≥ their context.</em> Now 0
+violations and 0 missing contexts across all 5696.
+<code>inference</code> derives <code>125000/8192</code>,
+<code>poe</code> <code>128000/8192</code> (a latent instance — its
+stored limits were stale and the next <code>sync</code> would have
+emptied them), and <code>kimi-for-coding</code>
+<code>262144/102144</code>. Teeth: <code>14 failed, 329 passed</code>
+before, <code>343 passed, 0 failed</code> after.</li>
+<li><strong>Every router-transport provider alias failed at
+launch.</strong> The Go router implemented
+<code>start|ui|serve|web|stop|config|help</code> and no agent-launch
+subcommand, so the wrapper’s
+<code>ccr default-claude-code -- &quot;$@&quot;</code> (in
+<code>scripts/lib.sh</code>’s <code>cma_run_provider</code>) fell
+through to the dispatch <code>default:</code> branch, printed
+<code>Profile &quot;default-claude-code&quot; was not found or is disabled.</code>
+and exited 1. The binary’s own <code>--help</code> advertised the
+grammar it did not implement. The router now implements the agent-launch
+subcommand (<code>cmd/ccr/launch.go</code>, dispatched as
+<code>default-claude-code</code>/<code>code</code>).</li>
+<li><strong><code>ccr restart</code> was also unimplemented, and failed
+silently.</strong> The wrapper invoked it under
+<code>&gt;/dev/null 2&gt;&amp;1 || true</code>, so the missing
+subcommand produced no error anywhere. (That swallowing
+<code>|| true</code> no longer exists — it was removed later in this
+same release, once a review showed a failed restart leaves the gateway
+serving its previous route while the config file reads back correct; the
+launch now refuses rather than proceeding against a route it cannot show
+was applied.) Because a running gateway keeps serving its startup config
+(<code>cmd/ccr/serve.go:137-143</code>), the per-launch config rewrite
+was never applied: an alias would route to whichever provider the daemon
+happened to start with, silently and with no diagnostic.
+<code>restart</code> is now implemented and replays the original
+flags.</li>
+<li><strong>The LAUNCH path could silently rebuild an authenticated
+gateway UNAUTHENTICATED.</strong> <code>ensureGateway</code> has three
+arms: a live gateway that answers (use it), a live service whose gateway
+does not answer (bounce it), and nothing running (autostart). The middle
+arm and <code>cmdRestart</code> both refuse when the recorded service
+had inbound auth enabled and no <code>CCR_API_KEYS</code> is visible to
+the call (<code>cmd/ccr/launch.go:160</code>,
+<code>cmd/ccr/service.go:386</code>) — the autostart arm carried no such
+refusal. (The launch subcommand — <code>cmd/ccr/launch.go</code> — is
+itself new in this release, so this contrasts arms within a file
+authored here, not a previously shipped omission.) That arm is also the
+one reached when a previously-authenticated service <em>died</em>
+leaving its pidfile behind: <code>readServiceState</code> succeeds and
+still reports <code>AuthEnabled: true</code>, but
+<code>processAlive</code> is false. A launch from a shell without
+<code>CCR_API_KEYS</code> therefore brought the gateway back with
+inbound authentication silently off — <code>startService</code> hands
+its key list to <code>applyChildAPIKeyEnv</code>, which <em>unsets</em>
+<code>CCR_API_KEYS</code> when the list is empty. The autostart branch
+now mirrors the refusal
+(<code>err == nil &amp;&amp; st.AuthEnabled &amp;&amp; len(flags.APIKeys) == 0</code>,
+<code>cmd/ccr/launch.go:199</code>) and names the risk in
+<code>cmdRestart</code>’s own word, UNAUTHENTICATED; a genuinely absent
+pidfile recorded no auth posture, so a first-ever fresh start is
+unaffected. Teeth: <code>cmd/ccr/launch_authfailsafe_test.go</code>
+constructs exactly that state (a reaped pid, plus a stale
+<code>AuthEnabled</code> pidfile) and asserts the refusal names
+UNAUTHENTICATED. Neutering the refusal makes it FAIL — without it
+<code>ensureGateway</code> proceeds to rebuild, and what comes back is a
+<code>gatewayReadyTimeout</code> (15s, <code>launch.go:68</code>)
+readiness error, never the asserted refusal; with the refusal in place
+the test passes in 0.008s. <strong>Bounded honestly:</strong> the
+gateway binds loopback and inbound auth is opt-in, so the blast radius
+is a local downgrade, not an exposed endpoint. It is still a real silent
+downgrade of a posture the operator explicitly turned on, which is
+precisely the class <code>cmdRestart</code> already refused. (Nit landed
+in the same change: <code>cmdLaunch</code>’s unused <code>profile</code>
+parameter is now <code>_</code>.)</li>
+<li><strong>Gateway address was not recorded, and a gateway-disabled
+service stayed disabled across restarts.</strong>
+<code>service.json</code> carried no gateway address, so
+<code>restart</code> could not replay it and the launcher could not find
+it. The pidfile now records
+<code>gatewayHost</code>/<code>gatewayPort</code> (older pidfiles
+backfill to the documented defaults rather than host
+<code>&quot;&quot;</code>/port 0), and on finding a live service whose gateway
+does not answer, the launcher restarts it with the gateway enabled.</li>
+<li><strong>The test suite destroyed two production scripts in the
+working tree.</strong> <code>scripts/claude-session.sh</code> (201
+lines) and <code>scripts/claude-sync-state.sh</code> (103 lines) were
+found truncated to 8-line and 2-line test stubs. Cause: tests wrote
+stubs to <code>$HOME/.local/bin/claude-session</code>, which in the REAL
+home is a symlink into this repo (<code>install.sh</code> links every
+<code>claude-*.sh</code> there), and <code>cat &gt;</code> follows
+symlinks — so any run without an effective sandbox <code>HOME</code>
+overwrote the production script through the link. Symptom: every alias
+failed with
+<code>No conversation found with session ID: 11111111-2222-3333-4444-555555555555</code>.
+Both files restored from git. Hardened in
+<code>scripts/tests/lib/sandbox.sh</code>: a new
+<code>sandbox_stub</code> helper (asserts the sandbox, asserts the
+target is inside it, and <strong>removes</strong> an existing symlink
+instead of writing through it) plus an <code>assert_sandboxed</code>
+guard that aborts with exit 99 if <code>$HOME</code> is not a
+<code>mktemp</code> sandbox, called from <code>make_sandbox</code>
+itself. Every stub write across the suite was converted to it.</li>
+<li><strong>9 of 13 pinned providers carried the wrong token
+limits.</strong> When <code>providers/overrides.json</code> pinned a
+<code>strong_model</code>/<code>fast_model</code>,
+<code>providers_resolve.py</code> copied the pinned id but never
+re-derived the model’s context/output limits — so a pinned model
+inherited whichever limits the auto-selection had picked first
+(e.g. nvidia inherited <code>z-ai/glm-5.2</code>’s
+<code>1000000/131072</code> instead of the real
+<code>256000/65536</code>), and the launch wrapper exported
+<code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code> at roughly 2× the model’s
+true cap. A sibling bug ignored the documented
+<code>context_limit</code>/<code>max_output</code> override fields
+entirely. Both fixed at source (limits are re-derived from the model
+actually selected; explicit override fields are honoured), with
+regression tests; an unknown pinned model now yields honest
+<code>None</code> limits rather than another model’s numbers.
+(<code>nvidia</code>’s strong/fast slots were also un-inverted.)</li>
+<li><strong>Test-suite hygiene, three latent hazards fixed and
+guarded.</strong> (1) A leaked Go module cache: because a sandbox
+<em>is</em> <code>$HOME</code>, every Go-building test wrote a 500–850
+MB read-only <code>go/pkg/mod</code> cache that
+<code>cleanup_sandbox</code>’s <code>rm -rf</code> could not remove
+(EACCES), leaving ~35 GB of orphaned <code>cma-test.*</code> dirs; fixed
+with a <code>chmod -R u+w</code> before removal. (2)
+<code>test_sessions.sh</code> wrote fixed
+<code>/tmp/cma-test-*.log</code> paths outside the sandbox (cross-run
+collision) — moved under the sandbox. (3) <code>test_install.sh</code>
+called <code>make_sandbox</code> twice, orphaning the first sandbox and
+writing its rc/log outside the live one — fixed with a
+<code>fresh_sandbox</code> helper. (4) The live-providers leg now fails
+the suite <strong>only</strong> for providers that independently reached
+status <code>verified</code>; a provider already classified
+<code>failed</code>/<code>unverified</code>/<code>orphaned</code>
+account-side is reported on its own <code>KNOWN-NON-WORKING</code> line,
+never silently skipped and never counted as a pass — so a
+permanently-red gate can no longer hide a genuinely new regression.</li>
+<li><strong><code>_cma_mtime</code> returned nothing usable on macOS,
+and the same broken idiom existed twice.</strong> The idiom is
+<code>date -r &quot;$path&quot; +%s</code> with a <code>stat -c %Y</code>
+fallback. Both halves fail on BSD/macOS for independent reasons:
+<code>date -r</code> there reads its argument as <strong>epoch
+seconds</strong>, not as a file path, and <code>stat -c</code> is
+GNU-only (BSD spells it <code>stat -f %m</code>). So on macOS the first
+branch silently produced a garbage/zero read and the second could not
+run at all. The two sites differ in provenance, and the distinction is
+load-bearing for what is claimed. <code>_cma_mtime</code>
+(<code>scripts/lib.sh:279</code>) and the whole rolling-rc-backup
+subsystem it feeds (<code>cma_newest_rc_backup</code>,
+<code>cma_backup_rc_file</code>, the <code>&lt;rc&gt;.cma-orig</code> /
+<code>&lt;rc&gt;.cma-backup.&lt;epoch&gt;</code> files) are <strong>new
+in this release</strong> — none of them exists in <code>HEAD</code> — so
+<code>_cma_mtime</code> returning 0 for <em>every</em> file, and thereby
+degrading <code>cma_newest_rc_backup</code> from “newest by mtime” to
+“last by name”, is an <strong>intra-release defect caught before
+commit</strong>, never a shipped one. The genuinely pre-existing defect
+is the second copy: the session-refresh hook <code>lib.sh</code> emits
+inside a <code>&lt;&lt;&#39;HOOK&#39;</code> heredoc
+(<code>scripts/lib.sh:1492</code>, and shipped today at
+<code>HEAD</code>’s <code>scripts/lib.sh:1416</code>), which runs in the
+<strong>user’s</strong> shell and cannot call <code>_cma_mtime</code>,
+so it has to stay self-contained. Both sites were fixed independently to
+the portable <code>stat -c %Y … || stat -f %m …</code> pair — GNU-first,
+so on Linux <code>stat -c</code> succeeds and the BSD branch is never
+reached. A separate portable-mtime precedent already existed in-tree —
+<code>claude-providers.sh</code>’s <code>case &quot;$(uname -s)&quot;</code>
+dispatch (<code>Darwin*) stat -f %m</code> / <code>*) stat -c %Y</code>,
+lines 114-117) — but it is <strong>not</strong> the same idiom: its own
+comment (:112-113) records that an earlier <code>||</code> chain in the
+<em>reverse</em> order broke on Linux, because there
+<code>stat -f</code> also succeeds. It is cited as prior art for
+handling both platforms, not as a line the fix was copied from. Guard:
+<code>scripts/tests/test_rc_safety.sh</code> (f) now lints
+<code>lib.sh</code> for the <code>date -r &quot;$var&quot; +%s</code> form and
+requires the helper to carry the BSD branch — <strong>21 passed, 0
+failed</strong>. <strong>Honest scope:</strong> neither half was a
+data-loss defect. For the new-in-this-release subsystem, its data-safety
+never rested on the mtime read at all: rolling backups are named
+<code>&lt;rc&gt;.cma-backup.&lt;epoch&gt;</code>
+(<code>lib.sh:327</code>), so name-order and epoch-order coincide and
+the “newest” pick is correct regardless of mtime, and
+<code>&lt;rc&gt;.cma-orig</code>, the load-bearing recovery point, is
+written exactly once and never consulted by mtime — but that describes
+how the intra-release defect <em>would</em> have behaved had it shipped,
+not production history, because none of that code is in
+<code>HEAD</code>. In the one half that DID ship, the emitted hook, the
+failure was a missed TTL rather than a wrong one — its fallback is
+<code>echo &quot;$now&quot;</code>, so the computed age was 0 and the background
+<code>claude-providers sync</code> simply never fired. This was a
+correctness and portability defect, not a data-loss one, and is not
+claimed as more.</li>
+<li><strong>Concurrent suite runs are now serialized</strong>
+(<code>scripts/tests/lib/suite-lock.sh</code>). Two overlapping
+<code>run-all.sh</code>/<code>run-proof.sh</code> invocations mutate the
+repo while it tests itself, which is what once made a set of
+deterministic tests look flaky; the lock (flock, with an
+atomic-<code>mkdir</code> fallback for macOS) is re-entrant for the
+nested <code>run-proof.sh → run-all.sh</code> case and bounded-waits
+then exits 75 on contention. It caught a real second session running the
+suite during its own verification.</li>
+</ul>
+<h3 id="fixed-the-verification-that-was-supposed-to-catch-this">Fixed —
+the verification that was supposed to catch this</h3>
+<ul>
+<li><strong>A layer-4 PASS could be non-attributable — it proved
+<em>some</em> backend worked, not the one under test.</strong> Every
+router-transport provider rewrites ccr’s shared
+<code>Router.default</code> to itself immediately before launching, but
+an alias whose <code>base_url</code> IS the gateway
+(<code>http://127.0.0.1:3456/v1</code>) trips a self-reference guard in
+<code>cma_run_provider</code> and skips that rewrite — so it inherited
+whatever the <em>previous</em> provider left in
+<code>~/.claude-code-router/config.json</code>. <code>helixagent</code>
+was badged <code>verified</code> on a turn served by a different
+provider entirely: 157,419 tokens passed through a nominally
+24,576-token alias because it had inherited a ~1M-context route. The
+evidence file recorded the request and the response but never <em>which
+backend served it</em>, so a pass and a pass-by-inheritance were
+indistinguishable — which is why this survived a release. (The
+<code>modelUsage: claude-opus-4-8[1m]</code> line in every layer-4 file
+is not a leak to the operator’s Anthropic account: the router branch
+never exports <code>ANTHROPIC_MODEL</code>, so Claude Code labels and
+prices turns with its own defaults while ccr rewrites the model
+server-side. It does mean that field can never be used to attribute a
+backend.) <code>verify_superpowers_tui.sh</code> now records
+<code># ROUTE-INTENDED:</code> and <code># ROUTE-RESOLVED:</code> in
+every evidence file and fails the leg with
+<code># FAIL: route-mismatch</code> when they disagree, or
+<code># FAIL: route-unknown</code> when the route cannot be read — an
+unattributable turn now fails instead of passing. The gate does not
+merely compare the on-disk config, because a written config that was
+never <em>applied</em> proves nothing: <code>ccr restart</code> ran
+under <code>|| true</code>, and <code>cmdRestart</code> genuinely
+refuses to bounce an authenticated gateway when
+<code>CCR_API_KEYS</code> is not visible
+(<code>cmd/ccr/service.go:385-390</code> returns 1), so a swallowed
+failure would leave the gateway serving its previous route while the
+file read back as correct. The router exposes no live-route query
+(<code>/health</code> reports a provider <em>count</em>, not a route),
+so the gate instead requires a <strong>restart receipt</strong>
+bracketing the launch — a new <code>gateway listening on</code> line in
+<code>~/.claude-code-router/service.log</code>, or a changed
+<code>service.json</code> — and fails closed with
+<code># FAIL: route-unproven</code> when it cannot show the route was
+applied. Both <code>.Router.default</code> <strong>and</strong>
+<code>.Router.background</code> are compared (a partly-foreign turn
+emits <code># FAIL: route-mismatch-background</code>), and
+<code>jq</code> is now a hard precondition rather than a silent skip,
+since a host without it cannot run router providers at all. Route
+failures are evaluated independently of provider status: a rejected key
+explains a provider that cannot answer, but nothing about an account
+explains evidence attributed to the wrong backend. <strong>The
+guarantee, stated precisely:</strong> a layer-4 PASS on router transport
+is impossible unless both router keys name the alias under test AND a
+restart receipt brackets that launch. Two limits remain, and are not
+claimed away: the receipt brackets the whole launch rather than the
+individual request (the suite lock, not the gate, excludes a concurrent
+rewrite), and it proves <em>a</em> config load rather than that the
+loaded bytes were the ones read back — closing that would need a
+live-route query the router does not expose. Covered by
+<code>scripts/tests/test_layer4_route_attribution.sh</code> (66
+assertions across 10 legs). Teeth are proven per-finding by mutation —
+reverting any one fix flips exactly its own assertions — because
+<code>HEAD</code> is not a usable baseline here (it predates the whole
+feature). The original bluff is reproduced verbatim in the mismatch
+case: a <code># PASS</code> written for a turn served by
+<code>chutes</code> while the alias under test was
+<code>routertest</code>. The previously vacuous assertions were replaced
+with ones that execute the production sweep; against a mutant with that
+sweep deleted, the old assertions still passed and the new ones
+fail.</li>
+<li><strong>v1.23.0’s “run-proof ALL GREEN” and “10–11 aliases verified
+live” were false claims.</strong>
+<code>scripts/tests/verify_providers_live.sh</code>’s layer-4 handler
+called <code>_pass</code> on a layer-4 <strong>FAIL</strong> — it
+asserted “the verifier ran”, not “it passed”. 21 alias failures were
+counted as passes and the leg reported “40 passed, 0 failed” while the
+router launch was broken end-to-end. Compounding it: no gate anywhere
+grepped the proof directory for <code># FAIL:</code> markers, so 37
+stale markers sat on disk unread. And the legs that produced the “10–11
+verified” figure (<code>verify_aliases_live.sh</code>,
+<code>alias_e2e_test.py</code>) never launch an alias at all — they curl
+provider endpoints directly, explicitly “bypassing ccr”, so they could
+not have detected a broken launch path under any circumstances. Fixes:
+line 126 is now <code>_fail</code>; the layer-3 <code>unverified</code>
+branch likewise (<code>providers-semantic.sh</code> emits it only on a
+definitive driver failure — transient conditions already route to
+<code>skip</code>); and a new proof-directory sweep gate fails the run
+if any evidence file <strong>from the current run</strong> ends in
+<code># FAIL:</code>, independent of the stdout classification.</li>
+<li><strong>Layer 3 could de-verify a working provider on its own
+completion budget.</strong> <code>chatComplete</code> returned the
+model’s content and discarded <code>finish_reason</code>, so a reply
+severed mid-generation was indistinguishable from a model that had not
+complied. Measured live: siliconflow’s round-1 reply came back as
+<code>ZETA-9-ORANGE-</code> against the sentinel
+<code>ZETA-9-ORANGE-7f3a</code> — a strict prefix, cut mid-token — and
+was reported as <code>sentinel not found in response</code>, a
+definitive exit-1 that demoted a provider whose layer-4 TUI turn PASSED.
+It now returns <code>chatOutcome{Content, FinishReason}</code>, and a
+round-1 sentinel no-match at <code>finish_reason == &quot;length&quot;</code> is
+classified <strong>infra</strong> (exit 3 ⇒ honest SKIP, never a
+demotion): a truncated probe never completed, so it yields no verdict
+about the model at all, and blaming the model for a budget <em>we</em>
+chose is exactly the bluff this layer exists to avoid. Reading that path
+surfaced a second, latent defect. The judge branch states its own policy
+in comment — “a broken judge must never demote the model-under-test” —
+and routes every judge <em>call</em> failure to <code>failInfra</code>,
+but an unparseable judge <em>reply</em> fell through to
+<code>fail()</code> (exit 1) even when the reply was severed at
+<code>finish_reason == &quot;length&quot;</code>. A judge that merely ran out of
+tokens therefore de-verified the model under test, contradicting the
+judge-branch policy stated directly above it in its own comment; that
+case now routes to <code>failInfra</code> too. The budgets were then
+raised — <code>round1MaxTokens</code> 256 → 2048,
+<code>judgeMaxTokens</code> 64 → 2048, and round 2’s bare literal
+<code>512</code> → the named <code>round2MaxTokens = 2048</code> — and
+the three sites differ <strong>in kind</strong>, which is the point:
+<ul>
+<li><strong>The judge at 64 was the active defect.</strong> Measured on
+deepseek-v4-pro, 3 samples per budget, task = emit one integer:
+reasoning 78–361 tokens; 64 ⇒ <strong>0/3</strong>, every sample
+<code>finish_reason=length</code> with empty content — the exact
+truncation shape above. 128 ⇒ 0/3, 256 ⇒ 1/3, 512 ⇒ 3/3. 512 is
+nonetheless the wrong fix: it passed only as a small-n artifact, and
+widening to 9 samples surfaced a 500-token completion, leaving 12 tokens
+of headroom. 2048 is chosen with margin rather than fitted to the
+sample.</li>
+<li><strong>Round 1 at 256 was NOT broken, and no claim is made that it
+was.</strong> Same model, task = echo an 18-char sentinel: reasoning
+58–97 tokens; 64 ⇒ 0/3, 128 ⇒ 2/3, <strong>256 ⇒ 3/3</strong>. It is
+raised for a different and more interesting reason:
+<strong>reasoning-token distributions do not transfer across models, or
+across tasks.</strong> siliconflow truncated at 256 on that same round-1
+task — the severed-prefix case above. A per-task budget tuned on one
+model silently de-verifies another. And truncation at <em>either</em>
+round de-verifies a working provider — round 1 severs the
+<strong>sentinel</strong> (a mechanical exact-match check, exit-1 on
+no-match), round 2 severs the <strong>description</strong> (scored by
+the judge, which fairly rates a severed or empty description below
+threshold 2 ⇒ <code>fail()</code> ⇒ exit-1); the <em>only</em> round-2
+path that is a mere skip is a truncated judge <em>call/reply</em>, which
+D1 routes to <code>failInfra</code>. After D1 both truncation sites are
+prevented by budget rather than one being intercepted, which is why
+<strong>both</strong> budgets were raised, not just round 1’s.</li>
+<li><strong>Round 2 at 512 was the release’s second counted blocker — it
+de-verified <code>inference</code>.</strong> The round-2
+<em>description</em> call (glm-5.2, <code>max_tokens</code> the only
+variable) came back <code>finish_reason=length</code> with empty content
+on two of three samples at 512; the judge fairly scored the
+severed/empty description below threshold 2 ⇒ <code>fail()</code> ⇒
+<strong>exit-1</strong>, demoting a provider whose layer-4 TUI turn
+PASSES. This is the symmetric twin of the siliconflow case, not a bonus
+clause: <strong>both</strong> run-proof failures were D1 truncation
+de-verifications — siliconflow’s <strong>sentinel</strong> severed in
+round 1 (fixed by <code>round1MaxTokens</code>),
+<code>inference</code>’s <strong>description</strong> severed to empty
+in round 2 (fixed by <code>round2MaxTokens</code>). Raised to 2048 the
+description completes (<code>finish_reason=stop</code> on all three
+samples, well inside the budget) and 12/12 verifier runs return
+<code>verified</code>, judge scores 2–3, never below threshold — though
+six of the twelve sit at exactly 2, a thin-but-consistent margin, not a
+proven bound. <strong>Honest bound:</strong> D1 does not add a
+round-2-description→infra branch; it gives the description enough budget
+to finish. A description that genuinely needed &gt;2048 would still be
+judged low and exit-1 — the fix is “enough budget to finish,” not
+“truncation can no longer de-verify.” Two scope limits, stated rather
+than papered over. The <strong>default</strong> judge is Groq
+<code>llama-3.1-8b-instant</code>
+(<code>scripts/providers/judge.env.template</code>), a non-reasoning
+model, so the judge=64 defect was <strong>latent in the default
+configuration</strong> — it bites only when a reasoning model is
+configured as the judge. And the measurements are one model, one
+provider, one prompt pair: a sample maximum is not a distributional
+ceiling (the 500-token judge sample appeared only when n went 3 → 9), so
+these budgets clear the observed tail with headroom rather than claiming
+a proven bound. Landed in
+<code>submodules/LLMsVerifier/llm-verifier/cmd/semantic-code-visibility/main.go</code>;
+covered by that package’s <code>main_truncation_test.go</code> (6 tests:
+budget truncation named as such, a genuinely-empty reply still reported
+as empty, <code>finish_reason</code> surfaced to the caller, and a
+budget floor asserted per site — <strong>not</strong> a uniform one:
+<code>round2MaxTokens ≥ 2048</code> and
+<code>judgeMaxTokens ≥ 1024</code>, but
+<code>round1MaxTokens ≥ 512</code>, so round 1 could be lowered to 512
+and the suite would still pass — a softer guard than this entry’s own
+argument about round-1 sentinel truncation implies) —
+<code>go test ./cmd/semantic-code-visibility/</code> passes.</li>
+</ul></li>
+</ul>
+<h3 id="added-regression-guards">Added — regression guards</h3>
+<ul>
+<li><strong><code>scripts/tests/test_ccr_conformance.sh</code></strong>
+— static, no-network conformance between the launch grammar the toolkit
+speaks and the grammar the bundled Go router understands. Scans
+<code>scripts/lib.sh</code> for <code>ccr &lt;word&gt;</code> in command
+position, parses the <code>case</code> arms of the router’s top-level
+dispatch, and asserts required ⊆ supported. This would have caught the
+regression with no network and no launch.</li>
+<li><strong><code>ccr</code> test stubs now fail loudly on an
+unrecognised subcommand</strong> instead of <code>exit 0</code>. The
+router path’s only coverage was fake stubs that silently succeeded on
+anything they did not recognise — a stub can certify nothing but the
+stub.</li>
+<li><strong><code>TestMain</code> guard in the router’s test
+package</strong> (<code>cmd/ccr/main_testmain_test.go</code>) prevents
+tests from spawning the real service binary. <code>startService</code>
+spawns a detached child from <code>os.Executable()</code>, which under
+<code>go test</code> is the <em>test</em> binary; the child re-ran the
+entire suite and forked exponentially, leaving 600+ live processes until
+<code>fork(2)</code> returned EAGAIN and unrelated tests failed with
+“resource temporarily unavailable”. Tests that legitimately need a
+service process must go through <code>withStubService(t)</code>.</li>
+<li>New guards, each proven to fail when the thing it guards is broken
+(mutation tested): <code>test_mutation_residue.sh</code> (refuses to
+ship a <code>&amp;&amp; false</code> / always-pass mutation left behind
+by testing), <code>test_providers_gate.sh</code> (a
+<code>verified</code> provider’s failure still fails the suite;
+account-dead ones do not — with an anti-vacuous guard that the gate
+genuinely discriminates), <code>test_sandbox_hygiene.sh</code> (no test
+writes a fixed <code>/tmp</code> path or a bare redirect into
+<code>.local/bin</code>), <code>test_sandbox_leak.sh</code> (a test that
+leaks a sandbox fails even though it exits 0),
+<code>test_suite_lock.sh</code> (34 assertions, 3 mutations killed), and
+<code>test_provider_credit.sh</code> (127 assertions for the credit-tier
+rule).</li>
+<li>The layer-4 superpowers-engagement check was replaced: the old fuzzy
+vocabulary grep produced both false passes (a confabulated claim) and
+false failures (a genuine engagement phrased differently). It now poses
+an unforgeable secret-knowledge challenge — one exact cell of the
+skill’s own table, content a model can only produce by having loaded the
+skill — plus a distinct <code>empty-result</code> verdict for a model
+that runs but emits no text.</li>
+</ul>
+<h3 id="verified-3">Verified</h3>
+<p>Credit-aware selection (this release’s new capability): -
+<code>scripts/tests/test_providers.sh</code> <strong>405/0</strong>;
+<code>test_provider_credit.sh</code> <strong>127/0</strong>. - The two
+rule-encoding branches are <strong>mutation-proven</strong> to have
+teeth: breaking the unknown→free conservative default makes the
+anti-vacuous guard fire (<code>available</code> and <code>unknown</code>
+stop differing); breaking the credit→paid branch makes the paid models
+unreachable (19 assertions fail). Both restored byte-identical. -
+LLMsVerifier credit/cost-aware code: <code>go build ./...</code> clean;
+the <code>providers</code>, <code>scoring</code> and
+<code>selection</code> packages test green.</p>
+<p>Launch-regression fixes (carried from the v1.24.0 work): -
+<strong>Live, through the real alias path — final
+<code>run-proof.sh</code> (2026-07-21):</strong> all six legs
+<code>rc=0</code>
+(<code>sandbox · live · providers · aliases · alias-e2e ·   constitution</code>).
+The aliases leg records
+<code>PASS: 9 FAIL: 0 SKIP-QUOTA: 0   SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21</code>,
+and the providers leg
+<code>9 passed,   0 failed, 12 gated-skipped</code>. The 12
+gated-skipped are account-dead providers (funds/keys) the verification
+gate correctly filters out — they are not claimed to work.
+<code>helixagent</code> did change from its earlier PASS to the expected
+route-attribution de-verification, exactly as predicted; that is the
+correct outcome, not a regression. The two layer-3 truncation fixes are
+proven in the regenerated evidence:
+<code>providers-siliconflow-semantic.txt</code> and
+<code>providers-inference-semantic.txt</code> now both read
+<code>verified</code> (round-1 sentinel intact, round-2 judge scored 3
+and 2), where before this release they read <code>unverified</code> on
+severed responses. - <strong>Evidence provenance.</strong> Only proof
+artefacts produced after 2026-07-20 13:54 are cited: from that point
+<code>~/.claude-code-router/service.log</code> retains the gateway
+restart records that let each launch be attributed to the route it
+actually owned. Older artefacts (Jul 5/18/19) predate both those
+retained records and the switch to the Go router as sole router, cannot
+be attributed retroactively, and are deliberately not relied on for any
+claim here.</p>
+<ul>
+<li><strong>Full hermetic suite (2026-07-21): 42 files / 42 passed / 0
+failed — ALL GREEN</strong>, run against the final tree
+(<code>run-all.sh</code>, which auto-discovers every
+<code>test_*.sh</code>, including the new <code>test_redact.sh</code>
+and <code>test_semantic_evidence.sh</code>). This is the real tally the
+earlier “NOT yet asserted” note deferred to: a prior 36-file run
+predated these fixes and covered fewer files, so it was deliberately
+never claimed as a full-suite green — claiming it would have repeated
+the v1.23.0 error this release exists to correct.</li>
+<li><strong>Independent whole-branch review (2026-07-20):</strong> GO —
+on the tree as it stood that day, CHANGELOG honesty, docs-vs-code
+fidelity, the I-2 fix, and the §11.4.120 test reconciliation were all
+verified with pasted evidence, and the sole flagged blocker was the
+mechanical submodule-commit step (addressed at release time), not a code
+defect. <strong>Scope — this GO covers only what the review saw, and is
+not a sign-off on the shipped tree.</strong> Substantial work landed
+after it: the alias-file render-once race fix, the route-attribution
+gate hardening, the empty-/unknown-limits fix, the rc-safety +
+<code>_cma_mtime</code> work, the layer-3 D1 truncation fix, the
+semantic fail-open fix, and these CHANGELOG entries themselves. Under
+this project’s own re-review discipline, changes after a GO re-arm the
+review, so the 2026-07-20 result is recorded as what it was, a green
+light on an earlier state, not a release sign-off.</li>
+<li><strong>Final whole-branch review (2026-07-21): GO on the shipped
+tree.</strong> The two thinnest-covered pieces — the
+<code>providers-semantic.sh</code> evidence mirror and the layer-3 D1
+truncation routing — were verified verdict-safe, secret-safe (the mirror
+lands in an evidence file that is <code>_redact</code>-ed before
+commit), and regression-safe (every new branch is FAIL→SKIP, never
+FAIL→PASS, so no non-compliant model can newly pass; <code>go vet</code>
+/ <code>go test</code> / <code>go build</code> clean). Mutation residue
+and secrets are clean across all three repos, and docs name only symbols
+that exist in the code. This is the sign-off the 2026-07-20 result could
+not give.</li>
+</ul>
+<p><strong>Scope of what “ALL GREEN” claims here:</strong> the hermetic
+suite and all six <code>run-proof.sh</code> legs pass on the final tree,
+and the 9 verified provider aliases work live end-to-end. It does NOT
+claim the 12 account-dead aliases work — those are gated out for lack of
+funds/keys, reported as known-non-working, and never counted as a pass.
+The release is cut from this state.</p>
 <h2 id="v1.23.0-2026-07-20-bundled-go-claude-code-router-is-now-the-sole-router-js-fully-replaced-full-retest">v1.23.0
 — 2026-07-20 — Bundled Go claude-code-router is now the SOLE router (JS
 fully replaced) + full retest</h2>
@@ -248,7 +1915,7 @@ as <code>ccr</code> via <code>claude-ccr-build</code>) is now the
 toolkit’s one and only router; the original Node
 <code>@musistudio/claude-code-router</code> is no longer preferred,
 required, or the advertised fallback.</p>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li><strong>Go fully replaces JS.</strong> There was never any
 functional code requiring the Node router — detection
@@ -267,7 +1934,7 @@ up the reworded guard. <code>test_output_tokens.sh</code> now asserts
 the refusal points at <code>claude-ccr-build</code> AND no longer
 advertises the JS npm router.</li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-9">Fixed</h3>
 <ul>
 <li><strong><code>test_lib.sh</code> proof-secret scanner:
 token-boundary anchoring.</strong> The proof-dir secret scanner matched
@@ -365,7 +2032,7 @@ fix</h2>
 <h2 id="v1.18.0-2026-07-19-helixagenthelixllm-local-model-exposure-128k-output-token-clamp-ccr-launch-fixes">v1.18.0
 — 2026-07-19 — HelixAgent/HelixLLM local-model exposure + 128k
 output-token clamp + ccr launch fixes</h2>
-<h3 id="added">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li><strong>HelixAgent/HelixLLM provider — a local llama.cpp model
 exposed as a first-class provider alias.</strong> A new
@@ -408,7 +2075,7 @@ The HelixAgent facade points ccr at its own <code>:3456</code> gateway;
 the guard prevents an infinite self-referential launch loop.</li>
 </ul></li>
 </ul>
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-10">Fixed</h3>
 <ul>
 <li><strong>128k output-token clamp for every provider alias, on both
 transports.</strong> <code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code> is
@@ -452,7 +2119,7 @@ this release.</li>
 <h2 id="v1.17.0-2026-07-18-cross-alias-session-background-agent-continuity">v1.17.0
 — 2026-07-18 — Cross-alias session &amp; background-agent
 continuity</h2>
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-11">Fixed</h3>
 <ul>
 <li><strong>A session left under one alias was invisible from every
 other alias.</strong> Opening a project from <code>xiaomi</code>,
@@ -499,7 +2166,7 @@ from four provider dirs unioned into one shared registry; all provider
 daemon dirs are now symlinks.</li>
 </ol></li>
 </ul>
-<h3 id="added-1">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li><strong>Testing:</strong>
 <code>scripts/tests/test_session_flags.sh</code> (12 assertions — both
@@ -515,7 +2182,7 @@ live) and bank case <code>cma-pav-cross-alias-session-continuity</code>
 </ul>
 <h2 id="v1.16.0-2026-07-18-output-token-cap-for-router-providers">v1.16.0 —
 2026-07-18 — Output-token cap for router providers</h2>
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-12">Fixed</h3>
 <ul>
 <li><strong>“Claude’s response exceeded the 128000 output token maximum”
 on router providers.</strong> <code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code>
@@ -568,7 +2235,7 @@ router path now verifies <code>ccr version</code> names the real
 actionable message (fix PATH / remove the shadowing ccr / install
 command).</li>
 </ul>
-<h3 id="added-2">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li><strong>Testing:</strong> new hermetic suite
 <code>scripts/tests/test_output_tokens.sh</code> (8 assertions — native
@@ -581,7 +2248,7 @@ suite: 24/24 files ALL GREEN; 6-leg proof ALL GREEN.</li>
 <h2 id="v1.15.0-2026-07-18-full-kimi-variant-support-oauth-subscription-models">v1.15.0
 — 2026-07-18 — Full Kimi variant support (OAuth subscription
 models)</h2>
-<h3 id="added-3">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li><strong>Every Kimi model the OAuth subscription serves is now a
 launchable alias.</strong> <code>detect_kimicode_record</code> discovers
@@ -636,7 +2303,7 @@ Claude Code PASS.</li>
 precedence, freshness, schema proxy, live kimi-alias freshness) — 15/15
 PASS live.</li>
 </ul>
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-13">Fixed</h3>
 <ul>
 <li><strong><code>claude-providers verify &lt;id&gt;</code> was unusable
 for OAuth providers</strong> — it never injected the OAuth token, so
@@ -690,7 +2357,7 @@ real Claude Code launches through the aliases.</li>
 </ul>
 <h2 id="v1.14.0-2026-07-17-anti-bluff-provider-verification-strict-filtering">v1.14.0
 — 2026-07-17 — Anti-bluff provider verification (strict filtering)</h2>
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-14">Fixed</h3>
 <ul>
 <li><strong>Provider aliases passed verification while being broken at
 runtime.</strong> Aliases such as <code>huggingface</code> were marked
@@ -811,7 +2478,7 @@ tests in <code>test_coverage.sh</code>; full re-scan of
 <code>proof/</code> is clean.</li>
 </ol></li>
 </ul>
-<h3 id="added-4">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li><strong>Tier C constitution/conformance verifier</strong>
 <code>scripts/tests/verify_constitution.sh</code> (design spec §7.4,
@@ -836,7 +2503,7 @@ HelixQA-compatible bank
 cases), both registered in the <code>docs/test-coverage.md</code> ledger
 (describe-runner 25/25).</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li><strong>Live filtering results (2026-07-17, all layers + real Claude
 Code launches):</strong> every installed alias was re-verified with the
@@ -880,7 +2547,7 @@ verification semantics (§3 command table, §5 multi-alias verification,
 </ul>
 <h2 id="v1.13.3-2026-07-17-session-sharing-pipefail-fix">v1.13.3 —
 2026-07-17 — Session-sharing pipefail fix</h2>
-<h3 id="fixed-6">Fixed</h3>
+<h3 id="fixed-15">Fixed</h3>
 <ul>
 <li><strong>All aliases created separate, unshared sessions for the same
 project.</strong> Switching between <code>claude1</code>,
@@ -904,7 +2571,7 @@ gets the correct UUID. All aliases now resolve to the same
 <code>--resume &lt;uuid&gt;</code>. <strong>Verified with 200-file
 stress test</strong> that exercises the exact pipefail condition.</li>
 </ul>
-<h3 id="added-5">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li>200-file stress test in <code>test_session.sh</code> that proves
 <code>claude-session flags</code> returns <code>--resume</code> (not
@@ -916,7 +2583,7 @@ with full root cause analysis, evidence, and architecture notes.</li>
 </ul>
 <h2 id="v1.13.0-2026-07-10-project-scoped-cwd-hook-session-resumption-fix">v1.13.0
 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)</h2>
-<h3 id="fixed-7">Fixed</h3>
+<h3 id="fixed-16">Fixed</h3>
 <ul>
 <li><strong>Sessions were resumed for the wrong project when switching
 Claude Code aliases.</strong> When the global
@@ -948,7 +2615,7 @@ outdated <code>cma_run</code> wrappers via a new
 <code>install.sh</code> / shell start).</li>
 </ol></li>
 </ul>
-<h3 id="added-6">Added</h3>
+<h3 id="added-10">Added</h3>
 <ul>
 <li>Regression tests in <code>test_lib.sh</code> and
 <code>test_wrapper_exec.sh</code> prove the emitted <code>cma_run</code>
@@ -960,7 +2627,7 @@ body carries the project-scoped hook resolution code
 </ul>
 <h2 id="v1.12.3-2026-07-05-session-name-sanitization-kebab-case">v1.12.3
 — 2026-07-05 — Session-name sanitization (kebab-case)</h2>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li><strong>Auto-derived session names are now sanitized to
 kebab-case.</strong> <code>claude-session.sh</code> derives the session
@@ -972,7 +2639,7 @@ before trimming leading/trailing <code>-</code>. This makes session
 names safe for the CLI and filesystem while remaining
 human-readable.</li>
 </ul>
-<h3 id="added-7">Added</h3>
+<h3 id="added-11">Added</h3>
 <ul>
 <li>New regression tests in <code>test_session.sh</code> cover
 leading/trailing whitespace, multiple consecutive spaces, and stripping
@@ -981,7 +2648,7 @@ of special invalid characters.</li>
 <h2 id="v1.12.2-2026-07-05-native-alias-auto-registration-account-detection-hardening">v1.12.2
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</h2>
-<h3 id="fixed-8">Fixed</h3>
+<h3 id="fixed-17">Fixed</h3>
 <ul>
 <li><strong>Native <code>claude&lt;N&gt;</code> aliases were never
 created for pre-existing account dirs.</strong> Running
@@ -1001,7 +2668,7 @@ slot instead of skipping over reserved numbers.</li>
 directories are no longer treated as Claude accounts, preventing them
 from stealing alias slots or being merged into shared state.</li>
 </ul>
-<h3 id="added-8">Added</h3>
+<h3 id="added-12">Added</h3>
 <ul>
 <li>Regression tests in <code>test_unify.sh</code> and
 <code>test_install.sh</code> prove that install/unify register native
@@ -1012,7 +2679,7 @@ aliases for existing account dirs and preserve
 — 2026-07-05 — Judge independence + resolve/robustness hardening</h2>
 <p>Addresses the v1.12.0 final whole-branch review’s deferred items and
 the deep-research findings on LLM-as-judge bias.</p>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li><strong>Round-2 judge default is now a DIFFERENT model
 family.</strong> <code>providers/judge.env.template</code> defaults to
@@ -1032,7 +2699,7 @@ exit 3 → <code>skip</code>, so a transient judge/model hiccup is an
 honest SKIP and never downgrades the model-under-test (final-review
 I-1).</li>
 </ul>
-<h3 id="added-9">Added</h3>
+<h3 id="added-13">Added</h3>
 <ul>
 <li><strong>Independence warning:</strong>
 <code>providers-semantic.sh</code> warns (never fails) when the judge
@@ -1047,7 +2714,7 @@ confirmed live.</li>
 constitution (records the CONST-051 project-agnostic boundary under a
 non-colliding id).</li>
 </ul>
-<h3 id="fixed-9">Fixed</h3>
+<h3 id="fixed-18">Fixed</h3>
 <ul>
 <li>A directory passed as the keys file (<code>CMA_KEYS_FILE</code> /
 <code>--keys-file</code>) now dies with a clear message instead of
@@ -1065,7 +2732,7 @@ command. The whole pipeline was proven end-to-end against real providers
 2/3); models that bluff or fail round-2 (chutes GLM-5.2-TEE —
 empty/timeout) are <code>unverified</code>; billing blocks (deepseek
 402) are <code>unverified</code> — never a faked pass.</p>
-<h3 id="added-10">Added</h3>
+<h3 id="added-14">Added</h3>
 <ul>
 <li><strong>Layer 3 — semantic code-visibility.</strong>
 <code>scripts/providers-semantic.sh</code> renders the toolkit-owned
@@ -1095,7 +2762,7 @@ per installed provider, writes secret-redacted evidence + an aggregate
 <code>proof/providers-summary.json</code>; already wired into
 <code>run-proof.sh</code>.</li>
 </ul>
-<h3 id="fixed-10">Fixed</h3>
+<h3 id="fixed-19">Fixed</h3>
 <ul>
 <li><strong><code>--refresh-aliases</code> was not
 byte-idempotent</strong> — <code>cma_provider_write_alias</code> re-ran
@@ -1121,7 +2788,7 @@ engagement classifier now requires the namespaced
 false-verify); and <code>verify --deep</code> treats a layer-4 verifier
 crash as an honest SKIP rather than a clean verify.</li>
 </ul>
-<h3 id="notes">Notes</h3>
+<h3 id="notes-1">Notes</h3>
 <ul>
 <li>The default <code>providers/judge.env.template</code> judge is
 DeepSeek. For strongest results, configure
@@ -1142,7 +2809,7 @@ mode with scrubbed env, and root-caused every genuine failure. Three
 real toolkit bugs fixed (below); all remaining non-passes are
 account-side (insufficient funds, rejected/absent keys, or a key with no
 chat entitlement) — not toolkit defects.</p>
-<h3 id="fixed-11">Fixed</h3>
+<h3 id="fixed-20">Fixed</h3>
 <ul>
 <li><strong>Input token-limit 400</strong> —
 <code>scripts/lib.sh (cma_run_provider)</code> now exports
@@ -1184,7 +2851,7 @@ tool is preserved. Parametrized via the <code>POE_MAX_TOOLS</code> env
 var. Verified live: Poe’s <code>/using-superpowers</code> now returns a
 successful result.</li>
 </ul>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li><strong><code>cma_ensure_alias_file</code> migration</strong> —
 added <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> and
@@ -1202,7 +2869,7 @@ never masked.</li>
 fixed the input token-limit error; documented the two guards as
 independent halves.</li>
 </ul>
-<h3 id="added-11">Added</h3>
+<h3 id="added-15">Added</h3>
 <ul>
 <li><strong>scripts/tests/test_poe_proxy.sh</strong> — hermetic tests
 for the Poe proxy: <code>parameters</code> injection, the tool-count
@@ -1228,7 +2895,7 @@ API directly. 9 aliases pass end-to-end; 2 had genuine model-config
 drift (fixed below); the remaining failures are all
 <strong>account-side</strong> (insufficient funds, invalid/expired keys,
 missing keys, or a plan with no chat model) — not toolkit bugs.</p>
-<h3 id="added-12">Added</h3>
+<h3 id="added-16">Added</h3>
 <ul>
 <li><strong>scripts/tests/verify_claude_live.sh</strong> — end-to-end
 live verification of every provider alias through REAL Claude Code in
@@ -1248,7 +2915,7 @@ capture transcript, quit).</li>
 <li><strong>scripts/tests/lib/classify_live.py</strong> — shared
 transcript classifier.</li>
 </ul>
-<h3 id="fixed-12">Fixed</h3>
+<h3 id="fixed-21">Fixed</h3>
 <ul>
 <li><strong>huggingface</strong> — strong/fast pinned to non-reasoning
 coder models (<code>Qwen/Qwen3-Coder-480B-A35B-Instruct</code> /
@@ -1290,7 +2957,7 @@ python files compile.</li>
 </ul>
 <h2 id="v1.10.8-2026-07-01-noclobber-safe-router-provider-config-write">v1.10.8
 — 2026-07-01 — noclobber-safe router-provider config write</h2>
-<h3 id="fixed-13">Fixed</h3>
+<h3 id="fixed-22">Fixed</h3>
 <ul>
 <li><strong>Every router-transport provider alias broke under
 <code>set -o noclobber</code>.</strong> <code>cma_run_provider</code>
@@ -1315,7 +2982,7 @@ install).</li>
 that <code>&gt;</code> is blocked by <code>noclobber</code> while
 <code>&gt;|</code> succeeds.</li>
 </ul>
-<h3 id="verified">Verified</h3>
+<h3 id="verified-4">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0. Root cause
 reproduced (<code>set -C; echo &gt; &quot;$(mktemp)&quot;</code> → “cannot
@@ -1361,7 +3028,7 @@ semantics.</li>
 sync-state private-key isolation, corrupt-input handling, and
 add-account idempotency verified.</li>
 </ul>
-<h3 id="verified-1">Verified</h3>
+<h3 id="verified-5">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
 </ul>
@@ -1378,13 +3045,13 @@ private auth keys (no cross-account leak in either direction) and the
 previously had only indirect coverage (via the full unify workflow);
 this locks the property an audit verified by hand this session.</li>
 </ul>
-<h3 id="verified-2">Verified</h3>
+<h3 id="verified-6">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
 </ul>
 <h2 id="v1.10.5-2026-06-29-provider-null-field-normalization-coverage">v1.10.5
 — 2026-06-29 — Provider ‘null’ field normalization + coverage</h2>
-<h3 id="fixed-14">Fixed</h3>
+<h3 id="fixed-23">Fixed</h3>
 <ul>
 <li><strong>A missing JSON field could write
 <code>CMA_PROVIDER_MODEL=&#39;null&#39;</code> (and <code>TRANSPORT</code>,
@@ -1424,13 +3091,13 @@ branch + <code>cma_realpath</code> guards present).</li>
 (safe); two reported <code>2&gt;&amp;1</code> “error-leak” findings were
 FALSE — there is no <code>2&gt;&amp;1</code> on those lines.</li>
 </ul>
-<h3 id="verified-3">Verified</h3>
+<h3 id="verified-7">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
 </ul>
 <h2 id="v1.10.4-2026-06-29-set--epipefail-abort-fixes-hardened-test-coverage">v1.10.4
 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage</h2>
-<h3 id="fixed-15">Fixed</h3>
+<h3 id="fixed-24">Fixed</h3>
 <ul>
 <li><strong><code>claude-providers list</code> / <code>remove</code>
 aborted on a provider with no alias line.</strong> Under
@@ -1465,7 +3132,7 @@ alias-less provider and assert no abort.</li>
 string-matched): exits 0, writes only to stderr, names the snake_case
 project, handles an empty label.</li>
 </ul>
-<h3 id="verified-4">Verified</h3>
+<h3 id="verified-8">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0. All three aborts
 reproduced (RED) and confirmed fixed (GREEN); the providers fix proven
@@ -1474,7 +3141,7 @@ subagents, each finding independently reproduced before fixing.</li>
 </ul>
 <h2 id="v1.10.3-2026-06-29-execution-level-wrapper-test-coverage">v1.10.3 —
 2026-06-29 — Execution-level wrapper test coverage</h2>
-<h3 id="added-13">Added</h3>
+<h3 id="added-17">Added</h3>
 <ul>
 <li><strong><code>test_wrapper_exec.sh</code></strong> — the first
 hermetic test that actually <em>executes</em> the generated
@@ -1493,13 +3160,13 @@ with no session-flag injection, plus a non-vacuity guard proving the
 stub claude really executed. Proven <strong>RED</strong> on a dropped
 <code>unset</code>, <strong>GREEN</strong> on the real wrapper.</li>
 </ul>
-<h3 id="verified-5">Verified</h3>
+<h3 id="verified-9">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
 </ul>
 <h2 id="v1.10.2-2026-06-29-self-healing-rc-source-lines-strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</h2>
-<h3 id="fixed-16">Fixed</h3>
+<h3 id="fixed-25">Fixed</h3>
 <ul>
 <li><strong>Dangling <code>source &quot;…/aliases.sh&quot;</code> lines in rc
 files.</strong> A transient or moved alias-file path could leave a
@@ -1513,7 +3180,7 @@ an existing source line across <code>.</code>/<code>source</code> and
 <code>$HOME</code>/<code>~</code>/absolute forms, so re-installs never
 accumulate duplicate source lines.</li>
 </ul>
-<h3 id="added-14">Added</h3>
+<h3 id="added-18">Added</h3>
 <ul>
 <li><strong><code>test_rc_sourcing.sh</code></strong> (10 strict
 assertions) — reproduces the bug class the hermetic suite missed (it
@@ -1524,13 +3191,13 @@ error</strong> (the reported symptom), idempotent (exactly one source
 line after 3 calls), and cross-form dedup. Proven RED on the old
 behavior, GREEN on the fix.</li>
 </ul>
-<h3 id="verified-6">Verified</h3>
+<h3 id="verified-10">Verified</h3>
 <ul>
 <li>Suite <strong>17/17 green</strong>; shellcheck 0.</li>
 </ul>
 <h2 id="v1.10.1-2026-06-29-robust-cma_run-wrapper-assertions">v1.10.1 —
 2026-06-29 — Robust cma_run wrapper assertions</h2>
-<h3 id="fixed-17">Fixed</h3>
+<h3 id="fixed-26">Fixed</h3>
 <ul>
 <li><strong><code>test_claude.sh</code> used a fixed
 <code>grep -A30</code> window</strong> to scan the <code>cma_run</code>
@@ -1540,7 +3207,7 @@ the body grew with the v1.10.0 apply-color calls (push slipped past line
 though the wrapper itself was correct. It now extracts the full function
 body (awk header → closing brace), robust to future growth.</li>
 </ul>
-<h3 id="verified-7">Verified</h3>
+<h3 id="verified-11">Verified</h3>
 <ul>
 <li>Suite <strong>16/16 green</strong> against the v1.10.0 wrapper;
 shellcheck 0.</li>
@@ -1551,7 +3218,7 @@ coverage/wiring</h2>
 <p>The per-alias session color is now <strong>auto-applied</strong> (it
 was only a hint in v1.9.x), plus self-healing for a stale
 <code>CLAUDE_BIN</code> and several closed test-coverage gaps.</p>
-<h3 id="added-15">Added</h3>
+<h3 id="added-19">Added</h3>
 <ul>
 <li><strong>Auto-applied per-alias session color.</strong> Each bare
 alias launch now writes the alias’s color into the session as an
@@ -1581,7 +3248,7 @@ wrappers). <code>run-proof.sh</code> now also runs the
 previously-orphaned <code>verify_aliases_live.sh</code>.</li>
 </ul></li>
 </ul>
-<h3 id="fixed-18">Fixed</h3>
+<h3 id="fixed-27">Fixed</h3>
 <ul>
 <li><strong>Stale <code>CLAUDE_BIN</code> self-heals.</strong> Existing
 installs whose alias file pointed <code>CLAUDE_BIN</code> at a
@@ -1593,7 +3260,7 @@ install/ensure.</li>
 <code>apply-color</code> aborted before writing on a session that had no
 existing <code>agent-color</code> record.</li>
 </ul>
-<h3 id="verified-8">Verified</h3>
+<h3 id="verified-12">Verified</h3>
 <ul>
 <li>Suite <strong>16/16 ALL GREEN</strong>; <strong>shellcheck
 0</strong>. Color injection proven <strong>LIVE</strong> on real claude
@@ -1602,7 +3269,7 @@ recolour-on-alias-switch).</li>
 </ul>
 <h2 id="v1.9.2-2026-06-29-hermetic-claude_bin-resolver-test">v1.9.2 —
 2026-06-29 — Hermetic CLAUDE_BIN resolver test</h2>
-<h3 id="fixed-19">Fixed</h3>
+<h3 id="fixed-28">Fixed</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code> B7 “fallback when nowhere” was
 not hermetic</strong> and failed on hosts that have a real
@@ -1614,7 +3281,7 @@ assertion; the load-bearing discovery cases (explicit
 <code>CLAUDE_BIN</code>, <code>~/.npm-global/bin</code> discovery) stay
 covered. Runtime behavior unchanged.</li>
 </ul>
-<h3 id="verified-9">Verified</h3>
+<h3 id="verified-13">Verified</h3>
 <ul>
 <li>Suite <strong>14/14 green on all five hosts</strong> (this host,
 mistborn, thinker, amber, nezha); shellcheck 0.</li>
@@ -1623,7 +3290,7 @@ mistborn, thinker, amber, nezha); shellcheck 0.</li>
 — 2026-06-29 — CLAUDE_BIN resolves across per-host install
 locations</h2>
 <p>A patch found during the live multi-host rollout of v1.9.0.</p>
-<h3 id="fixed-20">Fixed</h3>
+<h3 id="fixed-29">Fixed</h3>
 <ul>
 <li><strong>Alias launches failed where claude was installed outside
 <code>~/.local/bin</code>.</strong>
@@ -1639,7 +3306,7 @@ locations (<code>~/.local/bin</code>, <code>~/.npm-global/bin</code>,
 <code>/opt/homebrew/bin</code>, <code>/usr/local/bin</code>), with a
 <code>~/.local/bin</code> fallback.</li>
 </ul>
-<h3 id="verified-10">Verified</h3>
+<h3 id="verified-14">Verified</h3>
 <ul>
 <li>Suite <strong>14/14 green</strong>; <strong>shellcheck 0</strong>.
 <code>test_coverage.sh</code> B7 covers explicit / npm-global / fallback
@@ -1657,7 +3324,7 @@ fixed against the real <code>claude 2.1.195</code> binary, then proven
 <strong>LIVE end-to-end</strong> — are corrected here, plus test
 coverage for two zero-coverage utilities and a documentation
 refresh.</p>
-<h3 id="fixed-21">Fixed</h3>
+<h3 id="fixed-30">Fixed</h3>
 <ul>
 <li><strong>Per-project auto-session naming never actually named the
 session — now proven LIVE.</strong> Three independent root causes:
@@ -1686,7 +3353,7 @@ one, so they never regained the integration. Fix: regenerate when
 <strong>either</strong> marker is missing.</li>
 </ul></li>
 </ul>
-<h3 id="added-16">Added</h3>
+<h3 id="added-20">Added</h3>
 <ul>
 <li><strong><code>docs/SESSION_COLOR.md</code></strong> — resolves the
 previously dangling reference, documenting per-project auto-session
@@ -1724,7 +3391,7 @@ per-alias color” and “TOON utility” sections; the <code>/color</code>
 notes pinned to the verified <code>claude 2.1.195</code> (superseding
 older <code>2.1.178</code> references).</li>
 </ul>
-<h3 id="verified-11">Verified</h3>
+<h3 id="verified-15">Verified</h3>
 <ul>
 <li>Full suite <strong>14/14 ALL GREEN</strong>; <strong>shellcheck
 0</strong>. The session fix proven <strong>LIVE end-to-end</strong> on
@@ -1745,7 +3412,7 @@ carries v1.7.11 → v1.8.0 and later fixes that supersede it), leaving a
 tree byte-identical to HEAD so all four mirrors converge on one lineage;
 the <code>containers</code> submodule was fast-forwarded to latest
 <code>main</code> (<code>71d3256</code> → <code>67ed35a</code>).</p>
-<h3 id="fixed-22">Fixed</h3>
+<h3 id="fixed-31">Fixed</h3>
 <ul>
 <li><strong><code>history.jsonl</code> merge fused records across a
 source missing its trailing newline.</strong>
@@ -1834,7 +3501,7 @@ tolerates a bare call) across <code>lib.sh</code>,
 and the test harness (the sandbox keeps its <code>cma-test.</code>
 prefix for the cleanup safety check).</li>
 </ul>
-<h3 id="added-17">Added</h3>
+<h3 id="added-21">Added</h3>
 <ul>
 <li><strong>B5 token-limit guard coverage</strong>
 (<code>test_coverage.sh</code>). The v1.8.0
@@ -1863,7 +3530,7 @@ values; <code>claude-sync-state</code> pull/push is last-writer-wins (no
 portable mutex is worth its stale-lock failure modes for a per-launch
 hook).</li>
 </ul>
-<h3 id="verified-12">Verified</h3>
+<h3 id="verified-16">Verified</h3>
 <ul>
 <li>Full suite <strong>12/12 ALL GREEN</strong>; <strong>shellcheck
 0</strong>; all <code>.py</code> compile under
@@ -1881,7 +3548,7 @@ auto-sessions</h2>
 <p>A systematic-debugging pass fixing three reported issues plus a new
 session-per-project feature. Every root cause was reproduced and the fix
 proven with physical evidence before shipping.</p>
-<h3 id="fixed-23">Fixed</h3>
+<h3 id="fixed-32">Fixed</h3>
 <ul>
 <li><strong>CRITICAL — aliases cross-contaminated API endpoints across
 sessions.</strong> <code>cma_run_provider</code> <code>export</code>s
@@ -1918,7 +3585,7 @@ launch wrapper now writes
 <code>projects[&lt;root&gt;].hasTrustDialogAccepted=true</code> for the
 launching project via the new <code>claude-session</code> helper.</li>
 </ul>
-<h3 id="added-18">Added</h3>
+<h3 id="added-22">Added</h3>
 <ul>
 <li><strong>Auto session-per-project
 (<code>claude-session.sh</code>).</strong> Every bare alias launch
@@ -1942,7 +3609,7 @@ assertions for name/id/color/flags/trust/ git-root behavior.
 <strong><code>run-all.sh</code> is now 12 files / 60 assertions, ALL
 GREEN.</strong></li>
 </ul>
-<h3 id="verified-13">Verified</h3>
+<h3 id="verified-17">Verified</h3>
 <ul>
 <li>Full suite <strong>12/12 ALL GREEN</strong>; <strong>shellcheck
 0</strong>; all <code>.py</code> compile under
@@ -1951,11 +3618,11 @@ the live catalog and the emitted alias file.</li>
 </ul>
 <h2 id="v1.7.12-2026-06-28-one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</h2>
-<h3 id="added-19">Added</h3>
+<h3 id="added-23">Added</h3>
 <ul>
 <li><p><strong><code>curl-install.sh</code></strong> — one-line
 bootstrap installer:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-fsSL</span> https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh <span class="kw">|</span> <span class="fu">bash</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-fsSL</span> https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh <span class="kw">|</span> <span class="fu">bash</span></span></code></pre></div>
 <p>Detects platform (Linux/macOS) and shell, auto-installs missing hard
 dependencies (jq, rsync, awk) via the system package manager
 (apt/dnf/apk/pacman/brew), clones (or pulls if already present) the repo
@@ -1970,7 +3637,7 @@ tests covering syntax, permissions, URL correctness, submodule cloning,
 idempotency, platform detection, dependency checks, error handling, and
 next-steps output.</p></li>
 </ul>
-<h3 id="verified-14">Verified</h3>
+<h3 id="verified-18">Verified</h3>
 <ul>
 <li><code>bash -n</code> + <code>shellcheck 0</code> on
 <code>curl-install.sh</code> and <code>test_curl_install.sh</code>.</li>
@@ -1984,7 +3651,7 @@ guard, arg validation</h2>
 test harness, add/list/remove/rollback all verified clean); shipped 10
 targeted coverage tests closing the same shallow-coverage class that let
 the v1.7.10 enable-plugins bug ship; plus 2 LOW code findings.</p>
-<h3 id="fixed-24">Fixed</h3>
+<h3 id="fixed-33">Fixed</h3>
 <ul>
 <li><strong><code>toon_encode.py</code>
 <code>fallback_encode</code></strong>: unbounded recursion on deeply
@@ -2029,7 +3696,7 @@ unify doesn’t create a second backup. - <strong>B4 (MEDIUM-HIGH) —
 <code>$DEFAULT_DIR/CLAUDE.md</code> and asserts it wins; branch (c)
 removes it and gives an account a <code>CLAUDE.md</code>, asserts that
 one wins.</p>
-<h3 id="verified-15">Verified</h3>
+<h3 id="verified-19">Verified</h3>
 <ul>
 <li><code>run-all.sh</code> <strong>10/10 ALL GREEN</strong> (coverage
 now 39+10=49 assertions; unify now 43+7=50); <strong>shellcheck
@@ -2044,7 +3711,7 @@ guards, proxy robustness</h2>
 <p>Third audit round (deep dive on the less-covered surface:
 opencode_sync, claude-unify merge, the poe proxy, bootstrap). Fixes
 verified centrally.</p>
-<h3 id="fixed-25">Fixed</h3>
+<h3 id="fixed-34">Fixed</h3>
 <ul>
 <li><strong><code>cma_enable_plugins</code> silently enabled NO plugins
 when given 3 or more</strong> (<code>lib.sh</code>). The jq
@@ -2090,7 +3757,7 @@ a broken alias.</li>
 <code>gzip.decompress</code> is now guarded like the error path, so a
 corrupt gzip body no longer propagates.</li>
 </ul>
-<h3 id="verified-16">Verified</h3>
+<h3 id="verified-20">Verified</h3>
 <ul>
 <li><code>run-all.sh</code> <strong>10/10 ALL GREEN</strong> (coverage
 now 32 assertions incl. the enable-plugins + injection regressions);
@@ -2157,7 +3824,7 @@ the gap where arbitrary MCP env-var names
 (e.g. <code>NOTION_API_KEY</code>) slipped through the original six-name
 allowlist.</li>
 </ul>
-<h3 id="fixed-26">Fixed</h3>
+<h3 id="fixed-35">Fixed</h3>
 <ul>
 <li><strong><code>install.sh</code> used
 <code>readlink -f</code></strong> (absent on BSD/macOS) for its symlink
@@ -2196,7 +3863,7 @@ resolves the sourced-file warnings properly; fixed the
 SC2015/SC1090/SC1003; the one remaining reserved no-op flag carries a
 justified inline disable.</li>
 </ul>
-<h3 id="verified-17">Verified</h3>
+<h3 id="verified-21">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> <strong>10/10 ALL
 GREEN</strong>; <strong>shellcheck 0</strong>; every <code>.py</code>
@@ -2249,7 +3916,7 @@ The three artifacts are redacted; the generator
 key and decide on a git-history scrub — the values remain in history on
 all four remotes.</li>
 </ul>
-<h3 id="fixed-27">Fixed</h3>
+<h3 id="fixed-36">Fixed</h3>
 <ul>
 <li><strong>Unreachable code</strong> in
 <code>verify_aliases_live.sh</code>: <code>exit $failed</code> sat
@@ -2270,7 +3937,7 @@ in <code>providers_resolve.py</code>: the usage docstring’s
 <code>\</code> line-continuations are now a raw string
 (<code>r&quot;&quot;&quot;</code>).</li>
 </ul>
-<h3 id="added-20">Added</h3>
+<h3 id="added-24">Added</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code></strong> — 11 new hermetic
 tests (19 assertions) covering previously-untested <code>lib.sh</code>
@@ -2287,7 +3954,7 @@ scans <code>scripts/tests/proof</code> for provider-key prefixes and URL
 <code>user:password@</code> creds, counting suspect lines so a failure
 never re-echoes a secret.</li>
 </ul>
-<h3 id="verified-18">Verified</h3>
+<h3 id="verified-22">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>10/10 ALL
 GREEN</strong> locally (was 9; +<code>test_coverage.sh</code>).</li>
@@ -2312,7 +3979,7 @@ compile clean under <code>python3 -W error</code>.</li>
 edge fix, regression tests</h2>
 <p>Follow-up hardening release found by a parallel multi-agent audit of
 v1.7.6.</p>
-<h3 id="fixed-28">Fixed</h3>
+<h3 id="fixed-37">Fixed</h3>
 <ul>
 <li><strong><code>readlink -f</code> → portable
 <code>cma_realpath</code></strong> at three sites:
@@ -2338,7 +4005,7 @@ with an empty <code>args</code> is an “unbound variable” error on bash
 non-re-exec’d <code>claude-providers.sh</code>). Guarded with
 <code>${args[@]+&quot;${args[@]}&quot;}</code>.</li>
 </ul>
-<h3 id="added-21">Added</h3>
+<h3 id="added-25">Added</h3>
 <ul>
 <li><strong><code>cma_realpath</code></strong> portable canonicalizer in
 <code>lib.sh</code>.</li>
@@ -2347,7 +4014,7 @@ non-re-exec’d <code>claude-providers.sh</code>). Guarded with
 real path; plus a guard asserting NO runtime script <em>invokes</em>
 <code>readlink -f</code>.</li>
 </ul>
-<h3 id="verified-19">Verified</h3>
+<h3 id="verified-23">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>9/9 ALL GREEN on all
 four hosts</strong>: nezha, thinker, amber (Linux), mistborn (macOS,
@@ -2375,7 +4042,7 @@ decision.</li>
 <h2 id="v1.7.6-2026-06-28-always-non-interactive-execution-alias-file-integrity-macosbash-3.2-portability-4-host-rollout">v1.7.6
 — 2026-06-28 — Always-non-interactive execution, alias-file integrity,
 macOS/bash-3.2 portability, 4-host rollout</h2>
-<h3 id="fixed-29">Fixed</h3>
+<h3 id="fixed-38">Fixed</h3>
 <ul>
 <li><strong>Alias-file corruption from a mis-firing migration</strong> —
 <code>cma_ensure_alias_file</code>’s “outdated
@@ -2415,7 +4082,7 @@ and <code>tests/lib/sandbox.sh</code> (empty <code>${arr[@]}</code>
 expansions are unbound on bash 3.2). The suite now runs green on macOS
 bash 3.2.</li>
 </ul>
-<h3 id="added-22">Added</h3>
+<h3 id="added-26">Added</h3>
 <ul>
 <li><strong><code>CMA_NONINTERACTIVE</code> + automatic TTY
 detection</strong> — a new <code>cma_can_prompt</code> helper makes
@@ -2449,7 +4116,7 @@ amber.</li>
 active providers each</strong>, models verified via HTTP probes,
 <strong>0 unbound errors</strong>.</li>
 </ul>
-<h3 id="verified-20">Verified</h3>
+<h3 id="verified-24">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>9/9 files, ALL GREEN
 on all four hosts</strong>: nezha (Linux), thinker (Linux), amber
@@ -2461,7 +4128,7 @@ present on every host.</li>
 </ul>
 <h2 id="v1.7.5-2026-06-28-cross-provider-resume-session-visibility-fix">v1.7.5
 — 2026-06-28 — Cross-provider /resume session visibility fix</h2>
-<h3 id="fixed-30">Fixed</h3>
+<h3 id="fixed-39">Fixed</h3>
 <ul>
 <li><strong>Cross-provider <code>/resume</code> session loss</strong> —
 when switching between provider aliases (e.g., <code>deepseek</code> →
@@ -2494,7 +4161,7 @@ its own (different) <code>lastSessionId</code> 3. <code>/resume</code>
 read B’s <code>lastSessionId</code> and couldn’t find A’s session</p>
 <p>After fix: all providers/accounts share the same merged
 <code>lastSessionId</code> via sync-state.</p>
-<h3 id="verified-21">Verified</h3>
+<h3 id="verified-25">Verified</h3>
 <ul>
 <li><strong>Local host</strong>: all providers show identical
 <code>lastSessionId</code> after sync (confirmed)</li>
@@ -2511,7 +4178,7 @@ PASS</strong></li>
 </ul>
 <h2 id="v1.7.4-2026-06-26-kimi-provider-fix-aws-iac-mcp-disabled-by-default">v1.7.4
 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default</h2>
-<h3 id="fixed-31">Fixed</h3>
+<h3 id="fixed-40">Fixed</h3>
 <ul>
 <li><strong>Kimi Code provider base URL</strong> in
 <code>scripts/providers/overrides.json</code> — changed from
@@ -2523,7 +4190,7 @@ allowlist in <code>scripts/claude-opencode-sync.sh</code>. The server
 consistently timed out on connection and is now configured but disabled
 by default.</li>
 </ul>
-<h3 id="changed-5">Changed</h3>
+<h3 id="changed-6">Changed</h3>
 <ul>
 <li>Regenerated
 <code>Claude_Multi_Account_Fine_Tuning.{html,pdf,docx}</code> from
@@ -2540,7 +4207,7 @@ failed</strong></li>
 </ul>
 <h2 id="v1.6.6-2026-06-21-toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</h2>
-<h3 id="added-23">Added</h3>
+<h3 id="added-27">Added</h3>
 <ul>
 <li><strong>TOON (Token-Oriented Object Notation)</strong> integration —
 saves ~40% tokens vs JSON for structured data in LLM prompts by
@@ -2571,7 +4238,7 @@ provider-side support.</p>
 </ul>
 <h2 id="v1.6.5-2026-06-21-poe-proxy-fix-alias-file-install">v1.6.5 —
 2026-06-21 — Poe proxy fix (alias file + install)</h2>
-<h3 id="fixed-32">Fixed</h3>
+<h3 id="fixed-41">Fixed</h3>
 <ul>
 <li><strong>Poe proxy not starting from alias</strong> — proxy logic was
 only in <code>lib.sh</code>, not in the alias file’s
@@ -2584,7 +4251,7 @@ name caused <code>unbound variable</code> error on nezha (Linux,
 <li><strong>install.sh: auto-copy proxy scripts</strong> to
 <code>~/.local/share/.../proxy/</code> during install.</li>
 </ul>
-<h3 id="verified-22">Verified</h3>
+<h3 id="verified-26">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
 <code>poe3</code> ✅</li>
@@ -2596,7 +4263,7 @@ name caused <code>unbound variable</code> error on nezha (Linux,
 </ul>
 <h2 id="v1.6.4-2026-06-21-poe-proxy-fix-for-tool-compatibility">v1.6.4 —
 2026-06-21 — Poe proxy fix for tool compatibility</h2>
-<h3 id="fixed-33">Fixed</h3>
+<h3 id="fixed-42">Fixed</h3>
 <ul>
 <li><strong>Poe tool format error</strong> — Poe requires
 <code>parameters</code> in every tool function definition. Claude Code
@@ -2607,7 +4274,7 @@ API.</li>
 now auto-starts compatibility proxies for providers that need them
 (detected by <code>scripts/proxy/&lt;provider&gt;_proxy.py</code>).</li>
 </ul>
-<h3 id="verified-23">Verified</h3>
+<h3 id="verified-27">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work through proxy: <code>poe</code> ✅,
 <code>poe2</code> ✅, <code>poe3</code> ✅</li>
@@ -2618,7 +4285,7 @@ now auto-starts compatibility proxies for providers that need them
 </ul>
 <h2 id="v1.6.3-2026-06-21-poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</h2>
-<h3 id="added-24">Added</h3>
+<h3 id="added-28">Added</h3>
 <ul>
 <li><strong>Poe provider</strong> — universal AI platform with 382
 models from all major providers. OpenAI-compatible API at
@@ -2636,7 +4303,7 @@ code, 40 image gen, 17 video gen, 12 TTS, 1 STT, 166 other</li>
 <li><strong>Documentation</strong>: full Poe section in
 Provider_Aliases_User_Guide.md</li>
 </ul>
-<h3 id="verified-24">Verified</h3>
+<h3 id="verified-28">Verified</h3>
 <ul>
 <li>API endpoint responds correctly</li>
 <li>Authentication works</li>
@@ -2646,7 +4313,7 @@ all YES</li>
 </ul>
 <h2 id="v1.6.2-2026-06-21-chutes-provider-documentation-model-update">v1.6.2
 — 2026-06-21 — Chutes provider documentation + model update</h2>
-<h3 id="changed-6">Changed</h3>
+<h3 id="changed-7">Changed</h3>
 <ul>
 <li><strong>Chutes provider models updated</strong> — catalog was stale.
 Chutes now offers 13 TEE (Trusted Execution Environment) models. Updated
@@ -2656,7 +4323,7 @@ fast=<code>Qwen/Qwen3.6-27B-TEE</code>.</li>
 Provider_Aliases_User_Guide.md with full model table, TEE explanation,
 pay-per-use note, and setup instructions.</li>
 </ul>
-<h3 id="verified-25">Verified</h3>
+<h3 id="verified-29">Verified</h3>
 <ul>
 <li>Chutes API endpoint responds correctly</li>
 <li>All 13 TEE models accessible (require funded account for actual
@@ -2666,7 +4333,7 @@ inference)</li>
 </ul>
 <h2 id="v1.6.1-2026-06-21-cache_control-fix-e2e-tests">v1.6.1 —
 2026-06-21 — cache_control fix + E2E tests</h2>
-<h3 id="fixed-34">Fixed</h3>
+<h3 id="fixed-43">Fixed</h3>
 <ul>
 <li><strong><code>cache_control</code> parameter error</strong> — Claude
 Code sends <code>cache_control</code> (Anthropic-specific) in its API
@@ -2675,7 +4342,7 @@ it with HTTP 422. Fixed by adding ccr’s built-in <code>cleancache</code>
 transformer to every provider config, which strips
 <code>cache_control</code> before forwarding to the provider.</li>
 </ul>
-<h3 id="added-25">Added</h3>
+<h3 id="added-29">Added</h3>
 <ul>
 <li><strong><code>alias_e2e_test.py</code></strong> — end-to-end alias
 verification script that tests each alias by sending requests through
@@ -2694,7 +4361,7 @@ working (all aliases tested with “Do you see our codebase?”)</h3>
 </ul>
 <h2 id="v1.6.0-2026-06-21-multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</h2>
-<h3 id="added-26">Added</h3>
+<h3 id="added-30">Added</h3>
 <ul>
 <li><strong>Multi-alias provider system</strong> — every provider can
 now have multiple aliases (<code>provider</code>,
@@ -2725,7 +4392,7 @@ probing during verification.</li>
 LLMsVerifier (ModelVerifier, Seed, xiaomi provider), challenges
 (anti-bluff §11.4, chaos/stress tests), containers (deploy-stack).</li>
 </ul>
-<h3 id="changed-7">Changed</h3>
+<h3 id="changed-8">Changed</h3>
 <ul>
 <li>Probe <code>max_tokens</code> increased from 32 to 128 — reasoning
 models need more tokens for chain-of-thought + response (was causing
@@ -2738,17 +4405,17 @@ require it).</li>
 <li>8/8 test files passed (ALL GREEN), 0 failures.</li>
 </ul>
 <h3 id="usage">Usage</h3>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard sync (2 models per provider, as before)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-alias sync (verify ALL models, create multiple aliases)</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># With options</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard sync (2 models per provider, as before)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-alias sync (verify ALL models, create multiple aliases)</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># With options</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
 <h2 id="v1.5.1-2026-06-20-linux-stat-fix-nezha-deployment">v1.5.1 —
 2026-06-20 — Linux stat fix + nezha deployment</h2>
-<h3 id="fixed-35">Fixed</h3>
+<h3 id="fixed-44">Fixed</h3>
 <ul>
 <li><strong><code>stat -f %m</code> on Linux</strong> — the mtime cache
 check in <code>claude-providers.sh</code> used
@@ -2775,7 +4442,7 @@ pre-existing)</li>
 </ul>
 <h2 id="v1.5.0-2026-06-20-cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</h2>
-<h3 id="added-27">Added</h3>
+<h3 id="added-31">Added</h3>
 <ul>
 <li><strong>Cross-alias session visibility</strong> — sessions created
 under ANY alias (<code>claudeN</code>, <code>deepseek</code>,
@@ -2803,7 +4470,7 @@ provider). 61 projects merged in every <code>.claude.json</code>.
 Evidence in
 <code>scripts/tests/proof/80-cross-alias-sessions.txt</code>.</li>
 </ul>
-<h3 id="changed-8">Changed</h3>
+<h3 id="changed-9">Changed</h3>
 <ul>
 <li><code>scripts/claude-sync-state.sh</code> — provider dirs included
 in merge targets</li>
@@ -2840,7 +4507,7 @@ also merged.</li>
 </ul>
 <h2 id="v1.4.0-2026-06-20-opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</h2>
-<h3 id="added-28">Added</h3>
+<h3 id="added-32">Added</h3>
 <ul>
 <li><strong><code>opencode</code> provider alias</strong> — <a href="https://opencode.ai/zen">OpenCode Zen</a> curated AI gateway with
 <strong>21 free models</strong> (all $0 cost, all support tool calling +
@@ -2883,7 +4550,7 @@ all HTTP 200 with cost=$0. Evidence in
 table, setup, usage, live-verified notes, stealth model
 explanation).</li>
 </ul>
-<h3 id="changed-9">Changed</h3>
+<h3 id="changed-10">Changed</h3>
 <ul>
 <li><code>scripts/providers/key-aliases.json</code> and
 <code>scripts/providers/overrides.json</code> extended with the
@@ -2913,7 +4580,7 @@ work).</li>
 </ul>
 <h2 id="v1.3.0-2026-06-19-xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</h2>
-<h3 id="added-29">Added</h3>
+<h3 id="added-33">Added</h3>
 <ul>
 <li><strong><code>xiaomi</code> provider alias</strong> — Xiaomi MiMo
 via the <strong>Anthropic-native endpoint</strong>
@@ -2957,7 +4624,7 @@ tool calling proven (<code>finish_reason: tool_calls</code>
 <code>docs/Provider_Aliases_User_Guide.md</code> (model table, setup,
 usage, live-verified notes).</li>
 </ul>
-<h3 id="changed-10">Changed</h3>
+<h3 id="changed-11">Changed</h3>
 <ul>
 <li><code>scripts/providers/key-aliases.json</code> and
 <code>scripts/providers/overrides.json</code> extended with the
@@ -2985,7 +4652,7 @@ file.</li>
 </ul>
 <h2 id="v1.2.0-2026-06-19-z.ai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</h2>
-<h3 id="added-30">Added</h3>
+<h3 id="added-34">Added</h3>
 <ul>
 <li><strong><code>zai-coding-plan</code> provider alias</strong> —
 OpenAI-compatible router transport via
@@ -3009,7 +4676,7 @@ selection) + sync e2e tests (env file, alias, model overrides).</li>
 <code>~/.claude-code-router/config.json</code> as the active default
 route.</li>
 </ul>
-<h3 id="changed-11">Changed</h3>
+<h3 id="changed-12">Changed</h3>
 <ul>
 <li><code>overrides.json</code> extended with
 <code>zai-coding-plan</code> section for model pinning.</li>
@@ -3025,7 +4692,7 @@ include 5 new assertions for <code>zai-coding-plan</code>.</li>
 heavy testing against <strong>real production LLM services</strong>,
 plus end-to-end provider aliases proven on two hosts and two
 transports.</p>
-<h3 id="added-31">Added</h3>
+<h3 id="added-35">Added</h3>
 <ul>
 <li><strong><code>containers</code> + <code>challenges</code>
 submodules</strong> (<code>submodules/</code>) — the distributed-boot
@@ -3060,7 +4727,7 @@ included).</li>
 verification proofs, endpoint coverage, security posture, observability,
 per-provider sweeps, dual-host end-to-end alias proofs.</li>
 </ul>
-<h3 id="changed-12">Changed</h3>
+<h3 id="changed-13">Changed</h3>
 <ul>
 <li><strong>Provider session accent color: orange → purple</strong>
 across spec, guide, and the long-form doc. (Claude Code 2.1.178 cannot
@@ -3123,7 +4790,7 @@ native/claude-code-router transport, full lifecycle + tests + docs. See
 <code>docs/Provider_Aliases_User_Guide.md</code>.</p>
 <h2 id="v1.6.7-2026-06-21-poe-proxy-fix-for-all-aliases">v1.6.7 —
 2026-06-21 — Poe proxy fix for all aliases</h2>
-<h3 id="fixed-36">Fixed</h3>
+<h3 id="fixed-45">Fixed</h3>
 <ul>
 <li><strong>Poe proxy not starting for poe2/poe3</strong> — proxy
 detection used exact provider ID (<code>poe2_proxy.py</code>) which
@@ -3133,7 +4800,7 @@ for poe2, poe3 aliases).</li>
 <code>${CMA_PROVIDER_ID%%[0-9]*}</code></li>
 <li><strong>alias file</strong>: same fix applied</li>
 </ul>
-<h3 id="verified-26">Verified</h3>
+<h3 id="verified-30">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
 <code>poe3</code> ✅</li>
@@ -3146,14 +4813,14 @@ for poe2, poe3 aliases).</li>
 </ul>
 <h2 id="v1.6.8-2026-06-21-poe-proxy-gzip-fix">v1.6.8 — 2026-06-21 — Poe
 proxy gzip fix</h2>
-<h3 id="fixed-37">Fixed</h3>
+<h3 id="fixed-46">Fixed</h3>
 <ul>
 <li><strong>Poe proxy gzip decompression</strong> — Poe API returns
 gzip-compressed responses but the proxy tried to read them as UTF-8
 without decompressing, causing UnicodeDecodeError. Added gzip
 decompression for both success and error responses.</li>
 </ul>
-<h3 id="verified-27">Verified</h3>
+<h3 id="verified-31">Verified</h3>
 <ul>
 <li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
 <li><code>poe2</code> (gpt-5.5): ✅ YES</li>
@@ -3167,7 +4834,7 @@ validation, not tools format)</li>
 </ul>
 <h2 id="v1.6.9-2026-06-21-poe-proxy-ref-fix-for-grok-4">v1.6.9 —
 2026-06-21 — Poe proxy $ref fix for Grok-4</h2>
-<h3 id="fixed-38">Fixed</h3>
+<h3 id="fixed-47">Fixed</h3>
 <ul>
 <li>**Poe proxy <span class="math inline">$ref resolution** — Claude
 Code sends tool schemas with `$</span>ref<code>references to</code><span class="math inline">$defs`. Grok-4 and some providers don&#39;t support
@@ -3175,7 +4842,7 @@ Code sends tool schemas with `$</span>ref<code>references to</code><span class="
 resolves all
 `$</span>ref<code>references to inline definitions, and removes</code>$defs`.</li>
 </ul>
-<h3 id="verified-28">Verified</h3>
+<h3 id="verified-32">Verified</h3>
 <ul>
 <li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
 <li><code>poe2</code> (gpt-5.5): ✅ YES</li>
@@ -3188,7 +4855,7 @@ resolves all
 </ul>
 <h2 id="v1.7.0-2026-06-22-poe-proxy-complete-fix-all-aliases-verified">v1.7.0
 — 2026-06-22 — Poe proxy complete fix (all aliases verified)</h2>
-<h3 id="fixed-39">Fixed</h3>
+<h3 id="fixed-48">Fixed</h3>
 <ul>
 <li><strong>Poe proxy shared directory</strong> — the proxy at
 <code>~/.local/share/.../proxy/poe_proxy.py</code> was the OLD version
@@ -3219,7 +4886,7 @@ wasn’t copied to shared directory</p>
 </ul>
 <h2 id="v1.7.1-2026-06-22-full-validation-release">v1.7.1 — 2026-06-22 —
 Full validation + release</h2>
-<h3 id="fixed-40">Fixed</h3>
+<h3 id="fixed-49">Fixed</h3>
 <ul>
 <li><strong>Port-ready check</strong> for proxy startup — replaced
 <code>sleep 1</code> with polling loop (<code>lsof -i</code>) ensuring
@@ -3242,7 +4909,7 @@ assertions)</li>
 </ul>
 <h2 id="v1.7.2-2026-06-22-claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</h2>
-<h3 id="added-32">Added</h3>
+<h3 id="added-36">Added</h3>
 <ul>
 <li><strong>Claude alias verification</strong> in verify_aliases_live.sh
 — tests claude1/2/3 alongside provider aliases</li>

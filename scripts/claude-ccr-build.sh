@@ -130,9 +130,16 @@ fi
 # §11.4.201(1)). The build below is still the authority.
 _need="$(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$SUBMODULE/go.mod" 2>/dev/null || true)"
 _have="$(go env GOVERSION 2>/dev/null | sed 's/^go//; s/-.*$//' || true)"
+# Portable dotted-version compare (BSD sort has no -V): true when _have < _need.
+_have_older="$(awk -v a="$_have" -v b="$_need" 'BEGIN{
+  if (a == "" || b == "") { print 0; exit }
+  na=split(a,x,"."); nb=split(b,y,".")
+  for (i=1; i<=3; i++) { ai=(i in x ? x[i] : 0)+0; bi=(i in y ? y[i] : 0)+0
+    if (ai < bi) { print 1; exit } ; if (ai > bi) { print 0; exit } }
+  print 0 }')"
 if [ -n "$_need" ] && [ -n "$_have" ] \
    && [ "$_need" != "$_have" ] \
-   && [ "$(printf '%s\n%s\n' "$_need" "$_have" | sort -V | head -1)" = "$_have" ]; then
+   && [ "$_have_older" = "1" ]; then
   cma_warn "Go $_have is older than the $_need this router requires (GOTOOLCHAIN=$(go env GOTOOLCHAIN 2>/dev/null))."
   printf '  If the build below fails on the toolchain version, either:\n    export GOTOOLCHAIN=auto     # let Go fetch %s itself (needs network)\n  or upgrade your Go to %s+ (https://go.dev/dl/).\n' "$_need" "$_need" >&2
 fi

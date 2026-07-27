@@ -54,4 +54,29 @@ assert_file_contains "$SCRIPTS_DIR/lib.sh" 'claude-ccr-build'
 it ".gitmodules registers the claude-code-router submodule"
 assert_file_contains "$REPO_ROOT/.gitmodules" 'submodules/claude-code-router'
 
+it "go.mod carries no patch-level toolchain pin (field failure 2026-07-25)"
+# A patch-pinned `go 1.26.4` directive plus a host toolchain one patch behind
+# (go1.26.2) plus GOTOOLCHAIN=local = the build REFUSES
+# ("go.mod requires go >= 1.26.4") and every router-transport provider alias
+# dies at install. Patch releases never add language features, so the
+# directive must stay at major.minor granularity: any toolchain within the
+# same minor line can always build the vendored router.
+gomod="$REPO_ROOT/submodules/claude-code-router/go.mod"
+if [[ -f "$gomod" ]]; then
+  directive="$(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$gomod")"
+  if [[ "$directive" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    _pass "go directive is major.minor only ($directive)"
+  else
+    _fail "go directive carries a patch pin" "go.mod has 'go $directive' — must be major.minor (e.g. 1.26), else older same-minor toolchains with GOTOOLCHAIN=local cannot build"
+  fi
+else
+  _fail "go.mod not found" "$gomod (submodule not checked out?)"
+fi
+
+it "both build entrypoints advise on toolchain version skew"
+# The failure text must name BOTH remedies (GOTOOLCHAIN=auto, or upgrade Go) —
+# a bare "install Go" is a false diagnosis when Go is present but too old.
+assert_file_contains "$SCRIPTS_DIR/claude-ccr-build.sh" 'GOTOOLCHAIN=auto'
+assert_file_contains "$SCRIPTS_DIR/ccr-install.sh" 'GOTOOLCHAIN=auto'
+
 summary

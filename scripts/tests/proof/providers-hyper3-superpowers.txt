@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: hyper3/kimi-k2.7-code (transport=router)
+# ROUTE-INTENDED-BACKGROUND: hyper3/gemma-4-26b-a4b-it
+claude-providers: alias hyper3 is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for hyper3)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=hyper3/kimi-k2.7-code; NO turn ran — route attribution is not applicable)

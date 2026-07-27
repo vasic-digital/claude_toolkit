@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: opencode-go1/deepseek-v4-pro (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode-go1/deepseek-v4-flash
+{"is_error":false,"duration_api_ms":19445,"num_turns":3,"stop_reason":"end_turn","session_id":"0d00f88b-1785-4809-8bf9-bce77381cfc3","total_cost_usd":0.8949,"usage":{"input_tokens":177690,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":258,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"deepseek-v4-pro":{"inputTokens":177690,"outputTokens":258,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.8949,"contextWindow":262144,"maxOutputTokens":32000,"canonicalModel":"deepseek-v4-pro","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"Skills evolve. Read current version.","ttft_ms":10976,"ttft_stream_ms":10779,"time_to_request_ms":1080,"type":"result","duration_ms":31335,"uuid":"07ac9f0f-0793-4a3b-9c1a-f52e097918f0"}
+# ROUTE-RESOLVED: opencode-go1/deepseek-v4-pro
+# ROUTE-RESOLVED-BACKGROUND: opencode-go1/deepseek-v4-flash
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 15306
+# PASS

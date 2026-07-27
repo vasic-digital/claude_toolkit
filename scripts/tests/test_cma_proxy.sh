@@ -9,6 +9,8 @@
 #   poe_test.go      poe tool-param injection + $ref resolve + cap + cache strip
 #   kimi_test.go     kimi moonshot-flavored schema normalization
 #   sarvam_test.go   sarvam content-block flatten + max_tokens tier clamp
+#   nvidia_test.go   nvidia schema-aware cache_control strip (message/block/
+#                    tool level; schema property named cache_control preserved)
 #
 # This bash test drives `go build` + `go test` so the whole proxy is covered by
 # the standard suite. SKIPs (does not fail) when the Go toolchain is absent —

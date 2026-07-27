@@ -9,9 +9,12 @@
 // `cma-proxy --has-transform <id>` (exit 0 if this binary transforms that
 // provider, else 1).
 //
-// Today the only transform is `helixagent` (Hermes tool-call recovery, see
-// hermes.go). Unknown providers are served as a transparent pass-through so the
-// binary is always safe to place in front of a backend.
+// Transform families today: `helixagent` (Hermes tool-call recovery, see
+// hermes.go), `poe` (request-schema fixes, poe.go), `kimi` (tool-schema
+// normalization, kimi.go), `sarvam` (sarvam.go), and `nvidia` (cache_control
+// stripping for strict backends, nvidia.go). Unknown providers are served as
+// a transparent pass-through so the binary is always safe to place in front
+// of a backend.
 //
 // Upstream defaults to $HELIXAGENT_PROXY_UPSTREAM, then $CMA_PROVIDER_BASE_URL,
 // then a local fallback matching the pinned HelixLLM port. A trailing /v1 is

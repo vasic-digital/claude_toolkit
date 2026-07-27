@@ -1,0 +1,2 @@
+providers-semantic[kimi-k3-256k]: skip — no key in $_CMA_KIMICODE_OAUTH_ for model under test
+semantic verdict: skip

@@ -48,7 +48,12 @@ source "$LIBSH"
 set +e
 
 VERIFY_SH="${CMA_VERIFY_SH:-$SCRIPTS_DIR/providers-verify.sh}"
-CFG="$HOME/.claude-code-router/config.json"
+# Per-alias CCR_HOME (lib.sh router branch): every router provider's config
+# lives in ~/.claude-code-router/<provider-id>/config.json — nothing writes
+# the global ~/.claude-code-router/config.json any more, so seeding/reading
+# the route must name the provider's OWN dir or the fixtures grade a file the
+# launcher never touches.
+cfg_for() { printf '%s' "$HOME/.claude-code-router/$1/config.json"; }
 REC_LAUNCH="$HOME/rec.launch"
 REAL_JQ="$(command -v jq)"
 
@@ -73,7 +78,14 @@ cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
   --help|-h|help) echo "Usage: ccr start [--host <host>] [--port <port>]"
-                  echo "  ccr serve [--host <host>] [--port <port>]"; exit 0 ;;
+                  echo "  ccr serve [--host <host>] [--port <port>]"
+                  # MUST advertise `ccr restart` with the bundled Go router's
+                  # grammar (submodules/claude-code-router/cmd/ccr/main.go):
+                  # aa30853 made cma_run_provider identity-check the resolved
+                  # ccr by grepping --help for exactly that subcommand (the
+                  # npm router lacks it), so a stale --help trips the rc=127
+                  # refusal even though this fake implements `restart` below.
+                  echo "  ccr restart [--host <host>] [--port <port>] [--gateway|--no-gateway]"; exit 0 ;;
   code|default-claude-code) shift; echo "LAUNCHED $*" >> "$REC_LAUNCH"; exit 0 ;;
   restart) if [[ "${FAKE_RESTART_LEAK:-0}" == 1 ]]; then
              # Models a router that dumps its EFFECTIVE CONFIG when it cannot
@@ -109,9 +121,9 @@ EOF
 }
 restore_jq() { rm -f "$FAKEBIN/jq"; }
 
-seed_route() {  # seed_route "<prov>,<model>"
-  mkdir -p "$(dirname "$CFG")"
-  printf '{"Providers":[],"Router":{"default":"%s","background":"%s"}}\n' "$1" "$1" > "$CFG"
+seed_route() {  # seed_route ID "<prov>,<model>"
+  mkdir -p "$(dirname "$(cfg_for "$1")")"
+  printf '{"Providers":[],"Router":{"default":"%s","background":"%s"}}\n' "$2" "$2" > "$(cfg_for "$1")"
 }
 
 run_provider() {  # run_provider ID  -> sets $rc, $out; resets the launch record
@@ -128,7 +140,7 @@ run_provider() {  # run_provider ID  -> sets $rc, $out; resets the launch record
 # grep -c prints 0 AND exits 1 when there is no match, so `|| echo 0` would
 # print it twice. Swallow the status instead.
 launch_count() { grep -c '^LAUNCHED' "$REC_LAUNCH" 2>/dev/null || true; }
-route_default() { "$REAL_JQ" -r '.Router.default // ""' "$CFG" 2>/dev/null; }
+route_default() { "$REAL_JQ" -r '.Router.default // ""' "$(cfg_for "$1")" 2>/dev/null; }
 
 mkprov() {  # mkprov ID BASEURL
   cma_provider_write_env "$1" ACME_KEY router "$2" "$1-big" "$1-fast" \
@@ -162,28 +174,28 @@ assert_eq "$ALIAS_FILE" "$def_src" "cma_run_provider was loaded from the sandbox
 # Section 0 — CONTROL: the normal router path still works end to end
 # ===========================================================================
 it "CONTROL: a normal router provider rewrites .Router.default to ITSELF and launches"
-seed_route 'foreign,foreign-model'
+seed_route normal 'foreign,foreign-model'
 FAKE_RESTART_RC=0 run_provider normal
 assert_eq 0 "$rc" "normal router launch succeeds"
 assert_eq 1 "$(launch_count)" "the launch actually happened"
-assert_eq "normal,normal-big" "$(route_default)" "the route names the provider under test (attributable)"
+assert_eq "normal,normal-big" "$(route_default normal)" "the route names the provider under test (attributable)"
 
 # ===========================================================================
 # Section 1 — DEFECT 1: a self-referencing base must never silently inherit
 # ===========================================================================
 it "a provider whose base_url IS the ccr gateway is REFUSED, not inherited"
-seed_route 'foreign,foreign-model'
+seed_route selfref 'foreign,foreign-model'
 FAKE_RESTART_RC=0 run_provider selfref
 assert_eq 78 "$rc" "self-referencing provider refused with a non-zero status"
 assert_eq 0 "$(launch_count)" "NO launch happened on the inherited route (the helixagent bluff)"
-assert_eq "foreign,foreign-model" "$(route_default)" "the foreign route was left untouched — nothing claimed it"
+assert_eq "foreign,foreign-model" "$(route_default selfref)" "the foreign route was left untouched — nothing claimed it"
 case "$out" in *"ccr gateway itself"*) hit=0 ;; *) hit=1 ;; esac
 assert_eq 0 "$hit" "the refusal says WHY (base_url is the gateway itself)"
 case "$out" in *selfref*) hit=0 ;; *) hit=1 ;; esac
 assert_eq 0 "$hit" "the refusal names the provider"
 
 it "the guard is host-form agnostic (localhost, not just 127.0.0.1)"
-seed_route 'foreign,foreign-model'
+seed_route selfalt 'foreign,foreign-model'
 FAKE_RESTART_RC=0 run_provider selfalt
 assert_eq 78 "$rc" "localhost:3456 refused too"
 assert_eq 0 "$(launch_count)" "no launch on the inherited route"
@@ -192,13 +204,13 @@ assert_eq 0 "$(launch_count)" "no launch on the inherited route"
 # Section 2 — DEFECT 2: a failed route WRITE is never reported as success
 # ===========================================================================
 it "a failed jq route rewrite refuses the launch instead of proceeding"
-seed_route 'foreign,foreign-model'
+seed_route normal 'foreign,foreign-model'
 make_broken_jq
 FAKE_RESTART_RC=0 run_provider normal
 restore_jq
 assert_eq 78 "$rc" "failed jq write is fatal (was: silent 'else rm -f')"
 assert_eq 0 "$(launch_count)" "no launch against the un-updated route"
-assert_eq "foreign,foreign-model" "$(route_default)" "the old route is intact — no partial write"
+assert_eq "foreign,foreign-model" "$(route_default normal)" "the old route is intact — no partial write"
 case "$out" in *"NOT applied"*) hit=0 ;; *) hit=1 ;; esac
 assert_eq 0 "$hit" "the failure is announced, not swallowed by 2>/dev/null"
 # NOTE: this particular fixture's stderr contains no key, so this assertion is
@@ -212,20 +224,22 @@ if (( EUID == 0 )); then
   # root ignores directory permissions, so the mv cannot be made to fail this way.
   _pass "SKIP (running as root: an unwritable dir cannot fail mv)"
 else
-  seed_route 'foreign,foreign-model'
-  chmod 500 "$HOME/.claude-code-router"
+  seed_route normal 'foreign,foreign-model'
+  # The write target is the PER-ALIAS config dir (lib.sh CCR_HOME isolation),
+  # so that — not the global dir — is what must be made unwritable for mv to fail.
+  chmod 500 "$HOME/.claude-code-router/normal"
   FAKE_RESTART_RC=0 run_provider normal
-  chmod 700 "$HOME/.claude-code-router"
+  chmod 700 "$HOME/.claude-code-router/normal"
   assert_eq 78 "$rc" "failed mv is fatal"
   assert_eq 0 "$(launch_count)" "no launch when the new config never landed"
-  assert_eq "foreign,foreign-model" "$(route_default)" "the gateway still holds the old route, and we did not pretend otherwise"
+  assert_eq "foreign,foreign-model" "$(route_default normal)" "the gateway still holds the old route, and we did not pretend otherwise"
 fi
 
 # ===========================================================================
 # Section 3 — DEFECT 3: a failed `ccr restart` blocks the launch
 # ===========================================================================
 it "a failed 'ccr restart' refuses the launch (config written, route NOT live)"
-seed_route 'foreign,foreign-model'
+seed_route normal 'foreign,foreign-model'
 FAKE_RESTART_RC=1 run_provider normal
 assert_eq 78 "$rc" "failed restart is fatal (was: '|| true')"
 assert_eq 0 "$(launch_count)" "no launch against a route the gateway never applied"
@@ -233,7 +247,7 @@ case "$out" in *"restart"*) hit=0 ;; *) hit=1 ;; esac
 assert_eq 0 "$hit" "the diagnostic names the restart as the failing step"
 # The written file is correct; only the LIVE gateway is stale. That divergence
 # is precisely why the file alone is not proof.
-assert_eq "normal,normal-big" "$(route_default)" "the config file WAS updated — the file is not the proof, the restart is"
+assert_eq "normal,normal-big" "$(route_default normal)" "the config file WAS updated — the file is not the proof, the restart is"
 
 it "the key is scrubbed out of a tool stderr that really carries it"
 # WHY THIS REPLACES A VACUOUS ASSERTION. This file already claimed to cover the
@@ -244,7 +258,7 @@ it "the key is scrubbed out of a tool stderr that really carries it"
 # TOOL'S OWN stderr into its diagnostic (`${_rst_out:+: $_rst_out}`), so the
 # fixture has to be a tool that actually emits the key. FAKE_RESTART_LEAK=1 is
 # that fixture, and the CONTROL below proves it is one.
-seed_route 'foreign,foreign-model'
+seed_route normal 'foreign,foreign-model'
 FAKE_RESTART_RC=1 FAKE_RESTART_LEAK=1 run_provider normal
 assert_eq 78 "$rc" "a leaking, failing restart still refuses the launch"
 assert_eq 0 "$(launch_count)" "no launch after a failed restart"
@@ -260,7 +274,7 @@ case "$out" in *"sk-test-not-a-real-key"*) leak=1 ;; *) leak=0 ;; esac
 assert_eq 0 "$leak" "the key never reaches the terminal"
 
 it "CONTROL: with jq and restart healthy, the same provider launches again"
-seed_route 'foreign,foreign-model'
+seed_route normal 'foreign,foreign-model'
 FAKE_RESTART_RC=0 run_provider normal
 assert_eq 0 "$rc" "healthy route write + restart still launches"
 assert_eq 1 "$(launch_count)" "the control proves sections 2-3 fail for the right reason"

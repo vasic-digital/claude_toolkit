@@ -1,17 +1,2 @@
-providers-semantic[kimi-for-coding]: driver rc=1
-driver json: {
-  "round1_sentinel": {
-    "pass": false,
-    "observed": "",
-    "reason": "provider definitively rejected the request: non-200 status 403: {\"error\":{\"message\":\"You've reached your usage limit for this billing cycle. Your quota will be refreshed in the next cycle. To continue now, purchase extra usage or upgrade your plan: https://www.kim"
-  },
-  "round2_judge": {
-    "pass": null,
-    "score": null,
-    "skipped": true,
-    "reason": "round 1 did not pass; round 2 not attempted"
-  },
-  "overall_pass": false
-}
-providers-semantic[kimi-for-coding]: layer-3 FAIL (cannot see code / bluffed)
-semantic verdict: unverified
+providers-semantic[kimi-for-coding]: skip — no key in $_CMA_KIMICODE_OAUTH_ for model under test
+semantic verdict: skip

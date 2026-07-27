@@ -171,7 +171,9 @@ cma_status_write acmemv verified acme-big ""
     cma_run_provider acmemv </dev/null >/dev/null 2>&1 )
 launch_rc=$?
 assert_eq 0 "$launch_rc" "router launch succeeded with a shadowing mv function present"
-assert_file "$HOME/.claude-code-router/config.json" "ccr config upserted despite the mv shadow"
+# Per-alias CCR_HOME (lib.sh router branch): the upsert lands in
+# ~/.claude-code-router/<provider-id>/config.json, not the global dir.
+assert_file "$HOME/.claude-code-router/acmemv/config.json" "ccr config upserted despite the mv shadow"
 
 it "ccr identity guard: a foreign ccr (CCS-style) is refused with an actionable message"
 cat > "$FAKEBIN/ccr-foreign" <<'EOF'

@@ -1,6 +1,6 @@
 # ROUTE-INTENDED: zhipuai-coding-plan/glm-5.2 (transport=router)
 # ROUTE-INTENDED-BACKGROUND: zhipuai-coding-plan/glm-4.5-air
-claude-providers: alias zhipuai-coding-plan is unverified — not launching.
+claude-providers: alias zhipuai-coding-plan is orphaned — not launching.
   Re-verify: claude-providers sync   (re-runs verification for zhipuai-coding-plan)
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write

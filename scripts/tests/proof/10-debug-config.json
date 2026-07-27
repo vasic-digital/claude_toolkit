@@ -1,235 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "helixagent": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Helix Agent",
-      "options": {
-        "baseURL": "http://localhost:8100/v1",
-        "apiKey": "REDACTED"
-      },
-      "models": {
-        "helix-debate": {
-          "name": "Helix AI Debate Ensemble",
-          "limit": {
-            "context": 128000,
-            "output": 8192
-          }
-        },
-        "helix-llm": {
-          "name": "Helix LLM",
-          "limit": {
-            "context": 128000,
-            "output": 8192
-          }
-        }
-      }
-    }
-  },
-  "agent": {
-    "coder": {
-      "model": "helixagent/helix-debate",
-      "maxTokens": 8192,
-      "options": {
-        "maxTokens": 8192
-      },
-      "permission": {}
-    },
-    "summarizer": {
-      "model": "helixagent/helix-debate",
-      "maxTokens": 4096,
-      "options": {
-        "maxTokens": 4096
-      },
-      "permission": {}
-    },
-    "task": {
-      "model": "helixagent/helix-llm",
-      "maxTokens": 4096,
-      "options": {
-        "maxTokens": 4096
-      },
-      "permission": {}
-    },
-    "title": {
-      "model": "helixagent/helix-llm",
-      "maxTokens": 80,
-      "options": {
-        "maxTokens": 80
-      },
-      "permission": {}
-    }
-  },
   "mcp": {
-    "cloudflare-docs": {
-      "type": "remote",
-      "url": "https://docs.mcp.cloudflare.com/sse"
-    },
-    "commands": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-server-commands"
-      ]
-    },
-    "context7": {
-      "type": "remote",
-      "url": "https://mcp.context7.com/mcp"
-    },
-    "deepwiki": {
-      "type": "remote",
-      "url": "https://mcp.deepwiki.com/mcp"
-    },
-    "docker": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-server-docker"
-      ]
-    },
-    "everything": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-everything"
-      ]
-    },
-    "fetch": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-fetch-server"
-      ]
-    },
-    "filesystem": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/home/milosvasic"
-      ]
-    },
-    "git": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-git"
-      ]
-    },
-    "github": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-github"
-      ],
-      "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "REDACTED"
-      }
-    },
-    "markdown": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-server-markdown"
-      ]
-    },
-    "memory": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ]
-    },
-    "notion": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@notionhq/notion-mcp-server"
-      ],
-      "environment": {
-        "NOTION_API_KEY": ""
-      }
-    },
-    "postgres": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-postgres",
-        "postgresql://helixagent:REDACTED@localhost:15432/helixagent_db"
-      ]
-    },
-    "puppeteer": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-puppeteer"
-      ]
-    },
-    "sequential-thinking": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
-    },
-    "shell": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-shell-server"
-      ]
-    },
-    "sqlite": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-server-sqlite-npx",
-        "/tmp/helixagent.db"
-      ]
-    },
-    "tavily": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "tavily-mcp"
-      ],
-      "environment": {
-        "TAVILY_API_KEY": "REDACTED"
-      }
-    },
-    "time": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@theo.foobar/mcp-time"
-      ]
-    },
-    "codegraph": {
-      "type": "local",
-      "command": [
-        "codegraph",
-        "serve",
-        "--mcp"
-      ],
-      "enabled": true
-    },
     "Adobe-for-creativity": {
       "type": "remote",
       "url": "https://adobe-creativity.adobe.io/mcp",
@@ -251,7 +22,7 @@
       "command": [
         "npx",
         "-y",
-        "@aikidosec/mcp@1.0.12"
+        "@aikidosec/mcp@1.0.14"
       ],
       "enabled": false
     },
@@ -456,6 +227,11 @@
       "url": "https://mcp.cloudflare.com/mcp",
       "enabled": false
     },
+    "cloudflare-docs": {
+      "type": "remote",
+      "url": "https://docs.mcp.cloudflare.com/mcp",
+      "enabled": true
+    },
     "cloudflare-bindings": {
       "type": "remote",
       "url": "https://bindings.mcp.cloudflare.com/mcp",
@@ -476,7 +252,7 @@
       "command": [
         "toolbox",
         "--config",
-        "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/c511ba806b17/tools.yaml",
+        "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.10/tools.yaml",
         "--stdio"
       ],
       "enabled": false,
@@ -522,6 +298,15 @@
       "headers": {
         "x-confidence-mcp-consumer": "plugin"
       }
+    },
+    "context7": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "enabled": true
     },
     "convex": {
       "type": "local",
@@ -827,6 +612,14 @@
       "url": "https://api.fullstory.com/mcp/fullstory",
       "enabled": false
     },
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
     "gitlab": {
       "type": "remote",
       "url": "https://gitlab.com/api/v4/mcp",
@@ -866,11 +659,6 @@
     "intercom": {
       "type": "remote",
       "url": "https://mcp.intercom.com/mcp",
-      "enabled": false
-    },
-    "jfrog": {
-      "type": "remote",
-      "url": "${JFROG_URL}/mcp",
       "enabled": false
     },
     "laravel-boost": {
@@ -957,6 +745,11 @@
     "nimble": {
       "type": "remote",
       "url": "https://mcp.nimbleway.com/mcp",
+      "enabled": false
+    },
+    "notion": {
+      "type": "remote",
+      "url": "https://mcp.notion.com/mcp",
       "enabled": false
     },
     "pagerduty": {
@@ -1050,11 +843,8 @@
     },
     "resend": {
       "type": "remote",
-      "url": "https://mcp.resend.com",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${RESEND_API_KEY}"
-      }
+      "url": "https://mcp.resend.com/mcp",
+      "enabled": false
     },
     "rill-developer": {
       "type": "remote",
@@ -1268,24 +1058,23 @@
       "enabled": false
     }
   },
-  "plugin": [],
   "skills": {
     "paths": [
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/42crunch-api-security-testing/1.6.5/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/42crunch-api-security-testing/1.15.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/adobe-for-creativity/1.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/agentforce-adlc/0.9.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/ai-plugins/1.1.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/aikido/fbe11e287175/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/aikido/1.2.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/airtable/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/airwallex-agentos/0.2.3/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/alloydb-omni/0.2.1/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/alloydb/96aa704a2dc5/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/alloydb/0.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/amazon-location-service/1.0.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/amplitude/fb22979da93d-f37d92d1/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/amplitude/05ce0a91cbf3-f37d92d1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/apollo-skills/1.2.6/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/apollo/79577f9361c8/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/appwrite/a42b16918159/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/astronomer-data-agents/8827e93429f4/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/apollo/0.1.1/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/appwrite/0.1.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/astronomer-data-agents/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/atlassian/f4911dba81f2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/auth0/2.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-agents-for-devsecops/1.0.0/skills",
@@ -1297,42 +1086,43 @@
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-serverless/1.3.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-startup-advisor/1.5.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-transform/1.3.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/azure-cosmos-db-assistant/f1e0498579a9/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/azure-cosmos-db-assistant/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/azure/1.1.75/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/base44/1463369a8664/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/base44/1.0.0-beta.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/bigdata-com/1.1.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/bigquery-data-analytics/63057c7786c2/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/bigquery-data-analytics/0.2.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/boltz/0.1.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/box/1.0.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/brightdata-plugin/e825f02fbcd7/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/buildkite/24242e53c688/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/brightdata-plugin/1.8.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/build-with-wordpress/052ca970df2c/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/buildkite/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/canva/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/chrome-devtools-mcp/1.6.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/circle-skills/1.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/clickhouse-best-practices/0.3.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/clickhouse/ecbd47627d7e/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/clickhouse/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloud-sql-mysql/0.2.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloud-sql-postgresql/61abc7a1b5e2/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloud-sql-sqlserver/9d73a7bf606c/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloud-sql-postgresql/0.4.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloud-sql-sqlserver/0.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloudflare/1.0.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloudinary/7b443d7dbd60/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cloudinary/1.1.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/coderabbit/1.1.1/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/codspeed/90c83f42f426/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/confidence/136a99ec7704/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/codspeed/1.0.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/confidence/0.6.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/convex-backend/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/convex/1.9.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/crowdstrike-falcon-foundry/1.3.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/cwc-makers/1.0.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/data-agent-kit-starter-pack/e1922d8efb17/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/data-engineering/8827e93429f4/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/data/8827e93429f4/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/data-agent-kit-starter-pack/0.6.1/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/data-engineering/0.1.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/data/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/databases-on-aws/1.5.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/databricks/0.2.9/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/datadog/0.7.14/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/datahub-skills/68585b171060/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/dataproc/b36168b9e7f8/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/datahub-skills/1.4.1/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/dataproc/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/datarobot-agent-skills/1.3.6/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/dataverse/1.6.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/deploy-on-aws/1.3.0/skills",
@@ -1341,73 +1131,73 @@
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/dominodatalab/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/dropbox/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/duckdb-skills/0.2.4/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/duende-skills/fc252b1747ee/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/exa/c4b419adb3ce/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/duende-skills/0.1.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/exa/3.3.10/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/expo/1.8.2/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/fastly-agent-toolkit/9a273f0b2f7a/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/fiftyone/b64f982e06a2/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/figma/bea8bea5f676/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/firecrawl/cf966ed24ff3/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/firestore-native/6023cc546e03/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/fastly-agent-toolkit/0.1.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/fiftyone/1.0.3/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/figma/2.2.81/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/firecrawl/1.0.9/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/firestore-native/0.3.3/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/forge-skills/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/fullstory/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/hookify/unknown/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/huggingface-skills/35e8c35a1ae5/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/hunter/64ca3082f6ab/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/hyperframes/091137e3c32f/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/huggingface-skills/1.0.8/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/hunter/0.1.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/hyperframes/0.7.60/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/intercom/0.1.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/jfrog/0.2.9/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/jfrog/0.2.7/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/knowledge-catalog/0.5.3/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/langfuse/1.2.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/legalzoom/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/liquid-skills/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/logfire/0.1.3/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/logrocket/0.1.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/looker/f5f4721028f7/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/lumen/d0dee0efcc82/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/looker/0.3.7/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/lumen/0.0.41/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/lusha/0.1.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mapbox/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/math-olympiad/unknown/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mcp-apps/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mcp-server-dev/unknown/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mercadopago/4.2.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/microsoft-docs/caa3d670bf28/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/microsoft-docs/0.3.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/migration-to-aws/1.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mintlify/acd6d2e0128c/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/miro/1.3.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mongodb/be846b4deb48/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/mongodb/1.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/netlify-skills/1.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/nightvision/1.0.4/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/nvidia-skills/1.2.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/oracle-ai-data-platform-workbench-databricks-migrator/0.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/oracle-ai-data-platform-workbench-engineer-agent/0.5.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/oracle-ai-data-platform-workbench-spark-connectors/0.6.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/oracledb/23c7de3e7541/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/oracledb/0.2.5/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/outputai/0.3.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/pigment/e760058c3d80/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/pinecone/9af99dc1dc10/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/pigment/1.0.9/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/pinecone/1.5.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/playground/unknown/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/plugin-dev/unknown/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/posthog/144cc7bd573a/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/postiz/41c5a9dbd6b2/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/postman/1c47a9b10170/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/posthog/1.1.51/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/postiz/2.0.12/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/postman/1.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/project-artifact/unknown/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/pydantic-ai/0.1.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/qdrant-skills/b12b75c01f56/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/qodo-skills/e7b677142bbb/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/qt-development-skills/6e3411d7e589/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/qdrant-skills/1.0.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/qodo-skills/0.6.1/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/qt-development-skills/1.6.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/railway/1.3.5/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/rc/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/remember/0.8.3/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/resend/298207bbe7a4/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/resend/1.0.4/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/revenuecat/1.0.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/rill/892996d6bdb5/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/rootly/65832aa6ff7a/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/rill/1.0.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/rootly/2.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/runway-api/2.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sagemaker-ai/1.2.1/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sanity/2ec17ddc6034/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sanity/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sap-fiori-mcp-server/1.9.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/semgrep/2.1.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sentry-cli/0.39.0/skills",
@@ -1415,18 +1205,18 @@
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/session-report/unknown/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/shopify-ai-toolkit/1.2.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/slack/9635a2f7741a/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/slack/1.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/snowflake-cortex-code/3.2.4/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sonarqube/2.3.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sonatype-guide/1dae73980f59/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sourcegraph/332ee0ca9a40/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sonatype-guide/1.0.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sourcegraph/0.1.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/spanner/0.3.1/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/spotify-ads-api/1.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/stripe/0.2.7/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/sumup/700da2e866a7/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/supabase/2ed49769b1ec/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/supabase/0.1.12/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/tavily/ea5e8201b0d3/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/tavily/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/teamcity-cli/1.2.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/togetherai-skills/1.0.0/skills",
@@ -1434,22 +1224,35 @@
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/ui5-typescript-conversion/0.1.6/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/ui5/0.1.6/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/valtown/0.2.1/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/vanta-mcp-plugin/345d86b55faa/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/vanta/345d86b55faa/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/vanta-mcp-plugin/1.0.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/vanta/1.0.0/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/vercel/0.44.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/vibe-prospecting/0.1.62/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/windsor-ai/248a6994b15b/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/windsor-ai/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/wix/1.0.0/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/wordpress-com/052ca970df2c/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/wordpress-com/0.0.2/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/workos/0.6.1/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/youdotcom-agent-skills/4712250ae8e5/skills",
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/youdotcom-agent-skills/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/zapier/1.0.0/skills",
       "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/zoom-plugin/1.1.3/skills",
-      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/zoominfo/b836604c5474/skills"
+      "/home/milosvasic/.claude/plugins/cache/claude-plugins-official/zoominfo/1.0.1/skills",
+      "/home/milosvasic/.cache/opencode/packages/superpowers@git+https:/github.com/obra/superpowers.git/node_modules/superpowers/skills"
     ]
   },
   "instructions": [
     "/home/milosvasic/.claude-shared/CLAUDE.md"
   ],
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git"
+  ],
+  "plugin_origins": [
+    {
+      "spec": "superpowers@git+https://github.com/obra/superpowers.git",
+      "source": "/home/milosvasic/.config/opencode",
+      "scope": "global"
+    }
+  ],
+  "agent": {},
   "mode": {},
   "command": {},
   "username": "milosvasic"

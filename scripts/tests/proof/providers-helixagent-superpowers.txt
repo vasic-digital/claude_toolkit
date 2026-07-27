@@ -7,3 +7,17 @@ cma-proxy listening on http://127.0.0.1:3457 (provider=helixagent -> http://127.
 # ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 1523769
 # FAIL: api-error
 # FAIL: context-inadequate (backend 3072 tokens < request 67972)
+# SKIP Sat Jul 25 11:15:01 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 12:53:52 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 08:59:13 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 09:15:53 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 10:25:00 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 11:49:54 AM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 01:44:49 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 02:49:47 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 04:02:35 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 05:12:02 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 06:22:29 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 07:09:37 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 07:51:37 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'
+# SKIP Sun Jul 26 09:31:02 PM MSK 2026: no key in $HELIXAGENT_GATEWAY_KEY for 'helixagent'

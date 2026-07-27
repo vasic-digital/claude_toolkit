@@ -99,9 +99,12 @@ esac
 
 # Sink-side route proof for router-transport providers: the gateway config
 # must name the provider as its active route (the write-then-apply seam that
-# broke in the field).
+# broke in the field). The launcher isolates every router alias in its OWN
+# CCR_HOME — ~/.claude-code-router/<provider-id>/config.json (lib.sh
+# cma_run_provider router branch, since 5f9d82f) — so the read must name the
+# per-alias dir, not the stale global one.
 if grep -q "CMA_PROVIDER_TRANSPORT='router'" "$PROV_ENV" 2>/dev/null; then
-  _route="$(jq -r '.Router.default // empty' "$HOME/.claude-code-router/config.json" 2>/dev/null)"
+  _route="$(jq -r '.Router.default // empty' "$HOME/.claude-code-router/$PROVIDER/config.json" 2>/dev/null)"
   case "$_route" in
     "$PROVIDER,"*) log "layer 2: sink-side route confirmed (Router.default=$_route)" ;;
     *) fail "sink-side route mismatch: Router.default='$_route', expected '$PROVIDER,…'" ;;

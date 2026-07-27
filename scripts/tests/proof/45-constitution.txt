@@ -1,6 +1,6 @@
-CONST-051 files swept: 1364
-§11.4.157 doc sizes: 34917 34746 34917 34917 (min=34746 max=34917)
-§11.4.113 files swept: 94
+CONST-051 files swept: 1370
+§11.4.157 doc sizes: 35489 35318 35489 35489 (min=35318 max=35489)
+§11.4.113 files swept: 104
 §11.4.151 SKIP: no env file at repo root
-# constitution verification — Thu Jul 23 12:43:36 AM +05 2026
-repo root: /home/milos/.claude-claude4/wt_ct_install_failloud
+# constitution verification — Sun Jul 26 10:11:38 PM MSK 2026
+repo root: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit

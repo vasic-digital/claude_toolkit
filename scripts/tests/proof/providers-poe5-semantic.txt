@@ -1,2 +1,17 @@
+providers-semantic[poe5]: driver rc=1
+driver json: {
+  "round1_sentinel": {
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\": {\"message\": \"The model empiriolabs/deepseek-v4-pro-el requires an active Poe subscription for API access.\", \"type\": \"subscription_required\", \"code\": \"subscription_required\", \"upgrade_url\": \""
+  },
+  "round2_judge": {
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
+  },
+  "overall_pass": false
+}
 providers-semantic[poe5]: layer-3 FAIL (cannot see code / bluffed)
 semantic verdict: unverified

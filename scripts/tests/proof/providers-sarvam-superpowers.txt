@@ -1,5 +1,10 @@
-Sarvam proxy listening on http://127.0.0.1:3457
-Forwarding to https://api.sarvam.ai
-Service not running, starting service...
-{"type":"result","subtype":"success","is_error":true,"api_error_status":403,"duration_ms":20015,"duration_api_ms":13255,"num_turns":4,"result":"Failed to authenticate. API Error: 403 403 Forbidden","stop_reason":"stop_sequence","session_id":"c484ab96-ed98-42cf-9f2f-907174a7afaa","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":0,"outputTokens":0,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","uuid":"bae4504e-9625-4e6d-aed2-2ce4c12534bd"}
+# ROUTE-INTENDED: sarvam/sarvam-105b (transport=router)
+# ROUTE-INTENDED-BACKGROUND: sarvam/sarvam-30b
+cma-proxy listening on http://127.0.0.1:3457 (provider=sarvam -> https://api.sarvam.ai, sarvam request transform active)
+{"is_error":true,"duration_api_ms":0,"num_turns":1,"stop_reason":"stop_sequence","session_id":"66fc976c-ac8a-47a6-bd33-333f79a46c7c","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":403,"result":"Failed to authenticate. API Error: 403 403 Forbidden","type":"result","duration_ms":3407,"uuid":"62c3cffd-1fd7-45e0-8682-1ba5b802ece9"}
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: Hook cancelled
+# ROUTE-RESOLVED: sarvam/sarvam-105b
+# ROUTE-RESOLVED-BACKGROUND: sarvam/sarvam-30b
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 18564
 # FAIL: api-error
+# FAIL: account-side (HTTP 403 — provider billing/access, not toolkit)

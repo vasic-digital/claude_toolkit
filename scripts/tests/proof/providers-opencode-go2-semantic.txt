@@ -1,0 +1,15 @@
+providers-semantic[opencode-go2]: driver rc=0
+driver json: {
+  "round1_sentinel": {
+    "pass": true,
+    "observed": "ZETA-9-ORANGE-7f3a"
+  },
+  "round2_judge": {
+    "pass": true,
+    "score": 3,
+    "skipped": false
+  },
+  "overall_pass": true
+}
+providers-semantic[opencode-go2]: layer-3 sentinel+judge PASS
+semantic verdict: verified

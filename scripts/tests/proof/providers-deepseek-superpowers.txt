@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: deepseek/deepseek-v4-pro (transport=router)
 # ROUTE-INTENDED-BACKGROUND: deepseek/deepseek-v4-flash
-{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":24214,"duration_api_ms":19706,"ttft_ms":9395,"ttft_stream_ms":9167,"time_to_request_ms":506,"num_turns":3,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"9bab2a59-0462-4502-8d16-6eeb8f77c646","total_cost_usd":0.967125,"usage":{"input_tokens":192750,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":135,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":192750,"outputTokens":135,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.967125,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"706dfa87-6a6a-4ca9-8360-a3f78ced42af"}
-# ROUTE-RESOLVED: deepseek/deepseek-v4-pro
-# ROUTE-RESOLVED-BACKGROUND: deepseek/deepseek-v4-flash
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 1521568
-# PASS
+claude-providers: alias deepseek is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for deepseek)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=deepseek/deepseek-v4-pro; NO turn ran — route attribution is not applicable)

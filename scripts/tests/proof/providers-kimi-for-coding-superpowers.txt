@@ -5,3 +5,16 @@ claude-providers: alias kimi-for-coding is failed — not launching.
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
 # FAIL: launch-refused-unverified (rc=3 intended=kimi-for-coding/kimi-for-coding; NO turn ran — route attribution is not applicable)
+# SKIP Sat Jul 25 11:19:52 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 12:59:10 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 09:22:10 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 10:35:35 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 11:55:08 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 01:51:53 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 02:56:23 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 04:09:35 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 05:15:52 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 06:23:46 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 07:12:21 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 07:53:56 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sun Jul 26 09:35:00 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'

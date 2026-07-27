@@ -1,7 +1,7 @@
-# ROUTE-INTENDED: zhipuai/glm-5.2 (transport=router)
+# ROUTE-INTENDED: zhipuai/glm-4.7-flash (transport=router)
 # ROUTE-INTENDED-BACKGROUND: zhipuai/glm-4.5-flash
-claude-providers: alias zhipuai is orphaned — not launching.
+claude-providers: alias zhipuai is unverified — not launching.
   Re-verify: claude-providers sync   (re-runs verification for zhipuai)
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=zhipuai/glm-5.2; NO turn ran — route attribution is not applicable)
+# FAIL: launch-refused-unverified (rc=3 intended=zhipuai/glm-4.7-flash; NO turn ran — route attribution is not applicable)

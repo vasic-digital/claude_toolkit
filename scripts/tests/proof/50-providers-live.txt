@@ -1,5 +1,6 @@
-# provider live verification — Wed Jul 22 01:30:44 AM +05 2026
-providers installed: 21
+# provider live verification — Sun Jul 26 09:14:43 PM MSK 2026
+providers installed: 54
 ccr installed: yes
 LLMsVerifier binary: not-built
-aggregate: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-summary.json
+aggregate: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-summary.json
+SKIP: negative-case launch via 'chutes1' timed out (network/precondition absent) — not a classifier finding

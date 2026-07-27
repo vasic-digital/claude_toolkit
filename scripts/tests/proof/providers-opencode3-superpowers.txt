@@ -1,3 +1,7 @@
-Service not running, starting service...
-{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":11595,"duration_api_ms":8888,"ttft_ms":9694,"ttft_stream_ms":7016,"time_to_request_ms":900,"num_turns":1,"result":"I see you've invoked the `/superpowers:using-superpowers` skill. This skill is about knowing *when and how to use other Superpowers skills* — it's a meta-skill that governs my behavior, not a task in itself.\n\nI've loaded it. The key rule I'll follow: **before any response or action on a real task, I check whether a more specific skill applies and invoke it first** (brainstorming for builds, systematic-debugging for bugs, etc.).\n\nWhat would you like to work on? Once you give me a task, I'll check for the relevant skill and use it before doing anything else.","stop_reason":"end_turn","session_id":"ae68995b-4ed7-40e9-bc12-e74a219e736f","total_cost_usd":0.10458,"usage":{"input_tokens":34180,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":136,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-sonnet-5":{"inputTokens":34180,"outputTokens":136,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.10458,"contextWindow":200000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"fe2e10ca-65f1-42cc-afe1-c9f39665fda9"}
-# PASS
+# ROUTE-INTENDED: opencode3/hy3-free (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode3/mimo-v2.5-free
+claude-providers: alias opencode3 is orphaned — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode3)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode3/hy3-free; NO turn ran — route attribution is not applicable)

@@ -1,3 +1,7 @@
-Service not running, starting service...
-{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":17431,"duration_api_ms":16394,"ttft_ms":6295,"ttft_stream_ms":4895,"time_to_request_ms":609,"num_turns":2,"result":" I attempted to load the `using-superpowers` skill, but permission to read the skill file was denied. \n\nCould you grant permission to read `/home/milosvasic/.claude-shared/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/using-superpowers/SKILL.md` so I can apply the skill correctly?","stop_reason":"end_turn","session_id":"e762e726-de66-478a-9228-543fefe82274","total_cost_usd":0.23813399999999998,"usage":{"input_tokens":77908,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":294,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-sonnet-5":{"inputTokens":77908,"outputTokens":294,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.23813399999999998,"contextWindow":200000,"maxOutputTokens":64000}},"permission_denials":[{"tool_name":"Read","tool_use_id":"functions.Read:0","tool_input":{"file_path":"/home/milosvasic/.claude-shared/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/using-superpowers/SKILL.md"}}],"terminal_reason":"completed","fast_mode_state":"off","uuid":"b8dadfb9-2786-4dbb-ab61-e914288623bc"}
-# FAIL: no-engagement
+# ROUTE-INTENDED: chutes2/Qwen/Qwen3.5-397B-A17B-TEE (transport=router)
+# ROUTE-INTENDED-BACKGROUND: chutes2/google/gemma-4-31B-turbo-TEE
+claude-providers: alias chutes2 is unverified — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for chutes2)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=chutes2/Qwen/Qwen3.5-397B-A17B-TEE; NO turn ran — route attribution is not applicable)

@@ -1,7 +1,8 @@
-# ROUTE-INTENDED: nvidia/nvidia/nemotron-3-ultra-550b-a55b (transport=router)
-# ROUTE-INTENDED-BACKGROUND: nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
-{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":23595,"duration_api_ms":18879,"ttft_ms":10183,"ttft_stream_ms":3212,"time_to_request_ms":928,"num_turns":4,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"ba291605-0b81-4b46-b71a-326f47277771","total_cost_usd":1.05852,"usage":{"input_tokens":210059,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":329,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":210059,"outputTokens":329,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":1.05852,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"dccdf59e-ce18-44e0-9003-8d8dff32486a"}
-# ROUTE-RESOLVED: nvidia/nvidia/nemotron-3-ultra-550b-a55b
-# ROUTE-RESOLVED-BACKGROUND: nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 1529639
-# PASS
+# ROUTE-INTENDED: nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning (transport=router)
+# ROUTE-INTENDED-BACKGROUND: nvidia/openai/gpt-oss-20b
+cma-proxy listening on http://127.0.0.1:3457 (provider=nvidia -> https://integrate.api.nvidia.com, nvidia request transform active)
+{"is_error":true,"duration_api_ms":0,"num_turns":2,"stop_reason":null,"session_id":"83d115bd-d287-474e-8b9f-94371d22d14a","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"aborted_streaming","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"],"type":"result","duration_ms":168274,"uuid":"36854687-5323-4d3a-8c33-8fb78526500b"}
+# ROUTE-RESOLVED: nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+# ROUTE-RESOLVED-BACKGROUND: nvidia/openai/gpt-oss-20b
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 16936
+# FAIL: timeout

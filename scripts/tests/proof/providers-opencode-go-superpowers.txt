@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: opencode-go/deepseek-v4-pro (transport=router)
+# ROUTE-INTENDED-BACKGROUND: opencode-go/deepseek-v4-flash
+claude-providers: alias opencode-go is orphaned — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode-go)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode-go/deepseek-v4-pro; NO turn ran — route attribution is not applicable)

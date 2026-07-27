@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: kilo/nvidia/nemotron-3-super-120b-a12b:free (transport=router)
 # ROUTE-INTENDED-BACKGROUND: kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-claude-providers: alias kilo is unverified — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for kilo)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=kilo/nvidia/nemotron-3-super-120b-a12b:free; NO turn ran — route attribution is not applicable)
+{"is_error":true,"duration_api_ms":0,"num_turns":2,"stop_reason":null,"session_id":"36f281ef-c587-46f4-bfa7-d1d18ed0fd3a","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"aborted_streaming","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"],"type":"result","duration_ms":167470,"uuid":"66cd5d47-eef0-498b-9552-44bc990cecb9"}
+# ROUTE-RESOLVED: kilo/nvidia/nemotron-3-super-120b-a12b:free
+# ROUTE-RESOLVED-BACKGROUND: kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 14916
+# FAIL: timeout

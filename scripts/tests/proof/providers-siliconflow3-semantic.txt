@@ -1,2 +1,17 @@
-providers-semantic[siliconflow3]: layer-3 sentinel+judge PASS
-semantic verdict: verified
+providers-semantic[siliconflow3]: driver rc=1
+driver json: {
+  "round1_sentinel": {
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 403: {\"code\":30001,\"message\":\"Sorry, your account balance is insufficient\",\"data\":null}"
+  },
+  "round2_judge": {
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
+  },
+  "overall_pass": false
+}
+providers-semantic[siliconflow3]: layer-3 FAIL (cannot see code / bluffed)
+semantic verdict: unverified

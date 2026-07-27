@@ -7,7 +7,8 @@
 # trips the self-reference guard in cma_run_provider (lib.sh): every OTHER
 # router-transport provider rewrites .Router.default to itself immediately
 # before launching, helixagent skips that rewrite and INHERITS whatever the
-# previously-launched provider left in ~/.claude-code-router/config.json. In the
+# previously-launched provider left in its own per-alias ccr config
+# (~/.claude-code-router/<provider-id>/config.json). In the
 # v1.23.0 proof run it inherited a ~1M-context provider and 157,419 tokens passed
 # through a nominally 24,576-token alias — recorded as a layer-4 PASS. The
 # `verified` badge measured whichever router provider ran last and would have
@@ -63,13 +64,33 @@ STUI="${CMA_STUI_BIN:-$SCRIPTS_DIR/verify_superpowers_tui.sh}"
 LIVE="${CMA_LIVE_BIN:-$TESTS_DIR/verify_providers_live.sh}"
 
 PDIR="$HOME/.local/share/claude-multi-account/providers"
+# PER-ALIAS CCR_HOME LAYOUT. Since 5f9d82f (2026-07-24, "CCR multi-provider
+# concurrent session fix", refined by 8695577) the launcher (lib.sh
+# cma_run_provider router branch) isolates every router alias in its OWN
+# CCR_HOME: config.json / service.json / service.log live under
+# ~/.claude-code-router/<provider-id>/, NOT the global dir. The verifier's
+# reads predated that change (last touched 88b4695, 2026-07-21) and kept
+# pointing at the global dir — so on a live host every router leg resolved a
+# STALE global route (deepseek, Jul 20) and failed attribution
+# (route-mismatch). Every fixture below therefore writes the PER-ALIAS dir for
+# 'routertest', and a stale GLOBAL config naming a different provider is
+# planted once and never touched again: a verifier that reads the global dir
+# (the pre-fix behaviour) visibly resolves the WRONG route, while the fixed
+# verifier must resolve the per-alias one. That is the regression this file
+# pins.
 CCR_DIR="$HOME/.claude-code-router"
-CCR_CFG="$CCR_DIR/config.json"
-CCR_LOG="$CCR_DIR/service.log"
+CCR_ALIAS_DIR="$CCR_DIR/routertest"
+CCR_CFG="$CCR_ALIAS_DIR/config.json"
+CCR_LOG="$CCR_ALIAS_DIR/service.log"
 PROOF="$HOME/proof"
 KEYS="$HOME/keys.sh"
 export CMA_KEYS_FILE="$KEYS"
-mkdir -p "$PDIR" "$PROOF" "$CCR_DIR" "$(dirname "$ALIAS_FILE")"
+mkdir -p "$PDIR" "$PROOF" "$CCR_ALIAS_DIR" "$(dirname "$ALIAS_FILE")"
+# The stale GLOBAL config (pre-isolation layout, e.g. left over from Jul 20).
+# Never rewritten by any case: it is the decoy the fixed verifier must IGNORE.
+printf '{"Providers":[],"Router":{"default":"deepseek,deepseek-v4-pro","background":"deepseek,deepseek-v4-pro"}}\n' \
+  > "$CCR_DIR/config.json"
+printf 'gateway listening on http://127.0.0.1:3456 (http)\n' > "$CCR_DIR/service.log"
 
 # jq is a HARD precondition of this file, not a reason to skip.
 #
@@ -285,6 +306,13 @@ assert_file_contains "$MATCH_EV" '# ROUTE-INTENDED-BACKGROUND: routertest/router
 assert_file_contains "$MATCH_EV" '# ROUTE-RESOLVED-BACKGROUND: routertest/router-fast-1' "background resolved route recorded"
 assert_file_contains "$MATCH_EV" '# ROUTE-APPLIED: service.log' "restart receipt recorded — the route was proven APPLIED, not merely written"
 assert_file_contains "$MATCH_EV" '# PASS' "evidence carries the PASS marker"
+# Per-alias-dir teeth: the GLOBAL config still names the stale provider, so a
+# verifier reading the global dir (the pre-fix behaviour, seen live as
+# 'intended=xiaomi resolved=deepseek') would have FAILED this leg with
+# route-mismatch. The PASS proves the read came from the per-alias CCR_HOME.
+assert_file_contains "$CCR_DIR/config.json" 'deepseek,deepseek-v4-pro' "the stale GLOBAL config still names another provider — it was NOT what got read"
+assert_file_contains "$CCR_ALIAS_DIR/config.json" '"default":"routertest,router-model-1"' "the PER-ALIAS config is what the fake launcher rewrote"
+assert_file_not_contains "$MATCH_EV" 'deepseek' "the resolved route never names the stale global provider"
 
 # ===========================================================================
 # (b) MISMATCHED route -> '# FAIL: route-mismatch', leg FAILS  [TEETH]
@@ -449,7 +477,7 @@ assert_file_not_contains "$UNKNOWN_EV" '# PASS' "unattributable turn never carri
 # cma_run_provider writes that file and then runs `ccr restart` under `|| true`
 # (lib.sh:1026), discarding any failure — and cmdRestart genuinely does fail,
 # e.g. it refuses to bounce an authenticated gateway when CCR_API_KEYS is not
-# visible (cmd/ccr/service.go:385-390). The Go gateway keeps serving the config
+# visible (cmd/ccr/service.go:556-560). The Go gateway keeps serving the config
 # it STARTED with (service.go:357-364), so the previous provider continues to
 # serve while the post-launch file read returns the intended value.
 #
@@ -1364,6 +1392,64 @@ assert_eq 0 $? "route attribution is decided FIRST — the mismatch fails the su
 grep -q 'context-inadequate' <<<"$out"
 assert_eq 1 $? "the co-present overflow text does NOT downgrade a route-integrity failure to known-non-working"
 
+# --- (v-nvidia) the no-"about" 'maximum context length' variant ----------------
+# Live 2026-07-26 (nvidia3/mistral-small): "maximum context length is 32768
+# tokens. However, you requested 113865 tokens (48329 in the messages, 65536 in
+# the completion)" — NO "about", and trailing parenthetical numbers. The branch
+# regex used to REQUIRE "about", so this overflow fell through to a counted
+# api-error; and a careless tail-number extraction would grab 65536 (the
+# completion budget) instead of 113865 (the request).
+it "context-inadequate: the no-'about' 'maximum context length' variant is classified, and the request number is NOT the trailing parenthesis"
+NV_EV="$PROOF/providers-routertest-ctxinadequate-nvidia.txt"
+{
+  echo '# ROUTE-INTENDED: routertest/router-model-1 (transport=router)'
+  echo '# ROUTE-RESOLVED: routertest/router-model-1'
+  echo '{"type":"result","is_error":true,"api_error_status":400,"result":"API Error: 400 This model'"'"'s maximum context length is 32768 tokens. However, you requested 113865 tokens (48329 in the messages, 65536 in the completion). Please reduce the length of the messages or completion."}'
+  echo '# FAIL: api-error'
+} > "$NV_EV"
+out="$(run_classifier "$NV_EV" 1 verified "FAIL: api-error")"
+grep -q 'KNOWN-NON-WORKING: layer-4 context-inadequate' <<<"$out"
+assert_eq 0 $? "the no-'about' overflow phrasing is KNOWN-NON-WORKING (context-inadequate)"
+grep -q 'SUITE-FAILURE' <<<"$out"
+assert_eq 1 $? "and it is NOT counted as a suite failure"
+grep -q 'backend context 32768 tokens < Claude Code request 113865 tokens' <<<"$out"
+assert_eq 0 $? "window=32768 and request=113865 — NOT the trailing 65536 completion budget"
+assert_file_contains "$NV_EV" '# FAIL: context-inadequate (backend 32768 tokens < request 113865)' "the marker names the real window<request pair"
+
+# --- (w) ENVIRONMENT-INCOMPATIBLE: the provider rejects an MCP tool NAME -------
+# Live 2026-07-26 (nvidia4/mistral-small): "Function name was
+# mcp__plugin_aws-startup-advisor_awsknowledge__aws___get_regional_availability
+# but must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum
+# length of 64." The name is minted by the MCP plugin ecosystem and advertised
+# verbatim by Claude Code — the toolkit neither generates nor rewrites it, so a
+# strict provider's grammar rejection is NOT a routing defect: its own
+# KNOWN-NON-WORKING class, distinct marker, not counted.
+it "environment-incompatible: a provider function-name-grammar 400 is KNOWN-NON-WORKING, not a suite failure"
+EI_EV="$PROOF/providers-routertest-envincompatible.txt"
+{
+  echo '# ROUTE-INTENDED: routertest/router-model-1 (transport=router)'
+  echo '# ROUTE-RESOLVED: routertest/router-model-1'
+  echo '{"type":"result","is_error":true,"api_error_status":400,"result":"API Error: 400 Function name was mcp__plugin_aws-startup-advisor_awsknowledge__aws___get_regional_availability but must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64."}'
+  echo '# FAIL: api-error'
+} > "$EI_EV"
+out="$(run_classifier "$EI_EV" 1 verified "FAIL: api-error")"
+grep -q 'KNOWN-NON-WORKING: layer-4 environment-incompatible' <<<"$out"
+assert_eq 0 $? "a function-name-grammar 400 on a status=verified provider is reported KNOWN-NON-WORKING (environment-incompatible)"
+grep -q 'SUITE-FAILURE' <<<"$out"
+assert_eq 1 $? "and it is NOT counted as a suite failure (the toolkit does not mint MCP tool names)"
+grep -q 'environment-incompatible (provider rejects MCP tool name mcp__plugin_aws-startup-advisor' <<<"$(tail -1 "$EI_EV")"
+assert_eq 0 $? "the distinct marker names the rejected tool, on the evidence's face"
+
+it "control: a generic 400 with NO grammar text still counts (no over-broadening)"
+G4_EV="$PROOF/providers-routertest-generic400.txt"
+{ echo '{"is_error":true,"api_error_status":400,"result":"API Error: 400 Bad request: something unrelated"}'
+  echo '# FAIL: api-error'; } > "$G4_EV"
+out="$(run_classifier "$G4_EV" 1 verified "FAIL: api-error")"
+grep -q 'SUITE-FAILURE' <<<"$out"
+assert_eq 0 $? "a generic 400 on a verified provider is STILL a counted failure"
+grep -q 'environment-incompatible' <<<"$out"
+assert_eq 1 $? "and it is NOT misclassified as environment-incompatible"
+
 # --- the gated RUN_TUI_EV disk sweep leaves the appended marker alone ----------
 # The per-provider classifier decides counting, but a SECOND, independent disk
 # sweep re-reads the last marker of every gated provider's evidence. A verified
@@ -1398,18 +1484,26 @@ it "paired mutation: WITHOUT the context-inadequate branch, the overflow is a CO
 MUT_EV="$PROOF/providers-routertest-ctx-mutation.txt"
 { echo '{"is_error":true,"api_error_status":400,"result":"API Error: 400 request (67288 tokens) exceeds the available context size (3072 tokens)"}'
   echo '# FAIL: api-error'; } > "$MUT_EV"
-# Excise the branch: drop every line from the context-inadequate `elif` (the only
-# `elif grep -qiE` in the block) up to — but not including — the `elif (( gated ))`
-# that follows it. Bracket classes, not backslash-escaped parens, per the BSD-awk
-# portability rule (no 3-arg match; 2-arg regex only).
-# Guard (future-proofing): the excision anchors on the SOLE `elif grep -qiE`
-# branch. If a later edit adds a second such branch before the gated fallback the
-# awk range would silently swallow BOTH — losing the mutation's teeth without
-# failing — so assert the anchor is unambiguous, failing LOUDLY here to force the
-# awk range to be re-scoped rather than silently over-excising.
-assert_eq 1 "$(grep -cE '^[[:space:]]*elif grep -qiE' <<<"$CLASSIFY_SRC")" "exactly one 'elif grep -qiE' branch exists — the mutation excision anchor is unambiguous"
+# Excise the branch: drop every line from the context-inadequate `elif` (the
+# only `elif grep -qiE 'request \(` in the block — anchored on its distinctive
+# llama.cpp-regex OPEN, not the generic `elif grep -qiE`, because the
+# environment-incompatible branch below also uses that shape) up to — but not
+# including — the `elif (( gated ))` that follows it. That range spans THREE
+# classifier branches (context-inadequate, account-side,
+# environment-incompatible); the mutation stays honest because neither of the
+# other two can match the 400-overflow evidence used below (no 402/403, no
+# function-name grammar text), so the overflow provably falls through to the
+# gated fallback. Bracket classes, not backslash-escaped parens, per the
+# BSD-awk portability rule (no 3-arg match; 2-arg regex only).
+# Guard (future-proofing): the excision anchors on the SOLE
+# `elif grep -qiE 'request \(` branch. If a later edit adds a second such
+# branch the awk range could silently swallow too much — losing the mutation's
+# teeth without failing — so assert the anchor is unambiguous, failing LOUDLY
+# here to force the awk range to be re-scoped rather than silently
+# over-excising.
+assert_eq 1 "$(grep -cE "^[[:space:]]*elif grep -qiE 'request \\\\[(]" <<<"$CLASSIFY_SRC")" "exactly one context-inadequate branch exists — the mutation excision anchor is unambiguous"
 MUT_CLASSIFY="$(awk '
-  /^[[:space:]]*elif grep -qiE/ {skip=1}
+  /^[[:space:]]*elif grep -qiE .request \\/ {skip=1}
   skip && /^[[:space:]]*elif [(][(] gated [)][)]; then/ {skip=0}
   !skip {print}
 ' <<<"$CLASSIFY_SRC")"

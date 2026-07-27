@@ -155,23 +155,30 @@ print(m[0]["verified"], "too small" in m[0]["failure_reason"])')" \
     "sub-threshold context window unverifies the model"
 
   it "save_cache + load_cache round-trip a fresh cache within TTL"
+  # Compare against the module's CURRENT schema version, not a hardcoded number:
+  # 88b4695 (v1.24.0) bumped CACHE_VERSION 2 -> 3 when credit-aware selection
+  # changed the cache semantics, and a literal '== 2' went stale with it.
   assert_eq "True True True True" \
     "$(pyval 'import os
 p=os.path.join(os.environ["HOME"],"vcache.json")
 mv.save_cache(p, {"prov":{"x":1}})
 d=mv.load_cache(p)
-print(os.path.exists(p), "prov" in d, "_cached_at" in d, d.get("_cache_version") == 2)')" \
-    "cache writes, stamps (_cached_at + _cache_version 2), and reloads"
+print(os.path.exists(p), "prov" in d, "_cached_at" in d, d.get("_cache_version") == mv.CACHE_VERSION)')" \
+    "cache writes, stamps (_cached_at + current _cache_version), and reloads"
 
   it "load_cache rejects pre-v2 caches (old verified-without-tools results are never replayed)"
-  assert_eq "True True" \
+  assert_eq "True True True" \
     "$(pyval 'import os,json
 p=os.path.join(os.environ["HOME"],"vcache_old.json")
 json.dump({"prov":{"x":1},"_cached_at":mv.time.time()}, open(p,"w"))
 old_rejected = mv.load_cache(p) == {}
+# A cache stamped with the PREVIOUS schema version must be rejected too —
+# otherwise the v3 bump (88b4695) would silently replay v2 verdicts.
+json.dump({"prov":{"x":1},"_cached_at":mv.time.time(),"_cache_version":mv.CACHE_VERSION-1}, open(p,"w"))
+prev_rejected = mv.load_cache(p) == {}
 mv.save_cache(p, {"prov":{"x":1}})
-print(old_rejected, "prov" in mv.load_cache(p))')" \
-    "unversioned cache -> {}; rewritten at v2 -> loads"
+print(old_rejected, prev_rejected, "prov" in mv.load_cache(p))')" \
+    "unversioned + previous-version caches -> {}; rewritten at current version -> loads"
 
   it "verify_model: sentinel + tool call -> verified=True"
   assert_eq "True True" \

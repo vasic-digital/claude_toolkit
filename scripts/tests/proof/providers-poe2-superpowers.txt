@@ -1,6 +1,7 @@
-Poe proxy listening on http://127.0.0.1:3457
-Forwarding to https://api.poe.com/v1
-Service not running, starting service...
-{"type":"result","subtype":"success","is_error":true,"api_error_status":402,"duration_ms":2606,"duration_api_ms":0,"num_turns":1,"result":"API Error: 402 Error from provider(poe2,openai/gpt-5.2-codex: 402): {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insufficient_quota\", \"code\": \"insufficient_quota\"}}Error: Error from provider(poe2,openai/gpt-5.2-codex: 402): {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insufficient_quota\", \"code\": \"insufficient_quota\"}}\n    at qn (/home/milosvasic/.npm-global/lib/node_modules/@musistudio/claude-code-router/dist/cli.js:582:7451)\n    at fD (/home/milosvasic/.npm-global/lib/node_modules/@musistudio/claude-code-router/dist/cli.js:582:11338)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async cN (/home/milosvasic/.npm-global/lib/node_modules/@musistudio/claude-code-router/dist/cli.js:582:8659)","stop_reason":"stop_sequence","session_id":"0c52a39c-5d04-4f95-b7bf-bf46212a1c4d","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","uuid":"b3090427-6000-4569-9b48-292ed9928f83"}
-SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: Hook cancelled
-# FAIL: api-error
+# ROUTE-INTENDED: poe2/openai/gpt-5.2-codex (transport=router)
+# ROUTE-INTENDED-BACKGROUND: poe2/openai/gpt-5.1-codex-mini
+claude-providers: alias poe2 is orphaned — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for poe2)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=poe2/openai/gpt-5.2-codex; NO turn ran — route attribution is not applicable)

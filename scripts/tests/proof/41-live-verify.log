@@ -1,1 +1,184 @@
-SKIP: opencode not installed on this host — live verification skipped.
+
+  • opencode binary runs and reports a version
+    [32m[PASS][0m version: 1.18.5
+
+  • opencode resolves the generated config without error
+    [32m[PASS][0m debug config exit (0)
+    [32m[PASS][0m resolved config is valid JSON
+    [32m[PASS][0m mcp servers configured: 132
+    [32m[PASS][0m skill paths configured: 177
+
+  • opencode discovers the Claude plugin skills
+    [32m[PASS][0m skills resolved: 1497 (>= 200)
+
+  • every enabled MCP server connects
+    [32m[PASS][0m connected MCP servers: 10 (>= 3)
+    [32m[PASS][0m no enabled MCP server failed to connect
+
+  • user CLAUDE.md is wired as an instruction (if present)
+    [32m[PASS][0m instructions configured: 1
+
+Evidence written to: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof
+00-summary.txt
+10-debug-config.err
+10-debug-config.json
+20-skills.err
+21-skill-names.txt
+30-mcp-list.txt
+31-mcp-list.clean.txt
+40-sandbox-suite.log
+41-live-verify.log
+42-live-providers.log
+43-live-aliases.log
+44-alias-e2e.log
+45-constitution.log
+45-constitution.txt
+50-providers-live.txt
+51-detected-accounts.txt
+60-xiaomi-live.txt
+62-precommit-hygiene-audit.txt
+70-zen-live.txt
+80-cross-alias-sessions.txt
+82-helixagent-detect.txt
+90-nezha-deployment.txt
+93-helixagent-pins-survive-live-sync.txt
+94-dynamic-account-dispatch.txt
+95-add-account-tmux-notice.txt
+96-free-tier-multi-sync.txt
+alias-verify-evidence.txt
+ccr-go-live.txt
+claude-live-superpowers-cli.txt
+claude-live-verify.txt
+PROOF.md
+providers-chutes1-semantic.txt
+providers-chutes1-superpowers.txt
+providers-chutes2-semantic.txt
+providers-chutes2-superpowers.txt
+providers-chutes3-semantic.txt
+providers-chutes3-superpowers.txt
+providers-chutes4-semantic.txt
+providers-chutes4-superpowers.txt
+providers-chutes5-semantic.txt
+providers-chutes5-superpowers.txt
+providers-chutes-semantic.txt
+providers-chutes-superpowers.txt
+providers-deepseek2-semantic.txt
+providers-deepseek2-superpowers.txt
+providers-deepseek-semantic.txt
+providers-deepseek-superpowers.txt
+providers-fireworks-ai-semantic.txt
+providers-fireworks-ai-superpowers.txt
+providers-github-models-semantic.txt
+providers-github-models-superpowers.txt
+providers-helixagent-native-semantic.txt
+providers-helixagent-native-superpowers.txt
+providers-helixagent-semantic.txt
+providers-helixagent-superpowers.txt
+providers-helixllm-gateway-semantic.txt
+providers-helixllm-gateway-superpowers.txt
+providers-huggingface2-semantic.txt
+providers-huggingface2-superpowers.txt
+providers-huggingface3-semantic.txt
+providers-huggingface3-superpowers.txt
+providers-huggingface-semantic.txt
+providers-huggingface-superpowers.txt
+providers-hyper1-semantic.txt
+providers-hyper1-superpowers.txt
+providers-hyper2-semantic.txt
+providers-hyper2-superpowers.txt
+providers-hyper3-semantic.txt
+providers-hyper3-superpowers.txt
+providers-hyper4-semantic.txt
+providers-hyper4-superpowers.txt
+providers-hyper5-semantic.txt
+providers-hyper5-superpowers.txt
+providers-inference-semantic.txt
+providers-inference-superpowers.txt
+providers-kilo-semantic.txt
+providers-kilo-superpowers.txt
+providers-kimi-for-coding2-semantic.txt
+providers-kimi-for-coding2-superpowers.txt
+providers-kimi-for-coding-highspeed-semantic.txt
+providers-kimi-for-coding-highspeed-superpowers.txt
+providers-kimi-for-coding-semantic.txt
+providers-kimi-for-coding-superpowers.txt
+providers-kimi-k2p7-semantic.txt
+providers-kimi-k2p7-superpowers.txt
+providers-kimi-k3-256k-semantic.txt
+providers-kimi-k3-256k-superpowers.txt
+providers-kimi-k3-semantic.txt
+providers-kimi-k3-superpowers.txt
+providers-negative-case-superpowers.txt
+providers-novita-ai-semantic.txt
+providers-novita-ai-superpowers.txt
+providers-nvidia2-semantic.txt
+providers-nvidia2-superpowers.txt
+providers-nvidia3-semantic.txt
+providers-nvidia3-superpowers.txt
+providers-nvidia4-semantic.txt
+providers-nvidia4-superpowers.txt
+providers-nvidia5-semantic.txt
+providers-nvidia5-superpowers.txt
+providers-nvidia-semantic.txt
+providers-nvidia-superpowers.txt
+providers-opencode2-semantic.txt
+providers-opencode2-superpowers.txt
+providers-opencode3-semantic.txt
+providers-opencode3-superpowers.txt
+providers-opencode-go1-semantic.txt
+providers-opencode-go1-superpowers.txt
+providers-opencode-go2-semantic.txt
+providers-opencode-go2-superpowers.txt
+providers-opencode-go5-semantic.txt
+providers-opencode-go5-superpowers.txt
+providers-opencode-go-semantic.txt
+providers-opencode-go-superpowers.txt
+providers-opencode-semantic.txt
+providers-opencode-superpowers.txt
+providers-openrouter2-semantic.txt
+providers-openrouter2-superpowers.txt
+providers-openrouter3-semantic.txt
+providers-openrouter3-superpowers.txt
+providers-openrouter4-semantic.txt
+providers-openrouter4-superpowers.txt
+providers-openrouter5-semantic.txt
+providers-openrouter5-superpowers.txt
+providers-openrouter-semantic.txt
+providers-openrouter-superpowers.txt
+providers-poe2-semantic.txt
+providers-poe2-superpowers.txt
+providers-poe3-semantic.txt
+providers-poe3-superpowers.txt
+providers-poe4-semantic.txt
+providers-poe4-superpowers.txt
+providers-poe5-semantic.txt
+providers-poe5-superpowers.txt
+providers-poe-semantic.txt
+providers-poe-superpowers.txt
+providers-sarvam-semantic.txt
+providers-sarvam-superpowers.txt
+providers-siliconflow2-semantic.txt
+providers-siliconflow2-superpowers.txt
+providers-siliconflow3-semantic.txt
+providers-siliconflow3-superpowers.txt
+providers-siliconflow4-semantic.txt
+providers-siliconflow4-superpowers.txt
+providers-siliconflow5-semantic.txt
+providers-siliconflow5-superpowers.txt
+providers-siliconflow-semantic.txt
+providers-siliconflow-superpowers.txt
+providers-summary.json
+providers-tencent-tokenhub-semantic.txt
+providers-tencent-tokenhub-superpowers.txt
+providers-upstage-semantic.txt
+providers-upstage-superpowers.txt
+providers-xiaomi-semantic.txt
+providers-xiaomi-superpowers.txt
+providers-zai-coding-plan-semantic.txt
+providers-zai-coding-plan-superpowers.txt
+providers-zhipuai-coding-plan-semantic.txt
+providers-zhipuai-coding-plan-superpowers.txt
+providers-zhipuai-semantic.txt
+providers-zhipuai-superpowers.txt
+
+[32m✓ 9 passed, 0 failed[0m

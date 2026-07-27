@@ -1,69 +1,6 @@
 
 ┌  MCP Servers
 │
-●  ✓ cloudflare-docs connected
-│      https://docs.mcp.cloudflare.com/sse
-│
-●  ✓ commands connected
-│      npx -y mcp-server-commands
-│
-●  ✓ context7 connected
-│      https://mcp.context7.com/mcp
-│
-●  ✓ deepwiki connected
-│      https://mcp.deepwiki.com/mcp
-│
-●  ✓ docker connected
-│      npx -y mcp-server-docker
-│
-●  ✓ everything connected
-│      npx -y @modelcontextprotocol/server-everything
-│
-●  ✓ fetch connected
-│      npx -y mcp-fetch-server
-│
-●  ✓ filesystem connected
-│      npx -y @modelcontextprotocol/server-filesystem /home/milosvasic
-│
-●  ✓ git connected
-│      npx -y mcp-git
-│
-●  ✓ github connected
-│      npx -y @modelcontextprotocol/server-github
-│
-●  ✓ markdown connected
-│      npx -y mcp-server-markdown
-│
-●  ✓ memory connected
-│      npx -y @modelcontextprotocol/server-memory
-│
-●  ✓ notion connected
-│      npx -y @notionhq/notion-mcp-server
-│
-●  ✓ postgres connected
-│      npx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
-│
-●  ✓ puppeteer connected
-│      npx -y @modelcontextprotocol/server-puppeteer
-│
-●  ✓ sequential-thinking connected
-│      npx -y @modelcontextprotocol/server-sequential-thinking
-│
-●  ✓ shell connected
-│      npx -y mcp-shell-server
-│
-●  ✓ sqlite connected
-│      npx -y mcp-server-sqlite-npx /tmp/helixagent.db
-│
-●  ✓ tavily connected
-│      npx -y tavily-mcp
-│
-●  ✓ time connected
-│      npx -y @theo.foobar/mcp-time
-│
-●  ✓ codegraph connected
-│      codegraph serve --mcp
-│
 ●  ○ Adobe-for-creativity disabled
 │      https://adobe-creativity.adobe.io/mcp
 │
@@ -71,7 +8,7 @@
 │      npx -y endorctl ai-tools mcp-server
 │
 ●  ○ aikido-mcp disabled
-│      npx -y @aikidosec/mcp@1.0.12
+│      npx -y @aikidosec/mcp@1.0.14
 │
 ●  ○ airtable disabled
 │      https://mcp.airtable.com/mcp
@@ -157,6 +94,9 @@
 ●  ○ cloudflare-api disabled
 │      https://mcp.cloudflare.com/mcp
 │
+●  ✓ cloudflare-docs connected
+│      https://docs.mcp.cloudflare.com/mcp
+│
 ●  ○ cloudflare-bindings disabled
 │      https://bindings.mcp.cloudflare.com/mcp
 │
@@ -167,7 +107,7 @@
 │      https://observability.mcp.cloudflare.com/mcp
 │
 ●  ○ cockroachdb-toolbox disabled
-│      toolbox --config /home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/c511ba806b17/tools.yaml --stdio
+│      toolbox --config /home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.10/tools.yaml --stdio
 │
 ●  ○ cockroachdb-toolbox-http disabled
 │      http://127.0.0.1:5000/mcp
@@ -183,6 +123,9 @@
 │
 ●  ○ confidence-docs disabled
 │      https://mcp.confidence.dev/mcp/docs
+│
+●  ✓ context7 connected
+│      npx -y @upstash/context7-mcp
 │
 ●  ○ convex disabled
 │      npx -y convex@latest mcp start
@@ -259,6 +202,9 @@
 ●  ○ fullstory disabled
 │      https://api.fullstory.com/mcp/fullstory
 │
+●  ○ github disabled
+│      https://api.githubcopilot.com/mcp/
+│
 ●  ○ gitlab disabled
 │      https://gitlab.com/api/v4/mcp
 │
@@ -276,9 +222,6 @@
 │
 ●  ○ intercom disabled
 │      https://mcp.intercom.com/mcp
-│
-●  ○ jfrog disabled
-│      ${JFROG_URL}/mcp
 │
 ●  ○ laravel-boost disabled
 │      php artisan boost:mcp
@@ -325,6 +268,9 @@
 ●  ○ nimble disabled
 │      https://mcp.nimbleway.com/mcp
 │
+●  ○ notion disabled
+│      https://mcp.notion.com/mcp
+│
 ●  ○ pagerduty disabled
 │      https://mcp.pagerduty.com/mcp
 │
@@ -362,7 +308,7 @@
 │      https://mcp.railway.com
 │
 ●  ○ resend disabled
-│      https://mcp.resend.com
+│      https://mcp.resend.com/mcp
 │
 ●  ○ rill-developer disabled
 │      http://localhost:9009/mcp
@@ -451,5 +397,5 @@
 ●  ○ zscaler-mcp-server disabled
 │      uvx --env-file /home/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.13.1/.env zscaler-mcp@0.13.1
 │
-└  150 server(s)
+└  132 server(s)
 

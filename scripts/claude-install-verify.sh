@@ -110,7 +110,10 @@ fi
 if [ -z "$_ccr" ]; then
   _fail "ccr: no router found at \$HOME/.local/bin/ccr nor on PATH.
              Provider aliases using the router transport CANNOT launch.
-             Fix: install Go (https://go.dev/dl/) then run: claude-ccr-build"
+             Fix: ensure a Go toolchain new enough for submodules/claude-code-router/go.mod
+             (install/upgrade Go: https://go.dev/dl/ — or, with an older Go already
+             installed and network access: GOTOOLCHAIN=auto claude-ccr-build),
+             then run: claude-ccr-build"
 elif [ ! -x "$_ccr" ]; then
   _fail "ccr: '$_ccr' exists but is not executable (dangling symlink or bad build).
              Fix: claude-ccr-build"
