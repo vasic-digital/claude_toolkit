@@ -35,7 +35,13 @@ if [ ! -f "$PROXY_SRC/go.mod" ]; then
   exit 1
 fi
 
-if ! command -v go >/dev/null 2>&1; then
+# Vendored Go toolchain (built by claude-go-build.sh), same as claude-ccr-build.
+VENDORED_GO="${VENDORED_GO:-$HOME/.local/share/claude-go/bin/go}"
+_go_bin="${VENDORED_GO:-go}"
+if ! command -v "$_go_bin" >/dev/null 2>&1; then
+  _go_bin="go"  # fall back to system Go
+fi
+if ! command -v "$_go_bin" >/dev/null 2>&1; then
   cma_warn "Go toolchain not found — cannot build the compatibility proxy (cma-proxy)."
   printf '  Install Go (https://go.dev/dl/) then re-run: claude-proxy-build\n  Without it, helixagent/poe/kimi/sarvam aliases run against their direct\n  endpoint and their request/response compat shims are INACTIVE.\n' >&2
   exit 1
@@ -43,9 +49,9 @@ fi
 
 # 1. Build scripts/proxy -> bin/cma-proxy.
 BIN="$PROXY_SRC/bin/cma-proxy"
-cma_log "building compatibility proxy (Go): $(cd "$PROXY_SRC" && go version 2>/dev/null | awk '{print $3}') ..."
-if ! ( cd "$PROXY_SRC" && mkdir -p bin && go build -o bin/cma-proxy . ); then
-  if ( cd "$PROXY_SRC" && GOTOOLCHAIN=auto go build -o bin/cma-proxy . ); then
+cma_log "building compatibility proxy (Go): $(cd "$PROXY_SRC" && "$_go_bin" version 2>/dev/null | awk '{print $3}') ..."
+if ! ( cd "$PROXY_SRC" && mkdir -p bin && "$_go_bin" build -o bin/cma-proxy . ); then
+  if ( cd "$PROXY_SRC" && GOTOOLCHAIN=auto "$_go_bin" build -o bin/cma-proxy . ); then
     cma_log "GOTOOLCHAIN=auto build succeeded"
   else
     cma_warn "cma-proxy build failed."

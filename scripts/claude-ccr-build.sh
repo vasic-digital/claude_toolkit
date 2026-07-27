@@ -18,6 +18,7 @@
 #
 # Env knobs:
 #   BIN_DIR   where `ccr` is symlinked (default ~/.local/bin, same as install.sh)
+
 set -euo pipefail
 
 # Resolve this script's real dir through any symlinks (install.sh links it into
@@ -38,6 +39,8 @@ SUBMODULE="$REPO_ROOT/submodules/claude-code-router"
 # installed at $BIN_DIR/ccr before deciding whether missing Go is fatal.
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 
+# Vendored Go toolchain (built by claude-go-build.sh).
+VENDORED_GO="${VENDORED_GO:-$HOME/.local/share/claude-go/bin/go}"
 # 1. Ensure the submodule is checked out.
 if [ ! -f "$SUBMODULE/go.mod" ] || [ ! -d "$SUBMODULE/cmd/ccr" ]; then
   cma_log "claude-code-router submodule not checked out — initialising ..."
@@ -146,18 +149,23 @@ fi
 
 # 3. Build ./cmd/ccr into the submodule's bin/ccr (matches the submodule
 #    Makefile's output path).
+# Prefer the vendored Go toolchain if built; fall back to system Go.
+_go_bin="${VENDORED_GO:-go}"
 BIN="$SUBMODULE/bin/ccr"
-cma_log "building bundled claude-code-router (Go): $(cd "$SUBMODULE" && go version 2>/dev/null | awk '{print $3}') ..."
-if ! ( cd "$SUBMODULE" && mkdir -p bin && go build -o bin/ccr ./cmd/ccr ); then
+cma_log "building bundled claude-code-router (Go): $(cd "$SUBMODULE" && "$_go_bin" version 2>/dev/null | awk '{print $3}') ..."
+_built_ok=0
+if ( cd "$SUBMODULE" && mkdir -p bin && "$_go_bin" build -o bin/ccr ./cmd/ccr ); then
+  _built_ok=1
+else
   # Retry with GOTOOLCHAIN=auto — lets Go download the exact toolchain version
   # from go.mod when the system Go is too old (live defect: host Go 1.26.2 vs
   # submodule requiring 1.26.4, with GOTOOLCHAIN=local refusing to auto-fetch).
-  if ( cd "$SUBMODULE" && GOTOOLCHAIN=auto go build -o bin/ccr ./cmd/ccr ); then
+  if ( cd "$SUBMODULE" && GOTOOLCHAIN=auto "$_go_bin" build -o bin/ccr ./cmd/ccr ); then
     cma_log "GOTOOLCHAIN=auto build succeeded"
     _built_ok=1
   fi
 fi
-if [ "${_built_ok:-0}" != "1" ]; then
+if [ "$_built_ok" != "1" ]; then
   # Build failed — likely a Go version mismatch (the submodule's go.mod may
   # require a newer toolchain). If a USABLE resident binary already exists,
   # warn about staleness but do NOT fail: the artifact, not the build, is

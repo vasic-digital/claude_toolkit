@@ -14,6 +14,8 @@
 SCRIPTS_DIR="${SCRIPTS_DIR:-$HOME/Documents/scripts}"
 
 make_sandbox() {
+  # Remember the real HOME before overriding, so vendored Go is reachable.
+  export CMA_REAL_HOME="${HOME:-/home/$(whoami)}"
   SANDBOX_HOME="$(mktemp -d "${TMPDIR:-/tmp}/cma-test.XXXXXX")"
   # Override every env var the toolkit reads from. Pointing HOME at the
   # sandbox is the main switch; the other vars only matter if a caller
@@ -24,6 +26,11 @@ make_sandbox() {
   export DEFAULT_DIR="$SANDBOX_HOME/.claude"
   export ACCOUNT_PREFIX=".claude-"
   export CLAUDE_BIN="/usr/bin/true"  # dummy; we never actually launch claude
+  # Point at the real vendored Go toolchain so ccr-build/proxy-build work in
+  # the sandbox (the sandbox HOME doesn't have ~/.local/share/claude-go).
+  if [[ -x "$CMA_REAL_HOME/.local/share/claude-go/bin/go" ]]; then
+    export VENDORED_GO="$CMA_REAL_HOME/.local/share/claude-go/bin/go"
+  fi
   mkdir -p "$DEFAULT_DIR" "$SANDBOX_HOME/.local/bin"
   # Self-check: prove the switch actually took before any test writes.
   assert_sandboxed
