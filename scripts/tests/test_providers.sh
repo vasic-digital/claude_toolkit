@@ -985,7 +985,10 @@ grep -qE "^CMA_PROVIDER_FAST_MODEL='?deepseek-v4-flash-free'?" "$PDIR/opencode.e
 grep -qE "^CMA_PROVIDER_KEYVAR='?ApiKey_Opencode_Zen'?" "$PDIR/opencode.env" ; assert_eq 0 $? "opencode keyvar ApiKey_Opencode_Zen"
 
 it "opencode alias written via cma_run_provider"
-grep -q '^alias opencode="cma_run_provider opencode"' "$ALIAS_FILE" ; assert_eq 0 $? "opencode alias"
+# overrides.json pins "alias": "opencode-zen" on the opencode record (57ba5a2,
+# 2026-07-24 — distinguishes the Zen endpoint from the newer Zen/Go provider),
+# so the shell alias is opencode-zen while the provider id stays opencode.
+grep -q '^alias opencode-zen="cma_run_provider opencode"' "$ALIAS_FILE" ; assert_eq 0 $? "opencode alias"
 
 it "opencode config dir created and shared items symlinked"
 assert_dir "$HOME/.claude-prov-opencode" "opencode config dir"
@@ -1211,7 +1214,7 @@ it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT 
 # the [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] guard — so an empty/unknown
 # limit never exports a bogus window.
 # shellcheck disable=SC2016
-grep -B5 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -qF 'if [ -n "$_cma_octx" ]; then'
+grep -B25 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -qF 'if [ -n "$_cma_octx" ]; then'
 assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is inside the known-context guard"
 
 it "migration regenerates an outdated cma_run_provider that lacks the auto-compact cap guard"
@@ -2725,6 +2728,37 @@ for _pair in "262144 102144" "262144 262144" "200000 32000" "1048576 131072" "13
   _ok=0; [ "$_sum" -le "$1" ] && _ok=1
   assert_eq 1 "$_ok" "ctx=$1 out='${2:-}': window($_w)+cap($_o)=$_sum <= $1"
 done
+
+it "tool-schema budget is reserved: window + tools + output fit the context (openrouter3 live 400, 2026-07-26)"
+# Compression-loop guard (2026-07-27): when the raw window (262144-102144-80000
+# = 80000) is below CMA_MIN_COMPACT_WINDOW (default 120000), the output cap is
+# reduced to make room — ensuring Claude Code's system prompt + tool schemas
+# fit without triggering compaction on every request. The provider's own 400:
+# "maximum context length is 262144 … requested about 371727 tokens (199347 of
+# text input, 70236 of tool input, 102144 in the output)". With the OLD
+# derivation the window was 262144-102144 = 160000, so the compact trigger
+# (~window-13000 = 147000) let text grow until 147000+70236+102144 = 319380 >
+# 262144 — rejected before compaction could ever fire, on the FIRST request.
+# The trigger must reserve the tool payload:
+# window = context - output - CMA_TOOL_TOKEN_BUDGET (default 80000, covering
+# this host's measured 70236). If that leaves the window below 120000, reduce
+# the output cap to reclaim the space.
+read -r _w _o <<<"$(_guard 262144 102144)"
+assert_eq "120000" "$_w" "openrouter3 shape: window raised from 80000 to 120000 by reducing output cap"
+_sum=$(( _w + 80000 + _o )); _ok=0; [ "$_sum" -le 262144 ] && _ok=1
+assert_eq 1 "$_ok" "window(120000)+tools(80000)+output($_o)=$_sum <= 262144"
+# The budget is overridable per host (set in the calling shell; _guard evals
+# the shipped block in the same shell).
+CMA_TOOL_TOKEN_BUDGET=40000
+read -r _w2 _o2 <<<"$(_guard 262144 102144)"
+unset CMA_TOOL_TOKEN_BUDGET
+assert_eq "120000" "$_w2" "CMA_TOOL_TOKEN_BUDGET=40000 overrides the reserve"
+# A context too small to reserve the budget exports NO window (loud upstream
+# failure, not a guard that cannot hold). The guard prints "<window> <cap>",
+# so an empty window leaves a single field (the cap) on the line.
+_res="$(_guard 65536 8192)"
+assert_eq "1" "$(wc -w <<<"$_res")" "one field only (the cap) — no window exported for ctx=65536 with an 80000 tool reserve"
+assert_eq "8192" "$(awk '{print $1}' <<<"$_res")" "the surviving field is the output cap"
 
 it "unknown limits export no guard at all (honest, not invented)"
 read -r _w _o <<<"$(_guard "" "")"

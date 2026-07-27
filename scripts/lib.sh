@@ -260,7 +260,7 @@ cma_probe_help() {
 # suffixes (poe2 -> poe, kimi-k2 -> kimi) — the same folds providerKey() does.
 cma_proxy_transform_family() {
   case "$1" in
-    helixagent*|poe*|kimi*|sarvam*) return 0 ;;
+    helixagent*|poe*|kimi*|sarvam*|nvidia*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1138,14 +1138,15 @@ cma_run() {
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   # Token-guard isolation: cma_run_provider exports CLAUDE_CODE_MAX_OUTPUT_TOKENS
-  # (output cap, clamped <=128000) and CLAUDE_CODE_AUTO_COMPACT_WINDOW (input
-  # compact trigger) for every provider alias; BOTH persist in this shell after
-  # that alias returns. A subsequent native claudeN launch MUST clear them, else
-  # native inherits a provider's (possibly small) output cap or compact window
-  # instead of the real Anthropic per-model defaults — silently capping native's
-  # output or early-compacting its context. Parallels the ANTHROPIC_DEFAULT_*
-  # tier-map isolation above.
-  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  # (output cap, clamped <=128000), CLAUDE_CODE_AUTO_COMPACT_WINDOW (input
+  # compact trigger) and CLAUDE_CODE_MAX_CONTEXT_TOKENS (the provider's real
+  # context size for client-side accounting) for every provider alias; ALL
+  # persist in this shell after that alias returns. A subsequent native claudeN
+  # launch MUST clear them, else native inherits a provider's (possibly small)
+  # output cap, compact window, or context size instead of the real Anthropic
+  # per-model defaults — silently capping native's output or early-compacting
+  # its context. Parallels the ANTHROPIC_DEFAULT_* tier-map isolation above.
+  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
   # Working-dir hook (opt-in; no-op when absent). Resolution order:
   #   1. CMA_CWD_HOOK env var               — explicit user override
   #   2. <git-toplevel>/.claude-cwd-hook     — per-project hook (each repo
@@ -1467,9 +1468,45 @@ cma_run_provider() {
   # exported for every known context — including the >cap ones the old gate
   # silently skipped. This also closes the 200K-270K "dead zone", where a real
   # window sat above the cap yet below cap+output and so got no guard at all.
+  #
+  # TOOL-SCHEMA BUDGET (live defect 2026-07-26, openrouter3): the old
+  # co-derivation window = context - output pretended the request is only
+  # text + output. The endpoint counts tools too — the provider's own 400
+  # named it: "maximum context length is 262144 … you requested about 371727
+  # tokens (199347 of text input, 70236 of tool input, 102144 in the output)".
+  # With window = 262144 - 102144 = 160000 the compact trigger sat at ~147000,
+  # and 147000 + 70236 tools + 102144 output = 319380 > 262144 — the endpoint
+  # rejected BEFORE compaction could ever help, on the FIRST request. The
+  # trigger must reserve for the tool payload as well:
+  #   window = context - output - CMA_TOOL_TOKEN_BUDGET (default 80000).
+  # The default is deliberately conservative — this host's measured tool input
+  # with 233 enabled plugins is 70236 (the 400 above) — and a
+  # smaller-than-needed budget only compacts earlier (costs capability),
+  # while a larger one kills the alias at launch with a 400. Override per host
+  # via CMA_TOOL_TOKEN_BUDGET in the provider env or the shell. A context too
+  # small to reserve the budget yields no window at all: that provider cannot
+  # serve Claude Code's tool prefix regardless, and the launch must fail
+  # loudly upstream (the proof's context-inadequate class) rather than be
+  # lied to by a guard that cannot hold.
   if [ -n "$_cma_octx" ]; then
-    local _cma_win="$_cma_octx"
+    local _cma_win="$_cma_octx" _cma_tool_budget="${CMA_TOOL_TOKEN_BUDGET:-80000}"
+    local _cma_min_win="${CMA_MIN_COMPACT_WINDOW:-120000}"
     if [ -n "$_cma_out" ]; then _cma_win=$(( _cma_octx - _cma_out )); fi
+    _cma_win=$(( _cma_win - _cma_tool_budget ))
+    # Compression-loop guard: if the window is below the minimum viable size,
+    # Claude Code triggers compaction on every request (system prompt + tool
+    # schemas alone exceed the window), enters an infinite compression loop,
+    # and never gets any work done. Raise the window by reducing the output
+    # cap when possible, rather than exporting a window that cannot hold the
+    # static overhead.
+    if [ "$_cma_win" -lt "$_cma_min_win" ] && [ -n "$_cma_out" ] && [ "$_cma_out" -gt 8192 ]; then
+      local _cma_new_out=$(( _cma_octx - _cma_min_win - _cma_tool_budget ))
+      if [ "$_cma_new_out" -ge 8192 ]; then
+        _cma_out="$_cma_new_out"
+        _cma_win="$_cma_min_win"
+        export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"
+      fi
+    fi
     if [ "$_cma_win" -gt "$_cma_compact_cap" ]; then _cma_win="$_cma_compact_cap"; fi
     if [ "$_cma_win" -gt 0 ]; then
       export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$_cma_win"
@@ -1540,6 +1577,36 @@ cma_run_provider() {
   fi
   local rc
   local _proxy_pid=""
+  # Model + tier maps for BOTH transports (live defect 2026-07-26, Claude Code
+  # 2.1.220): these used to be exported only in the native branch below, so a
+  # ROUTER-transport alias launched with no ANTHROPIC_MODEL and no tier maps.
+  # 2.1.220 then resolves the tiers client-side — the fast/compact tier to
+  # "Fable 5", which the binary reports as CURRENTLY UNAVAILABLE ("Claude
+  # Fable 5 is currently unavailable. Please use Opus 4.8 or another available
+  # model."). Auto-compaction runs on that fast tier, so on the first session
+  # whose context crosses the compact trigger the compact call itself fails
+  # client-side: the context is never freed, compaction retries forever, and
+  # the alias is unusable — exactly the operator-reported compact loop, with
+  # ZERO requests reaching the gateway (verified: no /v1/messages in the
+  # per-alias service.log during the loop). Mapping every tier to the
+  # provider's real serving model makes compact/fast/background calls
+  # addressable; the gateway substitutes the route model regardless of the
+  # requested id (proven: bogus ids and literal claude-* ids both get routed
+  # and answered), so these exports change only the CLIENT-side resolution,
+  # never the upstream model.
+  export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
+  [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
+  # ...and the REAL context size with it: an id Claude's table does not know
+  # makes its context accounting fall back to a tiny default window, against
+  # which the system+tool prefix alone overflows — "Prompt is too long" on a
+  # 20-character prompt, or the same compact-retry loop on anything larger
+  # (both reproduced live 2026-07-26 against 2.1.220 with ANTHROPIC_MODEL set
+  # and this unset).
+  [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] && export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$CMA_PROVIDER_CONTEXT_LIMIT"
+  export ANTHROPIC_DEFAULT_OPUS_MODEL="$CMA_PROVIDER_MODEL"
+  export ANTHROPIC_DEFAULT_SONNET_MODEL="$CMA_PROVIDER_MODEL"
+  export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
+  export ANTHROPIC_DEFAULT_FABLE_MODEL="$CMA_PROVIDER_MODEL"
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
     # Resolve OUR router by its stable install identity, NOT by PATH order
     # (live issue 2026-07-22, §11.4.111 resolve-by-stable-name): the npm
@@ -1606,15 +1673,38 @@ cma_run_provider() {
     #     so each alias has its own CCR_HOME with its own pidfile, config.json,
     #     and service.log — fully isolated from every other alias.
     local _ccr_port="${CMA_CCR_PORT:-}"
+    # The hash is needed for BOTH ports, so compute it unconditionally: two
+    # disjoint 500-port spaces are derived from it — gateway [3460,3959] and
+    # management [3960,4459]. (Was 100-port spaces [3460,3559]/[3560,3659]:
+    # with ~50 router aliases a birthday collision was not theoretical but
+    # LIVE — xiaomi and opencode2 both hashed to 3519, the second child died
+    # on bind, a foreign /health answer falsely proved it ready (fixed in the
+    # submodule's waitForReady the same day), and the launch fell back to the
+    # shared default ports. 500 slots per space make a collision ~25x rarer;
+    # a surviving collision now fails LOUDLY (rc=78) instead of silently
+    # degrading.)
+    local _ccr_hash=0 _ccr_c _ccr_i=0
+    while (( _ccr_i < ${#CMA_PROVIDER_ID} )); do
+      _ccr_c="$(printf '%d' "'${CMA_PROVIDER_ID:_ccr_i:1}")"; _ccr_hash=$(( (_ccr_hash * 31 + _ccr_c) & 0x7FFFFFFF )); _ccr_i=$((_ccr_i + 1))
+    done
     if [[ -z "$_ccr_port" ]]; then
       # Deterministic port from the provider name: hash the id into a port
-      # offset from base 3460, bounded to [3460, 3559] (100 ports).
-      local _ccr_hash=0 _ccr_c _ccr_i=0
-      while (( _ccr_i < ${#CMA_PROVIDER_ID} )); do
-        _ccr_c="$(printf '%d' "'${CMA_PROVIDER_ID:_ccr_i:1}")"; _ccr_hash=$(( (_ccr_hash * 31 + _ccr_c) & 0x7FFFFFFF )); _ccr_i=$((_ccr_i + 1))
-      done
-      _ccr_port=$(( 3460 + (_ccr_hash % 100) ))
+      # offset from base 3460, bounded to [3460, 3959] (500 ports).
+      _ccr_port=$(( 3460 + (_ccr_hash % 500) ))
     fi
+    # Per-alias MANAGEMENT port (live defect 2026-07-25): the gateway port was
+    # isolated per alias but the management port was left at ccr's default
+    # 3458 for EVERY alias, so exactly ONE per-alias gateway could be up at a
+    # time — every second alias's `ccr restart` child died with
+    # "start management interface: listen on 127.0.0.1:3458: bind: address
+    # already in use" and the launch refused with rc=78 (live-captured on
+    # sarvam: 4 child starts, 4 bind failures, "did not become ready within
+    # 15s"). Worse, the child's gateway socket binds BEFORE the management
+    # bind fails, so waitForReady could WIN the race against the dying child —
+    # a launch that "succeeded" against a gateway that was already exiting.
+    # CMA_CCR_MGMT_PORT in the provider's .env pins it; otherwise derive from
+    # the same hash in the disjoint [3960,4459] space.
+    local _ccr_mgmt_port="${CMA_CCR_MGMT_PORT:-$(( 3960 + (_ccr_hash % 500) ))}"
     local _ccr_dir="$HOME/.claude-code-router"
     # Per-alias config isolation: each router-type alias gets its OWN
     # CCR_HOME directory so its pidfile (service.json), config.json, and
@@ -1636,13 +1726,16 @@ cma_run_provider() {
     # serves every alias. The Go source documents the opposite —
     # submodules/claude-code-router/cmd/ccr/service.go, cmdRestart: the toolkit
     # "rewrites ~/.claude-code-router/config.json before every provider-alias
-    # launch and then runs `ccr restart` to make that rewrite take effect:
-    # serve.go's hot-reload validates a changed config and keeps it as the
-    # latest known-good, but the RUNNING gateway keeps serving the config it
-    # started with, so only a process bounce actually applies it. Without this
-    # subcommand that call silently did nothing ... leaving every alias routed
-    # to whichever provider the daemon first started with — the wrong model,
-    # with no error anywhere."
+    # launch and then runs `ccr restart` to make that rewrite take effect."
+    # Post-ATM-870 (`a6a24e0`) the mechanism is richer than that quote: the
+    # running gateway applies a validated hot-reload IN PLACE via
+    # `gw.SwapConfig` (atomic pointer swap; /health, /ready and routing follow
+    # it per-request — only the startup-built outbound proxy client and
+    # in-flight request snapshots do not follow). `ccr restart` nonetheless
+    # stays on this path: it is the DETERMINISTIC apply-point — the swap's
+    # timing is not observable from outside the process, so only the bounce
+    # gives the launch a provable receipt that the route it wrote is the
+    # route being served.
     #
     # So config.json IS the live route (once restarted), and skipping the
     # rewrite does not make the launch inert — it makes it INHERIT whichever
@@ -1702,6 +1795,11 @@ cma_run_provider() {
     local _eph_lock="${_eph_marker}.lock"
     local _prior_default="" _prior_background=""
     local _wrote_default="" _wrote_background=""
+    # fd slots for the two launch locks below, filled by bash's dynamic fd
+    # allocation (`exec {var}>>FILE`). Declared here so the nested lock/unlock
+    # helpers assign into THIS scope rather than leaking a global into the
+    # operator's interactive shell.
+    local _cma_eph_fd="" _cma_cfg_fd=""
     # Mutual exclusion for every read-modify-write touching $_eph_marker below
     # (reap-on-start here, add-on-launch further down, delete-on-exit inside
     # _cma_ccr_unfossilise). Two CONCURRENT cma_run_provider launches both
@@ -1721,30 +1819,41 @@ cma_run_provider() {
     # way, one line below).
     _cma_eph_lock() {
       command -v flock >/dev/null 2>&1 || return 0
-      # BRACE-WRAP the redirection. A bare `exec 9>>FILE 2>/dev/null` is NOT
-      # just "open fd 9 quietly": `exec` without a command applies EVERY
-      # redirection on the line to the CURRENT SHELL, PERMANENTLY. So the
-      # `2>/dev/null` silenced the shell's stderr for the rest of its life —
-      # and because cma_run_provider runs inside the operator's INTERACTIVE
-      # shell, one provider launch left that terminal unable to print any
-      # error, from any command, ever again. `_cma_eph_unlock` below already
-      # used the correct brace form (`{ exec 9>&-; } 2>/dev/null`); this line
-      # was the asymmetric outlier. Proven: pre-fix, a marker echoed to stderr
-      # after calling this function never appeared; post-fix it does.
-      { exec 9>>"$_eph_lock"; } 2>/dev/null || return 0
+      # The fd is DYNAMICALLY allocated (`exec {var}>>FILE`, bash >= 4.1 /
+      # zsh): the shell picks a guaranteed-free fd and stores the number in
+      # _cma_eph_fd. A HARDCODED fd number here was the defect, twice over:
+      #   (a) `exec 9>>FILE 2>/dev/null` — `exec` without a command applies
+      #       EVERY redirection on the line to the CURRENT SHELL permanently,
+      #       so one provider launch silenced the interactive shell's stderr
+      #       for the rest of its life (the original field failure).
+      #   (b) `{ exec 9>>FILE; } 2>/dev/null` — the "fix" for (a), and itself
+      #       a silent break: hardcoded LOW fds (9/10) collide with the
+      #       shell's OWN redirection bookkeeping (bash saves/restores fds
+      #       around compound-command redirections and command substitutions
+      #       onto low free fds), so the fd the inner exec opened did not
+      #       survive the group — proven live on bash 5.2.37: the very next
+      #       `flock -w 5 9` failed "Bad file descriptor" (hidden by the
+      #       group's own 2>/dev/null), and EVERY critical section below ran
+      #       UNLOCKED while claiming mutual exclusion.
+      # Dynamic allocation avoids both: no hardcoded number to collide, no
+      # stderr redirection to leak. It only ever runs where `flock` exists
+      # (the guard above), which is exactly the set of platforms where the
+      # lock can exist at all — macOS degrades to the documented unlocked
+      # best-effort path before reaching this line.
+      exec {_cma_eph_fd}>>"$_eph_lock" || return 0
       # BOUNDED wait. Defensive hardening carried over from an earlier
       # independent review, NOT a fix for the reported exit-hang (that was
       # traced to the launch itself, and this lock/unlock pair provably
-      # completes). An unbounded `flock -x 9` can never time out while any
-      # process holds the lock, which on an interactive path is a latent stall
-      # by construction; the guarded critical section is a tiny marker
-      # read-modify-write, so a short bound is ample and a timeout degrades to
-      # the same unlocked best-effort path this section already takes when
-      # `flock` is absent entirely (macOS).
+      # completes). An unbounded flock can never time out while any process
+      # holds the lock, which on an interactive path is a latent stall by
+      # construction; the guarded critical section is a tiny marker
+      # read-modify-write, so a short bound is ample and a timeout degrades
+      # to the same unlocked best-effort path this section already takes
+      # when `flock` is absent entirely (macOS).
       # On timeout, SAY SO (§11.4.201(5): a guard reports its resolved
       # evidence). Swallowing it discards the acquired-vs-timed-out
       # distinction, leaving a real contention event undiagnosable.
-      flock -w 5 9 2>/dev/null || {
+      flock -w 5 "$_cma_eph_fd" 2>/dev/null || {
         command -v cma_log >/dev/null 2>&1 \
           && cma_log "eph-lock: 5s timeout — proceeding unlocked (best-effort)"
         true
@@ -1752,8 +1861,10 @@ cma_run_provider() {
       return 0
     }
     _cma_eph_unlock() {
-      flock -u 9 2>/dev/null || true
-      { exec 9>&-; } 2>/dev/null || true
+      [[ -n "$_cma_eph_fd" ]] || return 0
+      flock -u "$_cma_eph_fd" 2>/dev/null || true
+      exec {_cma_eph_fd}>&- || true
+      _cma_eph_fd=""
       return 0
     }
     # Mutual exclusion for every read-modify-write touching THIS alias's
@@ -1767,8 +1878,13 @@ cma_run_provider() {
     _cma_cfg_lock() {
       local _lock="$1.lock"
       command -v flock >/dev/null 2>&1 || return 0
-      { exec 10>>"$_lock"; } 2>/dev/null || return 0
-      flock -w 5 10 2>/dev/null || {
+      # Dynamic fd allocation for the same reason as _cma_eph_lock above:
+      # a hardcoded `exec 10>>FILE` collides with the shell's redirection
+      # save slots (live-proven: "flock: 10: Bad file descriptor", lock
+      # silently never held), and any 2>/dev/null ON the exec line itself
+      # would silence this interactive shell's stderr permanently.
+      exec {_cma_cfg_fd}>>"$_lock" || return 0
+      flock -w 5 "$_cma_cfg_fd" 2>/dev/null || {
         command -v cma_log >/dev/null 2>&1 \
           && cma_log "cfg-lock: 5s timeout on ${_lock} — proceeding unlocked (best-effort)"
         true
@@ -1776,8 +1892,10 @@ cma_run_provider() {
       return 0
     }
     _cma_cfg_unlock() {
-      flock -u 10 2>/dev/null || true
-      { exec 10>&-; } 2>/dev/null || true
+      [[ -n "$_cma_cfg_fd" ]] || return 0
+      flock -u "$_cma_cfg_fd" 2>/dev/null || true
+      exec {_cma_cfg_fd}>&- || true
+      _cma_cfg_fd=""
       return 0
     }
     if command -v jq >/dev/null 2>&1; then
@@ -1866,12 +1984,19 @@ cma_run_provider() {
       # CAS-1 — repair ONLY while the stored address is still the one WE wrote.
       # If a newer launch re-stamped it, that launch owns the entry and will run
       # its own repair; touching it here would corrupt a live route.
-      [[ "$_u_addr_now" == "$_u_eph" ]] || return 0
+      # Every early return between _cma_cfg_lock and _cma_cfg_unlock MUST pass
+      # through the unlock: this runs in the operator's INTERACTIVE shell, which
+      # never dies, so the kernel never releases a leaked flock — each leaked
+      # acquisition stalls every later cfg-lock on this config for the full 5s
+      # budget and silently degrades it to unlocked (audit-proven 2026-07-25:
+      # a CAS-1 early return held the lock for the shell's life and stacked
+      # +1 leaked fd per occurrence).
+      if [[ "$_u_addr_now" != "$_u_eph" ]]; then _cma_cfg_unlock; return 0; fi
       _u_def_now="$(jq -r '.Router.default // ""' "$_u_cfg" 2>/dev/null || printf '')"
       _u_bg_now="$(jq -r '.Router.background // ""' "$_u_cfg" 2>/dev/null || printf '')"
       # CAS-2 — the route is still ours only if BOTH halves are unchanged.
       [[ "$_u_def_now" == "$_u_wd" && "$_u_bg_now" == "$_u_wb" ]] && _u_mine=1
-      _u_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" || return 0
+      _u_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" || { _cma_cfg_unlock; return 0; }
       chmod 600 "$_u_tmp" 2>/dev/null || true
       if jq --arg n "$_u_n" --arg eph "$_u_eph" --arg real "$_u_real" \
              --arg pd "$_u_pd" --arg pb "$_u_pb" --argjson mine "$_u_mine" '
@@ -1883,11 +2008,15 @@ cma_run_provider() {
         command mv -f "$_u_tmp" "$_u_cfg" 2>/dev/null && chmod 600 "$_u_cfg" 2>/dev/null
         command -v cma_log >/dev/null 2>&1 && \
           cma_log "un-fossilised ccr config for $_u_n: api_base_url ephemeral -> real (route_restored=$_u_mine)" || true
-        # Only a bounce applies a config change (service.go:cmdRestart). Bounce
-        # ONLY when the route was still ours: restarting while ANOTHER launch
-        # owns the route would drop that launch's in-flight requests.
+        # Bounce ONLY when the route was still ours: restarting while ANOTHER
+        # launch owns the route would drop that launch's in-flight requests.
+        # (Post-ATM-870 the running gateway also picks the edit up live via
+        # SwapConfig; the bounce remains the deterministic, receipt-provable
+        # apply-point — and here, the repair to an ephemeral address that the
+        # dead proxy no longer serves, it is what makes the restore effective
+        # for in-flight consumers regardless of swap timing.)
         if [[ "$_u_mine" == "1" && -n "$_ccr" && -x "$_ccr" ]]; then
-          CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" >/dev/null 2>&1 || true
+          CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" >/dev/null 2>&1 || true
         fi
       else
         rm -f "$_u_tmp"
@@ -2079,7 +2208,7 @@ cma_run_provider() {
            # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
            # Its failure means the file is right and the gateway is still wrong —
            # the most dangerous state of all, and the one `|| true` used to hide.
-           _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" 2>&1)"; _rst_rc=$?
+           _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" 2>&1)"; _rst_rc=$?
           if (( _rst_rc != 0 )); then
             # SELF-HEAL the commonest cause. A "Profile … not found or is
             # disabled" reply means ccr parsed 'restart' as a profile NAME — the
@@ -2099,7 +2228,7 @@ cma_run_provider() {
                     && cma_log "bundled ccr is stale (no 'restart' subcommand) — rebuilding once via claude-ccr-build …" \
                     || printf 'claude-providers: bundled ccr is stale — rebuilding it once (this may take ~30s) …\n' >&2
                   claude-ccr-build >/dev/null 2>&1 || true
-                  _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" 2>&1)"; _rst_rc=$?
+                  _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" 2>&1)"; _rst_rc=$?
                 fi ;;
             esac
           fi
@@ -2152,16 +2281,13 @@ cma_run_provider() {
   else
     export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
     export ANTHROPIC_AUTH_TOKEN="$token"
-    export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
-    [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
-    # Map Claude Code's subagent TIER aliases (opus/sonnet/haiku/fable) to this
-    # provider's real serving model, so a tier-pinned subagent dispatch never leaks
-    # a literal claude-* id to a native provider endpoint (which rejects it — xiaomi
-    # HTTP 400 "Unsupported model" — or silently substitutes — deepseek 200).
-    export ANTHROPIC_DEFAULT_OPUS_MODEL="$CMA_PROVIDER_MODEL"
-    export ANTHROPIC_DEFAULT_SONNET_MODEL="$CMA_PROVIDER_MODEL"
-    export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
-    export ANTHROPIC_DEFAULT_FABLE_MODEL="$CMA_PROVIDER_MODEL"
+    # ANTHROPIC_MODEL + the four ANTHROPIC_DEFAULT_*_MODEL tier maps are
+    # exported ABOVE for BOTH transports (v1.26.1 — the 2.1.220 compact-loop
+    # fix): a tier-pinned subagent dispatch or fast-tier call never leaks a
+    # literal claude-* id to a native provider endpoint (which rejects it —
+    # xiaomi HTTP 400 "Unsupported model" — or silently substitutes — deepseek
+    # 200), and the router transport's client-side tier resolution (fast/
+    # compact = Fable 5, unavailable in 2.1.220) maps to the serving model.
     # Session flags are applied ABOVE for both transports (v1.17.0) — see
     # _cma_session_flags. CLAUDE_CODE_MAX_OUTPUT_TOKENS is exported ABOVE too,
     # before the transport branch, CLAMPED to <=128000 for BOTH transports —
