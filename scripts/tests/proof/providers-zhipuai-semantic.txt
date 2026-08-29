@@ -1,14 +1,15 @@
 providers-semantic[zhipuai]: driver rc=3
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "http call failed: Post \"https://open.bigmodel.cn/api/paas/v4/chat/completions\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
   },
   "round2_judge": {
-    "pass": false,
+    "pass": null,
     "score": null,
-    "skipped": false,
-    "reason": "round-2 model call failed: non-200 status 429: {\"error\":{\"code\":\"1305\",\"message\":\"该模型当前访问量过大，请您稍后再试\"}}"
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
   "overall_pass": false
 }

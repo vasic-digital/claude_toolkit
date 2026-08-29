@@ -8,7 +8,7 @@ driver json: {
     "pass": false,
     "score": null,
     "skipped": false,
-    "reason": "round-2 model call failed: read response body: context deadline exceeded (Client.Timeout or context cancellation while reading body)"
+    "reason": "judge call failed: non-200 status 404: {\"error\":{\"message\":\"The model `llama-3.1-8b-instant` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}\n"
   },
   "overall_pass": false
 }

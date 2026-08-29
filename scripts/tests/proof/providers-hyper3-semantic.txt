@@ -1,17 +1,16 @@
-providers-semantic[hyper3]: driver rc=1
+providers-semantic[hyper3]: driver rc=3
 driver json: {
   "round1_sentinel": {
-    "pass": false,
-    "observed": "",
-    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\":{\"message\":\"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing\",\"type\":\"billing_error\",\"code\":null}}\n"
+    "pass": true,
+    "observed": "ZETA-9-ORANGE-7f3a"
   },
   "round2_judge": {
-    "pass": null,
+    "pass": false,
     "score": null,
-    "skipped": true,
-    "reason": "round 1 did not pass; round 2 not attempted"
+    "skipped": false,
+    "reason": "judge call failed: non-200 status 404: {\"error\":{\"message\":\"The model `llama-3.1-8b-instant` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}\n"
   },
   "overall_pass": false
 }
-providers-semantic[hyper3]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing","type":"billing_error","code":null}}
-semantic verdict: unverified
+providers-semantic[hyper3]: skip — round-1/round-2 API call could not complete (transport/infra error, exit 3) — honest SKIP, no downgrade (final-review I-1: a transient judge/model error must not demote the model-under-test)
+semantic verdict: skip

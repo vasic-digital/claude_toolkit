@@ -1,15 +1,14 @@
 providers-semantic[helixagent]: driver rc=3
 driver json: {
   "round1_sentinel": {
-    "pass": false,
-    "observed": "",
-    "reason": "http call failed: Post \"http://127.0.0.1:18434/v1/chat/completions\": dial tcp 127.0.0.1:18434: connect: connection refused"
+    "pass": true,
+    "observed": "ZETA-9-ORANGE-7f3a"
   },
   "round2_judge": {
-    "pass": null,
+    "pass": false,
     "score": null,
-    "skipped": true,
-    "reason": "round 1 did not pass; round 2 not attempted"
+    "skipped": false,
+    "reason": "judge call failed: non-200 status 404: {\"error\":{\"message\":\"The model `llama-3.1-8b-instant` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}\n"
   },
   "overall_pass": false
 }

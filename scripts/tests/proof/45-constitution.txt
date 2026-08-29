@@ -1,6 +1,6 @@
-CONST-051 files swept: 1378
-§11.4.157 doc sizes: 41662 41491 41662 41662 (min=41491 max=41662)
-§11.4.113 files swept: 109
+CONST-051 files swept: 1397
+§11.4.157 doc sizes: 42985 42814 42985 42985 (min=42814 max=42985)
+§11.4.113 files swept: 111
 §11.4.151 SKIP: no env file at repo root
-# constitution verification — Tue Jul 28 02:03:22 AM +05 2026
+# constitution verification — Sat Aug 29 04:04:26 AM +05 2026
 repo root: /home/milos/Factory/projects/tools_and_research/claude_toolkit

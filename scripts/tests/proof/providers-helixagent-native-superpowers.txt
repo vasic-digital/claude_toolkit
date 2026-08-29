@@ -15,3 +15,4 @@
 # SKIP Mon Jul 27 08:13:23 PM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
 # SKIP Tue Jul 28 12:30:17 AM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
 # SKIP Tue Jul 28 01:30:30 AM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
+# SKIP Sat Aug 29 03:24:44 AM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'

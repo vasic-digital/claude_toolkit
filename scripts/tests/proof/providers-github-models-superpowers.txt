@@ -1,6 +1,6 @@
 # ROUTE-INTENDED: github-models/deepseek/deepseek-r1-0528 (transport=router)
 # ROUTE-INTENDED-BACKGROUND: github-models/microsoft/phi-3-medium-4k-instruct
-claude-providers: alias github-models is failed — not launching.
+claude-providers: alias github-models is orphaned — not launching.
   Re-verify: claude-providers sync   (re-runs verification for github-models)
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write

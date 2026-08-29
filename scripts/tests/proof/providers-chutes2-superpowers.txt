@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: chutes2/Qwen/Qwen3.5-397B-A17B-TEE (transport=router)
 # ROUTE-INTENDED-BACKGROUND: chutes2/google/gemma-4-31B-turbo-TEE
-{"is_error":true,"duration_api_ms":0,"num_turns":1,"stop_reason":"stop_sequence","session_id":"65d08700-c823-4b03-bf2a-f5de0b48e30d","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"api_error","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":400,"result":"API Error: 400 {\"detail\":\"Invalid request: Invalid request: {\\\"detail\\\":{\\\"object\\\":\\\"error\\\",\\\"message\\\":\\\"System message must be at the beginning.\\\",\\\"type\\\":\\\"BadRequest\\\",\\\"param\\\":null,\\\"code\\\":400}}\"}","type":"result","duration_ms":3275,"uuid":"f744a6ba-1b92-4526-affa-487a25c0322e"}
-# ROUTE-RESOLVED: chutes2/Qwen/Qwen3.5-397B-A17B-TEE
-# ROUTE-RESOLVED-BACKGROUND: chutes2/google/gemma-4-31B-turbo-TEE
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 5420
-# FAIL: api-error
+claude-providers: alias chutes2 is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for chutes2)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=chutes2/Qwen/Qwen3.5-397B-A17B-TEE; NO turn ran — route attribution is not applicable)

@@ -1,15 +1,23 @@
-providers-semantic[xiaomi]: driver rc=0
+providers-semantic[xiaomi]: driver rc=1
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 402: {\n    \"error\": {\n        \"code\": \"402\",\n        \"message\": \"Insufficient account balance\",\n        \"type\": \"insufficient_balance\"\n    }\n}\n"
   },
   "round2_judge": {
-    "pass": true,
-    "score": 3,
-    "skipped": false
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
-  "overall_pass": true
+  "overall_pass": false
 }
-providers-semantic[xiaomi]: layer-3 sentinel+judge PASS
-semantic verdict: verified
+providers-semantic[xiaomi]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {
+    "error": {
+        "code": "402",
+        "message": "Insufficient account balance",
+        "type": "insufficient_balance"
+    }
+}
+semantic verdict: unverified

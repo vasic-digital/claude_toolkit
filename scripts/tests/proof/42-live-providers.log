@@ -15,48 +15,46 @@
     [32m[PASS][0m no provider dir detected as account (1)
 
   • semantic (layer 3) for 'chutes1' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes1
+KNOWN-NON-WORKING: layer-3 unverified for 'chutes1' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"detail":{"message":"Quota exceeded and account balance is $0.0, please pay with fiat or send tao to 5HSnNYmThbTVp2N6vhuHMpRCmagVEHpKPBP9kDEsG2qAgCCo"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes1-semantic.txt
 
   • superpowers-TUI (layer 4) for 'chutes1' — PASS/SKIP
-    [31m[FAIL][0m layer-4 superpowers-TUI
-           live launch through 'chutes1' FAILED (FAIL: session completed but the model produced an EMPTY final response (no text blocks)); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes1-superpowers.txt
+KNOWN-NON-WORKING: layer-4 for 'chutes1' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes1' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes1-superpowers.txt
 
   • semantic (layer 3) for 'chutes2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes2
+KNOWN-NON-WORKING: layer-3 unverified for 'chutes2' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"detail":{"message":"Quota exceeded and account balance is $0.0, please pay with fiat or send tao to 5HSnNYmThbTVp2N6vhuHMpRCmagVEHpKPBP9kDEsG2qAgCCo"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes2-semantic.txt
 
   • superpowers-TUI (layer 4) for 'chutes2' — PASS/SKIP
-    [31m[FAIL][0m layer-4 superpowers-TUI
-           live launch through 'chutes2' FAILED (FAIL: Claude Code reported an API error through the alias); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes2-superpowers.txt
+KNOWN-NON-WORKING: layer-4 for 'chutes2' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes2' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes2-superpowers.txt
 
   • semantic (layer 3) for 'chutes3' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes3
+KNOWN-NON-WORKING: layer-3 unverified for 'chutes3' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"detail":{"message":"Quota exceeded and account balance is $0.0, please pay with fiat or send tao to 5HSnNYmThbTVp2N6vhuHMpRCmagVEHpKPBP9kDEsG2qAgCCo"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes3-semantic.txt
 
   • superpowers-TUI (layer 4) for 'chutes3' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for chutes3
+KNOWN-NON-WORKING: layer-4 for 'chutes3' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes3' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes3-superpowers.txt
 
   • semantic (layer 3) for 'chutes4' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes4
+KNOWN-NON-WORKING: layer-3 unverified for 'chutes4' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"detail":{"message":"Quota exceeded and account balance is $0.0, please pay with fiat or send tao to 5HSnNYmThbTVp2N6vhuHMpRCmagVEHpKPBP9kDEsG2qAgCCo"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes4-semantic.txt
 
   • superpowers-TUI (layer 4) for 'chutes4' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for chutes4
+KNOWN-NON-WORKING: layer-4 for 'chutes4' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes4' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes4-superpowers.txt
 
   • semantic (layer 3) for 'chutes5' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes5
+KNOWN-NON-WORKING: layer-3 unverified for 'chutes5' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"detail":{"message":"Quota exceeded and account balance is $0.0, please pay with fiat or send tao to 5HSnNYmThbTVp2N6vhuHMpRCmagVEHpKPBP9kDEsG2qAgCCo"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes5-semantic.txt
 
   • superpowers-TUI (layer 4) for 'chutes5' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'chutes5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=unverified, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes5-superpowers.txt
+KNOWN-NON-WORKING: layer-4 for 'chutes5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes5-superpowers.txt
 
   • semantic (layer 3) for 'chutes' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes
+KNOWN-NON-WORKING: layer-3 unverified for 'chutes' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"detail":{"message":"Quota exceeded and account balance is $0.0, please pay with fiat or send tao to 5HSnNYmThbTVp2N6vhuHMpRCmagVEHpKPBP9kDEsG2qAgCCo"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes-semantic.txt
 
   • superpowers-TUI (layer 4) for 'chutes' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for chutes
+KNOWN-NON-WORKING: layer-4 for 'chutes' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'chutes' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes-superpowers.txt
 
   • semantic (layer 3) for 'deepseek' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'deepseek' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-deepseek-semantic.txt
+SKIP: layer-3 preconditions absent for deepseek
 
   • superpowers-TUI (layer 4) for 'deepseek' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'deepseek' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'deepseek' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-deepseek-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for deepseek
 
   • semantic (layer 3) for 'fireworks-ai' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for fireworks-ai
@@ -65,17 +63,16 @@ SKIP: layer-3 preconditions absent for fireworks-ai
 KNOWN-NON-WORKING: layer-4 for 'fireworks-ai' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'fireworks-ai' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-fireworks-ai-superpowers.txt
 
   • semantic (layer 3) for 'github-models' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'github-models' — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: Unauthorized (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-github-models-semantic.txt
+SKIP: layer-3 preconditions absent for github-models
 
   • superpowers-TUI (layer 4) for 'github-models' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'github-models' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'github-models' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-github-models-superpowers.txt
+KNOWN-NON-WORKING: layer-4 for 'github-models' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'github-models' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-github-models-superpowers.txt
 
   • semantic (layer 3) for 'helixagent' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for helixagent
 
   • superpowers-TUI (layer 4) for 'helixagent' — PASS/SKIP
-    [31m[FAIL][0m layer-4 superpowers-TUI
-           live launch through 'helixagent' FAILED (FAIL: stream-aborted — the CLI produced a result (duration_ms=168809) with 0 output tokens and terminal_reason=aborted_streaming. NOT a trust/overwrite dialog. WHERE it died is not determined here: read ~/.claude-code-router/helixagent/service.log — a burst of 503s at 1-4ms each means the LOCAL gateway rejected the route and the request never reached the provider, which no --timeout value can fix.); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-helixagent-superpowers.txt
+SKIP: SKIP: provider 'helixagent' has CMA_PROVIDER_TRIM=bare; superpowers engagement is intentionally disabled for this alias
 
   • semantic (layer 3) for 'helixagent-native' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for helixagent-native
@@ -90,58 +87,71 @@ SKIP: layer-3 preconditions absent for helixllm-gateway
 SKIP: SKIP: no key in $HELIXLLM_GATEWAY_KEY for 'helixllm-gateway'
 
   • semantic (layer 3) for 'huggingface' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'huggingface' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":"You have depleted your monthly included credits. Purchase pre-paid credits to continue using Inference Providers. Alternatively, subscribe to PRO to get 20x more included usage."} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-huggingface-semantic.txt
+SKIP: layer-3 preconditions absent for huggingface
 
   • superpowers-TUI (layer 4) for 'huggingface' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'huggingface' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'huggingface' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-huggingface-superpowers.txt
+    [31m[FAIL][0m layer-4 superpowers-TUI
+           live launch through 'huggingface' FAILED (FAIL: launch hung within 180s (trust/overwrite prompt?)); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-huggingface-superpowers.txt
 
   • semantic (layer 3) for 'hyper1' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'hyper1' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing","type":"billing_error","code":null}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper1-semantic.txt
+SKIP: layer-3 preconditions absent for hyper1
 
   • superpowers-TUI (layer 4) for 'hyper1' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'hyper1' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'hyper1' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper1-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for hyper1
 
   • semantic (layer 3) for 'hyper2' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'hyper2' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing","type":"billing_error","code":null}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper2-semantic.txt
+SKIP: layer-3 preconditions absent for hyper2
 
   • superpowers-TUI (layer 4) for 'hyper2' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'hyper2' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'hyper2' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper2-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for hyper2
 
   • semantic (layer 3) for 'hyper3' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'hyper3' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing","type":"billing_error","code":null}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper3-semantic.txt
+SKIP: layer-3 preconditions absent for hyper3
 
   • superpowers-TUI (layer 4) for 'hyper3' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'hyper3' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'hyper3' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper3-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for hyper3
 
   • semantic (layer 3) for 'hyper4' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'hyper4' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing","type":"billing_error","code":null}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper4-semantic.txt
+SKIP: layer-3 preconditions absent for hyper4
 
   • superpowers-TUI (layer 4) for 'hyper4' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'hyper4' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'hyper4' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper4-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for hyper4
 
   • semantic (layer 3) for 'hyper5' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'hyper5' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"You're out of credits for team Miloš Vasić's Team. Add more at https://hyper.charm.land/teams/db739eed-54bb-4a0b-9e4d-bc3ced36238b/billing","type":"billing_error","code":null}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper5-semantic.txt
+SKIP: layer-3 preconditions absent for hyper5
 
   • superpowers-TUI (layer 4) for 'hyper5' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'hyper5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'hyper5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-hyper5-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for hyper5
+
+  • semantic (layer 3) for 'hyper' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for hyper
+
+  • superpowers-TUI (layer 4) for 'hyper' — PASS/SKIP
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for hyper
 
   • semantic (layer 3) for 'inference' — PASS/SKIP, never a faked pass
-KNOWN-NON-WORKING: layer-3 unverified for 'inference' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"Insufficient balance for request.","type":"PaymentRequiredError"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-inference-semantic.txt
+KNOWN-NON-WORKING: layer-3 unverified for 'inference' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"Insufficient balance for request. Add credits to continue.","type":"ServerlessInferenceStartGate"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-inference-semantic.txt
 
   • superpowers-TUI (layer 4) for 'inference' — PASS/SKIP
 KNOWN-NON-WORKING: layer-4 for 'inference' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'inference' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-inference-superpowers.txt
 
   • semantic (layer 3) for 'kilo' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for kilo
+SKIP: layer-3 preconditions absent for kilo
 
   • superpowers-TUI (layer 4) for 'kilo' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI PASS for kilo
+
+  • semantic (layer 3) for 'kimi-for-coding2' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for kimi-for-coding2
+
+  • superpowers-TUI (layer 4) for 'kimi-for-coding2' — PASS/SKIP
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for kimi-for-coding2
 
   • semantic (layer 3) for 'kimi-for-coding' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for kimi-for-coding
 
   • superpowers-TUI (layer 4) for 'kimi-for-coding' — PASS/SKIP
-SKIP: SKIP: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for kimi-for-coding
 
   • semantic (layer 3) for 'kimi-for-coding-highspeed' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for kimi-for-coding-highspeed
@@ -168,71 +178,73 @@ KNOWN-NON-WORKING: layer-3 unverified for 'novita-ai' — driver exit 1; reason:
 KNOWN-NON-WORKING: layer-4 for 'novita-ai' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'novita-ai' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-novita-ai-superpowers.txt
 
   • semantic (layer 3) for 'nvidia2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for nvidia2
+SKIP: layer-3 preconditions absent for nvidia2
 
   • superpowers-TUI (layer 4) for 'nvidia2' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for nvidia2
+    [31m[FAIL][0m layer-4 route attribution (verification integrity)
+           live launch through 'nvidia2' produced NON-ATTRIBUTABLE evidence: # FAIL: route-mismatch (intended=nvidia2/nvidia/nemotron-3-nano-30b-a3b resolved=nvidia2/openai/gpt-oss-20b). This is a verification-integrity failure, not an account-side one, so it counts at provider status=verified; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia2-superpowers.txt
 
   • semantic (layer 3) for 'nvidia3' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for nvidia3
 
   • superpowers-TUI (layer 4) for 'nvidia3' — PASS/SKIP
-    [31m[FAIL][0m layer-4 superpowers-TUI
-           live launch through 'nvidia3' FAILED (FAIL: Claude Code reported an API error through the alias); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia3-superpowers.txt
+    [31m[FAIL][0m layer-4 route attribution (verification integrity)
+           live launch through 'nvidia3' produced NON-ATTRIBUTABLE evidence: # FAIL: route-mismatch (intended=nvidia3/meta/muse-glimmer-30b resolved=nvidia3/minimaxai/minimax-m2.7). This is a verification-integrity failure, not an account-side one, so it counts at provider status=verified; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia3-superpowers.txt
 
   • semantic (layer 3) for 'nvidia4' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for nvidia4
+SKIP: layer-3 preconditions absent for nvidia4
 
   • superpowers-TUI (layer 4) for 'nvidia4' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 context-inadequate for 'nvidia4' (backend context 131072 tokens < Claude Code request 133673 tokens — provider-side: pin a larger-context model for this provider, or relaunch a local backing server with a larger context window). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia4-superpowers.txt
+KNOWN-NON-WORKING: layer-4 for 'nvidia4' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'nvidia4' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia4-superpowers.txt
 
   • semantic (layer 3) for 'nvidia5' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for nvidia5
 
   • superpowers-TUI (layer 4) for 'nvidia5' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 environment-incompatible for 'nvidia5' (the provider's function-name grammar rejects an MCP tool name from this host's plugin environment — not a routing defect; a name-sanitizing transform is the tracked fix). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia5-superpowers.txt)
+KNOWN-NON-WORKING: layer-4 for 'nvidia5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'nvidia5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia5-superpowers.txt
 
   • semantic (layer 3) for 'nvidia' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for nvidia
+SKIP: layer-3 preconditions absent for nvidia
 
   • superpowers-TUI (layer 4) for 'nvidia' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for nvidia
+    [31m[FAIL][0m layer-4 route attribution (verification integrity)
+           live launch through 'nvidia' produced NON-ATTRIBUTABLE evidence: # FAIL: route-mismatch-background (intended=nvidia/moonshotai/kimi-k3 resolved=nvidia/openai/gpt-oss-120b). This is a verification-integrity failure, not an account-side one, so it counts at provider status=verified; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia-superpowers.txt
 
   • semantic (layer 3) for 'opencode2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode2
+SKIP: layer-3 preconditions absent for opencode2
 
   • superpowers-TUI (layer 4) for 'opencode2' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode2
+KNOWN-NON-WORKING: layer-4 for 'opencode2' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode2' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode2-superpowers.txt
 
   • semantic (layer 3) for 'opencode3' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode3
+SKIP: layer-3 preconditions absent for opencode3
 
   • superpowers-TUI (layer 4) for 'opencode3' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode3
+KNOWN-NON-WORKING: layer-4 for 'opencode3' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode3' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode3-superpowers.txt
 
   • semantic (layer 3) for 'opencode4' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode4
+SKIP: layer-3 preconditions absent for opencode4
 
   • superpowers-TUI (layer 4) for 'opencode4' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode4
+KNOWN-NON-WORKING: layer-4 for 'opencode4' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode4' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode4-superpowers.txt
 
   • semantic (layer 3) for 'opencode' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode
+SKIP: layer-3 preconditions absent for opencode
 
   • superpowers-TUI (layer 4) for 'opencode' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode
 
   • semantic (layer 3) for 'opencode-go1' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode-go1
+KNOWN-NON-WORKING: layer-3 unverified for 'opencode-go1' — driver exit 1; reason: provider definitively rejected the request: non-200 status 403: {"type":"error","error":{"type":"RegionError","message":"The latest version of this model is only available hosted in China and requires explicit opt in: https://opencode.ai/workspace/wrk_01K6AS65JYCD (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go1-semantic.txt
 
   • superpowers-TUI (layer 4) for 'opencode-go1' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode-go1
+KNOWN-NON-WORKING: layer-4 for 'opencode-go1' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode-go1' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go1-superpowers.txt
 
   • semantic (layer 3) for 'opencode-go2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode-go2
+KNOWN-NON-WORKING: layer-3 unverified for 'opencode-go2' — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"type":"error","error":{"type":"CreditsError","message":"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go2-semantic.txt
 
   • superpowers-TUI (layer 4) for 'opencode-go2' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode-go2
+KNOWN-NON-WORKING: layer-4 for 'opencode-go2' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode-go2' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go2-superpowers.txt
 
   • semantic (layer 3) for 'opencode-go3' — PASS/SKIP, never a faked pass
 KNOWN-NON-WORKING: layer-3 unverified for 'opencode-go3' — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"type":"error","error":{"type":"ModelError","message":"Model kimi-k2 is not supported"}} (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go3-semantic.txt
@@ -247,13 +259,13 @@ KNOWN-NON-WORKING: layer-3 unverified for 'opencode-go4' — driver exit 1; reas
 KNOWN-NON-WORKING: layer-4 for 'opencode-go4' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode-go4' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go4-superpowers.txt
 
   • semantic (layer 3) for 'opencode-go5' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode-go5
+KNOWN-NON-WORKING: layer-3 unverified for 'opencode-go5' — driver exit 1; reason: provider definitively rejected the request: non-200 status 403: {"type":"error","error":{"type":"RegionError","message":"The latest version of this model is only available hosted in China and requires explicit opt in: https://opencode.ai/workspace/wrk_01K6AS65JYCD (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go5-semantic.txt
 
   • superpowers-TUI (layer 4) for 'opencode-go5' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode-go5
+KNOWN-NON-WORKING: layer-4 for 'opencode-go5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode-go5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go5-superpowers.txt
 
   • semantic (layer 3) for 'opencode-go' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode-go
+KNOWN-NON-WORKING: layer-3 unverified for 'opencode-go' — driver exit 1; reason: provider definitively rejected the request: non-200 status 403: {"type":"error","error":{"type":"RegionError","message":"The latest version of this model is only available hosted in China and requires explicit opt in: https://opencode.ai/workspace/wrk_01K6AS65JYCD (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go-semantic.txt
 
   • superpowers-TUI (layer 4) for 'opencode-go' — PASS/SKIP
 KNOWN-NON-WORKING: layer-4 for 'opencode-go' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode-go' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-go-superpowers.txt
@@ -289,16 +301,28 @@ KNOWN-NON-WORKING: layer-3 unverified for 'opencode-zen5' — driver exit 1; rea
 KNOWN-NON-WORKING: layer-4 for 'opencode-zen5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'opencode-zen5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-zen5-superpowers.txt
 
   • semantic (layer 3) for 'openrouter2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for openrouter2
+SKIP: layer-3 preconditions absent for openrouter2
 
   • superpowers-TUI (layer 4) for 'openrouter2' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI PASS for openrouter2
 
   • semantic (layer 3) for 'openrouter3' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for openrouter3
+SKIP: layer-3 preconditions absent for openrouter3
 
   • superpowers-TUI (layer 4) for 'openrouter3' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI PASS for openrouter3
+
+  • semantic (layer 3) for 'openrouter4' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for openrouter4
+
+  • superpowers-TUI (layer 4) for 'openrouter4' — PASS/SKIP
+KNOWN-NON-WORKING: layer-4 for 'openrouter4' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'openrouter4' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-openrouter4-superpowers.txt
+
+  • semantic (layer 3) for 'openrouter5' — PASS/SKIP, never a faked pass
+KNOWN-NON-WORKING: layer-3 unverified for 'openrouter5' — driver exit 1; reason: provider definitively rejected the request: non-200 status 404: {"error":{"message":"No endpoints found for nvidia/nemotron-nano-12b-v2-vl:free.","code":404},"user_id":"user_***REDACTED***"} (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-openrouter5-semantic.txt
+
+  • superpowers-TUI (layer 4) for 'openrouter5' — PASS/SKIP
+KNOWN-NON-WORKING: layer-4 for 'openrouter5' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'openrouter5' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-openrouter5-superpowers.txt
 
   • semantic (layer 3) for 'openrouter' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for openrouter
@@ -332,16 +356,22 @@ KNOWN-NON-WORKING: layer-3 unverified for 'upstage' — driver exit 1; reason: p
 KNOWN-NON-WORKING: layer-4 for 'upstage' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'upstage' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-upstage-superpowers.txt
 
   • semantic (layer 3) for 'xiaomi' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for xiaomi
+KNOWN-NON-WORKING: layer-3 unverified for 'xiaomi' — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: { (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-xiaomi-semantic.txt
 
   • superpowers-TUI (layer 4) for 'xiaomi' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for xiaomi
+KNOWN-NON-WORKING: layer-4 for 'xiaomi' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'xiaomi' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=failed, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-xiaomi-superpowers.txt
 
   • semantic (layer 3) for 'zai-coding-plan' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for zai-coding-plan
 
   • superpowers-TUI (layer 4) for 'zai-coding-plan' — PASS/SKIP
 KNOWN-NON-WORKING: layer-4 for 'zai-coding-plan' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'zai-coding-plan' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=unverified, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zai-coding-plan-superpowers.txt
+
+  • semantic (layer 3) for 'zai' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for zai
+
+  • superpowers-TUI (layer 4) for 'zai' — PASS/SKIP
+KNOWN-NON-WORKING: layer-4 for 'zai' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'zai' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=unverified, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zai-superpowers.txt
 
   • semantic (layer 3) for 'zhipuai-coding-plan' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for zhipuai-coding-plan
@@ -353,25 +383,27 @@ KNOWN-NON-WORKING: layer-4 for 'zhipuai-coding-plan' — FAIL: launch-refused-un
 SKIP: layer-3 preconditions absent for zhipuai
 
   • superpowers-TUI (layer 4) for 'zhipuai' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 for 'zhipuai' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'zhipuai' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=unverified, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zhipuai-superpowers.txt
+KNOWN-NON-WORKING: layer-4 for 'zhipuai' — FAIL: launch-refused-unverified — cma_run_provider refused to launch 'zhipuai' (activation gate — alias not 'verified'; refused before any ccr route write); no turn ran, so no route can be attributed (provider status=orphaned, so not counted as a suite failure); evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zhipuai-superpowers.txt
 
   • proof sweep: no layer-4 evidence file from THIS run carries a '# FAIL:' marker
     [31m[FAIL][0m layer-4 evidence carries '# FAIL:' markers
-           5 of 24: providers-chutes1-superpowers.txt -> # FAIL: empty-result; providers-chutes2-superpowers.txt -> # FAIL: api-error; providers-helixagent-superpowers.txt -> # FAIL: stream-aborted (output_tokens=0 duration_ms=168809 bound=180s); providers-nvidia3-superpowers.txt -> # FAIL: api-error; providers-poe-superpowers.txt -> # FAIL: empty-result; 
+           5 of 20: providers-huggingface-superpowers.txt -> # FAIL: timeout; providers-nvidia2-superpowers.txt -> # FAIL: route-mismatch (intended=nvidia2/nvidia/nemotron-3-nano-30b-a3b resolved=nvidia2/openai/gpt-oss-20b); providers-nvidia3-superpowers.txt -> # FAIL: route-mismatch (intended=nvidia3/meta/muse-glimmer-30b resolved=nvidia3/minimaxai/minimax-m2.7); providers-nvidia-superpowers.txt -> # FAIL: route-mismatch-background (intended=nvidia/moonshotai/kimi-k3 resolved=nvidia/openai/gpt-oss-120b); providers-poe-superpowers.txt -> # FAIL: empty-result; 
 
   • route-attribution sweep: NO layer-4 evidence file from this run is non-attributable (status-independent)
-    [32m[PASS][0m all 56 layer-4 evidence file(s) from this run are route-attributable
+    [31m[FAIL][0m layer-4 evidence is NON-ATTRIBUTABLE (verification integrity)
+           3 of 61: providers-nvidia2-superpowers.txt -> # FAIL: route-mismatch (intended=nvidia2/nvidia/nemotron-3-nano-30b-a3b resolved=nvidia2/openai/gpt-oss-20b); providers-nvidia3-superpowers.txt -> # FAIL: route-mismatch (intended=nvidia3/meta/muse-glimmer-30b resolved=nvidia3/minimaxai/minimax-m2.7); providers-nvidia-superpowers.txt -> # FAIL: route-mismatch-background (intended=nvidia/moonshotai/kimi-k3 resolved=nvidia/openai/gpt-oss-120b); 
 
   • layer-4 classifier honesty: a neutral, non-superpowers response must NOT verify (negative-case, Task-3 review)
     [32m[PASS][0m layer-4 classifier honesty: neutral prompt via 'chutes1' correctly did NOT match the engagement marker
 evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/50-providers-live.txt
 
-[31m✗ 6 failed, 45 passed[0m
+[31m✗ 7 failed, 20 passed[0m
 
 Failures:
-  - superpowers-TUI (layer 4) for 'chutes1' — PASS/SKIP :: layer-4 superpowers-TUI
-  - superpowers-TUI (layer 4) for 'chutes2' — PASS/SKIP :: layer-4 superpowers-TUI
-  - superpowers-TUI (layer 4) for 'helixagent' — PASS/SKIP :: layer-4 superpowers-TUI
-  - superpowers-TUI (layer 4) for 'nvidia3' — PASS/SKIP :: layer-4 superpowers-TUI
+  - superpowers-TUI (layer 4) for 'huggingface' — PASS/SKIP :: layer-4 superpowers-TUI
+  - superpowers-TUI (layer 4) for 'nvidia2' — PASS/SKIP :: layer-4 route attribution (verification integrity)
+  - superpowers-TUI (layer 4) for 'nvidia3' — PASS/SKIP :: layer-4 route attribution (verification integrity)
+  - superpowers-TUI (layer 4) for 'nvidia' — PASS/SKIP :: layer-4 route attribution (verification integrity)
   - superpowers-TUI (layer 4) for 'poe' — PASS/SKIP :: layer-4 superpowers-TUI
   - proof sweep: no layer-4 evidence file from THIS run carries a '# FAIL:' marker :: layer-4 evidence carries '# FAIL:' markers
+  - route-attribution sweep: NO layer-4 evidence file from this run is non-attributable (status-independent) :: layer-4 evidence is NON-ATTRIBUTABLE (verification integrity)

@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: chutes/zai-org/GLM-5.2-TEE (transport=router)
 # ROUTE-INTENDED-BACKGROUND: chutes/Qwen/Qwen3.6-27B-TEE
-{"is_error":false,"duration_api_ms":25008,"num_turns":3,"stop_reason":"end_turn","session_id":"724051bf-bc35-4f14-90c4-55e95b07485b","total_cost_usd":1.014325,"usage":{"input_tokens":200980,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":377,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"zai-org/GLM-5.2-TEE":{"inputTokens":200980,"outputTokens":377,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":1.014325,"contextWindow":262144,"maxOutputTokens":32000,"canonicalModel":"zai-org/glm-5.2-tee","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"Skills evolve. Read current version.","ttft_ms":10901,"ttft_stream_ms":10809,"time_to_request_ms":145,"type":"result","duration_ms":25563,"uuid":"5aea5f0e-95b1-4abf-8029-10397533edc0"}
-# ROUTE-RESOLVED: chutes/zai-org/GLM-5.2-TEE
-# ROUTE-RESOLVED-BACKGROUND: chutes/Qwen/Qwen3.6-27B-TEE
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 4984
-# PASS
+claude-providers: alias chutes is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for chutes)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=chutes/zai-org/GLM-5.2-TEE; NO turn ran — route attribution is not applicable)

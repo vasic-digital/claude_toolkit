@@ -1,6 +1,6 @@
 
   • CONST-051: LLMsVerifier submodule carries zero toolkit coupling
-    [32m[PASS][0m CONST-051 swept a populated submodule (1378 files under /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/LLMsVerifier) (0)
+    [32m[PASS][0m CONST-051 swept a populated submodule (1397 files under /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/LLMsVerifier) (0)
 grep: /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/LLMsVerifier/llm-verifier/semantic-code-visibility: binary file matches
     [32m[PASS][0m no claude_toolkit / cma_ / claude-providers references in the submodule ()
 
@@ -8,7 +8,7 @@ grep: /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/
     [32m[PASS][0m four governance docs exist and stay within 5% size drift (1)
 
   • §11.4.113: no force-push in any repo script
-    [32m[PASS][0m §11.4.113 swept a populated tree (109 .sh/.py files) (0)
+    [32m[PASS][0m §11.4.113 swept a populated tree (111 .sh/.py files) (0)
     [32m[PASS][0m no force-push flags under scripts/ or upstreams/ ()
 
   • §11.4.156: CI/CD disabled (.github/workflows absent-or-empty, no .gitlab-ci.yml)

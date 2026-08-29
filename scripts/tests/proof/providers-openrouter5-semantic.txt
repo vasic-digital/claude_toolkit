@@ -1,15 +1,17 @@
-providers-semantic[openrouter5]: driver rc=0
+providers-semantic[openrouter5]: driver rc=1
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 404: {\"error\":{\"message\":\"No endpoints found for nvidia/nemotron-nano-12b-v2-vl:free.\",\"code\":404},\"user_id\":\"user_***REDACTED***\"}"
   },
   "round2_judge": {
-    "pass": true,
-    "score": 3,
-    "skipped": false
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
-  "overall_pass": true
+  "overall_pass": false
 }
-providers-semantic[openrouter5]: layer-3 sentinel+judge PASS
-semantic verdict: verified
+providers-semantic[openrouter5]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 404: {"error":{"message":"No endpoints found for nvidia/nemotron-nano-12b-v2-vl:free.","code":404},"user_id":"user_***REDACTED***"}
+semantic verdict: unverified

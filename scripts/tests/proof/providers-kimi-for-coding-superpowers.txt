@@ -1,23 +1,8 @@
-# ROUTE-INTENDED: kimi-for-coding/kimi-for-coding (transport=router)
-# ROUTE-INTENDED-BACKGROUND: kimi-for-coding/kimi-for-coding
-claude-providers: alias kimi-for-coding is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for kimi-for-coding)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=kimi-for-coding/kimi-for-coding; NO turn ran — route attribution is not applicable)
-# SKIP Sat Jul 25 11:19:52 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 12:59:10 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 09:22:10 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 10:35:35 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 11:55:08 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 01:51:53 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 02:56:23 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 04:09:35 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 05:15:52 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 06:23:46 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 07:12:21 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 07:53:56 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Sun Jul 26 09:35:00 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Mon Jul 27 08:15:33 PM +05 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Tue Jul 28 12:33:09 AM +05 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
-# SKIP Tue Jul 28 01:33:06 AM +05 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# ROUTE-INTENDED: kimi-for-coding/kimi-for-coding-highspeed (transport=router)
+# ROUTE-INTENDED-BACKGROUND: kimi-for-coding/k3
+[claude-code:unrecognized_model] {"model":"kimi-for-coding-highspeed","query_source":"sdk"}
+{"is_error":false,"duration_api_ms":11769,"num_turns":1,"stop_reason":"end_turn","session_id":"3bf96364-7761-4fa6-bc1f-8188083cd819","total_cost_usd":0.254995,"usage":{"input_tokens":50299,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":140,"output_tokens_details":{"thinking_tokens":0},"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"kimi-for-coding-highspeed":{"inputTokens":50299,"outputTokens":140,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.254995,"contextWindow":262144,"maxOutputTokens":32000,"canonicalModel":"kimi-for-coding-highspeed","provider":"firstParty","costBasis":"unknown"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subagent_stats":{"spawned":0,"requested":{"background":0,"foreground":0,"unset":0},"started_in_background":0,"max_depth":0,"spawned_by_subagents":0,"completed":0,"failed":0,"killed":{"parent":0,"user":0,"system":0},"refused":{"depth_limit":0,"concurrency_limit":0,"budget":0},"by_type":{}},"subtype":"success","api_error_status":null,"result":"Skills evolve. Read current version.","ttft_ms":11898,"ttft_stream_ms":11893,"time_to_request_ms":140,"type":"result","duration_ms":12216,"uuid":"b313e3fb-9e44-4f54-b1cc-e360cbde99e1","queued_turn_count":0}
+# ROUTE-RESOLVED: kimi-for-coding/kimi-for-coding-highspeed
+# ROUTE-RESOLVED-BACKGROUND: kimi-for-coding/k3
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 0
+# PASS

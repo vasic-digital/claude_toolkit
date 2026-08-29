@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: opencode-go1/deepseek-v4-pro (transport=router)
 # ROUTE-INTENDED-BACKGROUND: opencode-go1/deepseek-v4-flash
-{"is_error":false,"duration_api_ms":17335,"num_turns":3,"stop_reason":"end_turn","session_id":"cb26b768-052a-4320-b35b-41ade64abb32","total_cost_usd":0.79298,"usage":{"input_tokens":157801,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":159,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"deepseek-v4-pro":{"inputTokens":157801,"outputTokens":159,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.79298,"contextWindow":262144,"maxOutputTokens":32000,"canonicalModel":"deepseek-v4-pro","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"Skills evolve. Read current version.","ttft_ms":8357,"ttft_stream_ms":8097,"time_to_request_ms":138,"type":"result","duration_ms":17911,"uuid":"219e45ac-c50b-4054-98e7-afc386fd8781"}
-# ROUTE-RESOLVED: opencode-go1/deepseek-v4-pro
-# ROUTE-RESOLVED-BACKGROUND: opencode-go1/deepseek-v4-flash
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 2779
-# PASS
+claude-providers: alias opencode-go1 is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode-go1)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode-go1/deepseek-v4-pro; NO turn ran — route attribution is not applicable)

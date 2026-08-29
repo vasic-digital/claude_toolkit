@@ -1,7 +1,7 @@
-# ROUTE-INTENDED: opencode2/ling-3.0-flash-free (transport=router)
+# ROUTE-INTENDED: opencode2/nemotron-3-ultra-free (transport=router)
 # ROUTE-INTENDED-BACKGROUND: opencode2/laguna-s-2.1-free
-{"is_error":false,"duration_api_ms":14445,"num_turns":3,"stop_reason":"end_turn","session_id":"22894df4-e8e0-4870-bc1e-c2689193e944","total_cost_usd":0.82581,"usage":{"input_tokens":162887,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":455,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"ling-3.0-flash-free":{"inputTokens":162887,"outputTokens":455,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.82581,"contextWindow":160000,"maxOutputTokens":32000,"canonicalModel":"ling-3.0-flash-free","provider":"firstParty"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"success","api_error_status":null,"result":"Skills evolve. Read current version.","ttft_ms":7046,"ttft_stream_ms":6951,"time_to_request_ms":139,"type":"result","duration_ms":15003,"uuid":"449de80e-e512-43e3-ae05-7fd08f630c10"}
-# ROUTE-RESOLVED: opencode2/ling-3.0-flash-free
-# ROUTE-RESOLVED-BACKGROUND: opencode2/laguna-s-2.1-free
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 2335
-# PASS
+claude-providers: alias opencode2 is orphaned — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for opencode2)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=opencode2/nemotron-3-ultra-free; NO turn ran — route attribution is not applicable)

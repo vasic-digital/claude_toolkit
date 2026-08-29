@@ -1,15 +1,17 @@
-providers-semantic[opencode-go]: driver rc=0
+providers-semantic[opencode-go]: driver rc=1
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 403: {\"type\":\"error\",\"error\":{\"type\":\"RegionError\",\"message\":\"The latest version of this model is only available hosted in China and requires explicit opt in: https://opencode.ai/workspace/wrk_01K6AS65JYCD"
   },
   "round2_judge": {
-    "pass": true,
-    "score": 2,
-    "skipped": false
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
-  "overall_pass": true
+  "overall_pass": false
 }
-providers-semantic[opencode-go]: layer-3 sentinel+judge PASS
-semantic verdict: verified
+providers-semantic[opencode-go]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 403: {"type":"error","error":{"type":"RegionError","message":"The latest version of this model is only available hosted in China and requires explicit opt in: https://opencode.ai/workspace/wrk_01K6AS65JYCD
+semantic verdict: unverified

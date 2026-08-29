@@ -1,22 +1,23 @@
 
   • opencode binary runs and reports a version
-    [32m[PASS][0m version: 1.18.5
+    [32m[PASS][0m version: 1.18.23
 
   • opencode resolves the generated config without error
     [32m[PASS][0m debug config exit (0)
     [32m[PASS][0m resolved config is valid JSON
-    [32m[PASS][0m mcp servers configured: 144
-    [32m[PASS][0m skill paths configured: 163
+    [32m[PASS][0m mcp servers configured: 20
+    [31m[FAIL][0m no skill paths
 
   • opencode discovers the Claude plugin skills
-    [32m[PASS][0m skills resolved: 1356 (>= 200)
+    [31m[FAIL][0m skills resolved
+           got=1 want>=200
 
   • every enabled MCP server connects
-    [32m[PASS][0m connected MCP servers: 26 (>= 3)
+    [32m[PASS][0m connected MCP servers: 20 (>= 3)
     [32m[PASS][0m no enabled MCP server failed to connect
 
   • user CLAUDE.md is wired as an instruction (if present)
-    [32m[PASS][0m instructions configured: 1
+    [32m[PASS][0m no instructions (CLAUDE.md absent — acceptable)
 
 Evidence written to: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof
 00-summary.txt
@@ -194,5 +195,10 @@ providers-zhipuai-coding-plan-semantic.txt
 providers-zhipuai-coding-plan-superpowers.txt
 providers-zhipuai-semantic.txt
 providers-zhipuai-superpowers.txt
+verify-aliases-multi-prompt
 
-[32m✓ 9 passed, 0 failed[0m
+[31m✗ 2 failed, 7 passed[0m
+
+Failures:
+  - opencode resolves the generated config without error :: no skill paths
+  - opencode discovers the Claude plugin skills :: skills resolved

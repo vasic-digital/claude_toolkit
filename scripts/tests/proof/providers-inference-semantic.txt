@@ -3,7 +3,7 @@ driver json: {
   "round1_sentinel": {
     "pass": false,
     "observed": "",
-    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\":{\"message\":\"Insufficient balance for request.\",\"type\":\"PaymentRequiredError\"}}"
+    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\":{\"message\":\"Insufficient balance for request. Add credits to continue.\",\"type\":\"ServerlessInferenceStartGate\"}}"
   },
   "round2_judge": {
     "pass": null,
@@ -13,5 +13,5 @@ driver json: {
   },
   "overall_pass": false
 }
-providers-semantic[inference]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"Insufficient balance for request.","type":"PaymentRequiredError"}}
+providers-semantic[inference]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"message":"Insufficient balance for request. Add credits to continue.","type":"ServerlessInferenceStartGate"}}
 semantic verdict: unverified

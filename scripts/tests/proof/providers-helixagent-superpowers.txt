@@ -10,3 +10,5 @@
 # ROUTE-RESOLVED-BACKGROUND: helixagent/HelixAgent/HelixLLM
 # ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 10407
 # FAIL: stream-aborted (output_tokens=0 duration_ms=168809 bound=180s)
+# SKIP Sat Aug 29 03:24:44 AM +05 2026: provider 'helixagent' has CMA_PROVIDER_TRIM=bare; superpowers engagement is intentionally disabled for this alias
+# SKIP Sat Aug 29 04:02:05 AM +05 2026: provider 'helixagent' has CMA_PROVIDER_TRIM=bare; superpowers engagement is intentionally disabled for this alias

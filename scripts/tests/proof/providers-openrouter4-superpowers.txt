@@ -1,7 +1,7 @@
-# ROUTE-INTENDED: openrouter4/poolside/laguna-xs-2.1:free (transport=router)
-# ROUTE-INTENDED-BACKGROUND: openrouter4/openai/gpt-oss-20b:free
-claude-providers: alias openrouter4 is unverified — not launching.
+# ROUTE-INTENDED: openrouter4/liquid/lfm-2.5-2.6b:free (transport=router)
+# ROUTE-INTENDED-BACKGROUND: openrouter4/liquid/lfm-2.5-2.6b:free
+claude-providers: alias openrouter4 is orphaned — not launching.
   Re-verify: claude-providers sync   (re-runs verification for openrouter4)
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=openrouter4/poolside/laguna-xs-2.1:free; NO turn ran — route attribution is not applicable)
+# FAIL: launch-refused-unverified (rc=3 intended=openrouter4/liquid/lfm-2.5-2.6b:free; NO turn ran — route attribution is not applicable)

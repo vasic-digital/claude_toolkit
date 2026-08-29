@@ -1,15 +1,17 @@
-providers-semantic[opencode-go2]: driver rc=0
+providers-semantic[opencode-go2]: driver rc=1
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "provider definitively rejected the request: non-200 status 401: {\"type\":\"error\",\"error\":{\"type\":\"CreditsError\",\"message\":\"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing\"}}"
   },
   "round2_judge": {
-    "pass": true,
-    "score": 3,
-    "skipped": false
+    "pass": null,
+    "score": null,
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
-  "overall_pass": true
+  "overall_pass": false
 }
-providers-semantic[opencode-go2]: layer-3 sentinel+judge PASS
-semantic verdict: verified
+providers-semantic[opencode-go2]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"type":"error","error":{"type":"CreditsError","message":"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing"}}
+semantic verdict: unverified

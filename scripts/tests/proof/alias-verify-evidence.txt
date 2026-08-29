@@ -1,98 +1,99 @@
-Alias verification: Tue Jul 28 01:50:04 AM +05 2026
-Testing 56 aliases
+Alias verification: Sat Aug 29 03:54:36 AM +05 2026
+Testing 61 aliases
 --- chutes1 (deepseek-ai/DeepSeek-V3.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'id': 'call_3bd026
-verdict=PASS
---- chutes2 (Qwen/Qwen3.5-397B-A17B-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_1f5086
-verdict=PASS
---- chutes3 (Qwen/Qwen3-235B-A22B-Thinking-2507-TEE) ---
-test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- chutes4 (zai-org/GLM-5.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'call_32713f
-verdict=PASS
---- chutes5 (moonshotai/Kimi-K2.6-TEE) ---
-verdict=SKIP-GATED status=unverified
---- chutes (zai-org/GLM-5.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_323b97
-verdict=PASS
---- deepseek (deepseek-v4-pro) ---
 verdict=SKIP-GATED status=failed
+--- chutes2 (Qwen/Qwen3.5-397B-A17B-TEE) ---
+verdict=SKIP-GATED status=failed
+--- chutes3 (Qwen/Qwen3-235B-A22B-Thinking-2507-TEE) ---
+verdict=SKIP-GATED status=failed
+--- chutes4 (zai-org/GLM-5.2-TEE) ---
+verdict=SKIP-GATED status=failed
+--- chutes5 (moonshotai/Kimi-K2.6-TEE) ---
+verdict=SKIP-GATED status=failed
+--- chutes (zai-org/GLM-5.2-TEE) ---
+verdict=SKIP-GATED status=failed
+--- deepseek (deepseek-v4-flash) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
 --- fireworks-ai (accounts/fireworks/routers/glm-5p2-fast) ---
 verdict=SKIP-GATED status=failed
 --- github-models (deepseek/deepseek-r1-0528) ---
-verdict=SKIP-GATED status=failed
+verdict=SKIP-GATED status=orphaned
 --- helixagent (HelixAgent/HelixLLM) ---
-test1(basic)=400 test2(no_params)=helixagent proxy could not reach the bac test3(ref)=helixagent proxy could not reach the bac test4(cache)=helixagent proxy could not reach the bac test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'type': 'function'
+verdict=PASS
 --- huggingface (Qwen/Qwen3-Coder-480B-A35B-Instruct) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=QUOTA
+verdict=SKIP-QUOTA
 --- hyper1 (deepseek-v4-pro) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_2970dd
+verdict=PASS
 --- hyper2 (glm-5.2) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=7chunks test6(tool)=[{'id': 'call_96a191
+verdict=PASS
 --- hyper3 (kimi-k2.7-code) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=6chunks test6(tool)=[{'id': 'call_e73871
+verdict=PASS
 --- hyper4 (qwen3.7-max) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=52chunks test6(tool)=[{'id': 'call_10c157
+verdict=PASS
 --- hyper5 (glm-5.1) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'id': 'call_a40f0a
+verdict=PASS
+--- hyper (deepseek-v4-pro) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_88ddd7
+verdict=PASS
 --- inference (glm-5.2) ---
 verdict=SKIP-GATED status=failed
 --- kilo (nvidia/nemotron-3-super-120b-a12b:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'type': 'function'
 verdict=PASS
---- kimi-for-coding (kimi-for-coding) ---
-verdict=SKIP-GATED status=failed
+--- kimi-for-coding2 (kimi-for-coding) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- kimi-for-coding (kimi-for-coding-highspeed) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
 --- kimi-for-coding-highspeed (kimi-for-coding-highspeed) ---
-verdict=SKIP-GATED status=failed
+verdict=SKIP-GATED status=orphaned
 --- kimi-k3-256k (k3-256k) ---
-verdict=SKIP-GATED status=failed
+verdict=SKIP-GATED status=orphaned
 --- kimi-k3 (k3) ---
-verdict=SKIP-GATED status=failed
+verdict=SKIP-GATED status=orphaned
 --- novita-ai (deepseek/deepseek-v3.2) ---
 verdict=SKIP-GATED status=failed
---- nvidia2 (openai/gpt-oss-20b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=14chunks test6(tool)=[{'id': 'chatcmpl-to
+--- nvidia2 (nvidia/nemotron-3-nano-30b-a3b) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=16chunks test6(tool)=[{'id': 'call-689259
 verdict=PASS
---- nvidia3 (minimaxai/minimax-m2.7) ---
-test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- nvidia4 (meta/llama-3.2-11b-vision-instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'id': 'chatcmpl-to
+--- nvidia3 (meta/muse-glimmer-30b) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=6chunks test6(tool)=[{'id': 'chatcmpl-to
 verdict=PASS
---- nvidia5 (mistralai/mistral-nemotron) ---
-test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
+--- nvidia4 (meta/llama-3.2-1b-instruct) ---
+verdict=SKIP-GATED status=orphaned
+--- nvidia5 (meta/llama-3.2-90b-vision-instruct) ---
+verdict=SKIP-GATED status=orphaned
 --- nvidia (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=33chunks test6(tool)=[{'id': 'call-d2cb8a
+test1(basic)=200 test2(no_params)= test3(ref)=ResourceExhausted: Worker local total re test4(cache)=ResourceExhausted: Worker local total re test5(stream)=30chunks test6(tool)=[{'id': 'call-fb3aa8
 verdict=PASS
---- opencode2 (ling-3.0-flash-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- opencode3 (north-mini-code-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- opencode4 (mimo-v2.5-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=7chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- opencode (deepseek-v4-flash-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
+--- opencode2 (nemotron-3-ultra-free) ---
+verdict=SKIP-GATED status=orphaned
+--- opencode3 (nemotron-3.5-lightning-free) ---
+verdict=SKIP-GATED status=orphaned
+--- opencode4 (laguna-s-2.1-free) ---
+verdict=SKIP-GATED status=orphaned
+--- opencode (hy3-free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'id': 'chatcmpl-to
 verdict=PASS
 --- opencode-go1 (deepseek-v4-pro) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
+verdict=SKIP-GATED status=failed
 --- opencode-go2 (glm-5) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=7chunks test6(tool)=[{'id': 'call_f5c6',
-verdict=PASS
+verdict=SKIP-GATED status=failed
 --- opencode-go3 (kimi-k2) ---
 verdict=SKIP-GATED status=failed
 --- opencode-go4 (qwen-3.7) ---
 verdict=SKIP-GATED status=failed
 --- opencode-go5 (deepseek-v4-pro) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
+verdict=SKIP-GATED status=failed
 --- opencode-go (deepseek-v4-pro) ---
 verdict=SKIP-GATED status=orphaned
 --- opencode-zen1 (claude-fable-5) ---
@@ -105,17 +106,21 @@ verdict=SKIP-GATED status=failed
 verdict=SKIP-GATED status=failed
 --- opencode-zen5 (gemini-3.1-pro) ---
 verdict=SKIP-GATED status=failed
---- openrouter2 (nvidia/nemotron-3-nano-30b-a3b:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=[{'type': 'function'
+--- openrouter2 (cohere/north-mini-code:free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'type': 'function'
 verdict=PASS
 --- openrouter3 (nvidia/nemotron-3-super-120b-a12b:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'type': 'function'
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
 verdict=PASS
+--- openrouter4 (liquid/lfm-2.5-2.6b:free) ---
+verdict=SKIP-GATED status=orphaned
+--- openrouter5 (nvidia/nemotron-nano-12b-v2-vl:free) ---
+verdict=SKIP-GATED status=orphaned
 --- openrouter (nvidia/nemotron-3-ultra-550b-a55b:free) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
 verdict=PASS
 --- poe (google/gemma-4-31b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=3chunks test6(tool)=[{'id': '6a7wwu1p', 
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=3chunks test6(tool)=[{'id': 'call_203361
 verdict=PASS
 --- siliconflow (zai-org/GLM-5.2) ---
 verdict=SKIP-GATED status=failed
@@ -124,13 +129,14 @@ verdict=SKIP-GATED status=failed
 --- upstage (solar-pro3) ---
 verdict=SKIP-GATED status=failed
 --- xiaomi (mimo-v2.5-pro) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'id': 'call_37b9f9
-verdict=PASS
+verdict=SKIP-GATED status=failed
 --- zai-coding-plan (glm-5.2) ---
+verdict=SKIP-GATED status=unverified
+--- zai (glm-4.7-flash) ---
 verdict=SKIP-GATED status=unverified
 --- zhipuai-coding-plan (glm-5.2) ---
 verdict=SKIP-GATED status=orphaned
 --- zhipuai (glm-4.7-flash) ---
-verdict=SKIP-GATED status=unverified
+verdict=SKIP-GATED status=orphaned
 
-PASS: 20 FAIL: 4 SKIP-QUOTA: 0 SKIP-AUTH: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 30 TOTAL: 56
+PASS: 19 FAIL: 0 SKIP-QUOTA: 1 SKIP-AUTH: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 39 TOTAL: 61

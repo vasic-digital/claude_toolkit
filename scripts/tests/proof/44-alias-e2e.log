@@ -1,52 +1,51 @@
+◌ chutes: model=zai-org/GLM-5.2-TEE
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ chutes1: model=deepseek-ai/DeepSeek-V3.2-TEE
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ chutes2: model=Qwen/Qwen3.5-397B-A17B-TEE
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ chutes3: model=Qwen/Qwen3-235B-A22B-Thinking-2507-TEE
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ chutes4: model=zai-org/GLM-5.2-TEE
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ chutes5: model=moonshotai/Kimi-K2.6-TEE
-    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
-◌ deepseek: model=deepseek-v4-pro
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ fireworks-ai: model=accounts/fireworks/routers/glm-5p2-fast
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ github-models: model=deepseek/deepseek-r1-0528
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ helixagent-native: model=helixllm-multi
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
-✗ helixagent: model=HelixAgent/HelixLLM
-    FAIL: direct_request - <urlopen error [Errno 111] Connection refused>
 ◌ helixllm-gateway: model=helixllm-multi
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
-◌ huggingface: model=Qwen/Qwen3-Coder-480B-A35B-Instruct
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ hyper1: model=deepseek-v4-pro
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ hyper2: model=glm-5.2
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ hyper3: model=kimi-k2.7-code
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ hyper4: model=qwen3.7-max
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ hyper5: model=glm-5.1
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ inference: model=glm-5.2
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ kimi-for-coding-highspeed: model=kimi-for-coding-highspeed
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ kimi-for-coding: model=kimi-for-coding
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ kimi-k3-256k: model=k3-256k
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ kimi-k3: model=k3
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ novita-ai: model=deepseek/deepseek-v3.2
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-✗ nvidia3: model=minimaxai/minimax-m2.7
-    FAIL: direct_request - HTTP 410: {"type":"about:blank","title":"Gone","status":410,"detail":"The model 'minimaxai/minimax-m2.7' has reached its end of life on 2026-07-27T00:00:00Z and is no longer available."}
-
-◌ nvidia5: model=mistralai/mistral-nemotron
+◌ nvidia3: model=meta/muse-glimmer-30b
     FAIL: direct_request - The read operation timed out
     FAIL: transient_check - SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): The read operation timed out
+◌ nvidia4: model=meta/llama-3.2-1b-instruct
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+◌ nvidia5: model=meta/llama-3.2-90b-vision-instruct
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ opencode-go: model=deepseek-v4-pro
     FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+◌ opencode-go1: model=deepseek-v4-pro
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ opencode-go2: model=glm-5
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ opencode-go3: model=kimi-k2
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ opencode-go4: model=qwen-3.7
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ opencode-go5: model=deepseek-v4-pro
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ opencode-zen1: model=claude-fable-5
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
@@ -58,25 +57,39 @@
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ opencode-zen5: model=gemini-3.1-pro
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ opencode2: model=nemotron-3-ultra-free
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+◌ opencode3: model=nemotron-3.5-lightning-free
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+◌ opencode4: model=laguna-s-2.1-free
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+◌ openrouter4: model=liquid/lfm-2.5-2.6b:free
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+◌ openrouter5: model=nvidia/nemotron-nano-12b-v2-vl:free
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ siliconflow: model=zai-org/GLM-5.2
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ tencent-tokenhub: model=hy3
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ upstage: model=solar-pro3
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ xiaomi: model=mimo-v2.5-pro
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ zai-coding-plan: model=glm-5.2
+    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
+◌ zai: model=glm-4.7-flash
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
 ◌ zhipuai-coding-plan: model=glm-5.2
     FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ zhipuai: model=glm-4.7-flash
-    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 {
-  "total": 56,
-  "passed": 21,
-  "failed": 2,
+  "total": 61,
+  "passed": 19,
+  "failed": 0,
   "quota_skipped": 0,
   "transient_skipped": 1,
-  "gated_skipped": 32,
+  "gated_skipped": 41,
   "results": [
     {
       "alias": "chutes",
@@ -86,23 +99,13 @@
       "base_url": "https://llm.chutes.ai/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. \n\nI do not have access to your local file system, private repositories, or any external codebase",
-          "error": "",
-          "latency_ms": 5597
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. \n\nI do not have access to your local file system, private repositories, or any external codebase. I can only see the code and text that you directly paste into this chat or upload as a file to our"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "chutes1",
@@ -112,23 +115,13 @@
       "base_url": "https://llm.chutes.ai/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO\n\nI cannot see or access your codebase. I operate as a standalone language model with no ability t",
-          "error": "",
-          "latency_ms": 19579
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO\n\nI cannot see or access your codebase. I operate as a standalone language model with no ability to browse the internet, access external systems, or view files on your local machine or repositories."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "chutes2",
@@ -138,23 +131,13 @@
       "base_url": "https://llm.chutes.ai/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "\n\nNO. I cannot access external systems, private repositories, or your local codebase. I only process",
-          "error": "",
-          "latency_ms": 7055
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "\n\nNO. I cannot access external systems, private repositories, or your local codebase. I only process information explicitly shared in our conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "chutes3",
@@ -164,23 +147,13 @@
       "base_url": "https://llm.chutes.ai/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "\n\nNO  \nI cannot see your codebase. I have no access to external systems, repositories, or data beyon",
-          "error": "",
-          "latency_ms": 8587
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "\n\nNO  \nI cannot see your codebase. I have no access to external systems, repositories, or data beyond what is explicitly shared with me in our current conversation. Your code remains private unless yo"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "chutes4",
@@ -190,23 +163,13 @@
       "base_url": "https://llm.chutes.ai/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I do not have access to your codebase or any local files. I can only see the text and context th",
-          "error": "",
-          "latency_ms": 4983
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I do not have access to your codebase or any local files. I can only see the text and context that you paste directly into this chat."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "chutes5",
@@ -218,7 +181,7 @@
         {
           "name": "gated_check",
           "pass": false,
-          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -226,19 +189,29 @@
     },
     {
       "alias": "deepseek",
-      "model": "deepseek-v4-pro",
+      "model": "deepseek-v4-flash",
       "fast_model": "deepseek-v4-flash",
       "transport": "router",
       "base_url": "https://api.deepseek.com",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have access to your codebase unless you share the relevant code or files in this convers",
+          "error": "",
+          "latency_ms": 724
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have access to your codebase unless you share the relevant code or files in this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "fireworks-ai",
@@ -266,7 +239,7 @@
         {
           "name": "gated_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -297,13 +270,22 @@
       "tests": [
         {
           "name": "direct_request",
-          "pass": false,
-          "content": "",
-          "error": "<urlopen error [Errno 111] Connection refused>",
-          "latency_ms": 0
+          "pass": true,
+          "content": "NO\n\nI don't have access to your codebase or any external systems. I can only see and respond to the ",
+          "error": "",
+          "latency_ms": 214
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI don't have access to your codebase or any external systems. I can only see and respond to the messages in our current conversation. If you'd like me to review code, you would need to paste it di"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false
+      "overall_pass": true
     },
     {
       "alias": "helixllm-gateway",
@@ -329,13 +311,49 @@
       "base_url": "https://router.huggingface.co/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO\n\nI don't have access to your codebase. I can only see the specific files and code snippets that y",
+          "error": "",
+          "latency_ms": 1844
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI don't have access to your codebase. I can only see the specific files and code snippets that you share with me in our conversation. I don't have visibility into your repository structure, versio"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
+    },
+    {
+      "alias": "hyper",
+      "model": "deepseek-v4-pro",
+      "fast_model": "deepseek-v4-flash",
+      "transport": "router",
+      "base_url": "https://hyper.charm.land/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have access to your codebase or any files unless you explicitly share them with me in th",
+          "error": "",
+          "latency_ms": 4390
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have access to your codebase or any files unless you explicitly share them with me in this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
     },
     {
       "alias": "hyper1",
@@ -345,13 +363,23 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don't have access to your codebase or any files unless you explicitly share them with me in th",
+          "error": "",
+          "latency_ms": 4419
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don't have access to your codebase or any files unless you explicitly share them with me in this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "hyper2",
@@ -361,13 +389,23 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I do not have access to your codebase, local files, or any external repositories. I can only see",
+          "error": "",
+          "latency_ms": 8468
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I do not have access to your codebase, local files, or any external repositories. I can only see the text and context you provide directly in this chat. If you would like me to review your code, y"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "hyper3",
@@ -377,13 +415,23 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO\n\nI cannot see your codebase. I have no access to your files, repositories, or local system unless",
+          "error": "",
+          "latency_ms": 873
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI cannot see your codebase. I have no access to your files, repositories, or local system unless you paste code directly into our conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "hyper4",
@@ -393,13 +441,23 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. \n\nI do not have access to your local files, private repositories, or external systems. I can onl",
+          "error": "",
+          "latency_ms": 8682
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. \n\nI do not have access to your local files, private repositories, or external systems. I can only see the code and text you explicitly paste or share with me in this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "hyper5",
@@ -409,13 +467,23 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I do not have access to your local files, repositories, or any external systems. I can only see ",
+          "error": "",
+          "latency_ms": 16164
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I do not have access to your local files, repositories, or any external systems. I can only see the text and code that you explicitly paste or type into this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "inference",
@@ -443,14 +511,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I don\u2019t have visibility into your local or remote codebase unless you share the relevant snippet",
+          "content": "NO  \nI cannot see or access your codebase, local files, repositories, or any external systems unless",
           "error": "",
-          "latency_ms": 3668
+          "latency_ms": 9776
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I don\u2019t have visibility into your local or remote codebase unless you share the relevant snippets or files with me directly. If you paste code here, I can review and comment on it."
+          "content_preview": "NO  \nI cannot see or access your codebase, local files, repositories, or any external systems unless you explicitly share code snippets or details within our current conversation. I have no persistent"
         },
         {
           "name": "error_pattern_check",
@@ -469,7 +537,7 @@
         {
           "name": "gated_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -477,19 +545,55 @@
     },
     {
       "alias": "kimi-for-coding",
+      "model": "kimi-for-coding-highspeed",
+      "fast_model": "k3",
+      "transport": "router",
+      "base_url": "https://api.kimi.com/coding/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don't have access to your codebase unless you paste it here or connect it via an integration.",
+          "error": "",
+          "latency_ms": 1906
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don't have access to your codebase unless you paste it here or connect it via an integration."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "kimi-for-coding2",
       "model": "kimi-for-coding",
       "fast_model": "kimi-for-coding",
       "transport": "router",
       "base_url": "https://api.kimi.com/coding/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I only see the messages you send in this chat, so I don\u2019t have access to your codebase, files, o",
+          "error": "",
+          "latency_ms": 3119
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I only see the messages you send in this chat, so I don\u2019t have access to your codebase, files, or repository unless you paste code here."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "kimi-k3-256k",
@@ -501,7 +605,7 @@
         {
           "name": "gated_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -517,7 +621,7 @@
         {
           "name": "gated_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -542,21 +646,21 @@
     {
       "alias": "nvidia",
       "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-      "fast_model": "openai/gpt-oss-120b",
+      "fast_model": "moonshotai/kimi-k3",
       "transport": "router",
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO \u2013 I don\u2019t have visibility into your codebase unless you share it with me.",
+          "content": "NO \u2013 no codebase is provided in the current context.",
           "error": "",
-          "latency_ms": 1236
+          "latency_ms": 2962
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO \u2013 I don\u2019t have visibility into your codebase unless you share it with me."
+          "content_preview": "NO \u2013 no codebase is provided in the current context."
         },
         {
           "name": "error_pattern_check",
@@ -567,22 +671,22 @@
     },
     {
       "alias": "nvidia2",
-      "model": "openai/gpt-oss-20b",
-      "fast_model": "stepfun-ai/step-3.7-flash",
+      "model": "nvidia/nemotron-3-nano-30b-a3b",
+      "fast_model": "openai/gpt-oss-120b",
       "transport": "router",
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO \u2013 I don\u2019t have access to your repository or any code files, so I can\u2019t view or analyze your codeb",
+          "content": "NO \u2013 I don\u2019t have access to your repository or any external files; I can only work with the informat",
           "error": "",
-          "latency_ms": 1068
+          "latency_ms": 1583
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO \u2013 I don\u2019t have access to your repository or any code files, so I can\u2019t view or analyze your codebase."
+          "content_preview": "NO \u2013 I don\u2019t have access to your repository or any external files; I can only work with the information you provide in this conversation."
         },
         {
           "name": "error_pattern_check",
@@ -593,51 +697,8 @@
     },
     {
       "alias": "nvidia3",
-      "model": "minimaxai/minimax-m2.7",
-      "fast_model": "qwen/qwen3-next-80b-a3b-instruct",
-      "transport": "router",
-      "base_url": "https://integrate.api.nvidia.com/v1",
-      "tests": [
-        {
-          "name": "direct_request",
-          "pass": false,
-          "content": "",
-          "error": "HTTP 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'minimaxai/minimax-m2.7' has reached its end of life on 2026-07-27T00:00:00Z and is no longer available.\"}\n",
-          "latency_ms": 691
-        }
-      ],
-      "overall_pass": false
-    },
-    {
-      "alias": "nvidia4",
-      "model": "meta/llama-3.2-11b-vision-instruct",
-      "fast_model": "meta/llama-3.2-90b-vision-instruct",
-      "transport": "router",
-      "base_url": "https://integrate.api.nvidia.com/v1",
-      "tests": [
-        {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO\n\nI'm a large language model, I don't have the ability to access or view your local codebase. I ca",
-          "error": "",
-          "latency_ms": 1959
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO\n\nI'm a large language model, I don't have the ability to access or view your local codebase. I can only assist with text-based input and provide general guidance or suggestions based on the informa"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "nvidia5",
-      "model": "mistralai/mistral-nemotron",
-      "fast_model": "mistralai/mistral-small-4-119b-2603",
+      "model": "meta/muse-glimmer-30b",
+      "fast_model": "meta/llama-3.2-11b-vision-instruct",
       "transport": "router",
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
@@ -646,7 +707,7 @@
           "pass": false,
           "content": "",
           "error": "The read operation timed out",
-          "latency_ms": 30506
+          "latency_ms": 30374
         },
         {
           "name": "transient_check",
@@ -656,6 +717,38 @@
       ],
       "overall_pass": false,
       "transient_skip": true
+    },
+    {
+      "alias": "nvidia4",
+      "model": "meta/llama-3.2-1b-instruct",
+      "fast_model": "meta/llama-3.1-8b-instruct",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
+    },
+    {
+      "alias": "nvidia5",
+      "model": "meta/llama-3.2-90b-vision-instruct",
+      "fast_model": "poolside/laguna-xs-2.1",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "opencode-go",
@@ -681,23 +774,13 @@
       "base_url": "https://opencode.ai/zen/go/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don't have access to any files or systems outside of this conversation\u2014I can only see the text",
-          "error": "",
-          "latency_ms": 6526
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don't have access to any files or systems outside of this conversation\u2014I can only see the text you\u2019ve shared here."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "opencode-go2",
@@ -707,23 +790,13 @@
       "base_url": "https://opencode.ai/zen/go/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. \n\nI do not have access to your local files, private repositories, or any previous sessions. I ca",
-          "error": "",
-          "latency_ms": 4095
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. \n\nI do not have access to your local files, private repositories, or any previous sessions. I can only see the code or text that you explicitly paste or upload into this current conversation. If y"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "opencode-go3",
@@ -765,23 +838,13 @@
       "base_url": "https://opencode.ai/zen/go/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don\u2019t have access to your codebase\u2014or any external files, repositories, or systems\u2014unless you ",
-          "error": "",
-          "latency_ms": 5359
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don\u2019t have access to your codebase\u2014or any external files, repositories, or systems\u2014unless you explicitly share the relevant code or context with me in our conversation. If you paste code or desc"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "opencode-zen1",
@@ -865,7 +928,7 @@
     },
     {
       "alias": "opencode",
-      "model": "deepseek-v4-flash-free",
+      "model": "hy3-free",
       "fast_model": "nemotron-3-ultra-free",
       "transport": "router",
       "base_url": "https://opencode.ai/zen/v1",
@@ -873,14 +936,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "Thinking. 1.  **Analyze the Request:**\n    *   Question: \"Do you see our codebase?\"\n    *   Expected",
+          "content": "NO. I do not have access to your local files, repositories, or codebase unless you explicitly share ",
           "error": "",
-          "latency_ms": 7119
+          "latency_ms": 3607
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "Thinking. 1.  **Analyze the Request:**\n    *   Question: \"Do you see our codebase?\"\n    *   Expected Reply: \"YES\" or \"NO\" followed by a brief explanation.\n    *   Constraint: Must start with \"YES\" or "
+          "content_preview": "NO. I do not have access to your local files, repositories, or codebase unless you explicitly share them with me in this conversation or via an integrated tool."
         },
         {
           "name": "error_pattern_check",
@@ -891,100 +954,70 @@
     },
     {
       "alias": "opencode2",
-      "model": "ling-3.0-flash-free",
+      "model": "nemotron-3-ultra-free",
       "fast_model": "laguna-s-2.1-free",
       "transport": "router",
       "base_url": "https://opencode.ai/zen/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don't have access to your codebase or any external files, repositories, or systems. I can only",
-          "error": "",
-          "latency_ms": 1971
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don't have access to your codebase or any external files, repositories, or systems. I can only reason about code or discuss topics that are explicitly shared within our conversation. If you'd li"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "opencode3",
-      "model": "north-mini-code-free",
-      "fast_model": "big-pickle",
+      "model": "nemotron-3.5-lightning-free",
+      "fast_model": "nemotron-3.5-lightning-free",
       "transport": "router",
       "base_url": "https://opencode.ai/zen/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I haven't been given access to your codebase, so I can't examine your code. If you'd like help, ",
-          "error": "",
-          "latency_ms": 2204
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I haven't been given access to your codebase, so I can't examine your code. If you'd like help, you can share relevant snippets or descriptions of the code you're working with."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "opencode4",
-      "model": "mimo-v2.5-free",
-      "fast_model": "mimo-v2.5-free",
+      "model": "laguna-s-2.1-free",
+      "fast_model": "nemotron-3.5-lightning-free",
       "transport": "router",
       "base_url": "https://opencode.ai/zen/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I cannot directly see or access your codebase. I am an AI assistant, and while I am part of a mu",
-          "error": "",
-          "latency_ms": 5471
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I cannot directly see or access your codebase. I am an AI assistant, and while I am part of a multi-agent system for complex tasks, my core interaction here is through this text-based conversation"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "openrouter",
       "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "fast_model": "cohere/north-mini-code:free",
+      "fast_model": "dots-studio/dots-3-note-preview:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
       "tests": [
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO - I cannot see your codebase unless you share it with me directly (paste code, upload files, or p",
+          "content": "NO. I cannot see your codebase unless you paste code snippets, upload files, or share a repository l",
           "error": "",
-          "latency_ms": 874
+          "latency_ms": 995
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO - I cannot see your codebase unless you share it with me directly (paste code, upload files, or provide a repository link). I don't have access to your local files, private repositories, or any ext"
+          "content_preview": "NO. I cannot see your codebase unless you paste code snippets, upload files, or share a repository link in this conversation. I only have access to what you provide directly in our chat."
         },
         {
           "name": "error_pattern_check",
@@ -995,7 +1028,7 @@
     },
     {
       "alias": "openrouter2",
-      "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+      "model": "cohere/north-mini-code:free",
       "fast_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
@@ -1003,14 +1036,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I don\u2019t have direct access to your repository or its files in this conversation, so I can\u2019t view",
+          "content": "NO. As an AI language model, I don\u2019t have direct access to external files or repositories unless the",
           "error": "",
-          "latency_ms": 480
+          "latency_ms": 443
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I don\u2019t have direct access to your repository or its files in this conversation, so I can\u2019t view or analyze your codebase."
+          "content_preview": "NO. As an AI language model, I don\u2019t have direct access to external files or repositories unless they are shared with me in the conversation. If you paste the relevant code or provide details about it"
         },
         {
           "name": "error_pattern_check",
@@ -1022,21 +1055,21 @@
     {
       "alias": "openrouter3",
       "model": "nvidia/nemotron-3-super-120b-a12b:free",
-      "fast_model": "poolside/laguna-xs-2.1:free",
+      "fast_model": "minimax/minimax-m3:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
       "tests": [
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I don\u2019t have visibility into your codebase unless you share specific files or snippets with me.",
+          "content": "NO. I don\u2019t have access to your files or codebase unless you share the relevant snippets or details ",
           "error": "",
-          "latency_ms": 512
+          "latency_ms": 519
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I don\u2019t have visibility into your codebase unless you share specific files or snippets with me."
+          "content_preview": "NO. I don\u2019t have access to your files or codebase unless you share the relevant snippets or details directly in our conversation."
         },
         {
           "name": "error_pattern_check",
@@ -1044,6 +1077,38 @@
         }
       ],
       "overall_pass": true
+    },
+    {
+      "alias": "openrouter4",
+      "model": "liquid/lfm-2.5-2.6b:free",
+      "fast_model": "liquid/lfm-2.5-2.6b:free",
+      "transport": "router",
+      "base_url": "https://openrouter.ai/api/v1",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
+    },
+    {
+      "alias": "openrouter5",
+      "model": "nvidia/nemotron-nano-12b-v2-vl:free",
+      "fast_model": "nvidia/nemotron-nano-12b-v2-vl:free",
+      "transport": "router",
+      "base_url": "https://openrouter.ai/api/v1",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "poe",
@@ -1055,14 +1120,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I only have access to the code snippets or files you explicitly paste or upload into this chat s",
+          "content": "**NO.** \n\nI only have access to the information, files, or code snippets that you explicitly upload ",
           "error": "",
-          "latency_ms": 9751
+          "latency_ms": 10395
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I only have access to the code snippets or files you explicitly paste or upload into this chat session."
+          "content_preview": "**NO.** \n\nI only have access to the information, files, or code snippets that you explicitly upload or paste into this specific conversation. I cannot browse your local files or private repositories."
         },
         {
           "name": "error_pattern_check",
@@ -1127,23 +1192,13 @@
       "base_url": "https://api.xiaomimimo.com/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "No, I don't see your codebase. I only have access to information that you share directly with me in ",
-          "error": "",
-          "latency_ms": 5777
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "No, I don't see your codebase. I only have access to information that you share directly with me in this conversation. I can't access external file systems, repositories, or any tools that would let m"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "zai-coding-plan",
@@ -1151,6 +1206,22 @@
       "fast_model": "glm-4.7",
       "transport": "router",
       "base_url": "https://api.z.ai/api/coding/paas/v4",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
+    },
+    {
+      "alias": "zai",
+      "model": "glm-4.7-flash",
+      "fast_model": "glm-4.5-flash",
+      "transport": "router",
+      "base_url": "https://api.z.ai/api/paas/v4",
       "tests": [
         {
           "name": "gated_check",
@@ -1187,7 +1258,7 @@
         {
           "name": "gated_check",
           "pass": false,
-          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,

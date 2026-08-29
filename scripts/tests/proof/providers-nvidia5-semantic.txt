@@ -1,15 +1,14 @@
 providers-semantic[nvidia5]: driver rc=3
 driver json: {
   "round1_sentinel": {
-    "pass": false,
-    "observed": "",
-    "reason": "non-200 status 500: "
+    "pass": true,
+    "observed": "ZETA-9-ORANGE-7f3a"
   },
   "round2_judge": {
-    "pass": null,
+    "pass": false,
     "score": null,
-    "skipped": true,
-    "reason": "round 1 did not pass; round 2 not attempted"
+    "skipped": false,
+    "reason": "round-2 model call failed: http call failed: Post \"https://integrate.api.nvidia.com/v1/chat/completions\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
   },
   "overall_pass": false
 }
