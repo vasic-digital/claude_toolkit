@@ -15,3 +15,6 @@
 [submodule "submodules/go"]
 	path = submodules/go
 	url = https://go.googlesource.com/go
+[submodule "constitution"]
+	path = constitution
+	url = git@github.com:HelixDevelopment/HelixConstitution.git

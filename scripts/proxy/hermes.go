@@ -28,7 +28,22 @@ import (
 )
 
 // helixagent's response carries Hermes tool calls to recover (see transform* below).
-func init() { registerResponse("helixagent") }
+// It also needs parallel tool calls disabled: HelixLLM's streaming path emits
+// an unbounded loop of identical tool_calls when parallel_tool_calls is true.
+func init() {
+	registerResponse("helixagent")
+	registerRequest("helixagent", helixagentRequestTransform)
+}
+
+// helixagentRequestTransform disables parallel tool calls. HelixLLM (llama.cpp
+// Qwen3-Coder-30B) streams an endless, repeated sequence of tool_calls when
+// parallel_tool_calls is left true; forcing false yields one clean tool_call.
+func helixagentRequestTransform(req map[string]interface{}) map[string]interface{} {
+	if tools, ok := req["tools"].([]interface{}); ok && len(tools) > 0 {
+		req["parallel_tool_calls"] = false
+	}
+	return req
+}
 
 const idAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 

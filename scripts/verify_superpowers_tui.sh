@@ -153,14 +153,19 @@ keyvar="$( set -a; . "$PDIR/$ALIAS_ID.env"; set +a; printf '%s' "${CMA_PROVIDER_
 # provider happened to run last, and would have named a different backend had
 # the run order changed. A pass attributable to a different backend is not a
 # weak pass; it is a false claim, and worse than a failure.
-IFS=$'\t' read -r P_TRANSPORT P_MODEL P_FAST_MODEL P_ID < <(
+IFS=$'\t' read -r P_TRANSPORT P_MODEL P_FAST_MODEL P_ID P_TRIM < <(
   set -a
   # shellcheck source=/dev/null  # runtime provider env file, path known only at execution
   . "$PDIR/$ALIAS_ID.env"
   set +a
-  printf '%s\t%s\t%s\t%s' "${CMA_PROVIDER_TRANSPORT:-native}" "${CMA_PROVIDER_MODEL:-}" \
-                      "${CMA_PROVIDER_FAST_MODEL:-}" "${CMA_PROVIDER_ID:-$ALIAS_ID}"
+  printf '%s\t%s\t%s\t%s\t%s' "${CMA_PROVIDER_TRANSPORT:-native}" "${CMA_PROVIDER_MODEL:-}" \
+                      "${CMA_PROVIDER_FAST_MODEL:-}" "${CMA_PROVIDER_ID:-$ALIAS_ID}" "${CMA_PROVIDER_TRIM:-}"
 )
+# Bare providers intentionally launch with --bare, which skips the plugin/MCP/
+# skill surface. The layer-4 superpowers engagement challenge requires that
+# surface, so it is not applicable here. SKIP honestly rather than fail a
+# provider that is working as designed (§11.4.108 layer-4 boundary).
+[[ "$P_TRIM" == "bare" ]] && skip "provider '$ALIAS_ID' has CMA_PROVIDER_TRIM=bare; superpowers engagement is intentionally disabled for this alias"
 ROUTE_INTENDED="$ALIAS_ID/$P_MODEL"
 # BOTH router entries must be attributed, not just .default. cma_run_provider
 # writes .Router.default AND .Router.background in the same jq upsert

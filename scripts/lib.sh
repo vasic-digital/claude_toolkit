@@ -1515,6 +1515,27 @@ cma_run_provider() {
       fi
     fi
     if [ "$_cma_win" -gt "$_cma_compact_cap" ]; then _cma_win="$_cma_compact_cap"; fi
+    # Autocompact thrashing guard (v1.26.8): the raw window above consumes every
+    # token the model can hold (text + tools + output = context). That leaves
+    # zero headroom for the compacted summary itself, so after Claude Code
+    # compacts the conversation the next large file read or tool output can
+    # refill the context to the limit within a few turns — the exact "Autocompact
+    # is thrashing" failure. Reserve a safety margin from the window so compaction
+    # fires earlier and the post-compact context has meaningful breathing room.
+    # The margin is applied ONLY when the provider can afford it without dropping
+    # below the minimum viable window; tight providers keep their existing window
+    # rather than trade one failure mode for another.
+    local _cma_safety_margin="${CMA_AUTO_COMPACT_SAFETY_MARGIN:-24000}"
+    case "$_cma_safety_margin" in
+      ''|0|*[!0-9]*) _cma_safety_margin=0 ;;
+    esac
+    if [ "$_cma_safety_margin" -gt 0 ] && [ "$_cma_win" -gt "$_cma_min_win" ]; then
+      local _cma_max_margin=$(( _cma_win - _cma_min_win ))
+      if [ "$_cma_safety_margin" -gt "$_cma_max_margin" ]; then
+        _cma_safety_margin="$_cma_max_margin"
+      fi
+      _cma_win=$(( _cma_win - _cma_safety_margin ))
+    fi
     if [ "$_cma_win" -gt 0 ]; then
       export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$_cma_win"
     fi
@@ -2090,11 +2111,17 @@ cma_run_provider() {
         _hl_warn() { if command -v cma_warn >/dev/null 2>&1; then cma_warn "$1"; else printf '[cma warn] %s\n' "$1" >&2; fi; }
         local _hl_url="${CMA_PROVIDER_BASE_URL%/v1}" _hl_mode=""
         local _hl_healthy=0
-        # Try to detect mode via HelixLLM's health/metrics endpoint
         if command -v curl >/dev/null 2>&1; then
-          _hl_mode="$(curl -sf --max-time 3 "${_hl_url}/health" 2>/dev/null | grep -o '"context_limit" *: *[0-9]*' | head -1 | sed 's/.*: *//' || true)"
-          if [[ -n "$_hl_mode" ]]; then
+          # Some HelixLLM builds expose context_limit in /health; newer ones only
+          # return {"status":"ok"}. Use /health for liveness and fall back to
+          # /v1/models for the serving context size (n_ctx) when needed.
+          if curl -sf --max-time 3 "${_hl_url}/health" >/dev/null 2>&1; then
             _hl_healthy=1
+            _hl_mode="$(curl -sf --max-time 3 "${_hl_url}/health" 2>/dev/null | grep -o '"context_limit" *: *[0-9]*' | head -1 | sed 's/.*: *//' || true)"
+          fi
+          if [[ -z "$_hl_mode" ]] && curl -sf --max-time 3 "${_hl_url}/v1/models" >/dev/null 2>&1; then
+            _hl_healthy=1
+            _hl_mode="$(curl -sf --max-time 3 "${_hl_url}/v1/models" 2>/dev/null | grep -o '"n_ctx" *: *[0-9]*' | head -1 | sed 's/.*: *//' || true)"
           fi
         fi
         # Auto-start HelixLLM if not running and Helix Code is installed.

@@ -1214,7 +1214,7 @@ it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT 
 # the [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] guard — so an empty/unknown
 # limit never exports a bogus window.
 # shellcheck disable=SC2016
-grep -B25 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -qF 'if [ -n "$_cma_octx" ]; then'
+grep -B45 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -qF 'if [ -n "$_cma_octx" ]; then'
 assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is inside the known-context guard"
 
 it "migration regenerates an outdated cma_run_provider that lacks the auto-compact cap guard"
@@ -2764,6 +2764,39 @@ it "unknown limits export no guard at all (honest, not invented)"
 read -r _w _o <<<"$(_guard "" "")"
 assert_eq "" "$_w" "no context => no auto-compact window"
 assert_eq "" "$_o" "no context => no output cap"
+
+it "autocompact safety margin lowers the window when the provider can afford it (thrashing guard)"
+# The raw window (context - output - tool_budget) consumes the entire model
+# window, leaving zero headroom for the compacted summary. A 24k safety margin
+# is reserved so compaction fires earlier and a large file/tool output is less
+# likely to refill the context to the limit immediately after a compact.
+read -r _w _o <<<"$(_guard 1000000 128000)"
+assert_eq "176000" "$_w" "1M ctx: 200000 raw window reduced by 24000 safety margin"
+_sum=$(( _w + 80000 + _o )); _ok=0; [ "$_sum" -le 1000000 ] && _ok=1
+assert_eq 1 "$_ok" "margin-adjusted window(176000)+tools(80000)+output($_o)=$_sum <= 1000000"
+
+it "safety margin is capped at min-compact-window floor"
+# helixagent shape: raw window 141184, min_win 120000 -> max margin 21184.
+# The default 24000 margin is capped so the window never drops below min_win.
+read -r _w _o <<<"$(_guard 229376 8192)"
+assert_eq "120000" "$_w" "helixagent shape: margin capped at min_win floor"
+
+it "tight providers keep their window unchanged (no margin to give)"
+# opencode shape: raw window 71808 is already below min_win, so no margin.
+read -r _w _o <<<"$(_guard 160000 8192)"
+assert_eq "71808" "$_w" "opencode shape: below-min_win window unchanged by margin"
+
+it "CMA_AUTO_COMPACT_SAFETY_MARGIN=0 disables the margin"
+CMA_AUTO_COMPACT_SAFETY_MARGIN=0
+read -r _w _o <<<"$(_guard 1000000 128000)"
+unset CMA_AUTO_COMPACT_SAFETY_MARGIN
+assert_eq "200000" "$_w" "margin disabled -> raw capped window restored"
+
+it "invalid safety margin values are treated as 0"
+CMA_AUTO_COMPACT_SAFETY_MARGIN=abc
+read -r _w _o <<<"$(_guard 1000000 128000)"
+unset CMA_AUTO_COMPACT_SAFETY_MARGIN
+assert_eq "200000" "$_w" "non-numeric margin treated as 0"
 
 
 summary
