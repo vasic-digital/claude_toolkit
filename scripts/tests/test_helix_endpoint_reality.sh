@@ -370,6 +370,78 @@ assert_file_not_contains "$HOME/unable.err" "CONNECTION REFUSED" \
 
 fi  # HAVE_PY
 
+# --- 3b-bis. a 200 from the WRONG SERVICE must not pass silently ------------
+# The dead-port defect has a nastier successor. A raw llama.cpp server is now
+# live on :18434 — the port helixagent used to be pinned at — and it ACCEPTS
+# `model: "HelixAgent/HelixLLM"`, returns 200 WITH the VERIFY_OK sentinel, and
+# echoes `"model": "qwen2.5-coder-3b-instruct-q4_k_m"`. Measured 2026-09-03.
+# Every existing check passes, so the alias would earn `verified` for a model
+# the endpoint does not serve. A dead port fails loudly; a wrong service
+# answers plausibly, and nothing looks broken. This section pins the detector.
+if (( HAVE_PY )); then
+_mk_echo_srv() {  # $1=port  $2=model-name-to-echo-back
+  cat > "$HOME/echo_$1.py" <<PYSRV
+import http.server, json, sys
+PORT, ECHO = int(sys.argv[1]), sys.argv[2]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = int(self.headers.get('Content-Length') or 0)
+        body = self.rfile.read(n).decode('utf-8','replace')
+        if '"tools"' in body:
+            msg = {"tool_calls":[{"id":"c1","type":"function",
+                   "function":{"name":"get_weather","arguments":"{}"}}]}
+        else:
+            msg = {"content":"VERIFY_OK"}
+        out = json.dumps({"model":ECHO,"choices":[{"message":msg}]}).encode()
+        self.send_response(200); self.send_header('Content-Type','application/json')
+        self.send_header('Content-Length',str(len(out))); self.end_headers()
+        self.wfile.write(out)
+    def log_message(self,*a): pass
+http.server.HTTPServer(('127.0.0.1',PORT),H).serve_forever()
+PYSRV
+  python3 "$HOME/echo_$1.py" "$1" "$2" >/dev/null 2>&1 &
+  echo $!
+}
+
+it "a 200 whose echoed model is a DIFFERENT service is flagged WRONG-SERVICE"
+_WRONG_PORT="$(free_port)"
+_WRONG_PID="$(_mk_echo_srv "$_WRONG_PORT" "qwen2.5-coder-3b-instruct-q4_k_m")"
+trap 'kill "${TLS_PID:-}" "${UNABLE_PID:-}" "${_WRONG_PID:-}" "${_RIGHT_PID:-}" 2>/dev/null; cleanup_sandbox' EXIT
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  curl -s --max-time 1 -o /dev/null -X POST -d '{}' "http://127.0.0.1:$_WRONG_PORT/" 2>/dev/null && break; sleep 0.2
+done
+out="$(env -u CMA_PROVIDER_CA_CERT CMA_VERIFIER_BIN=/nonexistent bash "$PROVIDERS_VERIFY" \
+        --provider helix-under-test --model 'HelixAgent/HelixLLM' \
+        --key-var CMA_HELIX_TEST_UNSET_KEY \
+        --base-url "http://127.0.0.1:$_WRONG_PORT/v1" 2>"$HOME/misserve.err")"
+assert_file_contains "$HOME/misserve.err" "WRONG-SERVICE WARNING" \
+  "the mis-serve is named even though the probe itself returns 200 + sentinel"
+assert_file_contains "$HOME/misserve.err" "qwen2.5-coder-3b-instruct-q4_k_m" \
+  "the warning quotes what the endpoint actually answered as"
+# The verdict is deliberately NOT changed: legitimate providers echo
+# version-qualified names, and failing those would be a fleet-wide false
+# positive. The warning is the deliverable; the verdict stays earned on its
+# own merits.
+assert_eq "verified" "$out" "verdict is unchanged (warning-only, by design)"
+
+it "an echoed model that merely version-qualifies the request is NOT flagged"
+# ask gpt-4o, get gpt-4o-2024-08-06 — the common, legitimate case. A detector
+# that cried wolf here would be turned off within a day.
+_RIGHT_PORT="$(free_port)"
+_RIGHT_PID="$(_mk_echo_srv "$_RIGHT_PORT" "acme-big-2026-08-06")"
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  curl -s --max-time 1 -o /dev/null -X POST -d '{}' "http://127.0.0.1:$_RIGHT_PORT/" 2>/dev/null && break; sleep 0.2
+done
+out="$(env -u CMA_PROVIDER_CA_CERT CMA_VERIFIER_BIN=/nonexistent bash "$PROVIDERS_VERIFY" \
+        --provider helix-under-test --model 'acme-big' \
+        --key-var CMA_HELIX_TEST_UNSET_KEY \
+        --base-url "http://127.0.0.1:$_RIGHT_PORT/v1" 2>"$HOME/okserve.err")"
+assert_eq "verified" "$out" "verdict verified"
+assert_file_not_contains "$HOME/okserve.err" "WRONG-SERVICE" \
+  "a version-qualified echo is not a mis-serve"
+kill "$_WRONG_PID" "$_RIGHT_PID" 2>/dev/null
+fi
+
 # --- 3c-bis. the reason must reach the OPERATOR, not just the probe ---------
 # A better diagnostic that the product throws away is not an improvement.
 # `cmd_verify` used to run the verifier with `2>/dev/null`, so

@@ -386,6 +386,35 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
         if jq -e '.error' "$resp" >/dev/null 2>&1; then
           emit failed "chat probe returned HTTP 200 with an error body at $url"; exit 1
         fi
+        # MIS-SERVE DETECTION — a 200 from the WRONG SERVICE.
+        #
+        # Forensic case (measured 2026-09-03): the raw llama.cpp server on
+        # :18434 — the port helixagent used to be pinned at — accepts
+        # `model: "HelixAgent/HelixLLM"`, returns HTTP 200 WITH the VERIFY_OK
+        # sentinel, and echoes `"model": "qwen2.5-coder-3b-instruct-q4_k_m"`.
+        # llama.cpp ignores the requested name and serves whatever is loaded.
+        # Every check above passes, so the alias earns `verified` for a model
+        # the endpoint does not serve. That is strictly WORSE than the dead
+        # port it replaced: a dead port fails loudly, a wrong service answers
+        # plausibly and nothing looks broken. It is the same defect class as
+        # Gate 0's ccr-gateway self-reference, one layer down.
+        #
+        # The response's own `model` field is the cheapest evidence there is —
+        # already in $resp, no extra request. It is reported as a WARNING and
+        # does NOT change the verdict: legitimate providers routinely echo a
+        # version-qualified name (ask `gpt-4o`, get `gpt-4o-2024-08-06`), and
+        # failing those would be a fleet-wide false positive. So the check
+        # only fires when NEITHER name contains the other — which tolerates
+        # every suffix/prefix echo while still catching
+        # "HelixAgent/HelixLLM" answered by "qwen2.5-coder-3b-…".
+        _served="$(jq -r '.model? // empty' "$resp" 2>/dev/null | tr -cd '[:print:]' | cut -c1-120)"
+        if [[ -n "$_served" && -n "$MODEL" ]]; then
+          _req_l="$(printf '%s' "$MODEL"   | tr '[:upper:]' '[:lower:]')"
+          _srv_l="$(printf '%s' "$_served" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$_srv_l" != *"$_req_l"* && "$_req_l" != *"$_srv_l"* ]]; then
+            echo "providers-verify[$PROVIDER]: WRONG-SERVICE WARNING: asked $url for model '$MODEL' and it answered as '$_served'. The endpoint is serving a DIFFERENT model than the one requested, which is what a raw backend does when it ignores the model name and serves whatever it has loaded. Verify this base_url points at the service that actually serves '$MODEL' — a plausible 200 from the wrong backend is harder to notice than an error from the right one." >&2
+          fi
+        fi
         content="$(extract_content)"
         case "$content" in
           *VERIFY_OK*) break ;;  # sentinel confirmed -> probe 2
