@@ -61,6 +61,10 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
 REFRESH_ALIASES=0 QUIET=0 PRUNE_UNRESOLVED=0
+# helixllm-export: --apply writes the configuration; --host adds an endpoint.
+# Declared here (not lazily) so `${#HELIXLLM_HOST_ARGS[@]}` is safe under set -u.
+APPLY=0
+HELIXLLM_HOST_ARGS=()
 INCLUDE_PAID="$CMA_SYNC_INCLUDE_PAID"
 MAX_ALIASES=5 MIN_SCORE=25 VERIFY_CONCURRENCY=5
 
@@ -101,6 +105,15 @@ Subcommands:
                                         NOT removed unless --unresolved is
                                         also passed.
   add --from-key VAR [--id PROVIDER]   register a key->provider mapping then sync
+  helixllm-export [--host URL]... [--apply]
+                       obtain the HelixLLM provider configuration ON DEMAND:
+                       enumerate every configured host's live /v1/models and
+                       report ONE option per model per host, writing the
+                       catalogue to providers/helixllm-models.json. Hosts that
+                       do not answer contribute nothing. Re-running UPDATES the
+                       catalogue rather than duplicating it. Nothing else is
+                       touched unless you pass --apply, which then makes your
+                       configuration match the catalogue.
 
 Options:
   --keys-file PATH     keys file to read var names from (default: \$CMA_KEYS_FILE or ~/api_keys.sh)
@@ -111,6 +124,16 @@ Options:
                        *.env but no longer resolves) — without this flag,
                        prune only ever auto-removes status-only orphans
   --multi              with sync: run ONLY the per-model multi-alias phase
+  --host URL           with helixllm-export: a serving endpoint to enumerate
+                       (repeatable). Default: \$CMA_HELIXLLM_HOSTS, else the
+                       hosts/base_url pinned in providers/helixllm-gateway.json
+  --apply              with helixllm-export: make your configuration MATCH the
+                       catalogue — write the provider env + alias records, and
+                       retire the ones whose host answered but no longer serves
+                       them (config dir backed up, never deleted; a record
+                       whose host was unreachable is kept, not removed).
+                       Without it, nothing else is modified. Combine with
+                       --dry-run to preview both halves.
   --include-paid       ALSO fire verification completions at paid/unknown-tier
                        models (spends real money; default is free-tier only —
                        operator decision D14). Env: CMA_SYNC_INCLUDE_PAID=1
@@ -468,6 +491,298 @@ detect_helixllm_records() {
        base_url:$nat_base, transport:$nat_transport, strong_model:$nat_strong,
        fast_model:$nat_fast, context_limit:$nat_ctx, max_output:$nat_out,
        status:"resolved", reason:$nat_reason}]'
+}
+
+# --- HelixLLM per-model-per-host fan-out ------------------------------------
+# detect_helixllm_records (above) registers the two FACADE aliases — one CCR
+# routed, one Anthropic-native — and continues to do so unchanged. What it does
+# NOT do is tell the operator which models are actually being served: both
+# facade records carry a single pinned model name for the whole instance.
+#
+# The functions below EXTEND that with one record PER MODEL PER HOST, driven by
+# each host's live OpenAI-compatible /v1/models listing (single source of truth,
+# CONST-036 — no hardcoded model list).
+#
+# Two published fields make this possible, and the difference between them is
+# load-bearing:
+#
+#   id              a derived, charset-safe identifier. This is the ONLY value
+#                   used as a provider id / alias name / model name, because it
+#                   is the only one that satisfies the toolkit's validators.
+#   model_identity  the human-readable `helixllm/<host>/<model>[:<variant>]`.
+#                   It contains `/` and `:`, which BOTH validators reject on
+#                   purpose (the provider-id charset guard in lib.sh is a
+#                   shell-injection control: the id is interpolated into the
+#                   alias body and re-parsed when the alias is invoked). So the
+#                   identity travels as a VALUE — a catalogue field and the
+#                   record's `reason` — and NEVER becomes an identifier.
+#                   Neither validator is widened to admit it (FR-014a).
+#
+# model_identity is also the availability signal: HelixLLM omits it for remote
+# vendor models it merely proxies, so an entry without one is NOT a locally
+# served model and is skipped. Exporting a vendor passthrough as a local
+# provider would point an alias at a model this host does not serve.
+#
+# A host that does not answer, answers non-2xx, or answers something that is not
+# a model listing contributes NOTHING — it is never written as available.
+
+# _cma_helixllm_hosts — the base URLs to enumerate, one per line.
+# Precedence: explicit --host args > $CMA_HELIXLLM_HOSTS (whitespace/comma
+# separated) > the pins-file `hosts` array > the pins-file base_url > default.
+# Nothing host-specific is baked in (CONST-045).
+_cma_helixllm_hosts() {
+  local h
+  if (( ${#HELIXLLM_HOST_ARGS[@]} )); then
+    printf '%s\n' "${HELIXLLM_HOST_ARGS[@]}"; return 0
+  fi
+  if [[ -n "${CMA_HELIXLLM_HOSTS:-}" ]]; then
+    printf '%s\n' "${CMA_HELIXLLM_HOSTS//,/ }" | tr ' ' '\n' | while read -r h; do
+      [[ -n "$h" ]] && printf '%s\n' "$h"
+    done
+    return 0
+  fi
+  local pins="${CMA_HELIXLLM_PINS_FILE:-$LIB_DIR/providers/helixllm-gateway.json}"
+  if [[ -f "$pins" ]] && command -v jq >/dev/null 2>&1; then
+    local from_file
+    from_file="$(jq -r '(.hosts // []) | .[]?' "$pins" 2>/dev/null)"
+    if [[ -n "$from_file" ]]; then printf '%s\n' "$from_file"; return 0; fi
+    from_file="$(jq -r '.base_url // empty' "$pins" 2>/dev/null)"
+    if [[ -n "$from_file" ]]; then printf '%s\n' "$from_file"; return 0; fi
+  fi
+  printf '%s\n' "http://127.0.0.1:18435/v1"
+}
+
+# _cma_helixllm_gateway_key KEYVAR — the gateway API key for $KEYVAR, or empty.
+#
+# WHY THIS IS THE GATEWAY KEY AND NOT THE DISCOVERY SECRET.
+#
+# An earlier revision sent $HELIXLLM_DISCOVERY_SECRET here as an
+# `Authorization: Bearer` header. That was wrong on both counts, and the
+# server's own code says so:
+#
+#   * `/v1/models` sits behind ONE authenticating middleware, APIKeyAuth, and
+#     it compares the Bearer token against exactly one value set — the
+#     comma-separated $HELIX_AUTH_API_KEYS list. Nothing else is accepted. So
+#     with API-key auth switched on, a discovery secret presented as a Bearer
+#     token is simply "invalid API key" -> 401 -> every host contributes
+#     nothing and the export is honest-but-dead.
+#
+#   * The discovery secret is not an HTTP credential at all. No HTTP
+#     middleware reads it. It is used by the discovery CLIENT to sign OUTBOUND
+#     attestation requests to a different path entirely, via its own
+#     nonce/proof header pair — never as a Bearer token. Sending it to
+#     /v1/models therefore disclosed a fleet-wide trust credential to every URL
+#     in $CMA_HELIXLLM_HOSTS / --host, none of which could ever use it. Since
+#     the server's DEFAULT is open access ($HELIX_AUTH_API_KEYS empty), that
+#     disclosure happened on the happy path, silently, while the export
+#     appeared to work.
+#
+# So: send the credential this endpoint actually accepts, and stop sending the
+# one it cannot. The gateway key is the SAME key the provider records written
+# by --apply use at launch to talk to this very base_url, so no new trust
+# relationship is created by asking for the model list with it.
+#
+# Lookup order: the process environment, then the toolkit's keys file (the
+# canonical non-secret-in-repo store every other provider's key comes from).
+# The value is returned on stdout for one purpose only: to be piped into
+# `curl --config -` as an Authorization header. It is NEVER placed on argv
+# (where it would appear in /proc/<pid>/cmdline and `ps aux`), NEVER logged, and
+# NEVER written to any generated file (§11.4.10).
+_cma_helixllm_gateway_key() {
+  local var="${1:-}" v=""
+  # Indirect expansion below reads ${!var}; keep the name to a shell-variable
+  # shape so a hostile pins file cannot point it at something surprising.
+  [[ "$var" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 0
+  v="${!var:-}"
+  if [[ -z "$v" && -n "${CMA_KEYS_FILE:-}" && -f "${CMA_KEYS_FILE:-}" ]]; then
+    # Same keys-file read every other provider in this file uses: sourced in a
+    # subshell so nothing leaks into this process's environment.
+    # shellcheck disable=SC1090  # $CMA_KEYS_FILE is the user's runtime keys file
+    v="$( ( set +e; set -a +u; . "$CMA_KEYS_FILE" >/dev/null 2>&1; set +a
+            printf '%s' "${!var:-}" ) )" || true
+  fi
+  printf '%s' "$v"
+}
+
+# _cma_helixllm_id_safe — true when an id satisfies BOTH toolkit validators.
+#
+# These are the two rules from lib.sh, applied here LITERALLY so an id that
+# fails either one is DROPPED rather than written. Copying the rules is the
+# point: the alternative — relaxing a validator so a richer name fits — would
+# trade a naming convenience for a shell-injection hole (FR-014a).
+#
+#   cma_validate_alias        ^[a-zA-Z][a-zA-Z0-9_-]*$
+#   provider-id charset       [A-Za-z0-9._-] only, non-empty
+_cma_helixllm_id_safe() {
+  local id="$1"
+  [[ "$id" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] || return 1
+  case "$id" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
+  return 0
+}
+
+# _cma_helixllm_fetch_models BASE [KEYVAR] — the raw /v1/models body, or nothing.
+# Exit 1 (and print nothing) unless the host answered 2xx with a model listing:
+# an unreachable or unhealthy instance must never be written as available.
+#
+# KEYVAR names the environment variable holding the gateway API key (the
+# pins-file `key_var`, default HELIXLLM_GATEWAY_KEY). When no key is configured
+# NO Authorization header is sent at all — which is the correct request for a
+# HelixLLM running in its default open-access mode, and means this function
+# never transmits a credential the endpoint has no use for. See
+# _cma_helixllm_gateway_key for why this is the gateway key and not the
+# discovery secret.
+_cma_helixllm_fetch_models() {
+  local base="${1%/}" keyvar="${2:-}" body="" t="${CMA_HELIXLLM_HTTP_TIMEOUT:-8}" key
+  command -v curl >/dev/null 2>&1 || return 1
+  command -v jq   >/dev/null 2>&1 || return 1
+  key="$(_cma_helixllm_gateway_key "$keyvar")"
+  if [[ -n "$key" ]]; then
+    # Header supplied over STDIN, never argv (§11.4.10).
+    body="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
+            | curl -sf --max-time "$t" --config - "$base/models" 2>/dev/null)" || return 1
+  else
+    body="$(curl -sf --max-time "$t" "$base/models" 2>/dev/null)" || return 1
+  fi
+  printf '%s' "$body" | jq -e '.data | type == "array"' >/dev/null 2>&1 || return 1
+  printf '%s' "$body"
+}
+
+# detect_helixllm_model_records — ONE `resolved`-shaped record PER MODEL PER
+# HOST, in the exact schema providers_resolve.py produces (plus the identity
+# and serving host as extra VALUE fields).
+#
+# Emits an ENVELOPE, not a bare array:
+#
+#   {"hosts_answered": [<base_url>, ...], "records": [<record>, ...]}
+#
+# `hosts_answered` is load-bearing and cannot be reconstructed from `records`:
+# a host that answered and now serves NOTHING is indistinguishable, by records
+# alone, from a host that was unreachable. `--apply` needs to tell those two
+# apart before it removes anything — the first means "these models are gone",
+# the second means "we have no idea, keep what you have". Emits an envelope
+# with both lists empty when nothing is reachable.
+detect_helixllm_model_records() {
+  command -v jq >/dev/null 2>&1 || { printf '{"hosts_answered":[],"records":[]}\n'; return 0; }
+
+  # Non-model fields come from the gateway pins (transport/key_var/limits),
+  # with process-env overrides. base_url is per HOST, not from the pins.
+  local pins="${CMA_HELIXLLM_PINS_FILE:-$LIB_DIR/providers/helixllm-gateway.json}"
+  local transport="" keyvar="" ctx="" out=""
+  if [[ -f "$pins" ]]; then
+    transport="$(jq -r '.transport // empty'     "$pins" 2>/dev/null)"
+    keyvar="$(  jq -r '.key_var // empty'        "$pins" 2>/dev/null)"
+    ctx="$(     jq -r '.context_limit // empty'  "$pins" 2>/dev/null)"
+    out="$(     jq -r '.max_output // empty'     "$pins" 2>/dev/null)"
+  fi
+  transport="${CMA_HELIXLLM_MODEL_TRANSPORT:-${transport:-router}}"
+  keyvar="${CMA_HELIXLLM_MODEL_KEYVAR:-${keyvar:-HELIXLLM_GATEWAY_KEY}}"
+  ctx="${ctx:-229376}"; out="${out:-8192}"
+
+  # HOW THE MODEL LISTING IS READ, AND WHY NOT @tsv.
+  #
+  # `@tsv` is an ESCAPING format: it rewrites a literal backslash in a value as
+  # two characters, and a tab/newline/CR as the two-character sequences \t \n
+  # \r. `read -r` then faithfully preserves whatever it was handed, so the
+  # escaping is applied and never undone — a model identity of
+  # `helixllm/h/org\llama3:8b` was being recorded as `helixllm/h/org\\llama3:8b`
+  # in the catalogue and in the record's `reason`, and the server's own identity
+  # parser treats `\` as its escape character, so the mangled string no longer
+  # round-trips. (Forward slashes and colons are NOT escaped by @tsv, so the
+  # ordinary `org/model` and `hf.co/...` shapes were never affected — this bit
+  # only backslash-bearing and control-bearing names.)
+  #
+  # `jq -r` emits each string RAW, with no escaping whatsoever, so reading one
+  # field per line round-trips a backslash exactly. The one hazard that buys is
+  # a value containing a newline, which would desync the id/identity pairing —
+  # so entries carrying ANY control character are rejected inside jq (via
+  # `explode`) and reported, rather than silently mangled into a wrong name.
+  # That matches the posture already taken for hostile ids just below: refuse
+  # what we cannot represent faithfully; never quietly rewrite it.
+  local recs="[]" answered="[]" base body host_label id identity one rejected
+  while read -r base; do
+    [[ -n "$base" ]] || continue
+    body="$(_cma_helixllm_fetch_models "$base" "$keyvar")" || {
+      cma_warn "helixllm: host $base did not answer with a model listing — no models exported from it"
+      continue
+    }
+    answered="$(jq -c --arg b "${base%/}" '. + [$b] | unique' <<<"$answered")"
+    # Host label for FR-023 ("label every model with the host serving it").
+    host_label="${base#*://}"; host_label="${host_label%%/*}"
+    rejected="$(jq -r '.data[] | select((.model_identity // "") != "")
+                       | select((((.id // "") + .model_identity) | explode
+                                 | map(select(. < 32)) | length) > 0)
+                       | .id' <<<"$body" 2>/dev/null | wc -l | tr -d ' ')"
+    if [[ "${rejected:-0}" != "0" ]]; then
+      cma_warn "helixllm: dropped $rejected model listing(s) from $host_label whose id or identity contains a control character — such a name cannot be recorded faithfully, so it is refused rather than rewritten"
+    fi
+    while IFS= read -r id && IFS= read -r identity; do
+      [[ -n "$id" && -n "$identity" ]] || continue
+      if ! _cma_helixllm_id_safe "$id"; then
+        cma_warn "helixllm: refusing a model id from $host_label — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)"
+        continue
+      fi
+      one="$(jq -cn \
+        --arg id "$id" --arg identity "$identity" --arg base "${base%/}" \
+        --arg host "$host_label" --arg keyvar "$keyvar" --arg transport "$transport" \
+        --argjson ctx "${ctx:-null}" --argjson out "${out:-null}" \
+        '{key_var:$keyvar, classification:"llm", provider_id:$id, alias:$id,
+          base_url:$base, transport:$transport, strong_model:$id, fast_model:$id,
+          context_limit:$ctx, max_output:$out, status:"resolved",
+          model_identity:$identity, serving_host:$host,
+          reason:("HelixLLM model " + $identity + " served by " + $host)}')"
+      recs="$(jq -c --argjson r "$one" '. + [$r]' <<<"$recs")"
+    done < <(jq -r '.data[] | select((.model_identity // "") != "")
+                    | select((((.id // "") + .model_identity) | explode
+                              | map(select(. < 32)) | length) == 0)
+                    | (.id, .model_identity)' <<<"$body" 2>/dev/null)
+  done < <(_cma_helixllm_hosts)
+
+  # Dedupe by id: the same model reachable through two configured URLs for one
+  # host is one option, not two.
+  jq -c -n --argjson recs "$recs" --argjson answered "$answered" \
+    '{hosts_answered: $answered,
+      records: ($recs | group_by(.provider_id) | map(.[0]))}'
+}
+
+# _cma_helixllm_catalogue — where the exported per-model configuration lives.
+_cma_helixllm_catalogue() { printf '%s/helixllm-models.json\n' "$(cma_providers_dir)"; }
+
+# _cma_helixllm_catalogue_merge RECORDS_JSON — idempotent write (T048).
+#
+# The stable key is the published `id`: derived from the model's full canonical
+# identity (which already includes the serving host), so it is unique per model
+# per host AND stable across runs. Re-running therefore UPDATES the entry that
+# already carries that id — first_seen is preserved, last_seen is bumped — and
+# never appends a second copy of it.
+#
+# Entries whose host was not successfully queried this run are NOT carried
+# forward: a model the serving layer is no longer offering must not keep being
+# presented as available.
+_cma_helixllm_catalogue_merge() {
+  local records="$1" cat_file; cat_file="$(_cma_helixllm_catalogue)"
+  local dir; dir="$(dirname "$cat_file")"; mkdir -p "$dir"
+  local old='{"entries":[]}'
+  [[ -f "$cat_file" ]] && old="$(jq -c '.' "$cat_file" 2>/dev/null || printf '{"entries":[]}')"
+  local now; now="$(date -u +%FT%TZ)"
+  local merged
+  merged="$(jq --argjson new "$records" --arg now "$now" '
+      ((.entries // []) | map({key: .id, value: .}) | from_entries) as $prev
+      | { schema: 1, updated_at: $now,
+          entries: ( $new
+            | map({ id:             .provider_id,
+                    model_identity: .model_identity,
+                    host:           .serving_host,
+                    base_url:       .base_url,
+                    transport:      .transport,
+                    key_var:        .key_var,
+                    context_limit:  .context_limit,
+                    max_output:     .max_output,
+                    first_seen:     (($prev[.provider_id].first_seen) // $now),
+                    last_seen:      $now })
+            | sort_by(.id) ) }' <<<"$old")" || return 1
+  # Atomic replace so a concurrent reader never sees a half-written catalogue.
+  local tmp="$cat_file.tmp.$$"
+  printf '%s\n' "$merged" > "$tmp" && mv -f "$tmp" "$cat_file"
 }
 
 # --- local Kimi Code OAuth PATH-detection -----------------------------------
@@ -1399,6 +1714,193 @@ cmd_sync() {
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
 
+# --- subcommand: helixllm-export ---------------------------------------------
+# claude-providers helixllm-export [--host URL]... [--apply]
+#
+# On-demand retrieval of the HelixLLM provider configuration (FR-018). The
+# operator asks for it and gets it; nothing waits for — or is surprised by — an
+# automatic sync.
+#
+# WHY THIS IS NOT WIRED INTO THE DEFAULT `sync`. FR-018 also says the system
+# MUST NOT silently modify another tool's configuration files. Fanning every
+# served model out into alias + env records on every sync (the session hook runs
+# one per interactive shell) is exactly that. So the default run is READ-ONLY
+# apart from the catalogue it is asked to produce, it PRINTS what it found and
+# how to apply it, and `--apply` — an explicit act by the operator — is what
+# writes the provider records. `sync` keeps its existing behaviour untouched.
+cmd_helixllm_export() {
+  local envelope records answered
+  envelope="$(detect_helixllm_model_records)" || true
+  if ! printf '%s' "$envelope" | jq -e 'type=="object" and (.records|type=="array")' \
+       >/dev/null 2>&1; then
+    cma_die "detect_helixllm_model_records produced no/invalid JSON output"
+  fi
+  records="$(jq -c '.records'       <<<"$envelope")"
+  answered="$(jq -c '.hosts_answered // []' <<<"$envelope")"
+  local n; n="$(jq 'length' <<<"$records")"
+
+  _cma_helixllm_catalogue_merge "$records" \
+    || cma_die "failed to write the HelixLLM model catalogue"
+  local cat_file; cat_file="$(_cma_helixllm_catalogue)"
+
+  if (( n == 0 )); then
+    cma_warn "no HelixLLM-served models found on any configured host — nothing to export"
+    cma_log "catalogue: $cat_file"
+    # NOT an early return when --apply is set: a host that answered and now
+    # serves nothing is a host whose models are genuinely gone, and the
+    # convergence sweep below is exactly what retires them. Returning here
+    # would leave every one of them permanently invocable.
+    (( APPLY )) || return 0
+  fi
+
+  if (( n > 0 )); then
+    cma_log "HelixLLM: $n model option(s) across $(jq -r '[.[].serving_host]|unique|length' <<<"$records") host(s)"
+    if ! (( QUIET )); then
+      jq -r '.[] | "\(.provider_id)\t\(.model_identity)\t\(.base_url)"' <<<"$records" \
+        | while IFS=$'\t' read -r _id _identity _base; do
+            printf '  %-44s %-40s %s\n' "$_id" "$_identity" "$_base"
+          done
+    fi
+  fi
+  cma_log "catalogue: $cat_file"
+
+  if (( ! APPLY )); then
+    cma_log "nothing else was modified. To create the aliases yourself, run:"
+    cma_log "  claude-providers helixllm-export --apply"
+    return 0
+  fi
+
+  # --apply: write the same env + alias records every other provider gets, via
+  # the SAME writers (so the identifier passes the very validators that would
+  # reject the human-readable identity). Re-applying overwrites in place — the
+  # provider id is the file name, so this is idempotent by construction.
+  (( DRY_RUN )) || cma_ensure_alias_file
+  local pid keyvar transport base model fast ctx_limit max_out n_written=0
+  while IFS=$'\t' read -r pid keyvar transport base model fast ctx_limit max_out; do
+    [[ -n "$pid" ]] || continue
+    if (( DRY_RUN )); then
+      printf '  would create: alias %-40s -> %s [%s]\n' "$pid" "$model" "$transport"
+      continue
+    fi
+    local cdir="$HOME/${CMA_PROVIDER_DIR_PREFIX}${pid}"
+    cma_link_shared_items "$cdir"
+    cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" \
+                           "$cdir" "$ctx_limit" "$max_out" "$pid"
+    # PROVENANCE MARKER. This one line is what makes the retirement sweep below
+    # safe: it is written ONLY here, so it is a positive, per-file claim that
+    # `helixllm-export --apply` created this record. Nothing else the sweep
+    # could reach — a hand-authored env file, another provider's env file, a
+    # record from `sync` — carries it, so nothing else can be removed by it.
+    # cma_provider_write_env rewrites the whole file, so this is appended after
+    # every write rather than once.
+    printf '%s\n' \
+      "# Written by 'claude-providers helixllm-export --apply'. This marker is the" \
+      "# ONLY thing that lets that command retire this record when the serving host" \
+      "# stops offering the model; remove it and the record becomes permanent." \
+      "CMA_PROVIDER_SOURCE='helixllm-export'" >> "$(cma_providers_dir)/$pid.env"
+    cma_provider_write_alias "$pid" "$pid"
+    n_written=$((n_written + 1))
+  done < <(jq -r '.[] | [.provider_id, .key_var, .transport, .base_url,
+                         .strong_model, .fast_model,
+                         (.context_limit|tostring), (.max_output|tostring)] | @tsv' <<<"$records")
+  cma_log "applied $n_written HelixLLM model provider(s)"
+
+  _cma_helixllm_retire_stale "$records" "$answered"
+
+  cma_log "reload your shell or: source $ALIAS_FILE"
+}
+
+# _cma_helixllm_retire_stale RECORDS_JSON ANSWERED_JSON — make --apply CONVERGE.
+#
+# Writing is only half of "apply the current catalogue". Without this, a model
+# the serving host has stopped offering keeps its alias and its *.env forever:
+# the catalogue correctly drops it, but the shell alias stays invocable and
+# points at a model that is no longer there. Applying a current catalogue has
+# to mean the configuration MATCHES it — what is gone stops being offered.
+#
+# Deleting from a user's configuration deserves more care than adding to it, so
+# a record is retired only when ALL THREE of these hold. Each one on its own
+# would be too loose; together they make "provably stale" mean it.
+#
+#   1. IT IS OURS. The env file carries the CMA_PROVIDER_SOURCE marker that
+#      only the --apply path above writes. A hand-authored provider, or one
+#      belonging to any other provider family, is invisible to this sweep — not
+#      because its name looks different, but because it never made the claim.
+#      (Records written before this marker existed are also skipped. That is
+#      deliberate: fail closed. A leftover alias is a nuisance; deleting
+#      something we cannot prove we created is not.)
+#
+#   2. ITS HOST ACTUALLY ANSWERED THIS RUN. This is the one that matters most.
+#      An unreachable host — laptop asleep, VPN down, service restarting —
+#      produces exactly the same empty record set as a host that genuinely
+#      stopped serving everything. Treating those alike would wipe a user's
+#      entire working HelixLLM configuration because a machine was briefly off,
+#      which is far worse than the stale alias this function exists to remove.
+#      So silence is never evidence: only hosts that returned a model listing
+#      can have anything of theirs retired, and hosts that stayed silent are
+#      reported, not acted on.
+#
+#   3. THE HOST NO LONGER LISTS IT. The host answered, and this model was not
+#      in what it served. That — and only that — is the serving layer telling
+#      us the model is gone.
+#
+# Removal goes through cmd_remove, the same path `prune` uses, so the config
+# dir is MOVED aside rather than deleted and any session/plugin state in it
+# survives. --dry-run reports without touching anything.
+_cma_helixllm_retire_stale() {
+  local records="$1" answered="$2"
+  local pdir; pdir="$(cma_providers_dir)"
+  [[ -d "$pdir" ]] || return 0
+  compgen -G "$pdir/*.env" >/dev/null 2>&1 || return 0
+
+  local f pid src base n_retired=0 n_kept_unreachable=0
+  for f in "$pdir"/*.env; do
+    [[ -f "$f" ]] || continue
+    # Read the three fields in a subshell so nothing from the env file leaks
+    # into this process (the same isolation cma_provider_write_env uses).
+    # shellcheck disable=SC1090
+    pid="$( ( unset CMA_PROVIDER_ID; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_ID:-}" ) )"
+    src="$( ( unset CMA_PROVIDER_SOURCE; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_SOURCE:-}" ) )"
+    base="$( ( unset CMA_PROVIDER_BASE_URL; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_BASE_URL:-}" ) )"
+
+    # Gate 1: ours, and only ours.
+    [[ "$src" == "helixllm-export" ]] || continue
+    [[ -n "$pid" ]] || continue
+
+    # Gate 2: its host answered this run — silence is never evidence of removal.
+    if ! jq -e --arg b "${base%/}" 'index($b) != null' <<<"$answered" >/dev/null 2>&1; then
+      n_kept_unreachable=$((n_kept_unreachable + 1))
+      cma_warn "helixllm: keeping '$pid' — its host ($base) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable"
+      continue
+    fi
+
+    # Gate 3: the host answered and did not list it.
+    if jq -e --arg p "$pid" 'any(.[]; .provider_id == $p)' <<<"$records" >/dev/null 2>&1; then
+      continue
+    fi
+
+    if (( DRY_RUN )); then
+      printf '  would retire: %-44s [its host answered and no longer serves this model]\n' "$pid"
+      n_retired=$((n_retired + 1))
+      continue
+    fi
+    cma_log "retiring '$pid': $base answered and no longer serves this model"
+    cmd_remove "$pid"
+    n_retired=$((n_retired + 1))
+  done
+
+  if (( n_retired > 0 )); then
+    if (( DRY_RUN )); then
+      cma_log "helixllm: $n_retired provider(s) would be retired; nothing changed"
+    else
+      cma_log "helixllm: retired $n_retired provider(s) no longer served (config dirs backed up, not deleted)"
+    fi
+  fi
+  (( n_kept_unreachable > 0 )) && \
+    cma_log "helixllm: $n_kept_unreachable provider(s) left in place because their host was unreachable — re-run once it is back to converge them"
+  return 0
+}
+
 # --- subcommand: verify ------------------------------------------------------
 # claude-providers verify <id> [--deep]
 # Re-run verification for ONE already-installed provider and persist status.
@@ -1807,7 +2309,7 @@ cmd_sync_multi() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|list|list-all|list-faulty|show|verify|remove|prune|add) SUBCMD="$1"; shift ;;
+  sync|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -1822,6 +2324,8 @@ while (( $# )); do
     --refresh-aliases) REFRESH_ALIASES=1; shift ;;
     --quiet) QUIET=1; shift ;;
     --multi) MULTI=1; shift ;;
+    --apply) APPLY=1; shift ;;
+    --host) HELIXLLM_HOST_ARGS+=("$2"); shift 2 ;;
     --include-paid) INCLUDE_PAID=1; shift ;;
     --max-aliases) MAX_ALIASES="$2"; shift 2 ;;
     --min-score) MIN_SCORE="$2"; shift 2 ;;
@@ -1875,6 +2379,7 @@ case "$SUBCMD" in
                  cmd_sync "${POSITIONAL[0]:-}"
                  if (( CMA_SYNC_MULTI )) && [[ -z "${POSITIONAL[0]:-}" ]]; then cmd_sync_multi; fi
                fi ;;
+  helixllm-export) cmd_helixllm_export ;;
   list)        cmd_list ;;
   list-all)    cmd_list_all ;;
   list-faulty) cmd_list_faulty ;;
