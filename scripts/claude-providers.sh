@@ -665,11 +665,17 @@ _cma_helixllm_fetch_models() {
 #     host looks like. Counting it would put us straight back in the hole.
 #
 #   `availability` is "serving", or absent — the serving layer's own affirmative
-#     report (pkg/api Model.Availability). Absent is accepted because on this
-#     server the LISTING ITSELF is the affirmative act: Brain.Models() drops
-#     every unavailable option before rendering, so anything that reaches the
-#     wire is being served, and older builds predate the field. But an explicit
-#     value other than "serving" is honoured as the stronger per-entry signal
+#     report (pkg/api Model.Availability). Absent is accepted, but the reason
+#     changed and the old one is no longer true. It used to be that the LISTING
+#     ITSELF was the affirmative act: Brain.Models() dropped every unavailable
+#     option before rendering, so anything reaching the wire was being served.
+#     That stopped being so when the server began PUBLISHING withheld options
+#     with `availability: "withheld"` and a reason — which is what lets us tell
+#     a loading backend from a withdrawn model instead of inferring it from
+#     silence. So absence now rests on one narrower argument only: a build old
+#     enough to omit the field is also old enough that nothing unserved reached
+#     its wire. An explicit value other than "serving" is honoured as the
+#     stronger per-entry signal
 #     and excluded — we never overrule the server saying no.
 _CMA_HELIXLLM_SERVING_JQ='select((.model_identity // "") != "")
   | select((.availability // "serving") == "serving")'
