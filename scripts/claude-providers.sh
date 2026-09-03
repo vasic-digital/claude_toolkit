@@ -129,9 +129,13 @@ Options:
                        hosts/base_url pinned in providers/helixllm-gateway.json
   --apply              with helixllm-export: make your configuration MATCH the
                        catalogue — write the provider env + alias records, and
-                       retire the ones whose host answered but no longer serves
-                       them (config dir backed up, never deleted; a record
-                       whose host was unreachable is kept, not removed).
+                       retire the ones their host is demonstrably no longer
+                       serving (config dir backed up, never deleted). A record
+                       is retired ONLY when its host named other models it IS
+                       serving without naming this one; a host that is
+                       unreachable, or that replies while naming nothing it
+                       serves (how one answers while its backend is still
+                       loading), is reported and its records are KEPT.
                        Without it, nothing else is modified. Combine with
                        --dry-run to preview both halves.
   --include-paid       ALSO fire verification completions at paid/unknown-tier
@@ -647,22 +651,62 @@ _cma_helixllm_fetch_models() {
   printf '%s' "$body"
 }
 
+# _CMA_HELIXLLM_SERVING_JQ — the ONE definition of "this listing entry is a
+# model this host is serving to us RIGHT NOW". Used both to build the records
+# and to decide whether the host proved it is serving, so the two can never
+# drift apart and disagree about the same listing.
+#
+# Two conditions, and the reason for each:
+#
+#   `model_identity` is non-empty  — the entry is a LOCALLY-served HelixLLM
+#     model. Remote vendor passthroughs deliberately omit it, and they must not
+#     count here: a remote provider stays reachable while the local backend is
+#     down, so a listing of nothing but vendor models is exactly what a loading
+#     host looks like. Counting it would put us straight back in the hole.
+#
+#   `availability` is "serving", or absent — the serving layer's own affirmative
+#     report (pkg/api Model.Availability). Absent is accepted because on this
+#     server the LISTING ITSELF is the affirmative act: Brain.Models() drops
+#     every unavailable option before rendering, so anything that reaches the
+#     wire is being served, and older builds predate the field. But an explicit
+#     value other than "serving" is honoured as the stronger per-entry signal
+#     and excluded — we never overrule the server saying no.
+_CMA_HELIXLLM_SERVING_JQ='select((.model_identity // "") != "")
+  | select((.availability // "serving") == "serving")'
+
 # detect_helixllm_model_records — ONE `resolved`-shaped record PER MODEL PER
 # HOST, in the exact schema providers_resolve.py produces (plus the identity
 # and serving host as extra VALUE fields).
 #
 # Emits an ENVELOPE, not a bare array:
 #
-#   {"hosts_answered": [<base_url>, ...], "records": [<record>, ...]}
+#   {"hosts_serving":             [<base_url>, ...],
+#    "hosts_answered_not_serving":[<base_url>, ...],
+#    "records":                   [<record>, ...]}
 #
-# `hosts_answered` is load-bearing and cannot be reconstructed from `records`:
-# a host that answered and now serves NOTHING is indistinguishable, by records
-# alone, from a host that was unreachable. `--apply` needs to tell those two
-# apart before it removes anything — the first means "these models are gone",
-# the second means "we have no idea, keep what you have". Emits an envelope
-# with both lists empty when nothing is reachable.
+# The host lists are load-bearing and cannot be reconstructed from `records`:
+# a host serving NOTHING is indistinguishable, by records alone, from a host
+# that was unreachable. `--apply` needs to tell those apart before it removes
+# anything. Emits an envelope with all three lists empty when nothing is
+# reachable.
+#
+# WHY THE SPLIT IS "SERVING" vs "NOT SERVING" AND NOT "ANSWERED" vs "SILENT".
+# An earlier revision recorded every host that returned a `data` array as
+# `hosts_answered`, and let the retirement sweep treat that reply as licence to
+# delete. That is a two-state model of a three-state world, and the third state
+# is the common one: a HelixLLM whose gateway is up while its backend is still
+# loading answers `200 {"data":[], "reason":...}` — /health is 503 during load,
+# so the option is unavailable, so it is dropped from the listing. A reply that
+# names NOTHING the host serves is not the serving layer telling us a model was
+# withdrawn; it is the same "we cannot tell" an unreachable host gives us, and
+# it must be reported and kept, never acted on. (The `reason` string that
+# travels with the empty list does not rescue it: the server sends the same
+# "a model-serving backend is configured but is currently serving no models"
+# whether the backend is mid-load or has genuinely stopped serving everything,
+# so it distinguishes neither.)
 detect_helixllm_model_records() {
-  command -v jq >/dev/null 2>&1 || { printf '{"hosts_answered":[],"records":[]}\n'; return 0; }
+  command -v jq >/dev/null 2>&1 || {
+    printf '{"hosts_serving":[],"hosts_answered_not_serving":[],"records":[]}\n'; return 0; }
 
   # Non-model fields come from the gateway pins (transport/key_var/limits),
   # with process-env overrides. base_url is per HOST, not from the pins.
@@ -698,17 +742,26 @@ detect_helixllm_model_records() {
   # `explode`) and reported, rather than silently mangled into a wrong name.
   # That matches the posture already taken for hostile ids just below: refuse
   # what we cannot represent faithfully; never quietly rewrite it.
-  local recs="[]" answered="[]" base body host_label id identity one rejected
+  local recs="[]" serving="[]" not_serving="[]" base body host_label id identity one rejected
   while read -r base; do
     [[ -n "$base" ]] || continue
     body="$(_cma_helixllm_fetch_models "$base" "$keyvar")" || {
       cma_warn "helixllm: host $base did not answer with a model listing — no models exported from it"
       continue
     }
-    answered="$(jq -c --arg b "${base%/}" '. + [$b] | unique' <<<"$answered")"
+    # Did the host prove it is SERVING, or merely that it is up? Only the first
+    # can license a removal downstream; see _CMA_HELIXLLM_SERVING_JQ.
+    if jq -e '[.data[]? | '"$_CMA_HELIXLLM_SERVING_JQ"'] | length > 0' <<<"$body" >/dev/null 2>&1; then
+      serving="$(jq -c --arg b "${base%/}" '. + [$b] | unique' <<<"$serving")"
+    else
+      not_serving="$(jq -c --arg b "${base%/}" '. + [$b] | unique' <<<"$not_serving")"
+      cma_warn "helixllm: host $base replied, but its listing named no model it is serving$(
+        jq -r 'if (.reason // "") != "" then " (it said: " + .reason + ")" else "" end' <<<"$body" 2>/dev/null
+      ) — that is also what a host whose backend is still loading looks like, so nothing of its is treated as withdrawn"
+    fi
     # Host label for FR-023 ("label every model with the host serving it").
     host_label="${base#*://}"; host_label="${host_label%%/*}"
-    rejected="$(jq -r '.data[] | select((.model_identity // "") != "")
+    rejected="$(jq -r '.data[] | '"$_CMA_HELIXLLM_SERVING_JQ"'
                        | select((((.id // "") + .model_identity) | explode
                                  | map(select(. < 32)) | length) > 0)
                        | .id' <<<"$body" 2>/dev/null | wc -l | tr -d ' ')"
@@ -731,7 +784,7 @@ detect_helixllm_model_records() {
           model_identity:$identity, serving_host:$host,
           reason:("HelixLLM model " + $identity + " served by " + $host)}')"
       recs="$(jq -c --argjson r "$one" '. + [$r]' <<<"$recs")"
-    done < <(jq -r '.data[] | select((.model_identity // "") != "")
+    done < <(jq -r '.data[] | '"$_CMA_HELIXLLM_SERVING_JQ"'
                     | select((((.id // "") + .model_identity) | explode
                               | map(select(. < 32)) | length) == 0)
                     | (.id, .model_identity)' <<<"$body" 2>/dev/null)
@@ -739,8 +792,10 @@ detect_helixllm_model_records() {
 
   # Dedupe by id: the same model reachable through two configured URLs for one
   # host is one option, not two.
-  jq -c -n --argjson recs "$recs" --argjson answered "$answered" \
-    '{hosts_answered: $answered,
+  jq -c -n --argjson recs "$recs" --argjson serving "$serving" \
+    --argjson notserving "$not_serving" \
+    '{hosts_serving: $serving,
+      hosts_answered_not_serving: $notserving,
       records: ($recs | group_by(.provider_id) | map(.[0]))}'
 }
 
@@ -1729,14 +1784,15 @@ cmd_sync() {
 # how to apply it, and `--apply` — an explicit act by the operator — is what
 # writes the provider records. `sync` keeps its existing behaviour untouched.
 cmd_helixllm_export() {
-  local envelope records answered
+  local envelope records serving not_serving
   envelope="$(detect_helixllm_model_records)" || true
   if ! printf '%s' "$envelope" | jq -e 'type=="object" and (.records|type=="array")' \
        >/dev/null 2>&1; then
     cma_die "detect_helixllm_model_records produced no/invalid JSON output"
   fi
-  records="$(jq -c '.records'       <<<"$envelope")"
-  answered="$(jq -c '.hosts_answered // []' <<<"$envelope")"
+  records="$(jq -c '.records'                            <<<"$envelope")"
+  serving="$(jq -c '.hosts_serving // []'                <<<"$envelope")"
+  not_serving="$(jq -c '.hosts_answered_not_serving // []' <<<"$envelope")"
   local n; n="$(jq 'length' <<<"$records")"
 
   _cma_helixllm_catalogue_merge "$records" \
@@ -1746,10 +1802,12 @@ cmd_helixllm_export() {
   if (( n == 0 )); then
     cma_warn "no HelixLLM-served models found on any configured host — nothing to export"
     cma_log "catalogue: $cat_file"
-    # NOT an early return when --apply is set: a host that answered and now
-    # serves nothing is a host whose models are genuinely gone, and the
-    # convergence sweep below is exactly what retires them. Returning here
-    # would leave every one of them permanently invocable.
+    # NOT an early return when --apply is set: a host that is demonstrably
+    # serving a reduced set is a host whose dropped models are genuinely gone,
+    # and the convergence sweep below is exactly what retires them. Returning
+    # here would leave every one of them permanently invocable. (The sweep
+    # itself is what refuses to act on a host that named nothing — reaching it
+    # with an empty record set is safe.)
     (( APPLY )) || return 0
   fi
 
@@ -1805,12 +1863,13 @@ cmd_helixllm_export() {
                          (.context_limit|tostring), (.max_output|tostring)] | @tsv' <<<"$records")
   cma_log "applied $n_written HelixLLM model provider(s)"
 
-  _cma_helixllm_retire_stale "$records" "$answered"
+  _cma_helixllm_retire_stale "$records" "$serving" "$not_serving"
 
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
 
-# _cma_helixllm_retire_stale RECORDS_JSON ANSWERED_JSON — make --apply CONVERGE.
+# _cma_helixllm_retire_stale RECORDS_JSON SERVING_JSON NOT_SERVING_JSON —
+# make --apply CONVERGE.
 #
 # Writing is only half of "apply the current catalogue". Without this, a model
 # the serving host has stopped offering keeps its alias and its *.env forever:
@@ -1830,30 +1889,42 @@ cmd_helixllm_export() {
 #      deliberate: fail closed. A leftover alias is a nuisance; deleting
 #      something we cannot prove we created is not.)
 #
-#   2. ITS HOST ACTUALLY ANSWERED THIS RUN. This is the one that matters most.
-#      An unreachable host — laptop asleep, VPN down, service restarting —
-#      produces exactly the same empty record set as a host that genuinely
-#      stopped serving everything. Treating those alike would wipe a user's
-#      entire working HelixLLM configuration because a machine was briefly off,
-#      which is far worse than the stale alias this function exists to remove.
-#      So silence is never evidence: only hosts that returned a model listing
-#      can have anything of theirs retired, and hosts that stayed silent are
-#      reported, not acted on.
+#   2. ITS HOST PROVED IT IS SERVING THIS RUN. This is the one that matters
+#      most, and it asks for POSITIVE evidence — at least one model the host
+#      named as one it is serving now (_CMA_HELIXLLM_SERVING_JQ) — not merely
+#      that a reply arrived.
 #
-#   3. THE HOST NO LONGER LISTS IT. The host answered, and this model was not
-#      in what it served. That — and only that — is the serving layer telling
-#      us the model is gone.
+#      An unreachable host — laptop asleep, VPN down — produces an empty record
+#      set. So does a host whose gateway is up while its backend is still
+#      loading: /health answers 503 during the load, the option is dropped as
+#      unavailable, and the listing comes back `{"data":[], "reason":...}`. So
+#      does a host serving nothing but remote vendor passthroughs, whose local
+#      backend is down. NONE of those is the serving layer reporting a
+#      withdrawal — they are all "we cannot tell yet" — and treating any of
+#      them as licence to delete wipes a user's entire working HelixLLM
+#      configuration because a machine was briefly restarting. That is far
+#      worse than the stale alias this function exists to remove.
+#
+#      So an ANSWER is not evidence either; only a host naming something it
+#      serves is. Everything else is reported, not acted on. (This gate cost a
+#      user their whole configuration once: the earlier version asked only "did
+#      it reply?", and a reply arrives from a loading host within milliseconds
+#      of the restart. See scripts/tests/repro_helixllm_loading_host.sh.)
+#
+#   3. THE HOST NO LONGER LISTS IT. The host is serving, and this model was not
+#      among what it served. That — and only that — is the serving layer
+#      telling us the model is gone.
 #
 # Removal goes through cmd_remove, the same path `prune` uses, so the config
 # dir is MOVED aside rather than deleted and any session/plugin state in it
 # survives. --dry-run reports without touching anything.
 _cma_helixllm_retire_stale() {
-  local records="$1" answered="$2"
+  local records="$1" serving="$2" not_serving="${3:-[]}"
   local pdir; pdir="$(cma_providers_dir)"
   [[ -d "$pdir" ]] || return 0
   compgen -G "$pdir/*.env" >/dev/null 2>&1 || return 0
 
-  local f pid src base n_retired=0 n_kept_unreachable=0
+  local f pid src base n_retired=0 n_kept_unproven=0
   for f in "$pdir"/*.env; do
     [[ -f "$f" ]] || continue
     # Read the three fields in a subshell so nothing from the env file leaks
@@ -1867,24 +1938,29 @@ _cma_helixllm_retire_stale() {
     [[ "$src" == "helixllm-export" ]] || continue
     [[ -n "$pid" ]] || continue
 
-    # Gate 2: its host answered this run — silence is never evidence of removal.
-    if ! jq -e --arg b "${base%/}" 'index($b) != null' <<<"$answered" >/dev/null 2>&1; then
-      n_kept_unreachable=$((n_kept_unreachable + 1))
-      cma_warn "helixllm: keeping '$pid' — its host ($base) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable"
+    # Gate 2: its host proved it is SERVING this run. Neither silence nor a
+    # reply that names nothing is evidence of removal.
+    if ! jq -e --arg b "${base%/}" 'index($b) != null' <<<"$serving" >/dev/null 2>&1; then
+      n_kept_unproven=$((n_kept_unproven + 1))
+      if jq -e --arg b "${base%/}" 'index($b) != null' <<<"$not_serving" >/dev/null 2>&1; then
+        cma_warn "helixllm: keeping '$pid' — its host ($base) replied but named no model it is serving, which is exactly how a host whose backend is still loading answers, so we cannot tell whether the model was withdrawn"
+      else
+        cma_warn "helixllm: keeping '$pid' — its host ($base) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable"
+      fi
       continue
     fi
 
-    # Gate 3: the host answered and did not list it.
+    # Gate 3: the host is serving, and did not list it.
     if jq -e --arg p "$pid" 'any(.[]; .provider_id == $p)' <<<"$records" >/dev/null 2>&1; then
       continue
     fi
 
     if (( DRY_RUN )); then
-      printf '  would retire: %-44s [its host answered and no longer serves this model]\n' "$pid"
+      printf '  would retire: %-44s [its host is serving, and no longer serves this model]\n' "$pid"
       n_retired=$((n_retired + 1))
       continue
     fi
-    cma_log "retiring '$pid': $base answered and no longer serves this model"
+    cma_log "retiring '$pid': $base is serving other models and no longer serves this one"
     cmd_remove "$pid"
     n_retired=$((n_retired + 1))
   done
@@ -1896,8 +1972,8 @@ _cma_helixllm_retire_stale() {
       cma_log "helixllm: retired $n_retired provider(s) no longer served (config dirs backed up, not deleted)"
     fi
   fi
-  (( n_kept_unreachable > 0 )) && \
-    cma_log "helixllm: $n_kept_unreachable provider(s) left in place because their host was unreachable — re-run once it is back to converge them"
+  (( n_kept_unproven > 0 )) && \
+    cma_log "helixllm: $n_kept_unproven provider(s) left in place because their host never proved it is serving (unreachable, or replying while it has nothing loaded) — re-run once it is serving again to converge them"
   return 0
 }
 

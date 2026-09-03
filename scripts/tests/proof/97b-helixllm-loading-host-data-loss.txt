@@ -1,0 +1,106 @@
+===========================================================================
+ HelixLLM --apply data loss: 'gateway up, backend still loading'
+ Re-run:  bash scripts/tests/repro_helixllm_loading_host.sh
+ Captured: 2026-09-03T07:14:55Z
+===========================================================================
+
+###########################################################################
+# PART 1 — PRE-FIX. Gate 2 restored to the shipped 8ecf6aa rule:
+#   if jq -e '.data | type == "array"'   ('did the host answer?')
+# The diff below proves that revert is actually applied before the run.
+###########################################################################
+--- /tmp/cp.final	2026-09-03 09:14:55.316953380 +0200
++++ scripts/claude-providers.sh	2026-09-03 09:14:55.342626588 +0200
+@@ -751,7 +751,7 @@
+     }
+     # Did the host prove it is SERVING, or merely that it is up? Only the first
+     # can license a removal downstream; see _CMA_HELIXLLM_SERVING_JQ.
+-    if jq -e '[.data[]? | '"$_CMA_HELIXLLM_SERVING_JQ"'] | length > 0' <<<"$body" >/dev/null 2>&1; then
++    if jq -e '.data | type == "array"' <<<"$body" >/dev/null 2>&1; then
+       serving="$(jq -c --arg b "${base%/}" '. + [$b] | unique' <<<"$serving")"
+     else
+       not_serving="$(jq -c --arg b "${base%/}" '. + [$b] | unique' <<<"$not_serving")"
+
+=== repro: HelixLLM gateway up, backend still loading ===
+date: 2026-09-03T07:14:55Z
+host: http://127.0.0.1:48691/v1
+
+--- step 1: host is SERVING ---
+GET http://127.0.0.1:48691/v1/models -> {"object":"list","data":[
+ {"id":"helixllm-llama3-8b-a1b2c3d4e5f6","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/lab/llama3:8b","host":"lab","availability":"serving"}
+]}
+    [36m[cma][0m HelixLLM: 1 model option(s) across 1 host(s)
+      helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/lab/llama3:8b                   http://127.0.0.1:48691/v1
+    [36m[cma][0m catalogue: /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/providers/helixllm-models.json
+    [36m[cma][0m applied 1 HelixLLM model provider(s)
+    [36m[cma][0m reload your shell or: source /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/aliases.sh
+
+user's configuration after --apply:
+    env file : /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/providers/helixllm-llama3-8b-a1b2c3d4e5f6.env  -> PRESENT
+    alias    : 1 entry/entries in /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/aliases.sh
+
+--- step 2: host RESTARTED, backend still LOADING ---
+GET http://127.0.0.1:48691/v1/models -> {"object":"list","data":[],"reason":"a model-serving backend is configured but is currently serving no models"}
+the user runs --apply again, ~10 seconds into the restart:
+    [33m[cma warn][0m no HelixLLM-served models found on any configured host — nothing to export
+    [36m[cma][0m catalogue: /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/providers/helixllm-models.json
+    [36m[cma][0m catalogue: /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/providers/helixllm-models.json
+    [36m[cma][0m applied 0 HelixLLM model provider(s)
+    [36m[cma][0m retiring 'helixllm-llama3-8b-a1b2c3d4e5f6': http://127.0.0.1:48691/v1 is serving other models and no longer serves this one
+    [36m[cma][0m backed up + removed config dir /tmp/cma-test.EPpEKO/.claude-prov-helixllm-llama3-8b-a1b2c3d4e5f6
+    [36m[cma][0m removed provider 'helixllm-llama3-8b-a1b2c3d4e5f6' (alias 'helixllm-llama3-8b-a1b2c3d4e5f6')
+    [36m[cma][0m helixllm: retired 1 provider(s) no longer served (config dirs backed up, not deleted)
+    [36m[cma][0m reload your shell or: source /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/aliases.sh
+
+--- result ---
+    env file : /tmp/cma-test.EPpEKO/.local/share/claude-multi-account/providers/helixllm-llama3-8b-a1b2c3d4e5f6.env  -> GONE
+    alias    : 0 entry/entries remain
+
+VERDICT: LOST — the user's entire configuration for a host that is merely
+         restarting was deleted. An empty listing is not proof of withdrawal.
+[repro exit under the pre-fix gate: 1]
+
+###########################################################################
+# PART 2 — POST-FIX. Gate 2 requires positive serving evidence.
+# Same script, same stub gateway, same two steps.
+###########################################################################
+
+=== repro: HelixLLM gateway up, backend still loading ===
+date: 2026-09-03T07:14:57Z
+host: http://127.0.0.1:47571/v1
+
+--- step 1: host is SERVING ---
+GET http://127.0.0.1:47571/v1/models -> {"object":"list","data":[
+ {"id":"helixllm-llama3-8b-a1b2c3d4e5f6","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/lab/llama3:8b","host":"lab","availability":"serving"}
+]}
+    [36m[cma][0m HelixLLM: 1 model option(s) across 1 host(s)
+      helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/lab/llama3:8b                   http://127.0.0.1:47571/v1
+    [36m[cma][0m catalogue: /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/providers/helixllm-models.json
+    [36m[cma][0m applied 1 HelixLLM model provider(s)
+    [36m[cma][0m reload your shell or: source /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/aliases.sh
+
+user's configuration after --apply:
+    env file : /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/providers/helixllm-llama3-8b-a1b2c3d4e5f6.env  -> PRESENT
+    alias    : 1 entry/entries in /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/aliases.sh
+
+--- step 2: host RESTARTED, backend still LOADING ---
+GET http://127.0.0.1:47571/v1/models -> {"object":"list","data":[],"reason":"a model-serving backend is configured but is currently serving no models"}
+the user runs --apply again, ~10 seconds into the restart:
+    [33m[cma warn][0m helixllm: host http://127.0.0.1:47571/v1 replied, but its listing named no model it is serving (it said: a model-serving backend is configured but is currently serving no models) — that is also what a host whose backend is still loading looks like, so nothing of its is treated as withdrawn
+    [33m[cma warn][0m no HelixLLM-served models found on any configured host — nothing to export
+    [36m[cma][0m catalogue: /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/providers/helixllm-models.json
+    [36m[cma][0m catalogue: /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/providers/helixllm-models.json
+    [36m[cma][0m applied 0 HelixLLM model provider(s)
+    [33m[cma warn][0m helixllm: keeping 'helixllm-llama3-8b-a1b2c3d4e5f6' — its host (http://127.0.0.1:47571/v1) replied but named no model it is serving, which is exactly how a host whose backend is still loading answers, so we cannot tell whether the model was withdrawn
+    [36m[cma][0m helixllm: 1 provider(s) left in place because their host never proved it is serving (unreachable, or replying while it has nothing loaded) — re-run once it is serving again to converge them
+    [36m[cma][0m reload your shell or: source /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/aliases.sh
+
+--- result ---
+    env file : /tmp/cma-test.AAjjr9/.local/share/claude-multi-account/providers/helixllm-llama3-8b-a1b2c3d4e5f6.env  -> PRESENT
+    alias    : 1 entry/entries remain
+
+VERDICT: KEPT — a listing naming nothing the host serves is treated as
+         'we cannot tell', exactly like an unreachable host.
+[repro exit under the fixed gate: 0]

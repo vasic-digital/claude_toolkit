@@ -1,323 +1,352 @@
 === test_helixllm_model_export.sh evidence ===
-date: 2026-09-03T06:16:08Z
-host alpha: http://127.0.0.1:39449/v1   host beta: http://127.0.0.1:34867/v1   dead: http://127.0.0.1:38573/v1
---- live GET http://127.0.0.1:39449/v1/models ---
+date: 2026-09-03T07:19:11Z
+host alpha: http://127.0.0.1:57043/v1   host beta: http://127.0.0.1:50117/v1   dead: http://127.0.0.1:47615/v1
+--- live GET http://127.0.0.1:57043/v1/models ---
 {"object": "list", "data": [{"id": "helixllm-llama3-8b-a1b2c3d4e5f6", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/alpha/llama3:8b"}, {"id": "helixllm-qwen3-coder-30b-0f1e2d3c4b5a", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/alpha/qwen3-coder:30b"}, {"id": "helixllm-mistral-7b-998877665544", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/alpha/mistral:7b"}, {"id": "helixllm-org-llama3-bbccddeeff00", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/alpha/org\\llama3:8b"}, {"id": "gpt-4o", "object": "model", "owned_by": "openai"}, {"id": "evil;rm -rf /tmp/pwned", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/alpha/evil"}]}
---- live GET http://127.0.0.1:34867/v1/models ---
+--- live GET http://127.0.0.1:50117/v1/models ---
 {"object": "list", "data": [{"id": "helixllm-phi4-14b-aabbccddeeff", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/beta/phi4:14b"}, {"id": "helixllm-gemma3-27b-112233445566", "object": "model", "owned_by": "helixllm", "model_identity": "helixllm/beta/gemma3:27b"}]}
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m nothing else was modified. To create the aliases yourself, run:
 [36m[cma][0m   claude-providers helixllm-export --apply
 --- catalogue after first export ---
 {
   "schema": 1,
-  "updated_at": "2026-09-03T06:16:08Z",
+  "updated_at": "2026-09-03T07:19:11Z",
   "entries": [
     {
       "id": "helixllm-gemma3-27b-112233445566",
       "model_identity": "helixllm/beta/gemma3:27b",
-      "host": "127.0.0.1:34867",
-      "base_url": "http://127.0.0.1:34867/v1",
+      "host": "127.0.0.1:50117",
+      "base_url": "http://127.0.0.1:50117/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:08Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:11Z"
     },
     {
       "id": "helixllm-llama3-8b-a1b2c3d4e5f6",
       "model_identity": "helixllm/alpha/llama3:8b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:08Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:11Z"
     },
     {
       "id": "helixllm-mistral-7b-998877665544",
       "model_identity": "helixllm/alpha/mistral:7b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:08Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:11Z"
     },
     {
       "id": "helixllm-org-llama3-bbccddeeff00",
       "model_identity": "helixllm/alpha/org\\llama3:8b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:08Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:11Z"
     },
     {
       "id": "helixllm-phi4-14b-aabbccddeeff",
       "model_identity": "helixllm/beta/phi4:14b",
-      "host": "127.0.0.1:34867",
-      "base_url": "http://127.0.0.1:34867/v1",
+      "host": "127.0.0.1:50117",
+      "base_url": "http://127.0.0.1:50117/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:08Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:11Z"
     },
     {
       "id": "helixllm-qwen3-coder-30b-0f1e2d3c4b5a",
       "model_identity": "helixllm/alpha/qwen3-coder:30b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:08Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:11Z"
     }
   ]
 }
 
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m nothing else was modified. To create the aliases yourself, run:
 [36m[cma][0m   claude-providers helixllm-export --apply
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m nothing else was modified. To create the aliases yourself, run:
 [36m[cma][0m   claude-providers helixllm-export --apply
 --- catalogue after three exports ---
 {
   "schema": 1,
-  "updated_at": "2026-09-03T06:16:09Z",
+  "updated_at": "2026-09-03T07:19:12Z",
   "entries": [
     {
       "id": "helixllm-gemma3-27b-112233445566",
       "model_identity": "helixllm/beta/gemma3:27b",
-      "host": "127.0.0.1:34867",
-      "base_url": "http://127.0.0.1:34867/v1",
+      "host": "127.0.0.1:50117",
+      "base_url": "http://127.0.0.1:50117/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:09Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:12Z"
     },
     {
       "id": "helixllm-llama3-8b-a1b2c3d4e5f6",
       "model_identity": "helixllm/alpha/llama3:8b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:09Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:12Z"
     },
     {
       "id": "helixllm-mistral-7b-998877665544",
       "model_identity": "helixllm/alpha/mistral:7b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:09Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:12Z"
     },
     {
       "id": "helixllm-org-llama3-bbccddeeff00",
       "model_identity": "helixllm/alpha/org\\llama3:8b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:09Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:12Z"
     },
     {
       "id": "helixllm-phi4-14b-aabbccddeeff",
       "model_identity": "helixllm/beta/phi4:14b",
-      "host": "127.0.0.1:34867",
-      "base_url": "http://127.0.0.1:34867/v1",
+      "host": "127.0.0.1:50117",
+      "base_url": "http://127.0.0.1:50117/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:09Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:12Z"
     },
     {
       "id": "helixllm-qwen3-coder-30b-0f1e2d3c4b5a",
       "model_identity": "helixllm/alpha/qwen3-coder:30b",
-      "host": "127.0.0.1:39449",
-      "base_url": "http://127.0.0.1:39449/v1",
+      "host": "127.0.0.1:57043",
+      "base_url": "http://127.0.0.1:57043/v1",
       "transport": "router",
       "key_var": "HELIXLLM_GATEWAY_KEY",
       "context_limit": 229376,
       "max_output": 8192,
-      "first_seen": "2026-09-03T06:16:08Z",
-      "last_seen": "2026-09-03T06:16:09Z"
+      "first_seen": "2026-09-03T07:19:11Z",
+      "last_seen": "2026-09-03T07:19:12Z"
     }
   ]
 }
 
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 6 HelixLLM model provider(s)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 6 HelixLLM model provider(s)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m nothing else was modified. To create the aliases yourself, run:
 [36m[cma][0m   claude-providers helixllm-export --apply
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m nothing else was modified. To create the aliases yourself, run:
 [36m[cma][0m   claude-providers helixllm-export --apply
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 6 model option(s) across 2 host(s)
-  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:34867/v1
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-gemma3-27b-112233445566             helixllm/beta/gemma3:27b                 http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 6 HelixLLM model provider(s)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
 --- beta now serves only phi4; running --apply ---
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 5 model option(s) across 2 host(s)
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 5 HelixLLM model provider(s)
-[36m[cma][0m retiring 'helixllm-gemma3-27b-112233445566': http://127.0.0.1:34867/v1 answered and no longer serves this model
-[36m[cma][0m backed up + removed config dir /tmp/cma-test.k4yCEh/.claude-prov-helixllm-gemma3-27b-112233445566
+[36m[cma][0m retiring 'helixllm-gemma3-27b-112233445566': http://127.0.0.1:50117/v1 is serving other models and no longer serves this one
+[36m[cma][0m backed up + removed config dir /tmp/cma-test.LOUlmH/.claude-prov-helixllm-gemma3-27b-112233445566
 [36m[cma][0m removed provider 'helixllm-gemma3-27b-112233445566' (alias 'helixllm-gemma3-27b-112233445566')
 [36m[cma][0m helixllm: retired 1 provider(s) no longer served (config dirs backed up, not deleted)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m helixllm: host http://127.0.0.1:39449/v1 did not answer with a model listing — no models exported from it
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: host http://127.0.0.1:57043/v1 did not answer with a model listing — no models exported from it
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 1 model option(s) across 1 host(s)
-  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:34867/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-phi4-14b-aabbccddeeff               helixllm/beta/phi4:14b                   http://127.0.0.1:50117/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 1 HelixLLM model provider(s)
-[33m[cma warn][0m helixllm: keeping 'helixllm-llama3-8b-a1b2c3d4e5f6' — its host (http://127.0.0.1:39449/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
-[33m[cma warn][0m helixllm: keeping 'helixllm-mistral-7b-998877665544' — its host (http://127.0.0.1:39449/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
-[33m[cma warn][0m helixllm: keeping 'helixllm-org-llama3-bbccddeeff00' — its host (http://127.0.0.1:39449/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
-[33m[cma warn][0m helixllm: keeping 'helixllm-qwen3-coder-30b-0f1e2d3c4b5a' — its host (http://127.0.0.1:39449/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
-[36m[cma][0m helixllm: 4 provider(s) left in place because their host was unreachable — re-run once it is back to converge them
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
-[36m[cma][0m HelixLLM: 4 model option(s) across 1 host(s)
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+[33m[cma warn][0m helixllm: keeping 'helixllm-llama3-8b-a1b2c3d4e5f6' — its host (http://127.0.0.1:57043/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
+[33m[cma warn][0m helixllm: keeping 'helixllm-mistral-7b-998877665544' — its host (http://127.0.0.1:57043/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
+[33m[cma warn][0m helixllm: keeping 'helixllm-org-llama3-bbccddeeff00' — its host (http://127.0.0.1:57043/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
+[33m[cma warn][0m helixllm: keeping 'helixllm-qwen3-coder-30b-0f1e2d3c4b5a' — its host (http://127.0.0.1:57043/v1) did not answer this run, so we cannot tell whether the model was withdrawn or the host is merely unreachable
+[36m[cma][0m helixllm: 4 provider(s) left in place because their host never proved it is serving (unreachable, or replying while it has nothing loaded) — re-run once it is serving again to converge them
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m HelixLLM: 5 model option(s) across 2 host(s)
+  helixllm-codestral-22b-778899aabbcc          helixllm/beta/codestral:22b              http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
+  would create: alias helixllm-codestral-22b-778899aabbcc      -> helixllm-codestral-22b-778899aabbcc [router]
   would create: alias helixllm-llama3-8b-a1b2c3d4e5f6          -> helixllm-llama3-8b-a1b2c3d4e5f6 [router]
   would create: alias helixllm-mistral-7b-998877665544         -> helixllm-mistral-7b-998877665544 [router]
   would create: alias helixllm-org-llama3-bbccddeeff00         -> helixllm-org-llama3-bbccddeeff00 [router]
   would create: alias helixllm-qwen3-coder-30b-0f1e2d3c4b5a    -> helixllm-qwen3-coder-30b-0f1e2d3c4b5a [router]
 [36m[cma][0m applied 0 HelixLLM model provider(s)
-  would retire: helixllm-phi4-14b-aabbccddeeff               [its host answered and no longer serves this model]
+  would retire: helixllm-phi4-14b-aabbccddeeff               [its host is serving, and no longer serves this model]
 [36m[cma][0m helixllm: 1 provider(s) would be retired; nothing changed
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:39449 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
-[33m[cma warn][0m helixllm: host http://127.0.0.1:38573/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:50117/v1 replied, but its listing named no model it is serving (it said: a model-serving backend is configured but is currently serving no models) — that is also what a host whose backend is still loading looks like, so nothing of its is treated as withdrawn
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
 [36m[cma][0m HelixLLM: 4 model option(s) across 1 host(s)
-  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:39449/v1
-  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:39449/v1
-  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:39449/v1
-  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:39449/v1
-[36m[cma][0m catalogue: /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 4 HelixLLM model provider(s)
-[36m[cma][0m retiring 'helixllm-phi4-14b-aabbccddeeff': http://127.0.0.1:34867/v1 answered and no longer serves this model
-[36m[cma][0m backed up + removed config dir /tmp/cma-test.k4yCEh/.claude-prov-helixllm-phi4-14b-aabbccddeeff
+[33m[cma warn][0m helixllm: keeping 'helixllm-phi4-14b-aabbccddeeff' — its host (http://127.0.0.1:50117/v1) replied but named no model it is serving, which is exactly how a host whose backend is still loading answers, so we cannot tell whether the model was withdrawn
+[36m[cma][0m helixllm: 1 provider(s) left in place because their host never proved it is serving (unreachable, or replying while it has nothing loaded) — re-run once it is serving again to converge them
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:50117/v1 replied, but its listing named no model it is serving — that is also what a host whose backend is still loading looks like, so nothing of its is treated as withdrawn
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m HelixLLM: 4 model option(s) across 1 host(s)
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
+[36m[cma][0m applied 4 HelixLLM model provider(s)
+[33m[cma warn][0m helixllm: keeping 'helixllm-phi4-14b-aabbccddeeff' — its host (http://127.0.0.1:50117/v1) replied but named no model it is serving, which is exactly how a host whose backend is still loading answers, so we cannot tell whether the model was withdrawn
+[36m[cma][0m helixllm: 1 provider(s) left in place because their host never proved it is serving (unreachable, or replying while it has nothing loaded) — re-run once it is serving again to converge them
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m helixllm: refusing a model id from 127.0.0.1:57043 — it does not satisfy the toolkit's identifier rules (the rules are not relaxed to fit a name)
+[33m[cma warn][0m helixllm: host http://127.0.0.1:47615/v1 did not answer with a model listing — no models exported from it
+[36m[cma][0m HelixLLM: 5 model option(s) across 2 host(s)
+  helixllm-codestral-22b-778899aabbcc          helixllm/beta/codestral:22b              http://127.0.0.1:50117/v1
+  helixllm-llama3-8b-a1b2c3d4e5f6              helixllm/alpha/llama3:8b                 http://127.0.0.1:57043/v1
+  helixllm-mistral-7b-998877665544             helixllm/alpha/mistral:7b                http://127.0.0.1:57043/v1
+  helixllm-org-llama3-bbccddeeff00             helixllm/alpha/org\llama3:8b             http://127.0.0.1:57043/v1
+  helixllm-qwen3-coder-30b-0f1e2d3c4b5a        helixllm/alpha/qwen3-coder:30b           http://127.0.0.1:57043/v1
+[36m[cma][0m catalogue: /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/providers/helixllm-models.json
+[36m[cma][0m applied 5 HelixLLM model provider(s)
+[36m[cma][0m retiring 'helixllm-phi4-14b-aabbccddeeff': http://127.0.0.1:50117/v1 is serving other models and no longer serves this one
+[36m[cma][0m backed up + removed config dir /tmp/cma-test.LOUlmH/.claude-prov-helixllm-phi4-14b-aabbccddeeff
 [36m[cma][0m removed provider 'helixllm-phi4-14b-aabbccddeeff' (alias 'helixllm-phi4-14b-aabbccddeeff')
 [36m[cma][0m helixllm: retired 1 provider(s) no longer served (config dirs backed up, not deleted)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k4yCEh/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.LOUlmH/.local/share/claude-multi-account/aliases.sh
 
-=== result: pass=63 fail=0 ===
+=== result: pass=71 fail=0 ===

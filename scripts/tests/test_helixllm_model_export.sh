@@ -58,10 +58,18 @@
 #  * CONVERGENCE AND ITS SAFETY GATES (CASE 7). `--apply` must make the
 #    configuration MATCH the catalogue, so a model the host stopped serving
 #    stops being invocable. Deleting from a user's configuration is the
-#    dangerous direction, so the same case asserts the gates that bound it: a
-#    provider whose host was merely UNREACHABLE is kept (otherwise a sleeping
-#    laptop would wipe a working config), and a provider this tool did not
-#    create is never touched at all.
+#    dangerous direction, so the same case asserts the gates that bound it, and
+#    what those gates require is POSITIVE EVIDENCE THE HOST IS SERVING — not
+#    merely that it replied. Kept, therefore: a provider whose host was
+#    UNREACHABLE (a sleeping laptop must not wipe a working config); a provider
+#    whose host REPLIED WHILE SERVING NOTHING, which is how a HelixLLM answers
+#    while its backend is still loading and how it answers if it truly stopped
+#    serving everything, indistinguishably; a provider whose host listed only
+#    REMOTE VENDOR passthroughs, which stay reachable while the local backend
+#    is down; and any provider this tool did not create. Retired, therefore:
+#    only a model absent from a listing that named other models the host IS
+#    serving. Both directions are asserted, so neither a too-eager sweep nor a
+#    sweep that has quietly stopped retiring anything can pass.
 #
 # RED (pre-implementation): `helixllm-export` does not exist; the catalogue is
 #   never written and every case below fails.
@@ -75,6 +83,12 @@
 #     both the gateway-key assertion and the secret-containment assertion.
 #   * drop the retirement sweep -> CASE 7's convergence assertions fail;
 #     drop its unreachable-host gate -> CASE 7's survival assertions fail.
+#   * revert gate 2 to "the host answered" (drop _CMA_HELIXLLM_SERVING_JQ from
+#     the host-evidence check) -> the empty-listing and vendor-only survival
+#     assertions fail: a host mid-restart deletes the user's config again.
+#   * make gate 2 reject every host (never populate hosts_serving) -> the
+#     genuine-withdrawal assertions fail: nothing is ever retired, proving the
+#     survival assertions above cannot be satisfied by disabling retirement.
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -135,8 +149,19 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path.rstrip('/').endswith('/models'):
             with open(hit_file, 'a') as f:
                 f.write('hit auth=%s\n' % self.headers.get('Authorization', '<none>'))
-            payload = json.dumps({"object": "list",
-                                  "data": json.load(open(models_file))}).encode()
+            data = json.load(open(models_file))
+            body = {"object": "list", "data": data}
+            if not data:
+                # Faithful to the real gateway: HandleListModels attaches this
+                # reason whenever a backend is configured but Brain.Models() is
+                # empty -- which is what a host answers while its backend is
+                # still LOADING (llama.cpp /health is 503 during the load, so
+                # the option is dropped as unavailable). The identical string
+                # is sent when a host has genuinely stopped serving everything,
+                # which is exactly why it cannot be read as either.
+                body["reason"] = ("a model-serving backend is configured but "
+                                  "is currently serving no models")
+            payload = json.dumps(body).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(payload)))
@@ -460,8 +485,15 @@ assert_eq 0 $? "and the user is TOLD they were kept because the host was unreach
 rm -f "$DOWN_A"
 
 it "--dry-run reports the retirement without performing it"
+# beta swaps phi4 out for a different model: a listing that PROVES beta is
+# serving, and that no longer names phi4 -- so phi4 is genuinely withdrawn and
+# a retirement is due. (An EMPTY listing would prove nothing; see the next
+# case. Using one here would make this assertion pass for the wrong reason.)
 cat > "$MODELS_B_FILE" <<'JSON'
-[]
+[
+ {"id":"helixllm-codestral-22b-778899aabbcc","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/beta/codestral:22b"}
+]
 JSON
 _before="$(find "$PDIR" -maxdepth 1 -name '*.env' | wc -l | tr -d ' ')"
 _dry="$(bash "$PROVIDERS_SH" helixllm-export --apply --dry-run --keys-file "$KEYS" 2>&1)"
@@ -471,11 +503,75 @@ assert_eq 0 $? "--dry-run announces what it would retire"
 assert_eq "$_before" "$(find "$PDIR" -maxdepth 1 -name '*.env' | wc -l | tr -d ' ')" \
   "--dry-run changed nothing on disk"
 
-it "a host that answers with an EMPTY list still converges (it is not 'unreachable')"
+# ---------------------------------------------------------------------------
+# A REPLY IS NOT EVIDENCE OF WITHDRAWAL.
+#
+# This case replaces one that asserted the opposite — "a host that answers with
+# an EMPTY list still converges … its last provider is retired too" — and that
+# assertion was the defect, pinned. The reasoning behind it was that an empty
+# answer "is a real answer", so it converges. It is not: a HelixLLM whose
+# gateway is up while its backend is still loading answers with exactly that
+# empty list, because /health is 503 during the load, the option is dropped as
+# unavailable, and the listing comes back `{"data":[], "reason":...}`. Under
+# the old gate, a user who ran `--apply` in the first seconds after a restart
+# lost the whole configuration for that host — env files and aliases deleted.
+#
+# So the invariant is inverted, and it is the one asserted here: a listing that
+# names nothing the host is serving is treated exactly like silence — REPORTED
+# and KEPT. Retirement still requires positive evidence the host is serving,
+# which the `it "when a reachable host stops serving a model"` case above and
+# the final sub-case below both prove is still delivered.
+#
+# Live proof of the defect and of this guard: bash scripts/tests/repro_helixllm_loading_host.sh
+# ---------------------------------------------------------------------------
+it "a host that replies while serving NOTHING is kept — an empty answer is not proof of withdrawal"
+cat > "$MODELS_B_FILE" <<'JSON'
+[]
+JSON
+_out="$(bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" 2>&1)"
+printf '%s\n' "$_out" >> "$PROOF"
+printf '%s' "$_out" | grep -q '"reason"\|serving no models\|named no model it is serving'
+assert_eq 0 $? "control: beta really did answer 200 with an empty, reasoned listing"
+assert_file "$PDIR/$_kept_id.env" \
+  "beta's provider SURVIVES an empty listing (a host mid-restart must not wipe a working config)"
+grep -q "cma_run_provider $_kept_id" "$ALIAS_FILE" 2>/dev/null
+assert_eq 0 $? "and its alias is still invocable, not just its env file"
+printf '%s' "$_out" | grep -q "named no model it is serving"
+assert_eq 0 $? "and the user is TOLD why it was kept, rather than it being silently skipped"
+assert_file "$PDIR/$_alpha_survivor.env" "alpha, still serving, is untouched"
+assert_file "$PDIR/hand-authored-thing.env" "and the hand-authored provider still stands"
+
+it "a listing of nothing but REMOTE vendor models is not proof either"
+# A remote passthrough stays reachable while the local backend is down, so a
+# vendor-only listing is another face of the same loading host. It carries no
+# model_identity, so it is not evidence that any LOCAL model was withdrawn.
+cat > "$MODELS_B_FILE" <<'JSON'
+[
+ {"id":"gpt-4o","object":"model","owned_by":"openai"}
+]
+JSON
+_out="$(bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" 2>&1)"
+printf '%s\n' "$_out" >> "$PROOF"
+assert_file "$PDIR/$_kept_id.env" \
+  "beta's local provider survives a listing that names only a vendor passthrough"
+
+it "and once beta is demonstrably serving again, convergence finally happens"
+# The negative control for the two cases above: proof they made removal
+# CONDITIONAL, not impossible. Beta comes back serving a different model, which
+# IS positive evidence — so phi4 is now genuinely withdrawn and is retired.
+cat > "$MODELS_B_FILE" <<'JSON'
+[
+ {"id":"helixllm-codestral-22b-778899aabbcc","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/beta/codestral:22b"}
+]
+JSON
 bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" >>"$PROOF" 2>&1
 [[ ! -f "$PDIR/$_kept_id.env" ]]
-assert_eq 0 $? "beta answered with no models, so its last provider is retired too"
-assert_file "$PDIR/$_alpha_survivor.env" "alpha, still serving, is untouched"
+assert_eq 0 $? "beta named what it serves and phi4 was not in it, so phi4 IS retired"
+grep -q "cma_run_provider $_kept_id" "$ALIAS_FILE" 2>/dev/null
+assert_eq 1 $? "and its alias is gone — it is no longer invocable"
+assert_file "$PDIR/helixllm-codestral-22b-778899aabbcc.env" \
+  "the model beta now serves was written"
 assert_file "$PDIR/hand-authored-thing.env" "and the hand-authored provider still stands"
 
 echo >> "$PROOF"
