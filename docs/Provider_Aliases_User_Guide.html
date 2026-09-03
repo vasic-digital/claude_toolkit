@@ -1870,7 +1870,7 @@ works</li>
 <p><code>helixagent</code> points Claude Code at a
 <strong>local</strong> HelixLLM backend — a podman container serving
 Qwen3-Coder-30B on one GPU (an RTX 5090) at
-<code>http://127.0.0.1:18434/v1</code> — instead of a hosted API.
+<code>http://127.0.0.1:7061/v1</code> (measured 2026-09-03; the earlier <code>:18434</code> pin named the llama.cpp coder container — a different service, and down when measured) — instead of a hosted API.
 Transport is <strong>router</strong>: launches go through
 <code>claude-code-router</code> plus the bundled Go
 <code>cma-proxy</code>, which recovers the model&#39;s Hermes/Qwen
@@ -1942,7 +1942,7 @@ do that to a host merely because someone launched it.</p>
 <p>Turning it off costs you no information. When HelixLLM is not
 answering, the pre-flight still says so and still prints the exact
 command:</p>
-<pre><code>helixagent: HelixLLM is not answering on http://127.0.0.1:18434 and auto-start is OFF by default.
+<pre><code>helixagent: HelixLLM is not answering on http://127.0.0.1:7061 and auto-start is OFF by default.
   Start it yourself (it claims the GPU and evicts HelixCode&#39;s coder mode):
     helix_code/scripts/helixllm-mode.sh claude
   Or opt in for this launch:

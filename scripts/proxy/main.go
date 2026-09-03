@@ -33,13 +33,24 @@ import (
 	"time"
 )
 
+// defaultUpstream resolves the backend this proxy forwards to. The environment
+// wins — the launch wrapper always exports CMA_PROVIDER_BASE_URL out of the
+// provider record — and the literal below is only the last-resort fallback for
+// a hand-started proxy with no environment at all.
+//
+// That fallback is 127.0.0.1:7061 because that is where HelixAgent's
+// OpenAI-compatible /v1 actually listens (measured with `ss -ltnp`,
+// 2026-09-03). The previous value, :18434, is the llama.cpp coder container —
+// a real port, but a DIFFERENT service, and one that is frequently down (it
+// was, when measured). A hand-started proxy therefore forwarded either into a
+// closed socket or into the wrong backend.
 func defaultUpstream() string {
 	for _, e := range []string{"HELIXAGENT_PROXY_UPSTREAM", "CMA_PROVIDER_BASE_URL"} {
 		if v := os.Getenv(e); v != "" {
 			return v
 		}
 	}
-	return "http://127.0.0.1:18434"
+	return "http://127.0.0.1:7061"
 }
 
 type proxy struct {

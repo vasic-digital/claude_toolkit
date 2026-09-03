@@ -243,7 +243,7 @@ _catalog_valid() { python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1
 detect_helixagent_record() {
   # Git-tracked facade pins (Variant B — §11.4.28 consumer-owned data): load the
   # HelixAgent/HelixLLM facade pins from providers/helixagent.json so the alias
-  # is registered from TRACKED config (base_url -> the HelixLLM server 127.0.0.1:18434, strong/fast ->
+  # is registered from TRACKED config (base_url -> the HelixAgent OpenAI-compatible server 127.0.0.1:7061, strong/fast ->
   # HelixAgent/HelixLLM, key_var -> HELIXAGENT_GATEWAY_KEY, real ctx 24576) rather
   # than shell-rc-only env. Precedence: process-env > pins-file > built-in
   # defaults — a field is taken from the file ONLY when its env var is unset.
@@ -282,8 +282,8 @@ detect_helixagent_record() {
   [[ -n "${CMA_HELIXAGENT_FAST+x}"   ]] && _ha_fast_pinned=1
   : "${CMA_HELIXAGENT_BIN:=helixagent}"
   : "${CMA_HELIXAGENT_ID:=helixagent}"
-  : "${CMA_HELIXAGENT_HOST:=localhost}"
-  : "${CMA_HELIXAGENT_PORT:=8100}"
+  : "${CMA_HELIXAGENT_HOST:=127.0.0.1}"
+  : "${CMA_HELIXAGENT_PORT:=7061}"
   : "${CMA_HELIXAGENT_KEYVAR:=HELIXAGENT_API_KEY}"
   : "${CMA_HELIXAGENT_TRANSPORT:=router}"
   : "${CMA_HELIXAGENT_STRONG:=helix-debate}"
@@ -384,47 +384,75 @@ detect_helixagent_record() {
 }
 
 # --- local HelixLLM PATH-detection (router + native transports) --------------
-# HelixLLM Go binary serves an OpenAI-compatible /v1 (port 18435) for the
-# cloud-fallback chain AND an Anthropic-compatible /v1/messages endpoint on the
-# same host:port for the native transport. Both are registered as separate
-# provider aliases so the operator can choose the CCR-routed chain OR the direct
-# Anthropic-native path per session.
+# The HelixLLM Go binary serves an OpenAI-compatible /v1 for the cloud-fallback
+# chain AND an Anthropic-compatible /v1/messages endpoint on the same host:port
+# for the native transport. Both are registered as separate provider aliases so
+# the operator can choose the CCR-routed chain OR the direct Anthropic-native
+# path per session.
 #
-# helixllm-gateway: transport=router, base_url=http://127.0.0.1:18435/v1
-# helixagent-native: transport=native, base_url=http://127.0.0.1:18435
+# helixllm-gateway: transport=router, base_url=<pin>/v1
+# helixagent-native: transport=native, base_url=<pin>
 # (Anthropic-compatible /v1/messages, bypasses CCR entirely)
 #
-# Pins are loaded from providers/helixllm-gateway.json and
-# providers/helixagent-native.json respectively. Process-env vars prefixed
-# CMA_HELIXLLM_GW_* / CMA_HELIXLLM_NATIVE_* override the pins, then fall
-# back to built-in defaults. Both share the same upstream binary; two records
-# are emitted so the sync pipeline creates two distinct aliases.
+# THE PORT AND SCHEME ARE NOT BAKED IN HERE (CONST-045 / §11.4.111 — resolve,
+# never hardcode). They are RESOLVED, in this order:
+#
+#   process-env  CMA_HELIXLLM_GW_BASE_URL / CMA_HELIXLLM_NATIVE_BASE_URL
+#   pins-file    providers/helixllm-gateway.json / providers/helixagent-native.json
+#   built-in     the loopback default below
+#
+# The built-in default is `https://127.0.0.1:8443` — HelixLLM's real listener,
+# measured with `ss -ltnp` on 2026-09-03, serving TLS with a self-signed cert
+# (plain http on that port answers "Client sent an HTTP request to an HTTPS
+# server"). The previous default was `http://127.0.0.1:18435`, and it was not
+# an invented port: :18435 is the TEI embeddings container and :18434 the
+# llama.cpp coder container, so each old value named a REAL port belonging to a
+# DIFFERENT service — and both were DOWN when measured, so every probe returned
+# curl exit 7 / HTTP 000. Either way both aliases could never reach `verified`,
+# and `claude-providers list` — which shows only verified providers — never
+# displayed them at all. A self-signed
+# endpoint additionally needs the probe to be told which CA to trust; see
+# CMA_PROVIDER_CA_CERT in providers-verify.sh.
+#
+# Both aliases share the same upstream binary; two records are emitted so the
+# sync pipeline creates two distinct aliases.
 detect_helixllm_records() {
   local _ljson="${CMA_HELIXLLM_PINS_FILE:-$LIB_DIR/providers/helixllm-gateway.json}"
   local _njson="${CMA_HELIXLLM_NATIVE_PINS_FILE:-$LIB_DIR/providers/helixagent-native.json}"
 
   # --- helixllm-gateway pins ------------------------------------------------
-  local _lgw_bin="" _lgw_id="" _lgw_base="" _lgw_transport="" _lgw_strong="" _lgw_fast="" _lgw_keyvar="" _lgw_ctx="" _lgw_out=""
+  # PRECEDENCE, made real. The comment above has always PROMISED process-env >
+  # pins-file > default, but the loader used to assign from the file
+  # UNCONDITIONALLY, so a CMA_HELIXLLM_GW_* export was silently ignored
+  # whenever the tracked pins file existed — which is always. Each local is
+  # therefore seeded from its documented env var, and every pins-file arm is
+  # guarded on that var's PRESENCE (`+x`, so an intentional empty export still
+  # counts as "set"), matching detect_helixagent_record's loader exactly.
+  local _lgw_bin="${CMA_HELIXLLM_GW_BIN-}" _lgw_id="${CMA_HELIXLLM_GW_ID-}" \
+        _lgw_base="${CMA_HELIXLLM_GW_BASE_URL-}" _lgw_transport="${CMA_HELIXLLM_GW_TRANSPORT-}" \
+        _lgw_strong="${CMA_HELIXLLM_GW_STRONG-}" _lgw_fast="${CMA_HELIXLLM_GW_FAST-}" \
+        _lgw_keyvar="${CMA_HELIXLLM_GW_KEYVAR-}" _lgw_ctx="${CMA_HELIXLLM_GW_CONTEXT_LIMIT-}" \
+        _lgw_out="${CMA_HELIXLLM_GW_MAX_OUTPUT-}"
   if [[ -f "$_ljson" ]] && command -v jq >/dev/null 2>&1; then
     local _k _v
     while IFS=$'\t' read -r _k _v; do
       case "$_k" in
-        bin)           _lgw_bin="$_v" ;;
-        id)            _lgw_id="$_v" ;;
-        base_url)      _lgw_base="$_v" ;;
-        transport)     _lgw_transport="$_v" ;;
-        strong_model)  _lgw_strong="$_v" ;;
-        fast_model)    _lgw_fast="$_v" ;;
-        key_var)       _lgw_keyvar="$_v" ;;
-        context_limit) _lgw_ctx="$_v" ;;
-        max_output)    _lgw_out="$_v" ;;
+        bin)           [[ -n "${CMA_HELIXLLM_GW_BIN+x}" ]]           || _lgw_bin="$_v" ;;
+        id)            [[ -n "${CMA_HELIXLLM_GW_ID+x}" ]]            || _lgw_id="$_v" ;;
+        base_url)      [[ -n "${CMA_HELIXLLM_GW_BASE_URL+x}" ]]      || _lgw_base="$_v" ;;
+        transport)     [[ -n "${CMA_HELIXLLM_GW_TRANSPORT+x}" ]]     || _lgw_transport="$_v" ;;
+        strong_model)  [[ -n "${CMA_HELIXLLM_GW_STRONG+x}" ]]        || _lgw_strong="$_v" ;;
+        fast_model)    [[ -n "${CMA_HELIXLLM_GW_FAST+x}" ]]          || _lgw_fast="$_v" ;;
+        key_var)       [[ -n "${CMA_HELIXLLM_GW_KEYVAR+x}" ]]        || _lgw_keyvar="$_v" ;;
+        context_limit) [[ -n "${CMA_HELIXLLM_GW_CONTEXT_LIMIT+x}" ]] || _lgw_ctx="$_v" ;;
+        max_output)    [[ -n "${CMA_HELIXLLM_GW_MAX_OUTPUT+x}" ]]    || _lgw_out="$_v" ;;
       esac
     done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_ljson" 2>/dev/null)
   fi
-  # Defaults (only used when the pins file is absent or a field is missing)
+  # Defaults (only used when neither the env nor the pins file supplied a value)
   : "${_lgw_bin:=helixllm}"
   : "${_lgw_id:=helixllm-gateway}"
-  : "${_lgw_base:=http://127.0.0.1:18435/v1}"
+  : "${_lgw_base:=https://127.0.0.1:8443/v1}"
   : "${_lgw_transport:=router}"
   : "${_lgw_strong:=helixllm-multi}"
   : "${_lgw_fast:=helixllm-multi}"
@@ -433,26 +461,32 @@ detect_helixllm_records() {
   : "${_lgw_out:=8192}"
 
   # --- helixagent-native pins -----------------------------------------------
-  local _lnat_bin="" _lnat_id="" _lnat_base="" _lnat_transport="" _lnat_strong="" _lnat_fast="" _lnat_keyvar="" _lnat_ctx="" _lnat_out=""
+  # Same precedence, same reason, CMA_HELIXLLM_NATIVE_* prefix (the one already
+  # used by CMA_HELIXLLM_NATIVE_PINS_FILE above).
+  local _lnat_bin="${CMA_HELIXLLM_NATIVE_BIN-}" _lnat_id="${CMA_HELIXLLM_NATIVE_ID-}" \
+        _lnat_base="${CMA_HELIXLLM_NATIVE_BASE_URL-}" _lnat_transport="${CMA_HELIXLLM_NATIVE_TRANSPORT-}" \
+        _lnat_strong="${CMA_HELIXLLM_NATIVE_STRONG-}" _lnat_fast="${CMA_HELIXLLM_NATIVE_FAST-}" \
+        _lnat_keyvar="${CMA_HELIXLLM_NATIVE_KEYVAR-}" _lnat_ctx="${CMA_HELIXLLM_NATIVE_CONTEXT_LIMIT-}" \
+        _lnat_out="${CMA_HELIXLLM_NATIVE_MAX_OUTPUT-}"
   if [[ -f "$_njson" ]] && command -v jq >/dev/null 2>&1; then
     local _k _v
     while IFS=$'\t' read -r _k _v; do
       case "$_k" in
-        bin)           _lnat_bin="$_v" ;;
-        id)            _lnat_id="$_v" ;;
-        base_url)      _lnat_base="$_v" ;;
-        transport)     _lnat_transport="$_v" ;;
-        strong_model)  _lnat_strong="$_v" ;;
-        fast_model)    _lnat_fast="$_v" ;;
-        key_var)       _lnat_keyvar="$_v" ;;
-        context_limit) _lnat_ctx="$_v" ;;
-        max_output)    _lnat_out="$_v" ;;
+        bin)           [[ -n "${CMA_HELIXLLM_NATIVE_BIN+x}" ]]           || _lnat_bin="$_v" ;;
+        id)            [[ -n "${CMA_HELIXLLM_NATIVE_ID+x}" ]]            || _lnat_id="$_v" ;;
+        base_url)      [[ -n "${CMA_HELIXLLM_NATIVE_BASE_URL+x}" ]]      || _lnat_base="$_v" ;;
+        transport)     [[ -n "${CMA_HELIXLLM_NATIVE_TRANSPORT+x}" ]]     || _lnat_transport="$_v" ;;
+        strong_model)  [[ -n "${CMA_HELIXLLM_NATIVE_STRONG+x}" ]]        || _lnat_strong="$_v" ;;
+        fast_model)    [[ -n "${CMA_HELIXLLM_NATIVE_FAST+x}" ]]          || _lnat_fast="$_v" ;;
+        key_var)       [[ -n "${CMA_HELIXLLM_NATIVE_KEYVAR+x}" ]]        || _lnat_keyvar="$_v" ;;
+        context_limit) [[ -n "${CMA_HELIXLLM_NATIVE_CONTEXT_LIMIT+x}" ]] || _lnat_ctx="$_v" ;;
+        max_output)    [[ -n "${CMA_HELIXLLM_NATIVE_MAX_OUTPUT+x}" ]]    || _lnat_out="$_v" ;;
       esac
     done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_njson" 2>/dev/null)
   fi
   : "${_lnat_bin:=helixllm}"
   : "${_lnat_id:=helixagent-native}"
-  : "${_lnat_base:=http://127.0.0.1:18435}"
+  : "${_lnat_base:=https://127.0.0.1:8443}"
   : "${_lnat_transport:=native}"
   : "${_lnat_strong:=helixllm-multi}"
   : "${_lnat_fast:=helixllm-multi}"
@@ -553,7 +587,7 @@ _cma_helixllm_hosts() {
     from_file="$(jq -r '.base_url // empty' "$pins" 2>/dev/null)"
     if [[ -n "$from_file" ]]; then printf '%s\n' "$from_file"; return 0; fi
   fi
-  printf '%s\n' "http://127.0.0.1:18435/v1"
+  printf '%s\n' "https://127.0.0.1:8443/v1"
 }
 
 # _cma_helixllm_gateway_key KEYVAR — the gateway API key for $KEYVAR, or empty.
@@ -640,13 +674,29 @@ _cma_helixllm_fetch_models() {
   command -v curl >/dev/null 2>&1 || return 1
   command -v jq   >/dev/null 2>&1 || return 1
   key="$(_cma_helixllm_gateway_key "$keyvar")"
-  if [[ -n "$key" ]]; then
-    # Header supplied over STDIN, never argv (§11.4.10).
-    body="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
-            | curl -sf --max-time "$t" --config - "$base/models" 2>/dev/null)" || return 1
-  else
-    body="$(curl -sf --max-time "$t" "$base/models" 2>/dev/null)" || return 1
+  # CA TRUST. A HelixLLM gateway on https with a self-signed certificate — the
+  # default local shape, and now the pinned one — is rejected by curl at the
+  # TLS layer, and `curl -sf` reports that EXACTLY as it reports an unreachable
+  # host: non-zero, empty body. The host then contributes nothing to the export
+  # while looking merely absent, which is the same conflation that made the
+  # dead-port defect invisible. CMA_PROVIDER_CA_CERT (the same knob
+  # providers-verify.sh reads) supplies the trust anchor.
+  #
+  # Both the cert path and the key travel over STDIN, never argv (§11.4.10).
+  # An empty config is valid, so the keyed and keyless paths share one call.
+  # A `"` in the path would break out of curl's quoted value, so it is refused.
+  local _ca=""
+  if [[ -n "${CMA_PROVIDER_CA_CERT:-}" ]] \
+     && [[ -r "${CMA_PROVIDER_CA_CERT}" ]] \
+     && [[ "${CMA_PROVIDER_CA_CERT}" != *'"'* ]] \
+     && [[ "${CMA_PROVIDER_CA_CERT}" != *\\* ]] \
+     && [[ "${CMA_PROVIDER_CA_CERT}" != *$'\n'* ]]; then
+    _ca="${CMA_PROVIDER_CA_CERT}"
   fi
+  body="$( { [[ -n "$_ca" ]] && printf 'cacert = "%s"\n' "$_ca"
+             [[ -n "$key" ]] && printf 'header = "Authorization: Bearer %s"\n' "$key"
+             :; } \
+           | curl -sf --max-time "$t" --config - "$base/models" 2>/dev/null)" || return 1
   printf '%s' "$body" | jq -e '.data | type == "array"' >/dev/null 2>&1 || return 1
   printf '%s' "$body"
 }
@@ -2010,15 +2060,32 @@ cmd_verify() {
         [[ -f "$_ktokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_ktokf" 2>/dev/null)"
       fi
     fi
-    local vst sst flayer=""
+    local vst sst flayer="" _verr
+    # KEEP THE REASON. The verifier writes one word to stdout and its
+    # EXPLANATION to stderr, and this call site used to send that stderr to
+    # /dev/null — so `claude-providers verify <id>` answered "unverified" and
+    # nothing else, which is precisely the question an operator runs it to
+    # answer. Every distinction the verifier draws (nothing listening vs an
+    # untrusted certificate vs a reachable backend that cannot serve the
+    # request vs no credential configured) died right here. Capture it and
+    # print it on stderr for any non-verified verdict; stdout stays the single
+    # verdict word, so callers that capture it are unaffected.
+    _verr="$(mktemp "${TMPDIR:-/tmp}/cma-verify-reason.XXXXXX")"
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
-              bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>/dev/null ) )" || true
+              bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     [[ -z "$vst" ]] && vst=unverified
-    if [[ "$vst" == "failed" ]]; then cma_status_write "$id" failed "$model" existence; echo "failed"; return; fi
-    if [[ "$vst" != "verified" ]]; then cma_status_write "$id" unverified "$model" existence; echo "unverified"; return; fi
+    if [[ "$vst" != "verified" ]] && [[ -s "$_verr" ]]; then
+      while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
+    fi
+    if [[ "$vst" == "failed" ]]; then rm -f "$_verr"; cma_status_write "$id" failed "$model" existence; echo "failed"; return; fi
+    if [[ "$vst" != "verified" ]]; then rm -f "$_verr"; cma_status_write "$id" unverified "$model" existence; echo "unverified"; return; fi
     sst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
-              bash "$SEMANTIC" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>/dev/null ) )" || true
-    if [[ "$sst" == "unverified" ]]; then cma_status_write "$id" unverified "$model" semantic; echo "unverified"; return; fi
+              bash "$SEMANTIC" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
+    if [[ "$sst" == "unverified" ]]; then
+      [[ -s "$_verr" ]] && while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
+      rm -f "$_verr"; cma_status_write "$id" unverified "$model" semantic; echo "unverified"; return
+    fi
+    rm -f "$_verr"
     if (( deep )); then
       # Capture the exit code into a variable BEFORE it is consumed by the
       # `if`/`fi` test below — `$?` immediately after an `if cond; then …; fi`

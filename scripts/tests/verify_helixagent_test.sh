@@ -46,7 +46,7 @@ mkdir -p "$PDIR"
 # The detector now loads facade pins from a git-tracked providers/helixagent.json
 # ($LIB_DIR/providers/helixagent.json) when present (Variant B). $LIB_DIR is the
 # REAL repo scripts dir (NOT this sandboxed $HOME), so the repo pins-file would
-# leak its repo-pin values (base 127.0.0.1:18434, strong/fast HelixAgent/HelixLLM,
+# leak its repo-pin values (base 127.0.0.1:7061, strong/fast HelixAgent/HelixLLM,
 # ctx 24576) into CASES A/B/C which assert the BUILT-IN defaults. Point the
 # pins-file path at an ABSENT sandbox file so the default-relying cases exercise
 # the built-in defaults + env exactly as before. The pins-file OPT-IN path is
@@ -398,7 +398,7 @@ assert_eq "1" "$(jq 'length' <<<"$DET_E")" "detector emits ONE record off the pi
 assert_eq "router"              "$(jq -r '.[0].transport'     <<<"$DET_E")" "transport from pins = router"
 assert_eq "HelixAgent/HelixLLM" "$(jq -r '.[0].strong_model'  <<<"$DET_E")" "strong from pins = HelixAgent/HelixLLM (dead endpoint -> honest fallback to the pin)"
 assert_eq "HelixAgent/HelixLLM" "$(jq -r '.[0].fast_model'    <<<"$DET_E")" "fast from pins = HelixAgent/HelixLLM"
-assert_eq "http://127.0.0.1:1/v1" "$(jq -r '.[0].base_url'    <<<"$DET_E")" "base_url from pins (overrides built-in localhost:8100 default)"
+assert_eq "http://127.0.0.1:1/v1" "$(jq -r '.[0].base_url'    <<<"$DET_E")" "base_url from pins (overrides the built-in 127.0.0.1:7061 default)"
 assert_eq "HELIXAGENT_GATEWAY_KEY" "$(jq -r '.[0].key_var'    <<<"$DET_E")" "key_var from pins = HELIXAGENT_GATEWAY_KEY"
 assert_eq "24576"               "$(jq -r '.[0].context_limit' <<<"$DET_E")" "context_limit from pins = 24576 (overrides built-in 128000)"
 

@@ -220,7 +220,7 @@ Your session history is preserved in `~/.claude-shared/projects/`. You can resum
 
 ### What is the `helixagent` alias?
 
-`helixagent` points Claude Code at a **local** HelixLLM backend — a podman container serving Qwen3-Coder-30B on one GPU at `http://127.0.0.1:18434/v1` — instead of a hosted API. It uses router transport through `ccr` plus the bundled Go `cma-proxy` (which recovers the model's tool calls so Claude Code's tools engage), and is pinned to a 229,376-token context window. See §12 of the Provider Aliases User Guide for the full note.
+`helixagent` points Claude Code at a **local** HelixLLM backend — a podman container serving Qwen3-Coder-30B on one GPU, reached at `http://127.0.0.1:7061/v1` (measured 2026-09-03; the earlier `:18434` pin named the llama.cpp coder container — a real port, but a different service, and one that was down when measured — so the alias could never verify) — instead of a hosted API. It uses router transport through `ccr` plus the bundled Go `cma-proxy` (which recovers the model's tool calls so Claude Code's tools engage), and is pinned to a 229,376-token context window. See §12 of the Provider Aliases User Guide for the full note.
 
 ### Why does `helixagent` show as `unverified` and refuse to launch?
 
@@ -247,7 +247,7 @@ The default is off because booting HelixLLM is a machine-wide side effect, not a
 You lose no information by leaving it off. When HelixLLM is not answering, the alias still tells you so and prints the exact command:
 
 ```
-helixagent: HelixLLM is not answering on http://127.0.0.1:18434 and auto-start is OFF by default.
+helixagent: HelixLLM is not answering on http://127.0.0.1:7061 and auto-start is OFF by default.
   Start it yourself (it claims the GPU and evicts HelixCode's coder mode):
     helix_code/scripts/helixllm-mode.sh claude
   Or opt in for this launch:

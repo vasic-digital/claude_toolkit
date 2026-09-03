@@ -1129,7 +1129,7 @@ budget is needed.
 ### HelixAgent: a local GPU backend, and why auto-start is opt-in
 
 The `helixagent` alias routes Claude Code to a local HelixLLM backend
-(`http://127.0.0.1:18434/v1`, router transport), pinned in
+(`http://127.0.0.1:7061/v1`, router transport — repointed 2026-09-03 off `:18434`, which is the llama.cpp coder container, a different service), pinned in
 `scripts/providers/helixagent.json` to `context_limit` **229376** and
 `max_output` **8192**. The context is sized for the multi-turn *agent loop*,
 not for the first request: each executed tool feeds its output back and the

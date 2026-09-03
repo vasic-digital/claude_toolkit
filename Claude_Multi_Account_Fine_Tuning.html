@@ -3419,7 +3419,7 @@ rendered through the same script.</p>
 <span id="cb22-2159"><a href="#cb22-2159" aria-hidden="true" tabindex="-1"></a><span class="st">            fi</span></span>
 <span id="cb22-2160"><a href="#cb22-2160" aria-hidden="true" tabindex="-1"></a><span class="st">          else</span></span>
 <span id="cb22-2161"><a href="#cb22-2161" aria-hidden="true" tabindex="-1"></a><span class="st">            _hl_warn &quot;helixagent: HelixLLM not running and helixllm-mode.sh not found.</span></span>
-<span id="cb22-2162"><a href="#cb22-2162" aria-hidden="true" tabindex="-1"></a><span class="st">  Install Helix Code or start HelixLLM manually on port 18434.&quot;</span></span>
+<span id="cb22-2162"><a href="#cb22-2162" aria-hidden="true" tabindex="-1"></a><span class="st">  Install Helix Code, or start HelixLLM manually so it answers at ${_hl_url}.&quot;</span></span>
 <span id="cb22-2163"><a href="#cb22-2163" aria-hidden="true" tabindex="-1"></a><span class="st">          fi</span></span>
 <span id="cb22-2164"><a href="#cb22-2164" aria-hidden="true" tabindex="-1"></a><span class="st">        fi</span></span>
 <span id="cb22-2165"><a href="#cb22-2165" aria-hidden="true" tabindex="-1"></a><span class="st">        # Check for coder mode (even if running)</span></span>
@@ -7760,7 +7760,7 @@ compact. That is precisely why the separate tool budget is needed.</p>
 <h3 id="helixagent-a-local-gpu-backend-and-why-auto-start-is-opt-in">HelixAgent:
 a local GPU backend, and why auto-start is opt-in</h3>
 <p>The <code>helixagent</code> alias routes Claude Code to a local
-HelixLLM backend (<code>http://127.0.0.1:18434/v1</code>, router
+HelixLLM backend (<code>http://127.0.0.1:7061/v1</code>, router
 transport), pinned in <code>scripts/providers/helixagent.json</code> to
 <code>context_limit</code> <strong>229376</strong> and
 <code>max_output</code> <strong>8192</strong>. The context is sized for

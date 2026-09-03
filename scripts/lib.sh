@@ -2109,7 +2109,25 @@ cma_run_provider() {
         # through a plain printf when it does not.
         _hl_log()  { if command -v cma_log  >/dev/null 2>&1; then cma_log  "$1"; else printf '[cma] %s\n' "$1" >&2; fi; }
         _hl_warn() { if command -v cma_warn >/dev/null 2>&1; then cma_warn "$1"; else printf '[cma warn] %s\n' "$1" >&2; fi; }
-        local _hl_url="${CMA_PROVIDER_BASE_URL%/v1}" _hl_mode=""
+        # WHICH SERVICE THIS PRE-FLIGHT IS ABOUT — and why it is no longer
+        # derived from the alias's own base_url.
+        #
+        # Everything below is a property of the llama.cpp HelixLLM server: the
+        # /health liveness poll, the coder-vs-claude decision read out of
+        # context_limit / n_ctx, and the auto-start, which runs
+        # helixllm-mode.sh — a script that binds :18434. While the helixagent
+        # alias happened to point AT that server, `${CMA_PROVIDER_BASE_URL}`
+        # was a fine way to find it. It no longer does: the alias now points at
+        # HelixAgent's own gateway (:7061), which is a DIFFERENT service with no
+        # n_ctx and no coder/claude mode. Deriving the URL from the base_url
+        # would therefore poll the wrong service for a mode it cannot report,
+        # and — worse — auto-start would boot a llama-server on :18434 and then
+        # wait 120s for :7061 to come up, a service it never started.
+        #
+        # So resolve it independently, defaulting to the port helixllm-mode.sh
+        # actually binds (the same default that script's own
+        # HELIXLLM_HEALTH_URL uses), and keep it overridable (CONST-045).
+        local _hl_url="${CMA_HELIXLLM_HEALTH_URL:-http://127.0.0.1:18434}" _hl_mode=""
         local _hl_healthy=0
         if command -v curl >/dev/null 2>&1; then
           # Some HelixLLM builds expose context_limit in /health; newer ones only
@@ -2186,7 +2204,7 @@ cma_run_provider() {
             fi
           else
             _hl_warn "helixagent: HelixLLM not running and helixllm-mode.sh not found.
-  Install Helix Code or start HelixLLM manually on port 18434."
+  Install Helix Code, or start HelixLLM manually so it answers at ${_hl_url}."
           fi
         fi
         # Check for coder mode (even if running)

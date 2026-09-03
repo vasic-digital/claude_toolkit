@@ -981,7 +981,7 @@ claude-providers list               # check which poeN aliases exist on this hos
 
 `helixagent` points Claude Code at a **local** HelixLLM backend — a podman
 container serving Qwen3-Coder-30B on one GPU (an RTX 5090) at
-`http://127.0.0.1:18434/v1` — instead of a hosted API. Transport is **router**:
+`http://127.0.0.1:7061/v1` (measured 2026-09-03; the earlier `:18434` pin named the llama.cpp coder container — a different service, and down when measured) — instead of a hosted API. Transport is **router**:
 launches go through `claude-code-router` plus the bundled Go `cma-proxy`, which
 recovers the model's Hermes/Qwen `<function=…>` tool calls into structured
 `tool_calls` so Claude Code's tools actually engage. The alias is pinned in
@@ -1040,7 +1040,7 @@ Turning it off costs you no information. When HelixLLM is not answering, the
 pre-flight still says so and still prints the exact command:
 
 ```
-helixagent: HelixLLM is not answering on http://127.0.0.1:18434 and auto-start is OFF by default.
+helixagent: HelixLLM is not answering on http://127.0.0.1:7061 and auto-start is OFF by default.
   Start it yourself (it claims the GPU and evicts HelixCode's coder mode):
     helix_code/scripts/helixllm-mode.sh claude
   Or opt in for this launch:

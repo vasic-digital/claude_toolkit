@@ -1,7 +1,7 @@
 {
   "bin": "helixagent",
   "id": "helixagent",
-  "base_url": "http://127.0.0.1:18434/v1",
+  "base_url": "http://127.0.0.1:7061/v1",
   "transport": "router",
   "strong_model": "HelixAgent/HelixLLM",
   "fast_model": "HelixAgent/HelixLLM",
