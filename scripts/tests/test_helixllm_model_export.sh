@@ -35,6 +35,18 @@
 #    doubled form no longer round-trips. A corpus with no backslash in it is
 #    exactly why that defect survived, so the fixture IS the test.
 #
+#  * WITHHELD OPTIONS (CASE 8). `_CMA_HELIXLLM_SERVING_JQ` is ONE definition
+#    doing TWO jobs — choosing what is exported, and deciding whether a host
+#    proved it is SERVING (gate 2 of the retirement sweep). Every other case
+#    here exercises only its `model_identity` clause; its `availability` clause
+#    could be DELETED and this file still passed 71/0, measured. A withheld
+#    option now carries `model_identity`, so without that clause it would be
+#    exported as a usable alias for a model the host is refusing to serve AND
+#    counted as proof of serving — reopening the data-loss door CASE 7 closed.
+#    CASE 8 feeds it `availability:"withheld"` with a `withheld_reason`, and
+#    reads the filter OUT OF the script rather than restating it, so the
+#    assertion cannot drift from the definition it is about.
+#
 #  * REMOTE VENDOR MODELS. HelixLLM deliberately omits `model_identity` for
 #    remote vendor models — that omission is the ONLY signal distinguishing a
 #    locally-served model from a passthrough. A vendor model exported as a
@@ -89,6 +101,15 @@
 #   * make gate 2 reject every host (never populate hosts_serving) -> the
 #     genuine-withdrawal assertions fail: nothing is ever retired, proving the
 #     survival assertions above cannot be satisfied by disabling retirement.
+#   * delete the `availability` clause from _CMA_HELIXLLM_SERVING_JQ -> CASE 8
+#     fails: the derived-filter assertion counts the withheld entry as kept,
+#     the withheld model appears in the catalogue and as an env record, and
+#     beta is reported as SERVING on a listing of nothing but a withheld
+#     option — so the retirement sweep would act on a backend that is refusing
+#     to serve. (Before CASE 8 existed this mutation changed no result here.)
+#   * make that clause reject everything (e.g. require an availability field
+#     that is never sent) -> CASE 8's serving-sibling assertions fail: the
+#     sibling is not exported and the withdrawn model is never retired.
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -572,6 +593,152 @@ grep -q "cma_run_provider $_kept_id" "$ALIAS_FILE" 2>/dev/null
 assert_eq 1 $? "and its alias is gone — it is no longer invocable"
 assert_file "$PDIR/helixllm-codestral-22b-778899aabbcc.env" \
   "the model beta now serves was written"
+assert_file "$PDIR/hand-authored-thing.env" "and the hand-authored provider still stands"
+
+# ===========================================================================
+# CASE 8 — a WITHHELD entry is not a served model, and the guard that says so
+#          is exercised here rather than only in the serving repo
+#
+# WHY THIS CASE EXISTS AT ALL. `_CMA_HELIXLLM_SERVING_JQ` is ONE definition
+# doing TWO jobs: it selects what gets exported, and it decides whether a host
+# proved it is SERVING — gate 2 of the retirement sweep, the gate that stops
+# `--apply` deleting a user's configuration for a host whose backend is merely
+# loading. Every case above exercises only its FIRST clause (`model_identity`
+# non-empty). Nothing in this repository fed it an entry carrying an explicit
+# `availability` other than "serving", so its SECOND clause could be deleted
+# outright and this file still passed 71/0 — measured, not assumed. A guard
+# that can be removed without its own repository noticing is not a guard.
+#
+# WHAT A WITHHELD ENTRY IS. The serving layer no longer drops an unavailable
+# option before rendering; it PUBLISHES it with `availability:"withheld"` and a
+# `withheld_reason`. That is what lets a LOADING backend be told apart from a
+# WITHDRAWN model instead of both arriving as silence — and it is precisely why
+# such an entry must count as NEITHER an exportable model NOR evidence of
+# serving. It now carries `model_identity` too, so the first clause alone lets
+# it straight through: it would be exported as a usable alias pointing at a
+# model the host is refusing to serve, AND it would license the retirement
+# sweep to start deleting — the exact data-loss door CASE 7 closed, reopened
+# from the front.
+#
+# THE DEGENERATE-FILTER TRAP. A filter that rejected EVERYTHING would satisfy
+# "the withheld entry is not exported" and "the host is not serving" while
+# breaking the product completely — that is the failure mode the fix behind
+# CASE 7 had to avoid. So the serving-sibling sub-case below is not decoration:
+# it asserts a sibling on the SAME host is still exported and can still license
+# a genuine retirement, which no reject-everything filter can satisfy.
+# ===========================================================================
+_withheld_id="helixllm-deepseek-r1-70b-ffeeddccbbaa"
+_sibling_id="helixllm-nemotron-9b-0a1b2c3d4e5f"
+_stale_id="helixllm-codestral-22b-778899aabbcc"
+
+# Beta lists NOTHING but a withheld option. It is identity-bearing, so the
+# `model_identity` clause alone would admit it.
+cat > "$MODELS_B_FILE" <<'JSON'
+[
+ {"id":"helixllm-deepseek-r1-70b-ffeeddccbbaa","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/beta/deepseek-r1:70b",
+  "availability":"withheld","withheld_reason":"provider_unavailable"}
+]
+JSON
+
+it "control: beta really publishes a withheld, identity-bearing option"
+# Without this control a pass could come from a corpus that never exercised the
+# path — which is exactly how the clause went unguarded in the first place.
+_wh="$(curl -s --max-time 5 "$BASE_B/models" | jq -c --arg i "$_withheld_id" '.data[]|select(.id==$i)')"
+printf 'withheld entry as served: %s\n' "$_wh" >> "$PROOF"
+assert_eq "withheld"             "$(jq -r '.availability'    <<<"$_wh")" "it is published with availability=withheld"
+assert_eq "provider_unavailable" "$(jq -r '.withheld_reason' <<<"$_wh")" "and carries a withheld_reason"
+assert_eq "helixllm/beta/deepseek-r1:70b" "$(jq -r '.model_identity' <<<"$_wh")" \
+  "and it DOES carry a model_identity — so the identity clause alone would admit it"
+
+it "the serving filter itself — read from the script, not restated — rejects it"
+# DERIVED, NOT COPIED. The filter is read out of claude-providers.sh at run
+# time, so this assertion cannot drift from the definition it is about: edit
+# the definition and this reads the edited one. (A literal copy of the filter
+# kept in another repository can silently disagree with it; a copy kept HERE
+# would silently disagree too. Deriving it is what removes that failure mode
+# on this side.)
+_serving_jq="$( ( set +e; set --; source "$PROVIDERS_SH" >/dev/null 2>&1
+                  printf '%s' "${_CMA_HELIXLLM_SERVING_JQ:-}" ) )"
+[[ -n "$_serving_jq" ]]
+assert_eq 0 $? "control: the filter was really read out of the script (empty would make every count below meaningless)"
+printf 'derived _CMA_HELIXLLM_SERVING_JQ: %s\n' "$_serving_jq" >> "$PROOF"
+_kept_by_filter="$(curl -s --max-time 5 "$BASE_B/models" \
+  | jq "[.data[]? | $_serving_jq] | length" 2>/dev/null)"
+assert_eq 0 "${_kept_by_filter:-x}" "the withheld entry does not survive the serving filter"
+# ...and the same filter, unchanged, still admits alpha's genuinely served
+# models. This is the guard against "it passed because the filter rejects
+# everything" — the one way the assertion above could be satisfied wrongly.
+_alpha_kept="$(curl -s --max-time 5 "$BASE_A/models" \
+  | jq "[.data[]? | $_serving_jq] | length" 2>/dev/null)"
+[[ "${_alpha_kept:-0}" -ge 4 ]]
+assert_eq 0 $? "control: that same filter still admits alpha's served models (kept=${_alpha_kept:-0}) — it is selective, not empty"
+
+it "a withheld option is never exported as a usable model"
+bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" >>"$PROOF" 2>&1
+assert_eq 0 $? "--apply exits cleanly against a withheld-only listing"
+assert_jq "$CATALOGUE" '[.entries[]|select(.id=="'"$_withheld_id"'")]|length' 0 \
+  "the withheld model is absent from the catalogue"
+assert_file_not_contains "$CATALOGUE" "deepseek-r1" \
+  "nothing of it reaches the catalogue under any key"
+[[ ! -f "$PDIR/$_withheld_id.env" ]]
+assert_eq 0 $? "and no provider record was written for it — it is not invocable"
+
+it "a host whose only identity-bearing options are WITHHELD is answered-not-serving"
+# Asserted on the detector's own envelope, because that field is what gate 2 of
+# the retirement sweep consumes; the surviving config below is the consequence.
+_env_json="$( ( set +e; set --; export CMA_KEYS_FILE="$KEYS"
+                source "$PROVIDERS_SH" >/dev/null 2>&1
+                detect_helixllm_model_records ) 2>/dev/null )"
+printf 'envelope (withheld-only beta): %s\n' "$_env_json" >> "$PROOF"
+assert_eq "true" "$(jq -r --arg b "$BASE_B" '(.hosts_answered_not_serving//[])|index($b)!=null' <<<"$_env_json")" \
+  "beta is reported as answered-but-not-serving"
+assert_eq "true" "$(jq -r --arg b "$BASE_B" '(.hosts_serving//[])|index($b)==null' <<<"$_env_json")" \
+  "and it is NOT counted among the hosts that proved they are serving"
+assert_eq "true" "$(jq -r --arg b "$BASE_A" '(.hosts_serving//[])|index($b)!=null' <<<"$_env_json")" \
+  "control: alpha, genuinely serving, IS in hosts_serving in the same envelope"
+
+it "so the user's existing configuration for that host is KEPT, not deleted"
+assert_file "$PDIR/$_stale_id.env" \
+  "beta's existing provider survives a withheld-only listing (a backend refusing to serve is not a withdrawal)"
+grep -q "cma_run_provider $_stale_id" "$ALIAS_FILE" 2>/dev/null
+assert_eq 0 $? "and its alias is still invocable, not merely its env file"
+assert_file "$PDIR/hand-authored-thing.env" "and the hand-authored provider still stands"
+_out="$(bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" 2>&1)"
+printf '%s\n' "$_out" >> "$PROOF"
+printf '%s' "$_out" | grep -q "named no model it is serving"
+assert_eq 0 $? "and the user is TOLD it was kept because the host named nothing it serves"
+
+it "a SERVING sibling on the same host is still exported, and still licenses retirement"
+# The negative control for everything above: prove the withheld entry was
+# excluded because it is withheld, not because the host or the filter was
+# written off. Beta now publishes the same withheld option ALONGSIDE a model it
+# really is serving — so the sibling must be exported, the withheld one must
+# still not be, and beta has now given the positive evidence that makes the
+# genuinely-withdrawn model retirable.
+cat > "$MODELS_B_FILE" <<'JSON'
+[
+ {"id":"helixllm-deepseek-r1-70b-ffeeddccbbaa","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/beta/deepseek-r1:70b",
+  "availability":"withheld","withheld_reason":"provider_unavailable"},
+ {"id":"helixllm-nemotron-9b-0a1b2c3d4e5f","object":"model","owned_by":"helixllm",
+  "model_identity":"helixllm/beta/nemotron:9b","availability":"serving"}
+]
+JSON
+assert_file "$PDIR/$_stale_id.env" "control: the now-withdrawn model is still configured before this run"
+bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" >>"$PROOF" 2>&1
+assert_eq 0 $? "--apply exits cleanly on a mixed withheld/serving listing"
+assert_jq "$CATALOGUE" '[.entries[]|select(.id=="'"$_sibling_id"'")]|length' 1 \
+  "the SERVING sibling is exported (an explicit availability of \"serving\" is honoured)"
+assert_file "$PDIR/$_sibling_id.env" "and it has a provider record — it is invocable"
+assert_jq "$CATALOGUE" '[.entries[]|select(.id=="'"$_withheld_id"'")]|length' 0 \
+  "while the withheld option beside it is STILL not exported"
+[[ ! -f "$PDIR/$_withheld_id.env" ]]
+assert_eq 0 $? "and still has no provider record"
+[[ ! -f "$PDIR/$_stale_id.env" ]]
+assert_eq 0 $? "beta proved it is serving and did not name the old model, so THAT one is retired"
+grep -q "cma_run_provider $_stale_id" "$ALIAS_FILE" 2>/dev/null
+assert_eq 1 $? "and the retired model's alias is gone — retirement still works, it was only made conditional"
 assert_file "$PDIR/hand-authored-thing.env" "and the hand-authored provider still stands"
 
 echo >> "$PROOF"
