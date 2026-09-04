@@ -360,4 +360,150 @@ assert_eq 0 $rc "stress: flags carries --name $_m_known_name"
 _m_latest="$(run_session_from "$many_proj" latest-id "$many_cfg")"
 assert_eq "$_m_known_id" "$_m_latest" "stress: latest-id returns the most recent session"
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 9. degenerate-session skip + context-size (2026-09-03 compaction-loop cascade)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Forensic root cause (scratch/discovery/compaction_loop_forensics.md): 35
+# near-identical ~319KB transcripts, each a launch that loaded a large resumed
+# context under a small provider window and died with ZERO assistant events.
+# Because the store is shared across aliases and resolution was purely
+# mtime-based, every such dead transcript became the NEXT launch's resume
+# target — the cascade that made the loop endless. Resolution must skip a
+# transcript that is BOTH assistant-free AND large (a died-on-load resume
+# attempt), while a small assistant-free file (user typed one prompt and quit)
+# must STILL resume — that continuity is the feature.
+#
+# A "dead" transcript: no '"type":"assistant"' line AND size above
+# CMA_SESSION_DEAD_BYTES (default 65536 — far above any one-prompt file, far
+# below the ~319KB reload debris observed live).
+
+mk_dead() { # mk_dead <file> <bytes> — an assistant-free transcript of ~bytes
+  local f="$1" n="$2" line
+  line='{"type":"user","content":"'"$(printf 'x%.0s' $(seq 1 1000))"'"}'
+  : > "$f"
+  while [ "$(wc -c < "$f")" -lt "$n" ]; do printf '%s\n' "$line" >> "$f"; done
+}
+
+it "degenerate: a large assistant-free transcript is skipped; the older LIVE session resumes"
+dg_proj="$SANDBOX_HOME/Degen_Proj"; dg_cfg="$SANDBOX_HOME/cfg_degen"
+mkdir -p "$dg_proj"
+dg_root="$(cd "$dg_proj" && pwd -P)"; dg_slug="$(printf '%s' "$dg_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+dg_dir="$dg_cfg/projects/$dg_slug"; mkdir -p "$dg_dir"
+# Older LIVE session (user + assistant).
+dg_live="11111111-2222-3333-4444-555555555555"
+printf '{"type":"user","content":"hello"}\n{"type":"assistant","message":{"usage":{"input_tokens":10}}}\n' \
+  > "$dg_dir/$dg_live.jsonl"
+sleep 1
+# Newer DEAD session: big, no assistant event.
+dg_dead="99999999-8888-7777-6666-555555555555"
+mk_dead "$dg_dir/$dg_dead.jsonl" 200000
+
+dg_got="$(run_session_from "$dg_proj" existing-id "$dg_cfg")"
+assert_eq "$dg_live" "$dg_got" "existing-id skips the dead 200KB transcript, returns the live one"
+dg_got2="$(run_session_from "$dg_proj" latest-id "$dg_cfg")"
+assert_eq "$dg_live" "$dg_got2" "latest-id skips the dead transcript too"
+dg_flags="$(run_session_from "$dg_proj" flags "$dg_cfg")"
+dg_ok=1; [[ "$dg_flags" == "--resume $dg_live"* ]] && dg_ok=0
+assert_eq 0 "$dg_ok" "flags resumes the live session, not the dead one (got: $dg_flags)"
+
+it "degenerate: ALL dead-and-large -> no resume target (fresh start, cascade broken)"
+dg2_proj="$SANDBOX_HOME/Degen_All"; dg2_cfg="$SANDBOX_HOME/cfg_degen2"
+mkdir -p "$dg2_proj"
+dg2_root="$(cd "$dg2_proj" && pwd -P)"; dg2_slug="$(printf '%s' "$dg2_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+dg2_dir="$dg2_cfg/projects/$dg2_slug"; mkdir -p "$dg2_dir"
+mk_dead "$dg2_dir/aaaaaaaa-1111-2222-3333-444444444444.jsonl" 150000
+mk_dead "$dg2_dir/bbbbbbbb-1111-2222-3333-444444444444.jsonl" 150000
+dg2_got="$(run_session_from "$dg2_proj" existing-id "$dg2_cfg")"
+assert_eq "" "$dg2_got" "existing-id is empty when every transcript died on load"
+dg2_flags="$(run_session_from "$dg2_proj" flags "$dg2_cfg")"
+dg2_ok=1; [[ "$dg2_flags" == "--session-id "* && "$dg2_flags" != *"--resume"* ]] && dg2_ok=0
+assert_eq 0 "$dg2_ok" "flags falls back to a fresh --session-id (got: $dg2_flags)"
+
+it "degenerate: a SMALL assistant-free transcript still resumes (one-prompt continuity)"
+dg3_proj="$SANDBOX_HOME/Degen_Small"; dg3_cfg="$SANDBOX_HOME/cfg_degen3"
+mkdir -p "$dg3_proj"
+dg3_root="$(cd "$dg3_proj" && pwd -P)"; dg3_slug="$(printf '%s' "$dg3_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+dg3_dir="$dg3_cfg/projects/$dg3_slug"; mkdir -p "$dg3_dir"
+dg3_sid="cccccccc-1111-2222-3333-444444444444"
+printf '{"type":"user","content":"hello?"}\n' > "$dg3_dir/$dg3_sid.jsonl"
+dg3_got="$(run_session_from "$dg3_proj" existing-id "$dg3_cfg")"
+assert_eq "$dg3_sid" "$dg3_got" "a 60-byte user-only session is NOT debris — resume it"
+
+it "context-size: returns the LAST assistant usage sum (input + cache_creation + cache_read)"
+cs_proj="$SANDBOX_HOME/Ctx_Proj"; cs_cfg="$SANDBOX_HOME/cfg_ctx"
+mkdir -p "$cs_proj"
+cs_root="$(cd "$cs_proj" && pwd -P)"; cs_slug="$(printf '%s' "$cs_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+cs_dir="$cs_cfg/projects/$cs_slug"; mkdir -p "$cs_dir"
+cs_sid="dddddddd-1111-2222-3333-444444444444"
+cat > "$cs_dir/$cs_sid.jsonl" <<'EOF'
+{"type":"user","content":"hi"}
+{"type":"assistant","message":{"usage":{"input_tokens":1000,"cache_creation_input_tokens":200,"cache_read_input_tokens":50,"output_tokens":10}}}
+{"type":"user","content":"more"}
+{"type":"assistant","message":{"usage":{"input_tokens":5000,"cache_creation_input_tokens":0,"cache_read_input_tokens":300,"output_tokens":20}}}
+EOF
+cs_got="$(run_session_from "$cs_proj" context-size "$cs_cfg" "$cs_sid")"
+assert_eq "5300" "$cs_got" "last assistant usage: 5000+0+300 = 5300 (output not counted)"
+
+it "context-size: empty for a transcript with no usage data"
+cs_got2="$(run_session_from "$cs_proj" context-size "$cs_cfg" "eeeeeeee-1111-2222-3333-444444444444")"
+assert_eq "" "$cs_got2" "missing/usage-free session -> empty, never a crash"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 10. code-review 2026-09-04 hardening (degenerate classifier + env knobs)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+it "degenerate: a mid-line '\"type\":\"assistant\"' substring does NOT make debris resumable"
+# The classifier used to grep the substring anywhere in the file; a pasted or
+# malformed line merely CONTAINING it (here: inside a user content tail, so the
+# line starts with "user") would mark reload debris resumable. The match is now
+# anchored to the JSONL object start.
+dg4_proj="$SANDBOX_HOME/Degen_Substr"; dg4_cfg="$SANDBOX_HOME/cfg_degen4"
+mkdir -p "$dg4_proj"
+dg4_root="$(cd "$dg4_proj" && pwd -P)"; dg4_slug="$(printf '%s' "$dg4_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+dg4_dir="$dg4_cfg/projects/$dg4_slug"; mkdir -p "$dg4_dir"
+dg4_sid="ffffffff-1111-2222-3333-444444444444"
+dg4_line='{"type":"user","content":"pasted chunk: "type":"assistant" not really an event"}'
+: > "$dg4_dir/$dg4_sid.jsonl"
+while [ "$(wc -c < "$dg4_dir/$dg4_sid.jsonl")" -lt 100000 ]; do printf '%s\n' "$dg4_line" >> "$dg4_dir/$dg4_sid.jsonl"; done
+dg4_got="$(run_session_from "$dg4_proj" existing-id "$dg4_cfg")"
+assert_eq "" "$dg4_got" "large file whose only 'assistant' mention is mid-line is still debris -> no resume target"
+
+it "degenerate: CMA_SESSION_DEAD_BYTES=0 degrades to the default (one-prompt continuity preserved)"
+# A 0 override used to classify EVERY non-empty assistant-free transcript as
+# debris, silently killing one-prompt continuity. 0/empty/non-numeric mean
+# "use the default".
+dg5_proj="$SANDBOX_HOME/Degen_Zero"; dg5_cfg="$SANDBOX_HOME/cfg_degen5"
+mkdir -p "$dg5_proj"
+dg5_root="$(cd "$dg5_proj" && pwd -P)"; dg5_slug="$(printf '%s' "$dg5_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+dg5_dir="$dg5_cfg/projects/$dg5_slug"; mkdir -p "$dg5_dir"
+dg5_sid="12121212-1111-2222-3333-444444444444"
+printf '{"type":"user","content":"hello?"}\n' > "$dg5_dir/$dg5_sid.jsonl"
+dg5_got="$(CMA_SESSION_DEAD_BYTES=0 run_session_from "$dg5_proj" existing-id "$dg5_cfg")"
+assert_eq "$dg5_sid" "$dg5_got" "DEAD_BYTES=0 -> default 65536: the small user-only session still resumes"
+dg5_dead="13131313-1111-2222-3333-444444444444"
+mk_dead "$dg5_dir/$dg5_dead.jsonl" 200000
+sleep 1
+dg5_got2="$(CMA_SESSION_DEAD_BYTES=0 run_session_from "$dg5_proj" existing-id "$dg5_cfg")"
+assert_eq "$dg5_sid" "$dg5_got2" "DEAD_BYTES=0 -> default: the 200KB dead transcript is still skipped"
+
+it "no-arg subcommands do not abort under set -u when CLAUDE_CONFIG_DIR is unset"
+# cma_latest_session_id / cma_existing_session_id / the main() subcommands used
+# `${1:-$CLAUDE_CONFIG_DIR}`, which aborts with "unbound variable" when the
+# caller passes no arg AND the env var is unset. Now guarded; empty config dir
+# yields empty output / the deterministic fallback, never a crash.
+nu_proj="$SANDBOX_HOME/NoUnset"; mkdir -p "$nu_proj"
+nu_out="$(cd "$nu_proj" && env -u CLAUDE_CONFIG_DIR bash "$SESSION_SH" existing-id 2>&1)"
+nu_rc=$?
+assert_eq 0 "$nu_rc" "existing-id without arg and without CLAUDE_CONFIG_DIR exits 0"
+assert_eq "" "$nu_out" "existing-id prints nothing (no config dir, no sessions)"
+nu_out2="$(cd "$nu_proj" && env -u CLAUDE_CONFIG_DIR bash "$SESSION_SH" context-size 2>&1)"
+nu_rc2=$?
+assert_eq 0 "$nu_rc2" "context-size without arg and without CLAUDE_CONFIG_DIR exits 0"
+assert_eq "" "$nu_out2" "context-size prints nothing (no config dir)"
+nu_out3="$(cd "$nu_proj" && env -u CLAUDE_CONFIG_DIR bash "$SESSION_SH" flags 2>&1)"
+nu_rc3=$?
+assert_eq 0 "$nu_rc3" "flags without arg and without CLAUDE_CONFIG_DIR exits 0"
+nu_ok3=1; [[ "$nu_out3" == "--session-id "* ]] && nu_ok3=0
+assert_eq 0 "$nu_ok3" "flags still emits the fresh-session flags (got: $nu_out3)"
+
 summary

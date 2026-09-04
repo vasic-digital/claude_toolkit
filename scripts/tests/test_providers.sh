@@ -1210,11 +1210,14 @@ grep -qF '_cma_win="$_cma_octx"' <<<"$_acw_body"
 assert_eq 0 $? "window seeded from the sanitized context limit"
 
 it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT is empty/unknown"
-# Static-body check: the export line is conditional — immediately preceded by
-# the [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] guard — so an empty/unknown
-# limit never exports a bogus window.
+# Static-body check: the export line is conditional — positioned AFTER the
+# `if [ -n "$_cma_octx" ]; then` guard opens — so an empty/unknown limit never
+# exports a bogus window. Ordering-based (awk), NOT a fixed `grep -B45`
+# window: the 2026-09-03 compaction-loop fix legitimately grew the block
+# inside the guard (the context-proportional cap resolution), and a fixed
+# -B45 then false-FAILED while the invariant itself still held (§11.4.120).
 # shellcheck disable=SC2016
-grep -B45 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -qF 'if [ -n "$_cma_octx" ]; then'
+awk '/if \[ -n "\$_cma_octx" \]; then/{g=NR} /export CLAUDE_CODE_AUTO_COMPACT_WINDOW=/{e=NR} END{exit !(g && e && e > g)}' <<<"$_acw_body"
 assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is inside the known-context guard"
 
 it "migration regenerates an outdated cma_run_provider that lacks the auto-compact cap guard"
@@ -2770,10 +2773,49 @@ it "autocompact safety margin lowers the window when the provider can afford it 
 # window, leaving zero headroom for the compacted summary. A 24k safety margin
 # is reserved so compaction fires earlier and a large file/tool output is less
 # likely to refill the context to the limit immediately after a compact.
+#
+# COMPACTION-LOOP FIX (2026-09-03, reconciled per §11.4.120): the fixed
+# 200000-token CMA_AUTO_COMPACT_CAP was correct as a ceiling for 200K-class
+# providers but WRONG for 1M-class ones. A native-alias session grows to
+# ~977K-1M tokens (native unsets every guard); resumed under a provider alias
+# whose window the 200000 cap forced to 176000, the first turn of real work
+# (~150K tokens of tool results, measured live on the helix_code session)
+# refilled past the trigger and compacted AGAIN — "compact on every
+# substantive turn", indistinguishable from an endless loop. The default cap
+# is now context-proportional: max(200000, context/2). For a 1M/128k provider
+# that is max(200000, 500000) = 500000, so the margin-adjusted window is
+# 476000 — still compacting at ~50% of the model's window (the cap's original
+# "don't fill the session before compacting" intent), never near the hard
+# limit, and with ~440K of post-compact headroom so resumed native sessions
+# actually continue. CMA_AUTO_COMPACT_CAP remains the explicit override.
 read -r _w _o <<<"$(_guard 1000000 128000)"
-assert_eq "176000" "$_w" "1M ctx: 200000 raw window reduced by 24000 safety margin"
+assert_eq "476000" "$_w" "1M ctx: context-proportional cap 500000 reduced by 24000 safety margin"
 _sum=$(( _w + 80000 + _o )); _ok=0; [ "$_sum" -le 1000000 ] && _ok=1
-assert_eq 1 "$_ok" "margin-adjusted window(176000)+tools(80000)+output($_o)=$_sum <= 1000000"
+assert_eq 1 "$_ok" "margin-adjusted window(476000)+tools(80000)+output($_o)=$_sum <= 1000000"
+
+it "the compact cap scales with context but never below the legacy 200000 floor"
+# 200K-262K providers must see NO change from the scaling (regression fence):
+# their cap stays 200000, so their windows are byte-identical to the pre-fix
+# behaviour. Only providers whose context/2 EXCEEDS 200000 get a larger cap.
+read -r _w _o <<<"$(_guard 262144 65536)"
+assert_eq "120000" "$_w" "262144 ctx: cap stays 200000 (context/2 = 131072 < floor); the compression-loop guard then sets 120000 exactly as before"
+read -r _w _o <<<"$(_guard 1048576 131072)"
+assert_eq "500288" "$_w" "1048576 ctx: cap = 524288, margin-adjusted 500288"
+
+it "an explicit CMA_AUTO_COMPACT_CAP still wins over the context-proportional default"
+CMA_AUTO_COMPACT_CAP=200000
+read -r _w _o <<<"$(_guard 1000000 128000)"
+unset CMA_AUTO_COMPACT_CAP
+assert_eq "176000" "$_w" "operator override restores the legacy 200000-cap behaviour exactly"
+
+it "a non-numeric CMA_AUTO_COMPACT_CAP falls back to the context-proportional default (no abort)"
+# Code-review 2026-09-04 finding 1: under set -e an unsanitized `abc` reached
+# `[ "$_cma_win" -gt "$_cma_compact_cap" ]` and aborted EVERY alias launch with
+# "integer expression expected". Invalid values must degrade to the default.
+CMA_AUTO_COMPACT_CAP=abc
+read -r _w _o <<<"$(_guard 1000000 128000)"
+unset CMA_AUTO_COMPACT_CAP
+assert_eq "476000" "$_w" "invalid override yields the identical window to no override (500000 cap, 24000 margin)"
 
 it "safety margin is capped at min-compact-window floor"
 # helixagent shape: raw window 141184, min_win 120000 -> max margin 21184.
@@ -2790,13 +2832,13 @@ it "CMA_AUTO_COMPACT_SAFETY_MARGIN=0 disables the margin"
 CMA_AUTO_COMPACT_SAFETY_MARGIN=0
 read -r _w _o <<<"$(_guard 1000000 128000)"
 unset CMA_AUTO_COMPACT_SAFETY_MARGIN
-assert_eq "200000" "$_w" "margin disabled -> raw capped window restored"
+assert_eq "500000" "$_w" "margin disabled -> raw context-proportional capped window restored"
 
 it "invalid safety margin values are treated as 0"
 CMA_AUTO_COMPACT_SAFETY_MARGIN=abc
 read -r _w _o <<<"$(_guard 1000000 128000)"
 unset CMA_AUTO_COMPACT_SAFETY_MARGIN
-assert_eq "200000" "$_w" "non-numeric margin treated as 0"
+assert_eq "500000" "$_w" "non-numeric margin treated as 0"
 
 
 summary

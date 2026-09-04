@@ -1912,6 +1912,17 @@ cmd_helixllm_export() {
       "# ONLY thing that lets that command retire this record when the serving host" \
       "# stops offering the model; remove it and the record becomes permanent." \
       "CMA_PROVIDER_SOURCE='helixllm-export'" >> "$(cma_providers_dir)/$pid.env"
+    # Persist the CA trust anchor the export ran with, so the LAUNCH path (not
+    # just the verify probe) can trust a self-signed https gateway: router
+    # aliases build SSL_CERT_FILE from it, native aliases export
+    # NODE_EXTRA_CA_CERTS. Same refusal rules as providers-verify.sh — a path
+    # that is unreadable or could break a quoted assignment is not persisted.
+    if [[ -n "${CMA_PROVIDER_CA_CERT:-}" && -r "${CMA_PROVIDER_CA_CERT:-}" ]] \
+       && [[ "${CMA_PROVIDER_CA_CERT}" != *"'"* ]] \
+       && [[ "${CMA_PROVIDER_CA_CERT}" != *\\* ]] \
+       && [[ "${CMA_PROVIDER_CA_CERT}" != *$'\n'* ]]; then
+      printf 'CMA_PROVIDER_CA_CERT=%s\n' "'$CMA_PROVIDER_CA_CERT'" >> "$(cma_providers_dir)/$pid.env"
+    fi
     cma_provider_write_alias "$pid" "$pid"
     n_written=$((n_written + 1))
   done < <(jq -r '.[] | [.provider_id, .key_var, .transport, .base_url,

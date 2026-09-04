@@ -11,11 +11,15 @@
 #   flags <config_dir>          Print launch flags for `claude` on stdout:
 #                               either `--resume <sid>` (session exists) or
 #                               `--session-id <sid> --name <kebab>` (first run).
-#                               Picks the MOST RECENTLY ACTIVE session by mtime.
+#                               Picks the MOST RECENTLY ACTIVE *resumable*
+#                               session (degenerate assistant-free reload
+#                               debris is skipped — see _cma_pick_session).
 #                               Side effect: trust the project in <config_dir>.
 #   name  [path]                Print the kebab-case session name for a path.
 #   id    [path]                Print the stable session UUID for a path.
 #   latest-id [config_dir]      Print most-recently-active session UUID.
+#   context-size <dir> [sid]    Print the session's estimated current context
+#                               tokens (last assistant usage input+cache sum).
 #   color <label>              Print the mapped color for an alias label.
 #   hint  <label> [path]        Print a human color/session hint on stderr.
 #
@@ -81,6 +85,9 @@ cma_label_color() {
 # Mark the project as trusted in <config_dir>/.claude.json
 cma_trust_project() {
   local config_dir="$1" root="$2" f tmp
+  # An empty config dir (e.g. a no-arg call with CLAUDE_CONFIG_DIR unset) has
+  # nothing to trust into — return quietly rather than writing /.claude.json.
+  [[ -n "$config_dir" ]] || return 0
   f="$config_dir/.claude.json"
   command -v jq >/dev/null 2>&1 || return 0
   [[ -f "$f" ]] || printf '{}\n' > "$f" 2>/dev/null || return 0
@@ -98,25 +105,58 @@ cma_trust_project() {
 # Find the MOST RECENTLY active session UUID for a project directory.
 # Scans *.jsonl (excluding subagents/), sorts by mtime descending.
 # Falls back to the deterministic UUID on first launch.
+
+# Degenerate-session guard (2026-09-03 compaction-loop cascade): the store is
+# SHARED across every alias, and resolution used to be purely mtime-based, so a
+# launch that loaded a large resumed context under a smaller provider window
+# and died with ZERO assistant events left a fresh-mtime transcript that the
+# NEXT alias launch then resumed — the cascade that made the compaction loop
+# endless (35 near-identical ~319KB corpses measured on the live store). A
+# transcript is resumable when it carries an assistant event, OR is small: a
+# small assistant-free file is a one-prompt session the user simply walked
+# away from (continuity must survive); a LARGE assistant-free file is reload
+# debris that can only die the same way again. The threshold is bytes, not
+# tokens, because a died-on-load transcript has no usage line to measure.
+# 0 / negative / non-numeric values mean "use default" — 0 would classify
+# every non-empty assistant-free transcript as dead debris and silently break
+# one-prompt continuity.
+CMA_SESSION_DEAD_BYTES="${CMA_SESSION_DEAD_BYTES:-65536}"
+case "$CMA_SESSION_DEAD_BYTES" in
+  ''|0|*[!0-9]*) CMA_SESSION_DEAD_BYTES=65536 ;;
+esac
+
+_cma_session_resumable() {
+  local f="$1" sz
+  [[ -f "$f" ]] || return 1
+  sz="$(wc -c < "$f" 2>/dev/null || printf '0')"
+  if [ "$sz" -le "$CMA_SESSION_DEAD_BYTES" ]; then return 0; fi
+  # Anchored to the JSONL object start: a pasted/debris line that merely
+  # CONTAINS the substring mid-line must not count as an assistant event.
+  grep -q '^{"type":"assistant"' "$f" 2>/dev/null
+}
+
+# Print the newest RESUMABLE session id for a session dir, nothing when every
+# transcript is degenerate. Callers decide the no-session behaviour.
+_cma_pick_session() {
+  local sess_dir="$1" f latest=""
+  [[ -d "$sess_dir" ]] || return 1
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    if _cma_session_resumable "$f"; then latest="$f"; break; fi
+  done <<CMA_PICK_EOF
+$(ls -t "$sess_dir"/*.jsonl 2>/dev/null | grep -v '/subagents/' || true)
+CMA_PICK_EOF
+  [[ -n "$latest" ]] || return 1
+  basename "$latest" .jsonl
+}
+
 cma_latest_session_id() {
-  local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root="${2:-}"
+  local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" root="${2:-}"
   root="${root:-$PWD}"
   local proj_slug sess_dir latest
   proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
   sess_dir="$config_dir/projects/$proj_slug"
-  # ls -t sorts by mtime DESC; skip subagent dirs
-  if [[ -d "$sess_dir" ]]; then
-    # The `|| true` guard on head is load-bearing: with `set -o pipefail`
-    # (line 30), `head -1` exits after reading one line, which sends SIGPIPE
-    # to grep; pipefail turns that into exit 141, and `set -e` aborts the
-    # script BEFORE the fallback to cma_session_id.  Without this guard,
-    # EVERY launch is a "first run" — creating a fresh session instead of
-    # resuming the shared one.  §12.7.0 session-sharing.
-    latest="$(ls -t "$sess_dir"/*.jsonl 2>/dev/null \
-      | grep -v '/subagents/' \
-      | head -1 || true)"
-    latest="$(basename "${latest:-}" .jsonl 2>/dev/null)" || latest=""
-  fi
+  latest="$(_cma_pick_session "$sess_dir" 2>/dev/null || true)"
   if [[ -n "${latest:-}" ]]; then
     printf '%s\n' "$latest"
   else
@@ -124,22 +164,17 @@ cma_latest_session_id() {
   fi
 }
 
-# Print the most-recent session UUID ONLY when a real session file exists for
-# this project (empty otherwise). Used by the wrapper's args resume-injection:
+# Print the most-recent RESUMABLE session UUID ONLY when one exists for this
+# project (empty otherwise). Used by the wrapper's args resume-injection:
 # injecting --resume with the deterministic-but-never-created fallback UUID
 # makes Claude Code fail hard ("No conversation found with session ID").
 cma_existing_session_id() {
-  local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root="${2:-}"
+  local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" root="${2:-}"
   root="${root:-$PWD}"
   local proj_slug sess_dir latest
   proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
   sess_dir="$config_dir/projects/$proj_slug"
-  if [[ -d "$sess_dir" ]]; then
-    latest="$(ls -t "$sess_dir"/*.jsonl 2>/dev/null \
-      | grep -v '/subagents/' \
-      | head -1 || true)"
-    latest="$(basename "${latest:-}" .jsonl 2>/dev/null)" || latest=""
-  fi
+  latest="$(_cma_pick_session "$sess_dir" 2>/dev/null || true)"
   [[ -n "${latest:-}" ]] && printf '%s\n' "$latest"
   return 0
 }
@@ -151,17 +186,40 @@ main() {
     id)    cma_session_id "${1:-$PWD}" ;;
     color) cma_label_color "${1:-}" ;;
     existing-id)
-      local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root
+      local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" root
       root="$(cma_project_root "$PWD")"
       cma_existing_session_id "$config_dir" "$root"
       ;;
     latest-id)
-      local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root
+      local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" root
       root="$(cma_project_root "$PWD")"
       cma_latest_session_id "$config_dir" "$root"
       ;;
+    context-size)
+      # Estimated CURRENT context tokens of a session: the last assistant
+      # usage's input+cache_creation+cache_read sum (that triple IS the prompt
+      # size of the last completed turn; output is the reply, not the context).
+      # Empty output when unknown — callers treat empty as "no data", never 0.
+      local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" sid="${2:-}" root
+      root="$(cma_project_root "$PWD")"
+      if [[ -z "$sid" ]]; then
+        sid="$(cma_existing_session_id "$config_dir" "$root")"
+      fi
+      [[ -n "$sid" ]] || exit 0
+      local proj_slug sess_file
+      proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+      sess_file="$config_dir/projects/$proj_slug/$sid.jsonl"
+      [[ -f "$sess_file" ]] || exit 0
+      command -v jq >/dev/null 2>&1 || exit 0
+      # grep|tail|jq under pipefail: a no-assistant transcript makes grep exit
+      # 1 — the || true keeps that an empty print, never an abort. Anchored to
+      # the JSONL object start, matching _cma_session_resumable, so a mid-line
+      # substring (pasted debris) is not mistaken for an assistant event.
+      grep '^{"type":"assistant"' "$sess_file" 2>/dev/null | tail -1 | \
+        jq -r '(.message.usage // {}) | ((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)) | select(. > 0)' 2>/dev/null || true
+      ;;
     flags)
-      local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root sid name proj_slug sess_file
+      local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" root sid name proj_slug sess_file
       root="$(cma_project_root "$PWD")"
       sid="$(cma_latest_session_id "$config_dir" "$root")"
       name="$(cma_session_name "$root")"
@@ -175,7 +233,7 @@ main() {
       fi
       ;;
     apply-color)
-      local config_dir="${1:-$CLAUDE_CONFIG_DIR}" label="${2:-}" root sid color proj_slug sess_file latest
+      local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" label="${2:-}" root sid color proj_slug sess_file latest
       root="$(cma_project_root "$PWD")"
       sid="$(cma_latest_session_id "$config_dir" "$root")"
       color="$(cma_label_color "$label")"
@@ -194,7 +252,7 @@ main() {
       printf 'claude-session: project "%s" — alias color: %s (auto-applied).\n' \
         "$name" "$color" >&2
       ;;
-    *) printf 'usage: claude-session {flags|name|id|color|apply-color|hint|latest-id} [args]\n' >&2; return 2 ;;
+    *) printf 'usage: claude-session {flags|name|id|color|apply-color|hint|latest-id|existing-id|context-size} [args]\n' >&2; return 2 ;;
   esac
 }
 

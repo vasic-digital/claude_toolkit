@@ -1353,10 +1353,19 @@ cma_run_provider() {
   # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set just
   # below, before the transport branch, BOTH transports, clamped <=128000)
   # caps OUTPUT — the two are independent halves of the guard.
-  # Auto-compact cap: only lower the window; never raise it above ~200K.
-  # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need the full
-  # window — exporting it disables auto-compaction until ~987K, filling the
-  # session before compacting. CMA_AUTO_COMPACT_CAP overrides.
+  # Auto-compact cap: only lower the window; never raise it above the cap.
+  # The DEFAULT cap is context-proportional — max(200000, context/2) — because
+  # a fixed 200000 was correct for 200K-class providers but produced the
+  # 2026-09-03 endless-compaction loop on 1M-class ones: a native-alias session
+  # grows to ~977K-1M tokens (native unsets every guard, see cma_run), and
+  # resumed under a provider alias whose window the 200000 cap forced to
+  # 176000, ONE substantive turn of real work (~150K tokens of tool results,
+  # measured live on the helix_code session) refilled past the trigger and
+  # compacted AGAIN — a compact on every turn, indistinguishable from an
+  # infinite loop. context/2 keeps the cap's original intent (compact around
+  # ~50% of the model's window, never near the hard limit) while giving
+  # large-context providers enough post-compact headroom for a resumed native
+  # session to actually continue. CMA_AUTO_COMPACT_CAP overrides outright.
   #
   # _cma_in_guard (v1.24.0): the input guard is exported for EVERY provider
   # with a known context, CLAMPED — never skipped. The previous gate
@@ -1371,7 +1380,13 @@ cma_run_provider() {
   # --- cma-token-guards:begin --- (extracted verbatim by test_providers.sh;
   # the guards are pure arithmetic over CMA_PROVIDER_{CONTEXT_LIMIT,MAX_OUTPUT},
   # so the suite can exercise the SHIPPED source without launching anything.)
-  local _cma_compact_cap="${CMA_AUTO_COMPACT_CAP:-200000}"
+  local _cma_compact_cap="${CMA_AUTO_COMPACT_CAP:-}"
+  # Sanitize the override: a non-numeric CMA_AUTO_COMPACT_CAP must fall back to
+  # the context-proportional default, never reach an integer comparison under
+  # set -e (which would abort every provider alias launch).
+  case "$_cma_compact_cap" in
+    ''|*[!0-9]*) _cma_compact_cap="" ;;
+  esac
   # _cma_out_guard (v1.16.0) + <=128000 clamp (§11.4.108/§11.4.111): output-
   # token cap for BOTH transports, not just native. Without it, router
   # providers run with Claude Code's generic default output cap (128000 for
@@ -1514,6 +1529,16 @@ cma_run_provider() {
         export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"
       fi
     fi
+    # Context-proportional compact cap (the 2026-09-03 loop fix): resolve the
+    # default HERE, where the sanitized integer context is in scope. The floor
+    # of 200000 keeps every <=400K-context provider byte-identical to the
+    # pre-fix behaviour; only a provider whose context/2 exceeds 200000 gets a
+    # larger cap. An explicit CMA_AUTO_COMPACT_CAP always wins.
+    if [ -z "$_cma_compact_cap" ]; then
+      _cma_compact_cap=200000
+      local _cma_half_ctx=$(( _cma_octx / 2 ))
+      if [ "$_cma_half_ctx" -gt 200000 ]; then _cma_compact_cap="$_cma_half_ctx"; fi
+    fi
     if [ "$_cma_win" -gt "$_cma_compact_cap" ]; then _cma_win="$_cma_compact_cap"; fi
     # Autocompact thrashing guard (v1.26.8): the raw window above consumes every
     # token the model can hold (text + tools + output = context). That leaves
@@ -1565,6 +1590,20 @@ cma_run_provider() {
       # must stay history-free or a local model's window overflows).
       if [[ "${CMA_PROVIDER_TRIM:-}" != "bare" ]]; then
         _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+        # Resume-fit warning (same rationale as the conversation-args path
+        # below): the flags form is `--resume <id> --name <kebab>`, so the
+        # session id is word 2. Warn-only, never block.
+        if [[ "$_cma_psf" == --resume\ * ]]; then
+          local _cma_rsid _cma_est=""
+          _cma_rsid="$(printf '%s\n' "$_cma_psf" | awk '{print $2}')"
+          _cma_est="$("$HOME/.local/bin/claude-session" context-size "$CLAUDE_CONFIG_DIR" "$_cma_rsid" 2>/dev/null || true)"
+          case "$_cma_est" in ''|*[!0-9]*) _cma_est="" ;; esac
+          if [[ -n "$_cma_est" && -n "${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}" ]] \
+             && [ "$_cma_est" -gt "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" ]; then
+            printf 'claude-providers: resume target %s holds ~%s tokens; provider %s compact window is %s — it will be compacted immediately on resume (then continue normally).\n' \
+              "$_cma_rsid" "$_cma_est" "$CMA_PROVIDER_ID" "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" >&2
+          fi
+        fi
       fi
       "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
       eval "set -- $_cma_psf"
@@ -1587,7 +1626,26 @@ cma_run_provider() {
           # resumed history — history must not ride along by default).
           if [[ "${CMA_PROVIDER_TRIM:-}" != "bare" ]]; then
             _cma_psf="$("$HOME/.local/bin/claude-session" existing-id "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
-            [[ -n "$_cma_psf" ]] && set -- --resume "$_cma_psf" "$@"
+            if [[ -n "$_cma_psf" ]]; then
+              # Resume-fit warning (2026-09-03 compaction-loop fix): when the
+              # session about to be resumed already holds MORE tokens than
+              # this provider's computed auto-compact window, Claude Code
+              # compacts it immediately on resume. That one-off compact is
+              # intended — but it must never be SILENT: the operator otherwise
+              # sees an unexplained "Compacting" stall on every alias switch
+              # (the endless-compaction report). Warn, never block — the
+              # resume still happens, the window-scaling guard above gives the
+              # post-compact session real headroom.
+              local _cma_est=""
+              _cma_est="$("$HOME/.local/bin/claude-session" context-size "$CLAUDE_CONFIG_DIR" "$_cma_psf" 2>/dev/null || true)"
+              case "$_cma_est" in ''|*[!0-9]*) _cma_est="" ;; esac
+              if [[ -n "$_cma_est" && -n "${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}" ]] \
+                 && [ "$_cma_est" -gt "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" ]; then
+                printf 'claude-providers: resume target %s holds ~%s tokens; provider %s compact window is %s — it will be compacted immediately on resume (then continue normally).\n' \
+                  "$_cma_psf" "$_cma_est" "$CMA_PROVIDER_ID" "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" >&2
+              fi
+              set -- --resume "$_cma_psf" "$@"
+            fi
           fi
           ;;
       esac
@@ -1792,6 +1850,45 @@ cma_run_provider() {
     ( umask 077; mkdir -p "$_ccr_home"
       [[ -f "$cfg" ]] || echo '{"Providers":[],"Router":{}}' > "$cfg" )
     chmod 600 "$cfg" 2>/dev/null || true
+    # Upstream TLS trust anchor (2026-09-04, helixllm-anton live launch): the
+    # verify probe honors CMA_PROVIDER_CA_CERT, but the LAUNCH path wired no
+    # CA at all, so a `verified` alias behind a self-signed https gateway died
+    # on the first real request — "502 upstream request failed: tls: failed to
+    # verify certificate: x509: certificate signed by unknown authority". The
+    # router's outbound client is a Go &http.Transport{} on the SYSTEM pool;
+    # Go honors SSL_CERT_FILE, which REPLACES that pool, so the anchor is a
+    # COMBINED bundle (system roots + the extra CA) — a CA-only bundle would
+    # narrow trust and break every other TLS dial this gateway might make.
+    # _ccr_ca_env is consumed via env(1) with the ${arr[@]+"${arr[@]}"} guard
+    # so an empty array expands to NOTHING in both bash and zsh.
+    local _ccr_ca="" _ccr_ca_env=()
+    if [[ -n "${CMA_PROVIDER_CA_CERT:-}" && -r "${CMA_PROVIDER_CA_CERT:-}" ]] \
+       && [[ "$base" == https://* ]]; then
+      local _ccr_sys_ca=""
+      for _c in /etc/ssl/certs/ca-certificates.crt \
+                /etc/pki/tls/certs/ca-bundle.crt \
+                /etc/ssl/cert.pem; do
+        [[ -r "$_c" ]] && { _ccr_sys_ca="$_c"; break; }
+      done
+      if [[ -n "$_ccr_sys_ca" ]]; then
+        cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_home/ca-bundle.pem" 2>/dev/null || true
+      else
+        cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_home/ca-bundle.pem" 2>/dev/null || true
+      fi
+      # The bundle carries a private upstream CA: same 600 discipline as the
+      # config dir it lives in (the shell's umask is not guaranteed here).
+      # The chmod stays BEST-EFFORT by deliberate threat model (code-review
+      # 2026-09-04 finding 8): (a) $_ccr_home itself was created under
+      # umask 077, so a 644 bundle inside a 700 directory is already
+      # group/world-inaccessible; (b) a CA certificate is PUBLIC material by
+      # design — it is distributed to every TLS client, unlike the API key in
+      # config.json; and (c) making chmod a hard precondition would convert a
+      # benign permission hiccup into a dead alias (no SSL_CERT_FILE -> the
+      # x509 failure this whole block exists to fix), a strictly worse failure
+      # mode. Belt-and-braces, never a launch gate.
+      [[ -s "$_ccr_home/ca-bundle.pem" ]] && _ccr_ca="$_ccr_home/ca-bundle.pem"
+      [[ -n "$_ccr_ca" ]] && { chmod 600 "$_ccr_ca" 2>/dev/null || true; _ccr_ca_env=("SSL_CERT_FILE=$_ccr_ca"); }
+    fi
     case "$base" in
       */chat/completions|*/v1beta/models/|*/v1beta/models) ;;
       *) base="${base%/}/chat/completions" ;;
@@ -2373,7 +2470,7 @@ cma_run_provider() {
            # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
            # Its failure means the file is right and the gateway is still wrong —
            # the most dangerous state of all, and the one `|| true` used to hide.
-           _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" 2>&1)"; _rst_rc=$?
+           _rst_out="$(env ${_ccr_ca_env[@]+"${_ccr_ca_env[@]}"} CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" 2>&1)"; _rst_rc=$?
           if (( _rst_rc != 0 )); then
             # SELF-HEAL the commonest cause. A "Profile … not found or is
             # disabled" reply means ccr parsed 'restart' as a profile NAME — the
@@ -2393,7 +2490,7 @@ cma_run_provider() {
                     && cma_log "bundled ccr is stale (no 'restart' subcommand) — rebuilding once via claude-ccr-build …" \
                     || printf 'claude-providers: bundled ccr is stale — rebuilding it once (this may take ~30s) …\n' >&2
                   claude-ccr-build >/dev/null 2>&1 || true
-                  _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" 2>&1)"; _rst_rc=$?
+                  _rst_out="$(env ${_ccr_ca_env[@]+"${_ccr_ca_env[@]}"} CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" --port "$_ccr_mgmt_port" 2>&1)"; _rst_rc=$?
                 fi ;;
             esac
           fi
@@ -2431,7 +2528,7 @@ cma_run_provider() {
         "$_eph_marker"
       return 78
     fi
-    CCR_HOME="$_ccr_home" "$_ccr" default-claude-code -- "$@"; rc=$?
+    env ${_ccr_ca_env[@]+"${_ccr_ca_env[@]}"} CCR_HOME="$_ccr_home" "$_ccr" default-claude-code -- "$@"; rc=$?
     # Stop proxy if we started one
     if [[ -n "$_proxy_pid" ]]; then
       kill "$_proxy_pid" 2>/dev/null || true
@@ -2446,6 +2543,15 @@ cma_run_provider() {
   else
     export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
     export ANTHROPIC_AUTH_TOKEN="$token"
+    # Native transport against a self-signed https upstream: the verify probe
+    # trusts CMA_PROVIDER_CA_CERT, and the launch must too. claude is a Node
+    # process, and Node APPENDS NODE_EXTRA_CA_CERTS to its system roots — so
+    # the raw CA path is sufficient (no combined bundle needed, unlike the
+    # router transport's Go client where SSL_CERT_FILE REPLACES the pool).
+    if [[ -n "${CMA_PROVIDER_CA_CERT:-}" && -r "${CMA_PROVIDER_CA_CERT:-}" ]] \
+       && [[ "$CMA_PROVIDER_BASE_URL" == https://* ]]; then
+      export NODE_EXTRA_CA_CERTS="$CMA_PROVIDER_CA_CERT"
+    fi
     # ANTHROPIC_MODEL + the four ANTHROPIC_DEFAULT_*_MODEL tier maps are
     # exported ABOVE for BOTH transports (v1.26.1 — the 2.1.220 compact-loop
     # fix): a tier-pinned subagent dispatch or fast-tier call never leaks a

@@ -1,34 +1,114 @@
 === test_helixagent_pins_survive_live_sync.sh evidence ===
-date: 2026-09-03T08:42:17Z
-server port: 38931   pid: 3381298   live id: /models/Qwen3-Test-Model-Q4_K_M.gguf
---- live GET http://127.0.0.1:38931/v1/models ---
+date: 2026-09-04T16:58:11Z
+server port: 51071   pid: 175019   live id: /models/Qwen3-Test-Model-Q4_K_M.gguf
+--- live GET http://127.0.0.1:51071/v1/models ---
 {"object": "list", "data": [{"id": "/models/Qwen3-Test-Model-Q4_K_M.gguf", "object": "model", "owned_by": "llamacpp"}]}
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.T2uSa1/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m discovered 4 key vars; 3 resolve to a provider
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.nLDcg6/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m discovered 24 key vars; 23 resolve to a provider
+[36m[cma][0m provider 'chutes1' -> alias 'chutes1' [router] model=deepseek-ai/DeepSeek-V3.2-TEE (unverified/existence)
+[36m[cma][0m provider 'chutes2' -> alias 'chutes2' [router] model=Qwen/Qwen3.5-397B-A17B-TEE (unverified/existence)
+[36m[cma][0m provider 'chutes3' -> alias 'chutes3' [router] model=Qwen/Qwen3-235B-A22B-Thinking-2507-TEE (unverified/existence)
+[36m[cma][0m provider 'chutes4' -> alias 'chutes4' [router] model=zai-org/GLM-5.2-TEE (unverified/existence)
+[36m[cma][0m provider 'chutes5' -> alias 'chutes5' [router] model=moonshotai/Kimi-K2.6-TEE (unverified/existence)
 [36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=HelixAgent/HelixLLM (unverified/existence)
 [36m[cma][0m provider 'helixagent-native' -> alias 'helixagent-native' [native] model=helixllm-multi (unverified/existence)
 [36m[cma][0m provider 'helixllm-gateway' -> alias 'helixllm-gateway' [router] model=helixllm-multi (unverified/existence)
-[36m[cma][0m sync done: 3 active, 0 disabled (failed verify), 1 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.T2uSa1/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.T2uSa1/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m multi-sync: discovered 4 key vars; 3 resolve to a provider
-[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:38931/v1/chat/completions (free-tier only)...
+[36m[cma][0m provider 'hyper1' -> alias 'hyper1' [router] model=deepseek-v4-pro (unverified/existence)
+[36m[cma][0m provider 'hyper2' -> alias 'hyper2' [router] model=glm-5.2 (unverified/existence)
+[36m[cma][0m provider 'hyper3' -> alias 'hyper3' [router] model=kimi-k2.7-code (unverified/existence)
+[36m[cma][0m provider 'hyper4' -> alias 'hyper4' [router] model=qwen3.7-max (unverified/existence)
+[36m[cma][0m provider 'hyper5' -> alias 'hyper5' [router] model=glm-5.1 (unverified/existence)
+[36m[cma][0m provider 'opencode-go1' -> alias 'opencode-go1' [router] model=deepseek-v4-pro (unverified/existence)
+[36m[cma][0m provider 'opencode-go2' -> alias 'opencode-go2' [router] model=glm-5 (unverified/existence)
+[36m[cma][0m provider 'opencode-go3' -> alias 'opencode-go3' [router] model=kimi-k2 (unverified/existence)
+[36m[cma][0m provider 'opencode-go4' -> alias 'opencode-go4' [router] model=qwen-3.7 (unverified/existence)
+[36m[cma][0m provider 'opencode-go5' -> alias 'opencode-go5' [router] model=deepseek-v4-pro (unverified/existence)
+[36m[cma][0m provider 'opencode-zen1' -> alias 'opencode-zen1' [router] model=claude-fable-5 (unverified/existence)
+[36m[cma][0m provider 'opencode-zen2' -> alias 'opencode-zen2' [router] model=claude-opus-5 (unverified/existence)
+[36m[cma][0m provider 'opencode-zen3' -> alias 'opencode-zen3' [router] model=claude-sonnet-5 (unverified/existence)
+[36m[cma][0m provider 'opencode-zen4' -> alias 'opencode-zen4' [router] model=gpt-5.4 (unverified/existence)
+[36m[cma][0m provider 'opencode-zen5' -> alias 'opencode-zen5' [router] model=gemini-3.1-pro (unverified/existence)
+[36m[cma][0m sync done: 23 active, 0 disabled (failed verify), 1 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/cma-test.nLDcg6/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.nLDcg6/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 24 key vars; 23 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'chutes1' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'chutes1'
+[36m[cma][0m multi-sync: verifying models for 'chutes2' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'chutes2'
+[36m[cma][0m multi-sync: verifying models for 'chutes3' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'chutes3'
+[36m[cma][0m multi-sync: verifying models for 'chutes4' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'chutes4'
+[36m[cma][0m multi-sync: verifying models for 'chutes5' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'chutes5'
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:51071/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'helixagent'
 [33m[cma warn][0m provider 'helixagent-native': $HELIXLLM_GATEWAY_KEY is empty — skipping multi-alias generation
 [33m[cma warn][0m provider 'helixllm-gateway': $HELIXLLM_GATEWAY_KEY is empty — skipping multi-alias generation
+[36m[cma][0m multi-sync: verifying models for 'hyper1' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'hyper1'
+[36m[cma][0m multi-sync: verifying models for 'hyper2' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'hyper2'
+[36m[cma][0m multi-sync: verifying models for 'hyper3' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'hyper3'
+[36m[cma][0m multi-sync: verifying models for 'hyper4' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'hyper4'
+[36m[cma][0m multi-sync: verifying models for 'hyper5' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'hyper5'
+[36m[cma][0m multi-sync: verifying models for 'opencode-go1' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-go1'
+[36m[cma][0m multi-sync: verifying models for 'opencode-go2' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-go2'
+[36m[cma][0m multi-sync: verifying models for 'opencode-go3' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-go3'
+[36m[cma][0m multi-sync: verifying models for 'opencode-go4' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-go4'
+[36m[cma][0m multi-sync: verifying models for 'opencode-go5' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-go5'
+[36m[cma][0m multi-sync: verifying models for 'opencode-zen1' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-zen1'
+[36m[cma][0m multi-sync: verifying models for 'opencode-zen2' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-zen2'
+[36m[cma][0m multi-sync: verifying models for 'opencode-zen3' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-zen3'
+[36m[cma][0m multi-sync: verifying models for 'opencode-zen4' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-zen4'
+[36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'opencode-zen5'
 [36m[cma][0m multi-sync done: 0 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.T2uSa1/.local/share/claude-multi-account/aliases.sh
---- generated /tmp/cma-test.T2uSa1/.local/share/claude-multi-account/providers/helixagent.env (CASE 1) ---
+[36m[cma][0m reload your shell or: source /tmp/cma-test.nLDcg6/.local/share/claude-multi-account/aliases.sh
+--- generated /tmp/cma-test.nLDcg6/.local/share/claude-multi-account/providers/helixagent.env (CASE 1) ---
 # generated by claude-providers — non-secret. Do not edit by hand.
 # Secrets are NEVER stored here; the key is read from the keys file at launch.
 CMA_PROVIDER_ID='helixagent'
 CMA_PROVIDER_KEYVAR='HELIXAGENT_GATEWAY_KEY'
 CMA_PROVIDER_TRANSPORT='router'
-CMA_PROVIDER_BASE_URL='http://127.0.0.1:38931/v1'
+CMA_PROVIDER_BASE_URL='http://127.0.0.1:51071/v1'
 CMA_PROVIDER_MODEL='HelixAgent/HelixLLM'
 CMA_PROVIDER_FAST_MODEL='HelixAgent/HelixLLM'
-CMA_PROVIDER_CONFIG_DIR='/tmp/cma-test.T2uSa1/.claude-prov-helixagent'
+CMA_PROVIDER_CONFIG_DIR='/tmp/cma-test.nLDcg6/.claude-prov-helixagent'
 # Context-window limits from the models.dev catalog for the selected strong model.
 # CMA_PROVIDER_CONTEXT_LIMIT: input context window (tokens); empty = unknown.
 #   -> exported as CLAUDE_CODE_AUTO_COMPACT_WINDOW (input-side guard).
@@ -41,6 +121,6 @@ CMA_PROVIDER_MAX_OUTPUT='8192'
 # refresh falls back to the provider id as the alias name.
 CMA_PROVIDER_ALIAS='helixagent'
 --- detect_helixagent_record output (CASE 2, no pins) ---
-[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:38931/v1","transport":"router","strong_model":"/models/Qwen3-Test-Model-Q4_K_M.gguf","fast_model":"/models/Qwen3-Test-Model-Q4_K_M.gguf","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
+[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:51071/v1","transport":"router","strong_model":"/models/Qwen3-Test-Model-Q4_K_M.gguf","fast_model":"/models/Qwen3-Test-Model-Q4_K_M.gguf","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
 
 === result: pass=10 fail=0 ===

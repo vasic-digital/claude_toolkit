@@ -165,6 +165,69 @@ exit 0
 EOF
 
 # ===========================================================================
+# Section 2b — resume-fit warning (2026-09-03 compaction-loop fix)
+# ===========================================================================
+# When the session about to be auto-resumed already holds MORE tokens than the
+# provider's computed CLAUDE_CODE_AUTO_COMPACT_WINDOW, Claude Code compacts it
+# immediately on resume. That one-off compact is FINE and intended — but it
+# must never be silent: the operator otherwise sees an unexplained "Compacting"
+# stall on every alias switch (the 2026-09-03 endless-compaction report). The
+# wrapper estimates the resume target's context from its transcript
+# (claude-session context-size) and warns when it exceeds the window. Warn,
+# never block — the resume still happens.
+sandbox_stub "$HOME/.local/bin/claude-session" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  flags)         echo "--resume 11111111-2222-3333-4444-555555555555 --name testproj" ;;
+  latest-id)     echo "11111111-2222-3333-4444-555555555555" ;;
+  existing-id)   echo "11111111-2222-3333-4444-555555555555" ;;
+  context-size)  echo "900000" ;;
+  *)             exit 0 ;;
+esac
+exit 0
+EOF
+
+it "resume-fit: a session larger than the compact window warns before resuming"
+: > "$rec_args"
+( set +eu; ACME_KEY=sk-test REC_ARGS_OUT="$rec_args" CLAUDE_BIN="$recorder" cma_run_provider acmenative -p "hello" </dev/null >/dev/null 2>"$HOME/warn_big.err" )
+grep -q "will be compacted immediately on resume" "$HOME/warn_big.err"
+assert_eq 0 $? "oversized resume target produces the resume-fit warning"
+grep -q "900000" "$HOME/warn_big.err"; assert_eq 0 $? "warning quotes the session's estimated tokens"
+grep -q "120000" "$HOME/warn_big.err"; assert_eq 0 $? "warning quotes the provider's compact window"
+args="$(cat "$rec_args")"
+case "$args" in --resume\ 11111111-2222-3333-4444-555555555555\ -p\ hello) ok=0 ;; *) ok=1 ;; esac
+assert_eq 0 "$ok" "the resume is NOT blocked — warn-only, work continues ($args)"
+
+it "resume-fit: a session that fits the window warns NOT"
+sandbox_stub "$HOME/.local/bin/claude-session" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  flags)         echo "--resume 11111111-2222-3333-4444-555555555555 --name testproj" ;;
+  latest-id)     echo "11111111-2222-3333-4444-555555555555" ;;
+  existing-id)   echo "11111111-2222-3333-4444-555555555555" ;;
+  context-size)  echo "50000" ;;
+  *)             exit 0 ;;
+esac
+exit 0
+EOF
+: > "$rec_args"
+( set +eu; ACME_KEY=sk-test REC_ARGS_OUT="$rec_args" CLAUDE_BIN="$recorder" cma_run_provider acmenative -p "hello" </dev/null >/dev/null 2>"$HOME/warn_small.err" )
+grep -q "will be compacted immediately" "$HOME/warn_small.err"
+assert_eq 1 $? "no warning when the session fits the window"
+
+# restore the stock stub for the sections below
+sandbox_stub "$HOME/.local/bin/claude-session" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  flags)     echo "--resume 11111111-2222-3333-4444-555555555555 --name testproj" ;;
+  latest-id) echo "11111111-2222-3333-4444-555555555555" ;;
+  existing-id) echo "11111111-2222-3333-4444-555555555555" ;;
+  *)         exit 0 ;;
+esac
+exit 0
+EOF
+
+# ===========================================================================
 # Section 3 — migration
 # ===========================================================================
 it "migration regenerates a wrapper that lacks _cma_session_flags"

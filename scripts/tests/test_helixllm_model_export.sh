@@ -365,6 +365,30 @@ assert_eq "$_env_after" "$_env_again" "re-applying created no additional env rec
 assert_jq "$CATALOGUE" '.entries | length' 6 "catalogue still holds exactly 6 entries"
 
 # ===========================================================================
+# CASE 9 — the CA trust anchor the export ran with is persisted into the env
+# record, so the LAUNCH path (not just the verify probe) can trust a
+# self-signed https gateway. Field failure 2026-09-04: the helixllm-anton
+# alias verified green with CMA_PROVIDER_CA_CERT, then died at launch — the
+# ccr router verified the upstream against the system pool only ("x509:
+# certificate signed by unknown authority"). cma_provider_write_env rewrites
+# the whole file, so the line must be appended on EVERY apply — and a re-apply
+# without the anchor converges the line away instead of leaving it stale.
+# ===========================================================================
+it "--apply persists CMA_PROVIDER_CA_CERT into every env record it writes"
+_ca_pem="$SANDBOX_HOME/export-ca.pem"
+printf -- '-----BEGIN CERTIFICATE-----\nCMA-TEST-EXPORT-CA\n-----END CERTIFICATE-----\n' > "$_ca_pem"
+CMA_PROVIDER_CA_CERT="$_ca_pem" bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" >>"$PROOF" 2>&1
+assert_eq 0 $? "apply with CMA_PROVIDER_CA_CERT set exits cleanly"
+assert_file_contains "$PDIR/$_first_id.env" "CMA_PROVIDER_CA_CERT='$_ca_pem'" \
+  "the env record carries the CA anchor for the launch path"
+
+it "a re-apply WITHOUT the anchor converges the line away (no stale CA)"
+bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" >>"$PROOF" 2>&1
+assert_eq 0 $? "re-apply without CMA_PROVIDER_CA_CERT exits cleanly"
+grep -q 'CMA_PROVIDER_CA_CERT' "$PDIR/$_first_id.env"
+assert_eq 1 $? "the env record no longer carries a CA line once the anchor is gone"
+
+# ===========================================================================
 # CASE 5 — the export sends the credential the endpoint accepts, and only that
 #
 # /v1/models is guarded by a single middleware that compares the Bearer token
