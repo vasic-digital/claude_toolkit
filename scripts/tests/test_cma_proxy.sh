@@ -124,6 +124,8 @@ if [ -x "$tmpbin" ]; then
   it "--has-transform gate answers for known + family + unknown providers"
   "$tmpbin" --has-transform helixagent >/dev/null 2>&1; assert_eq 0 $? "helixagent -> transform (exit 0)"
   "$tmpbin" --has-transform kimi-for-coding >/dev/null 2>&1; assert_eq 0 $? "kimi-for-coding -> kimi family (exit 0)"
+  "$tmpbin" --has-transform kc-for-coding >/dev/null 2>&1; assert_eq 0 $? "kc-for-coding -> kimi family via the kc alias key (exit 0)"
+  "$tmpbin" --has-transform kc-k3 >/dev/null 2>&1; assert_eq 0 $? "kc-k3 -> kimi family (exit 0)"
   "$tmpbin" --has-transform poe2 >/dev/null 2>&1; assert_eq 0 $? "poe2 -> poe base (exit 0)"
   "$tmpbin" --has-transform no_such_provider >/dev/null 2>&1; assert_eq 1 $? "unknown provider -> no transform (exit 1)"
 fi

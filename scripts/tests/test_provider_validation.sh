@@ -160,6 +160,9 @@ accept_cases=(
   'helixllm-10-0-0-7-whoami-ec4d78734116'
   'openrouter'
   'kimi.k2'
+  'kc-for-coding'
+  'kc-k3'
+  'kimi-acme'
   'a_b-c.d'
 )
 accept_failures=0

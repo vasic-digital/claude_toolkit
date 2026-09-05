@@ -1296,6 +1296,28 @@ grep -qF 'kimi-code/credentials/kimi-code.json' <<<"$mig3_body"; assert_eq 0 $? 
 assert_eq 1 "$mig3_alias" "kimi-for-coding alias preserved through migration"
 rm -f "$_mig3"
 
+it "kc-for-coding aliases survive the same migration (v1.27.0 renamed ids)"
+# The kimi-for-coding -> kc-for-coding rename only changes how a stale
+# kimi-for-coding alias line is REWRITTEN at the next full sync
+# (cmd_migrate_names); the cma_ensure_alias_file self-heal path must treat
+# kc-for-coding like any other provider alias line — preserved, never dropped.
+_mig4="$ALIAS_FILE.migtest4"
+cat > "$_mig4" <<'OLD'
+export CLAUDE_BIN="/usr/bin/true"
+
+cma_run_provider() {
+  # command -v cma_log _cma_force >| "$tmp" unset ANTHROPIC_BASE_URL
+  :
+}
+
+alias kc-for-coding="cma_run_provider kc-for-coding"
+OLD
+bash -n "$_mig4"; assert_eq 0 $? "old-format alias file parses (bash -n)"
+( ALIAS_FILE="$_mig4" cma_ensure_alias_file ) >/dev/null 2>&1
+mig4_alias="$(grep -c '^alias kc-for-coding=' "$_mig4")"
+assert_eq 1 "$mig4_alias" "kc-for-coding alias preserved through migration"
+rm -f "$_mig4"
+
 # --- set -e/pipefail guard: a provider whose alias line is absent ------------
 # claude-providers.sh runs `set -euo pipefail`. cmd_list/cmd_remove resolve the
 # alias name via `grep ... | sed | head -1`; under pipefail a no-match grep

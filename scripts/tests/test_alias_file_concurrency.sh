@@ -87,6 +87,19 @@ seed_alias_file() {
     printf '  local id="$1"; shift 2>/dev/null || true\n'
     printf '  "$CLAUDE_BIN" "$@"\n'
     printf '}\n'
+    # The Kimi family wrappers are part of the managed block too: the commit
+    # sanity gate (like the live file they sit in) requires them. Without them
+    # here the "an intact candidate is accepted" positive control below would
+    # be rejected, and the gate chapter would (rightly) never grade the
+    # fixtures the way the live host carries one.
+    printf 'cma_run_kimi() {\n'
+    printf '  "$CLAUDE_BIN" "$@"\n'
+    printf '}\n'
+    printf '\n'
+    printf 'cma_run_kimi_provider() {\n'
+    printf '  local id="$1"; shift 2>/dev/null || true\n'
+    printf '  "$CLAUDE_BIN" "$@"\n'
+    printf '}\n'
     local a p
     for a in "${ACCOUNTS[@]}"; do
       printf 'alias %s="CLAUDE_CONFIG_DIR=%s/.claude-%s cma_run"\n' "$a" "$HOME" "$a"

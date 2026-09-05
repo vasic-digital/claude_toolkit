@@ -86,56 +86,58 @@ it "kimicode detector: one record per subscription-served model (live /models di
 write_cred "LIVE-TOKEN" "$(( $(date +%s) + 3600 ))"
 out="$(PATH="$FAKEBIN:/usr/bin:/bin" detect_kimicode_record)"
 assert_eq 4 "$(jq 'length' <<<"$out")" "four records: 3 listed by /models + catalog's k2p7 (union, sync probes gate)"
-assert_eq "kimi-for-coding kimi-for-coding-highspeed kimi-k2p7 kimi-k3" \
-  "$(jq -r '[.[].provider_id] | sort | join(" ")' <<<"$out")" "provider ids cover default + highspeed + Kimi 2.7 + Kimi 3"
-assert_eq "k3" "$(jq -r '.[] | select(.provider_id=="kimi-k3") | .strong_model' <<<"$out")" "kimi-k3 runs model k3"
-assert_eq "kimi-for-coding-highspeed" "$(jq -r '.[] | select(.provider_id=="kimi-for-coding-highspeed") | .strong_model' <<<"$out")" "highspeed runs its own model id"
-assert_eq "1048576" "$(jq -r '.[] | select(.provider_id=="kimi-k3") | .context_limit' <<<"$out")" "k3 context from catalog (1M)"
-assert_eq "131072" "$(jq -r '.[] | select(.provider_id=="kimi-k3") | .max_output' <<<"$out")" "k3 output from catalog"
+assert_eq "kc-for-coding kc-for-coding-highspeed kc-k2p7 kc-k3" \
+  "$(jq -r '[.[].provider_id] | sort | join(" ")' <<<"$out")" "provider ids cover default + highspeed + Kimi 2.7 + Kimi 3 (kc-* namespace)"
+assert_eq "k3" "$(jq -r '.[] | select(.provider_id=="kc-k3") | .strong_model' <<<"$out")" "kc-k3 runs model k3"
+assert_eq "kimi-for-coding-highspeed" "$(jq -r '.[] | select(.provider_id=="kc-for-coding-highspeed") | .strong_model' <<<"$out")" "highspeed runs its own model id"
+assert_eq "1048576" "$(jq -r '.[] | select(.provider_id=="kc-k3") | .context_limit' <<<"$out")" "k3 context from catalog (1M)"
+assert_eq "131072" "$(jq -r '.[] | select(.provider_id=="kc-k3") | .max_output' <<<"$out")" "k3 output from catalog"
 assert_eq "_CMA_KIMICODE_OAUTH_" "$(jq -r '.[0].key_var' <<<"$out")" "all records use the OAuth sentinel keyvar"
 assert_eq "https://api.kimi.com/coding/v1" "$(jq -r '.[0].base_url' <<<"$out")" "coding endpoint base"
-tok="$(cat "$PDIR/kimi-k3.token" 2>/dev/null)"
-assert_eq "LIVE-TOKEN" "$tok" "per-alias token snapshot written (kimi-k3.token)"
-assert_eq "LIVE-TOKEN" "$(cat "$PDIR/kimi-for-coding-highspeed.token" 2>/dev/null)" "token snapshot for highspeed too"
-assert_eq "600" "$(stat -c %a "$PDIR/kimi-k3.token")" "token snapshot is chmod 600"
+tok="$(cat "$PDIR/kc-k3.token" 2>/dev/null)"
+assert_eq "LIVE-TOKEN" "$tok" "per-alias token snapshot written (kc-k3.token)"
+assert_eq "LIVE-TOKEN" "$(cat "$PDIR/kc-for-coding-highspeed.token" 2>/dev/null)" "token snapshot for highspeed too"
+assert_eq "600" "$(stat -c %a "$PDIR/kc-k3.token")" "token snapshot is chmod 600"
 
 it "kimicode detector: expired token triggers CLI refresh before emitting"
 write_cred "STALE-TOKEN" "$(( $(date +%s) - 100 ))"
 out="$(PATH="$FAKEBIN:/usr/bin:/bin" detect_kimicode_record)"
-assert_eq "REFRESHED-TOKEN" "$(cat "$PDIR/kimi-k3.token" 2>/dev/null)" "stale OAuth token refreshed via kimi CLI"
+assert_eq "REFRESHED-TOKEN" "$(cat "$PDIR/kc-k3.token" 2>/dev/null)" "stale OAuth token refreshed via kimi CLI"
 
 it "kimicode detector: offline falls back to the models.dev catalog (+ account default)"
 write_cred "LIVE-TOKEN" "$(( $(date +%s) + 3600 ))"
 out="$(OFFLINE=1 PATH="$FAKEBIN:/usr/bin:/bin" detect_kimicode_record)"
 ids="$(jq -r '[.[].provider_id] | sort | join(" ")' <<<"$out")"
-ok=1; [[ "$ids" == *"kimi-k3"* && "$ids" == *"kimi-k2p7"* && "$ids" == *"kimi-for-coding"* ]] && ok=0
+ok=1; [[ "$ids" == *"kc-k3"* && "$ids" == *"kc-k2p7"* && "$ids" == *"kc-for-coding"* ]] && ok=0
 assert_eq 0 "$ok" "offline records come from catalog keys + account default ($ids)"
 
 # ===========================================================================
 # Section 2 — resolve_records: OAuth detector records WIN over key-var records
 # ===========================================================================
-it "resolve_records: OAuth kimi-for-coding record takes precedence over KIMI_API_KEY record"
+it "resolve_records: OAuth kc-for-coding record takes precedence over KIMI_API_KEY record"
 write_cred "LIVE-TOKEN" "$(( $(date +%s) + 3600 ))"
 kf="$HOME/keys.sh"; printf 'export KIMI_API_KEY=sk-test\n' > "$kf"
 merged="$(CMA_KEYS_FILE="$kf" PATH="$FAKEBIN:/usr/bin:/bin" resolve_records)"
-kv="$(jq -r '.[] | select(.provider_id=="kimi-for-coding") | .key_var' <<<"$merged")"
+kv="$(jq -r '.[] | select(.provider_id=="kc-for-coding") | .key_var' <<<"$merged")"
 assert_eq "_CMA_KIMICODE_OAUTH_" "$kv" "OAuth subscription record wins over the API-key record"
-ok=1; jq -e '.[] | select(.provider_id=="kimi-k3")' <<<"$merged" >/dev/null && ok=0
-assert_eq 0 "$ok" "OAuth-only models (kimi-k3) are present in the merged set"
-n="$(jq '[.[] | select(.provider_id=="kimi-for-coding")] | length' <<<"$merged")"
-assert_eq 1 "$n" "no duplicate kimi-for-coding record"
+ok=1; jq -e '.[] | select(.provider_id=="kc-k3")' <<<"$merged" >/dev/null && ok=0
+assert_eq 0 "$ok" "OAuth-only models (kc-k3) are present in the merged set"
+n="$(jq '[.[] | select(.provider_id=="kc-for-coding")] | length' <<<"$merged")"
+assert_eq 1 "$n" "no duplicate kc-for-coding record"
 
 it "resolve_records: API key remains the fallback when no OAuth session exists"
 rm -rf "$HOME/.kimi-code"
 merged2="$(CMA_KEYS_FILE="$kf" PATH="/usr/bin:/bin" resolve_records)"
-kv2="$(jq -r '.[] | select(.provider_id=="kimi-for-coding") | .key_var' <<<"$merged2")"
+kv2="$(jq -r '.[] | select(.provider_id=="kc-for-coding") | .key_var' <<<"$merged2")"
 assert_eq "KIMI_API_KEY" "$kv2" "KIMI_API_KEY record used when no OAuth session"
 
-it "resolver: ApiKey_Kimi maps to kimi-for-coding via key-aliases"
+it "resolver: ApiKey_Kimi maps to kc-for-coding via key-aliases (+ legacy rename)"
 kf2="$HOME/keys2.sh"; printf 'export ApiKey_Kimi=sk-test\n' > "$kf2"
 r3="$(CMA_KEYS_FILE="$kf2" PATH="/usr/bin:/bin" resolve_records)"
-kv3="$(jq -r '.[] | select(.provider_id=="kimi-for-coding") | .key_var' <<<"$r3")"
-assert_eq "ApiKey_Kimi" "$kv3" "ApiKey_Kimi resolves to kimi-for-coding"
+kv3="$(jq -r '.[] | select(.provider_id=="kc-for-coding") | .key_var' <<<"$r3")"
+assert_eq "ApiKey_Kimi" "$kv3" "ApiKey_Kimi resolves to kc-for-coding (upstream catalog id kimi-for-coding renamed)"
+n3="$(jq '[.[] | select(.provider_id=="kimi-for-coding")] | length' <<<"$r3")"
+assert_eq 0 "$n3" "no record leaks the legacy kimi-for-coding id"
 
 # ===========================================================================
 # Section 3 — launch-time OAuth token freshness (emitted cma_run_provider)
