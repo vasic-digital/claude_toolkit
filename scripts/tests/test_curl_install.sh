@@ -31,8 +31,12 @@ it "curl-install.sh is executable"
 _exec=1; [[ -x "$INSTALL_SCRIPT" ]] && _exec=0
 assert_eq 0 "$_exec" "executable"
 
-it "curl-install.sh has the expected REPO_URL"
-assert_file_contains "$INSTALL_SCRIPT" "https://github.com/vasic-digital/claude-toolkit.git" "REPO_URL present"
+it "curl-install.sh has the canonical underscore REPO_URL (F4-005)"
+assert_file_contains "$INSTALL_SCRIPT" "https://github.com/vasic-digital/claude_toolkit.git" "canonical REPO_URL present"
+# The legacy hyphen name is a GitHub rename-alias of the same repo
+# (gh repo id R_kgDOSn8-DQ, verified 2026-09-05); the bootstrap must not
+# depend on the redirect.
+assert_file_not_contains "$INSTALL_SCRIPT" 'REPO_URL="https://github.com/vasic-digital/claude-toolkit.git"' "legacy hyphen REPO_URL absent"
 
 it "curl-install.sh uses --recursive for submodule clone"
 assert_file_contains "$INSTALL_SCRIPT" "git clone --recursive" "clone uses --recursive"
@@ -96,5 +100,40 @@ assert_file_contains "$INSTALL_SCRIPT" "claude-providers sync" "providers guidan
 
 it "curl-install.sh supports CLAUDE_TOOLKIT_DIR env override"
 assert_file_contains "$INSTALL_SCRIPT" 'CLAUDE_TOOLKIT_DIR' "env override supported"
+
+# ── 6. Sandboxed bootstrap dry-run (F4-005 test_plan) ─────────────────────────
+#
+# Hermetic end-to-end of the clone path: a sandbox_stub'd git records its
+# arguments and fabricates the cloned repo (with a no-op install.sh), so the
+# bootstrap runs to completion with no network and never touches real
+# ~/.claude state. The assertion that matters: git clone is invoked with the
+# canonical underscore REPO_URL.
+
+it "sandboxed bootstrap clones via the canonical underscore URL"
+GIT_LOG="$SANDBOX_HOME/git-invocations.log"
+CLONE_DIR="$SANDBOX_HOME/ct-install"
+sandbox_stub "$SANDBOX_HOME/bin/git" <<STUB
+#!/usr/bin/env bash
+# Record every invocation, then fabricate a clone good enough for the
+# bootstrap's post-clone step (scripts/install.sh must exist and exit 0).
+printf '%s\n' "\$*" >> "$GIT_LOG"
+if [[ "\$1" == "clone" ]]; then
+  dest="\${@: -1}"
+  mkdir -p "\$dest/.git" "\$dest/scripts"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "\$dest/scripts/install.sh"
+fi
+exit 0
+STUB
+
+CLAUDE_TOOLKIT_DIR="$CLONE_DIR" PATH="$SANDBOX_HOME/bin:$PATH" \
+  bash "$INSTALL_SCRIPT" >/dev/null 2>&1
+assert_eq 0 $? "bootstrap completes against stubbed git"
+
+CLONE_LINE="$(grep '^clone ' "$GIT_LOG" | head -n1)"
+assert_file_contains "$GIT_LOG" "clone --recursive https://github.com/vasic-digital/claude_toolkit.git" "git clone invoked with canonical underscore URL"
+case "$CLONE_LINE" in
+  *claude-toolkit*) _fail "clone used legacy hyphen alias" "clone line: $CLONE_LINE" ;;
+esac
+assert_dir "$CLONE_DIR/.git" "stub created cloned repo"
 
 summary

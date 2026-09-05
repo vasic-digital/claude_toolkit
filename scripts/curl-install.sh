@@ -17,7 +17,7 @@
 set -euo pipefail
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-REPO_URL="https://github.com/vasic-digital/claude-toolkit.git"
+REPO_URL="https://github.com/vasic-digital/claude_toolkit.git"
 INSTALL_DIR="${CLAUDE_TOOLKIT_DIR:-$HOME/claude-toolkit}"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
