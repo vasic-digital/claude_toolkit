@@ -5,7 +5,7 @@ All notable changes to the Claude multi-account toolkit.
 ## v1.27.0 — 2026-09-05 — Kimi Code CLI accounts + `kimi-<id>` provider aliases (+ one-time legacy `kimi-*` → `kc-*` rename)
 
 Feature release adding **first-class, symmetric support for the Kimi Code CLI**
-alongside Claude Code, plus the nine unreleased commits that accumulated since
+alongside Claude Code, plus the unreleased commits that accumulated since
 v1.26.8 riding along into this tag.
 
 ### Added — Kimi Code support
@@ -53,11 +53,18 @@ aliases.**
 
 ### Unreleased commits since v1.26.8 riding along
 
-As reported by `git log v1.26.8..HEAD --oneline`:
+As reported by `git log v1.26.8..HEAD --oneline --no-merges`:
 
-- `672f89b` plan: kimi-code-support — executable form of the approved Kimi spec (the 9 earlier commits below are its scope)
+- `d68727e` test(kimi): live verifier, run-proof leg, and release-gate kimi smoke layer
+- `488fdbb` test(install): kimi symlink/alias/banner coverage and Unit 4 kimi install support
+- `61beb63` docs(kimi): user guide, family diagram, and the four doc mirrors
+- `de5aa14` test(kimi): accounts, aliases, alias-file and migration coverage for the family
+- `0e2c0d7` feat(kimi): `kimi-<id>` provider aliases, `kc` legacy rename, proxy `kimi` transform
+- `013fdd9` fix(tests): the suite's own signal and scheduling guards run under a background launch
+- `00e4b26` fix(install): canonical `claude_toolkit` `REPO_URL` (F4-005)
+- `2618c3d` docs(qa): F4 gap ledger + FR-037 resolution note (W2d-1)
+- `672f89b` plan: kimi-code-support — executable form of the approved Kimi spec
 - `430822b` docs: Kimi Code support design spec (accounts + `kimi-<id>` provider aliases)
-- `3871136` Merge branch 'main'
 - `0cb55a1` fix(session,providers): end the endless compaction loop; wire upstream TLS CA at launch
 - `fdeef17` feat(providers-verify): flag a 200 that comes from the WRONG SERVICE
 - `267182b` fix(providers): repoint the three Helix endpoints at ports that answer, and stop reporting every transport failure as one cause
@@ -65,8 +72,8 @@ As reported by `git log v1.26.8..HEAD --oneline`:
 - `328cf27` test(providers): pin the provider-id charset as a security control; refresh proofs
 - `e8e877a` test(helixllm-export): the withheld guard could be deleted and this repo would not notice
 - `37c4f48` docs(helixllm-export): the reason absence is safe has changed
-- `1feda4b` fix(helixllm-export): stop --apply deleting a whole config for a restarting host
-- `8ecf6aa` fix(helixllm-export): corrupted model names, a misdirected credential, add-only --apply
+- `1feda4b` fix(helixllm-export): stop `--apply` deleting a whole config for a restarting host
+- `8ecf6aa` fix(helixllm-export): corrupted model names, a misdirected credential, add-only `--apply`
 - `75d25ab` Auto-commit
 - `ad56682` Auto-commit
 
