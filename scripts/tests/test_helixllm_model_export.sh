@@ -130,6 +130,19 @@ source "$SCRIPTS_DIR/lib.sh"
 set +e   # lib.sh sets -e; the harness asserts on failures, so relax it.
 
 PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
+
+# HERMETICITY. This test proves WHICH credential reaches the wire, so the wire
+# must carry ONLY what this file's fixture decides — never something the
+# invoker's environment happens to export. `_cma_helixllm_gateway_key` reads the
+# process environment FIRST and the keys file second, and this test deliberately
+# leaves $HELIXLLM_GATEWAY_KEY unset at shell level (its `export` lives only in
+# the fixture keys file, written below), so a runner whose shell exports the
+# REAL gateway key would override the fixture — the recorded wire header then
+# carries the real key, the `auth=Bearer $GWKEY` assertions fail, and the
+# supposedly hermetic suite becomes host-environment-dependent. Unset the two
+# helix gateway keyvars so the fixture is the only source.
+unset HELIXLLM_GATEWAY_KEY HELIXAGENT_GATEWAY_KEY
+
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 mkdir -p "$PDIR"
 echo '{}' > "$PDIR/models.dev.cache.json"

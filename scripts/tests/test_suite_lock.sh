@@ -69,6 +69,18 @@ trap 'kill_holders; cleanup_sandbox' EXIT
 BIN="$SANDBOX_HOME/bin"
 mkdir -p "$BIN"
 
+# sigreset.sh — execs its arguments with SIGINT/SIGQUIT reset to SIG_DFL.
+# See start_holder below for why a holder must not be born with SIG_IGN.
+sandbox_stub "$BIN/sigreset.sh" <<'RESET_EOF'
+#!/usr/bin/env bash
+exec python3 -c '
+import os, signal, sys
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+os.execv("/bin/bash", sys.argv[1:])
+' "$@"
+RESET_EOF
+
 # holder.sh — acquires the lock and sits on it.
 #
 # The sleep is BACKGROUNDED and waited on deliberately. Bash defers a trapped
@@ -114,30 +126,41 @@ bash "$BIN/contender.sh"
 echo "INNER-RC=\$?"
 EOF
 
-# start_holder [HOLD_SECONDS] [jobctl] — launch a background holder and block
-# until it owns the lock.
+# start_holder [HOLD_SECONDS] — launch a background holder and block until it
+# owns the lock.
 #
 # Sets HOLDER_PID; deliberately NOT called via $(...). Command substitution
 # runs in a subshell, so `HOLDER_PIDS+=` there would be discarded and the
 # holders would leak into later cases and poison them.
 #
-# The `jobctl` mode exists for the Ctrl-C case. POSIX requires a shell to start
-# background jobs with SIGINT set to SIG_IGN when job control is off, and bash
-# cannot trap a signal it inherited as ignored — so a plain `cmd &` holder is
-# structurally deaf to SIGINT and would "prove" the trap broken no matter how
-# it is written. Enabling job control around the launch gives the holder its
-# own process group and default dispositions, which is exactly the situation a
-# real suite run is in when a user hits Ctrl-C in a terminal.
+# SIGINT determinism, whatever way the suite itself was launched: POSIX gives a
+# shell starting a NON-job-controlled background job a SIGINT/SIGQUIT of
+# SIG_IGN, and bash forbids trapping or resetting a signal it inherited as
+# ignored — so a plain `cmd &` holder is structurally deaf to Ctrl-C. This is
+# not hypothetical for this file: run-all.sh is launched as a background/nohup
+# job in production, so every holder spawned under it inherits SIG_IGN through
+# the whole chain. The previous `set -m` jobctl mode only restored default
+# dispositions when a controlling terminal was present, and silently failed to
+# (leaving a deaf holder) when there was none — which is exactly what this file
+# saw red under a real run-all launch. sigreset.sh reinstalls SIG_DFL at the OS
+# level (glibc has no entry-ignored scruple) and execs the holder, so the trap
+# below cannot fail for the scheduler's sake. python3 is a hard toolkit
+# dependency (providers machinery); on a pythonless host the plain fallback
+# still runs, and is only signal-deaf in that nohup-launched case.
 HOLDER_PID=""
 start_holder() {
-  local out="$SANDBOX_HOME/holder.$RANDOM.out" waited=0 mode="${2:-}"
+  local out="$SANDBOX_HOME/holder.$RANDOM.out" waited=0
   : > "$out"
-  [[ "$mode" == jobctl ]] && set -m
-  HOLD_FOR="${1:-10}" bash "$BIN/holder.sh" > "$out" 2>&1 &
+  if command -v python3 >/dev/null 2>&1; then
+    HOLD_FOR="${1:-10}" "$BIN/sigreset.sh" bash "$BIN/holder.sh" > "$out" 2>&1 &
+  else
+    HOLD_FOR="${1:-10}" bash "$BIN/holder.sh" > "$out" 2>&1 &
+  fi
   HOLDER_PID=$!
-  [[ "$mode" == jobctl ]] && set +m
   HOLDER_PIDS+=("$HOLDER_PID")
-  while [[ $waited -lt 100 ]]; do
+  # 30s budget: a fork/exec of the holder on a loaded host can be slow, and
+  # this test must grade signal handling, not the scheduler.
+  while [[ $waited -lt 300 ]]; do
     grep -q 'HOLDER-ACQUIRED' "$out" 2>/dev/null && return 0
     sleep 0.1 2>/dev/null || sleep 1
     waited=$((waited + 1))
@@ -341,20 +364,32 @@ kill_holders; HOLDER_PIDS=()
 # --- 6. release on Ctrl-C ----------------------------------------------------
 it "the lock is released on Ctrl-C (SIGINT), not only on clean exit"
 export CMA_SUITE_LOCK_NO_FLOCK=1
-start_holder 60 jobctl
+start_holder 60
 hpid="$HOLDER_PID"
 lockdir="$(lock_path_of)"
 assert_dir "$lockdir" "lock is held while the run is alive"
 kill -INT "$hpid" 2>/dev/null
+# Generous window on purpose. The property under test is that the trap RUNS and
+# releases the lock — not that it wins a race against the scheduler. A host
+# running other suites/tooling can hold a descheduled holder for seconds before
+# the kernel even delivers the queued INT, which is exactly how a correct
+# implementation once looked broken here. 30s still fails a genuinely broken
+# release (compare the 600s a real competing run tolerates in production).
+# Release is judged by the STRONGER condition — the holder EXITING and the
+# directory disappearing — so a trap that merely returns (but fails to remove
+# the lock) cannot pass the first gate and then trip the second.
 waited=0
-while [[ $waited -lt 50 && -d "$lockdir" ]]; do
+while [[ $waited -lt 300 ]]; do
+  if ! kill -0 "$hpid" 2>/dev/null && [[ ! -d "$lockdir" ]]; then
+    break
+  fi
   sleep 0.1 2>/dev/null || sleep 1
   waited=$((waited + 1))
 done
-if [[ ! -d "$lockdir" ]]; then
-  _pass "SIGINT released the lock"
+if [[ ! -d "$lockdir" ]] && ! kill -0 "$hpid" 2>/dev/null; then
+  _pass "SIGINT released the lock (holder exited, dir gone after ${waited}×0.1s)"
 else
-  _fail "SIGINT left the lock behind" "$lockdir still exists"
+  _fail "SIGINT left the lock behind" "$lockdir still exists; holder_alive=$(kill -0 "$hpid" 2>/dev/null && echo yes || echo no)"
 fi
 out="$(CMA_SUITE_LOCK_WAIT=2 bash "$BIN/contender.sh" 2>&1)"; rc=$?
 assert_eq 0 "$rc" "a run after an interrupted one is not blocked"

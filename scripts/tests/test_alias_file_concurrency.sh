@@ -773,7 +773,13 @@ source "$SCRIPTS_DIR/lib.sh"
 set +e
 _cma_alias_lock_acquire || exit 9
 : > "$HOME/.lock-held"
-sleep 6
+# Live until the test explicitly stops us. A fixed `sleep 6` lifetime races
+# the breaker loop under scheduler pressure: when the holder exits it LEAVES
+# the dead-pid lockdir behind (it has no release trap), and the CONTROL that
+# later re-reads that pid correctly reports the recorded owner as gone. The
+# holder must survive the whole loop, not merely its first six seconds.
+while [[ ! -f "$HOME/.lock-stop" ]]; do sleep 0.1 2>/dev/null || sleep 1; done
+exit 0
 LIVE_EOF
 chmod +x "$HOME/cma-live-holder.sh"
 CMA_ALIAS_LOCK_NO_FLOCK=1 "$HOME/cma-live-holder.sh" & _live_pid=$!
@@ -782,7 +788,9 @@ env CMA_ALIAS_LOCK_NO_FLOCK=1 CMA_ALIAS_LOCK_WAIT=2 CMA_ALIAS_LOCK_STALE_GRACE=1
   # shellcheck source=/dev/null
   source "$SCRIPTS_DIR/lib.sh"; set +e; _cma_alias_lock_acquire' >/dev/null 2>&1
 assert_eq 1 $? "CONTROL: a LIVE holder's lock is never broken"
+: > "$HOME/.lock-stop"
 kill "$_live_pid" 2>/dev/null; wait "$_live_pid" 2>/dev/null
+rm -f "$HOME/.lock-stop"
 rm -rf "$_lockdir" "$_lockdir.breaker"
 
 # The transient-absence property, sampled directly. The section-1b storm does
@@ -800,7 +808,7 @@ rm -rf "$_lockdir" "$_lockdir.breaker"
 it "lock: breaking a 'stale' lock never makes a LIVE holder's lock blink out"
 _lockdir="$(dirname "$ALIAS_FILE")/.aliases.lockdir"
 rm -rf "$_lockdir" "$_lockdir.breaker"
-rm -f "$HOME/.lock-held"
+rm -f "$HOME/.lock-held" "$HOME/.lock-stop"
 CMA_ALIAS_LOCK_NO_FLOCK=1 "$HOME/cma-live-holder.sh" & _blink_pid=$!
 _w=0; while [[ ! -f "$HOME/.lock-held" ]] && (( _w < 400 )); do sleep 0.01 2>/dev/null || sleep 1; _w=$(( _w + 1 )); done
 _blink_flag="$HOME/.blink-running"; _blink_log="$HOME/.blink-absences"
@@ -836,7 +844,9 @@ assert_eq 0 "${_blinks:-0}" "200 stale-breaks never removed the live holder's lo
 _held_pid="$(head -1 "$_lockdir/pid" 2>/dev/null | tr -d '[:space:]')"
 _alive=1; [[ -n "$_held_pid" ]] && kill -0 "$_held_pid" 2>/dev/null && _alive=0
 assert_eq 0 "$_alive" "CONTROL: a live holder still owns the lock after 200 break attempts"
+: > "$HOME/.lock-stop"
 kill "$_blink_pid" 2>/dev/null; wait "$_blink_pid" 2>/dev/null
+rm -f "$HOME/.lock-stop"
 rm -rf "$_lockdir" "$_lockdir.breaker"
 _cma_alias_lock_mode=""; _cma_alias_lock_file=""
 
