@@ -1,0 +1,12 @@
+Kimi Code live verification: Sat Sep  5 10:05:18 PM CEST 2026
+alias file: /home/milosvasic/.local/share/claude-multi-account/aliases.sh
+  SKIP: kimi OAuth subscription is quota-limited right now (usage limit — not a toolkit defect)
+  detail(native): kimi version 0.41.0 error: failed to run prompt: provider.auth_error: 403 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends. To continue now, purchase extra usage or upgrade your plan: https://www.kimi.com/membership/subscription?tab=quota See log: /ho
+  SKIP: no kimi-<id> alias in /home/milosvasic/.local/share/claude-multi-account/aliases.sh — run 'claude-providers sync' to materialize (needs a provider key on the host)
+  SKIP: kimi-for-coding still in status.json (pre-sync host) — the rename runs AT 'claude-providers sync', not before it
+  SKIP: kimi-for-coding2 still in status.json (pre-sync host) — the rename runs AT 'claude-providers sync', not before it
+  SKIP: neither kimi-for-coding-highspeed nor kc-for-coding-highspeed in status.json on this host
+  SKIP: neither kimi-k3 nor kc-k3 in status.json on this host
+  SKIP: neither kimi-k2p7 nor kc-k2p7 in status.json on this host
+
+KIMI: passed: 1 failed: 0 skipped: 7
