@@ -9,7 +9,7 @@ across all of them. Plus turn any LLM API key into a Claude Code alias, share
 your whole plugin ecosystem with OpenCode, and auto-name a per-project session
 on every launch.
 
-[![version](https://img.shields.io/badge/version-v1.26.8-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-v1.27.0-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#requirements)
 [![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#requirements)
 [![tests](https://img.shields.io/badge/tests-59%20suites%20green-success)](#testing)
@@ -36,6 +36,8 @@ remain per-account.
 claude1     # account 1 — your shared projects, memory, plugins, sessions
 claude2     # account 2 — the SAME shared projects, memory, plugins, sessions
 deepseek    # the same ecosystem, running on DeepSeek's best model
+kimi1       # Kimi Code account 1 — the same shared store, Kimi's OAuth subscription
+kimi-deepseek  # Kimi Code on the SAME deepseek backend the no-prefix alias uses
 ```
 
 ## ✨ Features
@@ -59,6 +61,9 @@ deepseek    # the same ecosystem, running on DeepSeek's best model
   your keys file into its own alias pointed at that provider's strongest model —
   fully dynamic (no hardcoded providers/URLs/models), secrets never leave the
   keys file. [Provider guide →](docs/Provider_Aliases_User_Guide.md)
+- **🤖 Kimi Code CLI support.** `kimi1`, `kimi2`, … accounts with their own OAuth
+  subscriptions, unified like Claude's; plus a `kimi-<id>` alias for every
+  provider backend that opens **Kimi Code** on the same key. [Kimi guide →](Kimi_Accounts_User_Guide.md)
 - **🔌 Share your ecosystem with OpenCode.** `claude-opencode-sync` exposes every
   Claude plugin's Skills + MCP servers + `CLAUDE.md` to a host-installed
   [OpenCode](https://opencode.ai) in one command. [OpenCode guide →](OpenCode_Integration.md)
@@ -126,6 +131,12 @@ config dir. Both installers are **idempotent**.
 | `claude-session` | Per-project session helper (name/id/color/flags) used by the alias wrappers. See [SESSION_COLOR.md](docs/SESSION_COLOR.md). |
 | `claude-bootstrap` | Clean-slate provisioning on a fresh host. |
 | `claude-providers` | Create/refresh aliases for other LLM providers from your keys file. |
+| `kimi-add-account` | Add a Kimi Code account (`~/.kimi-code-<name>`); `--login` drives the interactive device flow. |
+| `kimi-list-accounts` | Tabular status of detected Kimi accounts. |
+| `kimi-unify` | Re-merge Kimi state into `$SHARED_DIR/kimi/`. |
+| `kimi-remove-account` | Drop a Kimi account; archive (default) or `--delete` its dir. |
+| `kimi-rollback` | Restore `.preunify.*` backups for the Kimi family. |
+| `kimi-providers` | Kimi framing over `claude-providers` (`sync\|list\|show\|verify\|migrate-names`). |
 | `claude-opencode-sync` | Expose Claude plugin Skills + MCP + `CLAUDE.md` to OpenCode. |
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
@@ -135,6 +146,7 @@ config dir. Both installers are **idempotent**.
 | Guide | What it covers |
 | ----- | -------------- |
 | [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) | Turning LLM keys into aliases; transports, overrides, verification. |
+| [Kimi Accounts User Guide](Kimi_Accounts_User_Guide.md) | Kimi Code accounts, `kimi-<id>` aliases, the one-time `kimi-*` → `kc-*` rename. |
 | [OpenCode Integration](OpenCode_Integration.md) | Sharing Skills + MCP + `CLAUDE.md` with OpenCode. |
 | [Session & Color](docs/SESSION_COLOR.md) | Per-project auto-session naming + the per-alias color hint reality. |
 | [TOON Integration](docs/TOON_Integration.md) | Token-efficient JSON encoding utility. |
@@ -166,6 +178,13 @@ and only touch `~/.zshrc` on Darwin.
   .claude.json                      # per-account state (non-auth contents sync)
   mcp-needs-auth-cache.json         # PRIVATE
   projects -> ~/.claude-shared/projects   # every shared item is a symlink
+
+~/.claude-shared/kimi/              # Kimi shared store (mirrors the above)
+  AGENTS.md  plugins/  skills/  sessions/  session_index.jsonl
+
+~/.kimi-code-<account>/             # per Kimi account — mostly symlinks
+  config.toml  credentials/  oauth/  device_id    # PRIVATE — per-account
+  sessions -> ~/.claude-shared/kimi/sessions      # shared items are symlinks
 
 ~/.local/share/claude-multi-account/aliases.sh   # managed alias file
 ```

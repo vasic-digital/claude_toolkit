@@ -4,6 +4,8 @@
 
 Every provider alias goes through a 4-layer verification pipeline before it can launch Claude Code. A provider that passes all available layers is marked `verified` and is launchable. A provider that fails any layer is marked `failed` or `unverified` and is refused by the activation gate.
 
+**One verdict, two aliases.** Since v1.27.0 each provider id also gets a `kimi-<id>` twin (Kimi Code over the **same** backend, see the Provider Aliases User Guide §4.2). There is no separate Kimi verification — the single `status.json` record that gates the Claude alias `<id>` gates its `kimi-<id>` twin too. Any `kimi-<id>` alias is refused at launch unless its id is `verified` (override with `--force`), exactly like the Claude-side gate.
+
 ## The Four Layers
 
 ### Layer 1: Existence

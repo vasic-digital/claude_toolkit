@@ -2,6 +2,85 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.27.0 — 2026-09-05 — Kimi Code CLI accounts + `kimi-<id>` provider aliases (+ one-time legacy `kimi-*` → `kc-*` rename)
+
+Feature release adding **first-class, symmetric support for the Kimi Code CLI**
+alongside Claude Code, plus the nine unreleased commits that accumulated since
+v1.26.8 riding along into this tag.
+
+### Added — Kimi Code support
+
+- **Kimi accounts (`kimi1…kimiN`).** `kimi-add-account`, `kimi-remove-account`,
+  `kimi-list-accounts`, `kimi-unify`, `kimi-rollback` mirror their Claude
+  counterparts, isolated per account behind `KIMI_CODE_HOME=~/.kimi-code-<n>`.
+  Shared items (`AGENTS.md`, `plugins/`, `skills/`, `sessions/`,
+  `session_index.jsonl`) unify into `$SHARED_DIR/kimi/` and symlink back;
+  `config.toml`, `credentials/`, `oauth/`, `device_id`, `bin/`, `logs/`,
+  `tui.toml` stay per-account. Login is Kimi's interactive device flow; no
+  headless automation.
+- **`kimi-<id>` provider aliases.** For every provider id that verifies, `sync`
+  (and `--multi`) also emits `alias kimi-<id>="cma_run_kimi_provider <id>"`,
+  opening **Kimi Code** against the **same backend** and same key the no-prefix
+  alias opens Claude Code with. A per-id `~/.kimi-prov-<id>/config.toml` renders
+  the provider, key, `max_context_size` (same derived limits as the Claude side),
+  `capabilities = ["tool_use","thinking"]`, and `default_model`. Launch is
+  `KIMI_CODE_HOME=… kimi -m "<host>/<strong-model>"`; no `cma-proxy` on this
+  path, no `CLAUDE_CODE_*` guards. Verification is a **shared single gate**
+  (`status.json`) for both twins, and the launch refuses non-`verified` ids
+  unless `--force`. `CMA_PROVIDER_CA_CERT` → `NODE_EXTRA_CA_CERTS` +
+  `SSL_CERT_FILE` for `https://` CA-cert providers.
+- **`kimi-providers` dispatch wrapper** exposing `sync|list|list-all|list-faulty|show|verify|migrate-names`
+  against the same engine; `list` gains an **agent (claude/kimi) column**.
+- **New flags:** `--kimi-aliases` / `--no-kimi-aliases` (default on).
+- **Family model draws the namespace line** (diagram in
+  `docs/diagrams/kimi-family.{mmd,svg}`): `claudeN`/`kimiN` native accounts;
+  `<id>` (no prefix) is **always** Claude Code; `kimi-<id>` is **always** Kimi
+  Code on the same backend; `kc-<id>` is Claude Code on a Kimi-native backend.
+  `kimiN` accounts are never named `kimi-*`/`kc-*`, and `kc-*` ids never get a
+  `kimi-kc-*` twin.
+
+### Breaking — one-time legacy rename (`kimi-*` → `kc-*`)
+
+The `kimi-` prefix is reserved to mean *only* "Kimi Code CLI agent". The legacy
+aliases that opened **Claude Code** against a Kimi-native backend are renamed
+**once** (automatically at `sync`, or via `kimi-providers migrate-names`):
+`kimi-for-coding`→`kc-for-coding`, `kimi-for-coding2`→`kc-for-coding2`,
+`kimi-for-coding-highspeed`→`kc-for-coding-highspeed`, `kimi-k3`→`kc-k3`,
+`kimi-k2p7`→`kc-k2p7`. The rename is **idempotent** (a second run is a no-op)
+and reversible via `backup_and_remove` backups. **Multi-account users must
+update any scripts or muscle memory that reference the old `kimi-*` backend
+aliases.**
+
+### Unreleased commits since v1.26.8 riding along
+
+As reported by `git log v1.26.8..HEAD --oneline`:
+
+- `672f89b` plan: kimi-code-support — executable form of the approved Kimi spec (the 9 earlier commits below are its scope)
+- `430822b` docs: Kimi Code support design spec (accounts + `kimi-<id>` provider aliases)
+- `3871136` Merge branch 'main'
+- `0cb55a1` fix(session,providers): end the endless compaction loop; wire upstream TLS CA at launch
+- `fdeef17` feat(providers-verify): flag a 200 that comes from the WRONG SERVICE
+- `267182b` fix(providers): repoint the three Helix endpoints at ports that answer, and stop reporting every transport failure as one cause
+- `6b7e70c` fix(constitution): bump nested pin adcf660 -> 2887b42 — the duplicated hc_status port defect
+- `328cf27` test(providers): pin the provider-id charset as a security control; refresh proofs
+- `e8e877a` test(helixllm-export): the withheld guard could be deleted and this repo would not notice
+- `37c4f48` docs(helixllm-export): the reason absence is safe has changed
+- `1feda4b` fix(helixllm-export): stop --apply deleting a whole config for a restarting host
+- `8ecf6aa` fix(helixllm-export): corrupted model names, a misdirected credential, add-only --apply
+- `75d25ab` Auto-commit
+- `ad56682` Auto-commit
+
+### Notes
+
+- **Version stamping.** `CHANGELOG.md` documents v1.27.0; the tag and
+  GitHub/GitLab releases land at the end of the release gate (Unit 7 of
+  `docs/superpowers/plans/2026-09-05-kimi-code-support.md`).
+- **Docs delivered in lockstep.** `AGENTS.md`/`CLAUDE.md`/`QWEN.md`/`GEMINI.md`
+  (constitution §11.4.157), the new `Kimi_Accounts_User_Guide.md`,
+  `README.md`, `Provider_Aliases_User_Guide.md`, `Provider_Verification_Guide.md`,
+  the family diagrams, and the new Kimi chapter in
+  `Claude_Multi_Account_Fine_Tuning.md`.
+
 ## v1.26.8 — 2026-08-28 — autocompact thrashing guard + safety margin for provider aliases
 
 Patch release addressing the "Autocompact is thrashing" failure reported on provider aliases (`opencode`, `zai-coding-plan`, `helixagent`, and others). The root cause was the auto-compact window derivation consuming the entire provider context (`text + tools + output = context`), leaving zero headroom for the compacted summary itself. After a compact, a large file read or tool output could refill the context to the limit within a few turns, triggering Claude Code's thrashing stop condition.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A POSIX-leaning bash toolkit (`scripts/`) for running multiple Claude Code accounts on one host while keeping conversation history, memory, todos, plans, plugins, and settings unified across them. Companion long-form documentation lives at the repo root (`Claude_Multi_Account_Fine_Tuning.md` and its rendered `.html` / `.pdf` siblings).
+A POSIX-leaning bash toolkit (`scripts/`) for running multiple Claude Code accounts on one host while keeping conversation history, memory, todos, plans, plugins, and settings unified across them — and, since v1.27.0, the same for multiple **Kimi Code CLI** accounts plus a `kimi-<id>` provider alias for every backend. Companion long-form documentation lives at the repo root (`Claude_Multi_Account_Fine_Tuning.md` and its rendered `.html` / `.pdf` siblings).
 
 ## Common commands
 
@@ -28,12 +28,19 @@ bash scripts/claude-export-docs.sh
 bash scripts/claude-opencode-sync.sh --dry-run --stats   # preview
 bash scripts/claude-opencode-sync.sh                      # apply
 
+# Kimi Code CLI accounts + kimi-<id> provider aliases (v1.27.0).
+kimi-add-account --alias kimi1 --login    # provision a Kimi account (+ device flow)
+kimi-list-accounts                        # status of detected Kimi accounts
+kimi-unify                                # merge Kimi shared items into $SHARED_DIR/kimi/
+kimi-rollback                             # restore .preunify.* backups for the kimi family
+kimi-providers sync                       # same sync, also emits kimi-<id> twins (+ migration)
+
 # Prove everything works: hermetic suite + live OpenCode/providers/aliases +
 # alias e2e + constitution (6 legs; evidence in scripts/tests/proof/).
 bash scripts/tests/run-proof.sh
 ```
 
-The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`, `claude-providers`, `claude-sync-state`, `claude-bootstrap`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh`).
+The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`, `claude-providers`, `claude-sync-state`, `claude-bootstrap`, and the Kimi family `kimi-add-account`, `kimi-remove-account`, `kimi-list-accounts`, `kimi-unify`, `kimi-rollback`, `kimi-providers`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh` and `kimi-*.sh`).
 
 ## Go toolchain resolution (`claude-ccr-build.sh`, `claude-proxy-build.sh`)
 
@@ -143,6 +150,29 @@ Be exact about what this establishes, because the mechanism **fails in both dire
 **Account-dir detection (`cma_detect_accounts`)**: matches `~/.claude-*` but skips (a) `*-shared` and (b) non-empty dirs that don't contain any Claude marker file (`projects/`, `todos/`, `plugins/`, `.claude.json`, `.credentials.json`, `history.jsonl`). This excludes tool-config dirs that share the prefix by coincidence (e.g. `.claude-server-commander` for an MCP server).
 
 **rsync exit-code tolerance**: macOS `rsync` returns 23/24 (partial transfer warnings) for benign issues like `unlinkat: Directory not empty` when symlinks straddle the tree. `merge_dir_into_shared` and `absorb_default_plugins` explicitly tolerate those codes; anything else is fatal.
+
+## Kimi Code support (accounts + `kimi-<id>` provider aliases, v1.27.0)
+
+The Kimi Code CLI is a first-class sibling of Claude Code. The **family model** is an orthogonal axis to the provider backend — the provider engine stays shared, and each family supplies its agent binary, home env var, account prefix, user-scope root, and launcher functions:
+
+| | Claude family | Kimi family |
+|---|---|---|
+| agent binary | `claude` | `kimi` |
+| home env var | `CLAUDE_CONFIG_DIR` | `KIMI_CODE_HOME` |
+| account prefix | `.claude-` | `.kimi-code-` |
+| user-scope root | `~/.claude` (`DEFAULT_DIR`, excluded) | `~/.kimi-code` (`KIMI_DEFAULT_DIR`, excluded) |
+| account aliases | `claude1…N` | `kimi1…N` |
+| account launcher | `cma_run` | `cma_run_kimi` |
+| provider launcher | `cma_run_provider` | `cma_run_kimi_provider` |
+| shared store area | `$SHARED_DIR/**` | `$SHARED_DIR/kimi/**` |
+
+**Namespace contract (the invariant):** `claudeN`/`kimiN` are native accounts; `<id>` (no prefix) is **always** Claude Code over that backend; `kimi-<id>` is **always** Kimi Code over the **same** backend; `kc-<id>` is Claude Code over a **Kimi-native** backend (legacy renamed). `kimiN` account aliases must never be named `kimi-*`/`kc-*` (those are reserved provider namespaces), and `kc-*` ids never get a `kimi-kc-*` twin (the Kimi agent on a Kimi-native backend is the `kimiN` account). `cma_validate_kimi_alias` enforces the former; the emission rule enforces the latter.
+
+**Kimi accounts.** `kimi-add-account`/`kimi-remove-account`/`kimi-list-accounts`/`kimi-unify`/`kimi-rollback` mirror the Claude family over `KIMI_SHARED_ITEMS = (AGENTS.md plugins skills sessions session_index.jsonl)` into `$SHARED_DIR/kimi/`. Sessions are workdir-keyed and home-independent, so cross-account resume works through the shared symlinks; `session_index.jsonl` is the `history.jsonl` analog (concat + awk line-dedupe). `AGENTS.md` is promoted from the newest account and symlinked from every Kimi home — the `~/.claude/CLAUDE.md` promotion analog. **Never merged**: `config.toml`, `credentials/`, `oauth/`, `device_id`, `bin/`, `logs/`, `tui.toml` (per-account private, cp. Claude's `PRIVATE_ITEMS`). Login is Kimi's interactive device flow (`kimi login`) — headless login is a non-goal; `kimi-add-account --login` drives it and pauses. There is **no `kimi-sync-state`** (Kimi has no `.claude.json` analog; continuity comes from the shared `sessions/`).
+
+**`kimi-<id>` provider aliases.** For every provider id that verifies, `sync`/`--multi` (flag `--kimi-aliases`/`--no-kimi-aliases`, default on) also emits `alias kimi-<id>="cma_run_kimi_provider <id>"`, gated by the **same** `status.json` record as the Claude twin (single shared gate — refuse non-`verified` unless `--force`). `cma_run_kimi_provider <id>` renders `~/.kimi-prov-<id>/config.toml` (`[providers."<id>"]` `type = openai|anthropic` by base shape, `base_url`, `api_key` from the same `<id>.env` provider record — never argv; `[models."<id>/<strong-model>"]` `max_context_size` from the same derived limits, `capabilities = ["tool_use","thinking"]`; `default_model`) and launches `KIMI_CODE_HOME="$HOME/.kimi-prov-<id>" kimi -m "<host>/<strong-model>" "$@"`. **No `cma-proxy` on this path** (the Kimi CLI speaks the wire protocol natively; the proxy's `kimi` transform exists only to fix Claude Code tool schemas) and **no `CLAUDE_CODE_*` guards** (Claude-Code-only env var leak is still unset by `cma_run_kimi`). One strong model per kimi alias (fast pairing is a non-goal). `CMA_PROVIDER_CA_CERT` → `NODE_EXTRA_CA_CERTS` (Node appends) + `SSL_CERT_FILE` (Go) for `https://` + cert-set providers, gated exactly like the Claude-side trust wiring. `kimi-providers` is a thin dispatch wrapper exposing `sync|list|list-all|list-faulty|show|verify|migrate-names` against the same engine; `list` carries an agent (claude/kimi) column.
+
+**Legacy rename (one-time, idempotent, breaking).** The `kimi-` prefix is vacated so it means only "Kimi CLI agent". `scripts/providers/legacy-renames.json` is the one map: `kimi-for-coding→kc-for-coding`, `kimi-for-coding2→kc-for-coding2`, `kimi-for-coding-highspeed→kc-for-coding-highspeed`, `kimi-k3→kc-k3`, `kimi-k2p7→kc-k2p7`. `migrate-names` (auto-run at `sync`) renames `status.json` keys, `*.env`, `*.token`, `~/.claude-prov-<old>`→`~/.claude-prov-<new>` (via `backup_and_remove`), alias lines, `key-aliases.json` values (`ApiKey_Kimi`→`kc-for-coding`), and `overrides.json` keys; audit-logs each action; second run is a no-op. `detect_kimicode_record` emits the renamed `kc-*` ids/aliases and token names. Multi-account users must update scripts/muscle memory.
 
 ## Test harness conventions
 

@@ -112,6 +112,41 @@ provider and want the tier logic to stay out of it.
 > rules above are the **behavioural contract**; check the source for the current
 > flag and field names.
 
+### 4.2 Kimi Code twins (`kimi-<id>`)
+
+For every provider id that verifies, `sync` also emits a **Kimi Code twin** that
+opens the `kimi` CLI against the **same backend** and the same key:
+
+```bash
+alias deepseek="cma_run_provider deepseek"           # Claude Code
+alias kimi-deepseek="cma_run_kimi_provider deepseek" # Kimi Code, same backend
+```
+
+See the family-dispatch diagram `docs/diagrams/kimi-family.{mmd,svg}` for the
+`claudeN`/`kimiN`/`<id>`/`kimi-<id>`/`kc-<id>` naming contract at a glance.
+
+- The no-prefix alias is **unchanged** and always opens Claude Code.
+- `kimi-<id>` opens Kimi Code via a per-id `~/.kimi-prov-<id>/config.toml`
+  (provider type by base shape, `base_url`, key from the same env record,
+  `max_context_size` from the same derived limits) and launches
+  `KIMI_CODE_HOME=… kimi -m "<host>/<strong-model>"`.
+- Verification is **shared**: the `status.json` verdict gates both twins.
+  A `kimi-<id>` alias is refused unless its id is `verified` (or `--force`).
+- Emit them with `--kimi-aliases` (default), or suppress with
+  `--no-kimi-aliases`.
+- `kimi-*` ids (e.g. `kc-*` after the rename) get no kimi twin — see §4.3.
+
+### 4.3 The `kimi-*` → `kc-*` rename (one-time, breaking)
+
+The legacy aliases that opened **Claude Code** against a **Kimi-native backend**
+are renamed **once** (automatically at `sync`, or via `kimi-providers
+migrate-names`): `kimi-for-coding`→`kc-for-coding`, `kimi-for-coding2`→`kc-for-coding2`,
+`kimi-for-coding-highspeed`→`kc-for-coding-highspeed`, `kimi-k3`→`kc-k3`,
+`kimi-k2p7`→`kc-k2p7`. The `kimi-` prefix now means only "Kimi Code CLI agent".
+The rename is idempotent (second run is a no-op) and reversible via
+`backup_and_remove` backups. Update any scripts or muscle memory that reference
+the old aliases.
+
 ## 5. Config dirs, plugins, and shared state
 
 Each provider gets `~/.claude-prov-<id>`, which symlinks the same shared items
@@ -272,7 +307,7 @@ that follows an unfunded key is then yours to expect.
 > transport on its OpenAI-compatible endpoint, because both were verified
 > working there and a single uniform path is far easier to debug. Every
 > `transport` pin in `overrides.json` today is `router`: deepseek, xiaomi,
-> opencode, opencode-go, chutes, kimi-for-coding, hyper. Two of them:
+> opencode, opencode-go, chutes, kc-for-coding, hyper. Two of them:
 >
 > ```json
 > "deepseek": { "transport": "router", "base_url": "https://api.deepseek.com" }
@@ -322,6 +357,11 @@ This replaced the old best-effort check (a bare `GET /models`), which proved
 only that the key was accepted — not that the model can actually run Claude
 Code. Both Anthropic-native (`/v1/messages`) and OpenAI-compatible
 (`/chat/completions`) endpoint shapes are probed in their native format.
+
+**The verdict gates both twins.** The same `status.json` record that gates the
+Claude alias (`deepseek`) also gates its `kimi-deepseek` Kimi Code twin — there
+is one verification, two aliases sharing its outcome. A `kimi-<id>` alias is
+refused at launch unless its id is `verified` (override with `--force`).
 
 For an additional authoritative layer ("can this model genuinely see and
 describe my code?") build the LLMsVerifier submodule:
@@ -536,6 +576,12 @@ deepseek                              # router provider -> claude via ccr
 <router-provider>                     # routed provider -> claude via ccr
 deepseek -p "your prompt"             # non-interactive print mode
 
+# Kimi Code CLI (v1.27.0)
+kimi-deepseek                         # Kimi Code on the SAME backend as deepseek
+kimi-deepseek -p "your prompt"        # Kimi Code, non-interactive print mode
+kimi-providers list                   # both alias kinds, agent (claude/kimi) column
+kimi-providers migrate-names          # run the one-time kimi-* -> kc-* rename
+
 # Accounts (unchanged, still works)
 claude-add-account --alias claudeN    # add a Claude account
 claude-list-accounts                  # status of all accounts
@@ -551,12 +597,15 @@ claude-release-gate --verify-providers  # also run the full LLMsVerifier scan
 
 ## 12. Individual provider notes
 
-### Kimi Code — OAuth subscription (kimi-for-coding, kimi-k3, kimi-k2p7, kimi-for-coding-highspeed)
+### Kimi Code — OAuth subscription (kc-for-coding, kc-k3, kc-k2p7, kc-for-coding-highspeed)
 
 If you are signed into **Kimi Code** (the `kimi` CLI), every model your
-subscription serves becomes an alias automatically — **Kimi 3** (`kimi-k3`,
-1M context, reasoning), **Kimi 2.7** (`kimi-k2p7`),
-`kimi-for-coding-highspeed`, and the account default `kimi-for-coding`.
+subscription serves becomes an alias automatically — **Kimi 3** (`kc-k3`,
+1M context, reasoning), **Kimi 2.7** (`kc-k2p7`),
+`kc-for-coding-highspeed`, and the account default `kc-for-coding`.
+These open **Claude Code** on a **Kimi-native** backend; the `kimi-<id>` twins
+open **Kimi Code** (see §4.2). The aliases were renamed from the legacy
+`kimi-*` names once, at `sync`, by `migrate-names` (see §4.3).
 No API key is required; the OAuth session in
 `~/.kimi-code/credentials/kimi-code.json` is used.
 
@@ -570,10 +619,11 @@ No API key is required; the OAuth session in
   snapshot — launches never die of a stale token.
 - **kimi_proxy**: k3 enforces a "moonshot-flavored" JSON schema for tools
   (every `$ref` must start with `#/$defs/`). Claude Code's tool schemas would
-  400 without it, so all `kimi-*` launches route through a local normalizing
-  proxy (`scripts/proxy/kimi_proxy.py`, installed by `install.sh`).
+  400 without it, so all `*`/Claude-Code-on-kimi launches route through a
+  local normalizing proxy (`scripts/proxy/kimi_proxy.py`, installed by
+  `install.sh`).
 - **Precedence**: an OAuth subscription wins over `KIMI_API_KEY` /
-  `ApiKey_Kimi` records for `kimi-for-coding`; the API keys remain the
+  `ApiKey_Kimi` records for `kc-for-coding`; the API keys remain the
   fallback on hosts without the OAuth session.
 
 ### z.ai Coding Plan (zai-coding-plan)

@@ -1344,13 +1344,88 @@ Two pinning rules that are not obvious:
   variable is assigned a path string unconditionally and is therefore never
   empty, so a `${VENDORED_GO:-go}` fallback can never fire on its own.
 
+## 16. Kimi Code: accounts and the family model
+
+The Kimi Code CLI is a first-class sibling of Claude Code. The **family
+model** is an orthogonal axis to the provider backend: the provider engine
+(verification, model selection, aliases) stays shared, and each family
+supplies its own agent binary, home env var, account prefix, user-scope root,
+and launcher functions. The diagram `docs/diagrams/kimi-family.{mmd,svg}` shows
+the naming contract at a glance.
+
+| | Claude family | Kimi family |
+|---|---|---|
+| agent binary | `claude` | `kimi` |
+| home env var | `CLAUDE_CONFIG_DIR` | `KIMI_CODE_HOME` |
+| account prefix | `.claude-` | `.kimi-code-` |
+| user-scope root | `~/.claude` | `~/.kimi-code` |
+| account aliases | `claude1…N` | `kimi1…N` |
+| shared store area | `$SHARED_DIR/**` | `$SHARED_DIR/kimi/**` |
+
+### 16.1 The namespace contract
+
+- `claudeN` / `kimiN` — **native accounts** (a full per-account home).
+- `<id>` (no prefix) — **always Claude Code** over that backend.
+- `kimi-<id>` — **always Kimi Code** over the **same** backend.
+- `kc-<id>` — Claude Code over a **Kimi-native** backend (legacy renamed).
+
+`kimiN` account aliases must never be named `kimi-*`/`kc-*` (those are
+reserved provider namespaces), and `kc-*` ids never get a `kimi-kc-*` twin
+(the Kimi agent on a Kimi-native backend is the `kimiN` account).
+
+### 16.2 Kimi accounts
+
+`kimi-add-account --alias kimi1 --login` provisions a Kimi account at
+`~/.kimi-code-kimi1` and drives Kimi's **interactive device flow** (`kimi
+login`) — headless login is a non-goal. The mirror account commands are
+`kimi-remove-account`, `kimi-list-accounts`, `kimi-unify`, and `kimi-rollback`.
+
+`kimi-unify` merges `KIMI_SHARED_ITEMS = (AGENTS.md, plugins, skills, sessions,
+session_index.jsonl)` into `$SHARED_DIR/kimi/`. Sessions are workdir-keyed and
+home-independent, so cross-account resume works through the shared symlinks.
+`AGENTS.md` is promoted from the newest account and symlinked from every Kimi
+home — the `~/.claude/CLAUDE.md` promotion analog. **Never merged** (per-account
+private): `config.toml`, `credentials/`, `oauth/`, `device_id`, `bin/`, `logs/`,
+`tui.toml`. There is **no `kimi-sync-state`** — Kimi has no `.claude.json`
+analog; continuity comes entirely from the shared `sessions/`.
+
+### 16.3 `kimi-<id>` provider aliases
+
+For every provider id that verifies, `sync`/`--multi` also emits
+`alias kimi-<id>="cma_run_kimi_provider <id>"`, gated by the **same**
+`status.json` record as the Claude twin (single shared gate — refuse
+non-`verified` unless `--force`). The launcher renders
+`~/.kimi-prov-<id>/config.toml` (provider `type = openai|anthropic` by base
+shape, `base_url`, `api_key` from the same env record, `max_context_size` from
+the same derived limits, `default_model`) and runs
+`KIMI_CODE_HOME="$HOME/.kimi-prov-<id>" kimi -m "<host>/<strong-model>"`. There
+is **no `cma-proxy`** on this path (the Kimi CLI speaks the wire protocol
+natively) and **no `CLAUDE_CODE_*` guards**. One strong model per kimi alias —
+fast pairing is a non-goal. Emit/suppress with `--kimi-aliases` /
+`--no-kimi-aliases` (default on); `kimi-providers list` carries an agent
+(claude/kimi) column.
+
+### 16.4 Legacy rename (`kimi-*` → `kc-*`)
+
+The legacy aliases that opened **Claude Code** on a **Kimi-native backend** are
+renamed **once** (automatically at `sync`, or via `kimi-providers
+migrate-names`): `kimi-for-coding`→`kc-for-coding`, `kimi-for-coding2`→`kc-for-coding2`,
+`kimi-for-coding-highspeed`→`kc-for-coding-highspeed`, `kimi-k3`→`kc-k3`,
+`kimi-k2p7`→`kc-k2p7`. The `kimi-` prefix now means only "Kimi Code CLI agent".
+The rename is idempotent (second run is a no-op) and reversible via
+`backup_and_remove` backups. Update scripts or muscle memory that reference the
+old aliases.
+
+
 ---
 
-*Last revised 2026-07-27 for release `claude_toolkit-1.26.7` (OpenCode
+*Last revised 2026-09-05 for release `claude_toolkit-1.27.0` (OpenCode
 integration added 2026-06-06; provider aliases added 2026-06-16; runtime sync
 via `cma_run`/`claude-sync-state`, `CMA_PROBE_KEY` secret-hygiene model, and
 `cma_realpath` BSD portability hardening added 2026-06-28; per-dir own
 `settings.json`, router selector semantics, co-derived token guards,
 `CMA_HELIX_AUTOSTART`, and the self-contained alias-file authoring rule added
-2026-07-27). Maintain by editing this markdown file and re-running
+2026-07-27; Kimi Code accounts + `kimi-<id>` provider aliases and the
+`kimi-*`→`kc-*` rename added 2026-09-05). Maintain by editing this markdown
+file and re-running
 `MD_FILE="$PWD/Claude_Multi_Account_Fine_Tuning.md" bash scripts/claude-export-docs.sh`.*

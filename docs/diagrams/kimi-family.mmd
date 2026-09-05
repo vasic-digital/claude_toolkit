@@ -1,0 +1,46 @@
+# Kimi + Claude family model — dispatch architecture (v1.27.0)
+
+Alias namespace contract. `claudeN`/`kimiN` are native accounts; `<id>` (no
+prefix) is always Claude Code; `kimi-<id>` is always Kimi Code on the same
+backend; `kc-<id>` is Claude Code on a Kimi-native backend (legacy renamed).
+
+flowchart TB
+  subgraph NativeAccounts["Native accounts (isolated homes)"]
+    C1["claudeN → CLAUDE_CONFIG_DIR=~/.claude-&lt;n&gt;<br/>cma_run → claude (Claude Code)"]
+    K1["kimiN  → KIMI_CODE_HOME=~/.kimi-code-&lt;n&gt;<br/>cma_run_kimi → kimi (Kimi Code CLI)"]
+  end
+
+  subgraph ProviderEngine["Provider engine (shared)"]
+    SYNC["claude-providers sync<br/>verify · status.json · emit aliases"]
+    KA["~/.claude-prov-&lt;id&gt;<br/>(Claude Code home)"]
+    KP["~/.kimi-prov-&lt;id&gt;/config.toml<br/>(Kimi Code home)"]
+  end
+
+  subgraph Backends["Backends"]
+    P["&lt;id&gt; provider (deepseek, …)<br/>same backend, same key"]
+    KIMINATIVE["Kimi native backend (kc-*)"]
+  end
+
+  subgraph Aliases["Alias namespace"]
+    A1["&lt;id&gt;  = cma_run_provider &lt;id&gt;"]
+    A2["kimi-&lt;id&gt; = cma_run_kimi_provider &lt;id&gt;"]
+    A3["kc-&lt;id&gt; = cma_run_provider kc-&lt;id&gt;"]
+  end
+
+  C1 -->|"claudeN (native)"| CLAUDE_AGENT["Claude Code agent"]
+  K1 -->|"kimiN (native)"| KIMI_AGENT["Kimi Code agent"]
+
+  SYNC --> A1
+  SYNC --> A2
+  A1 -->|"Claude Code"| CLAUDE_AGENT
+  A1 --> CLAUDE_AGENT --> P
+  A2 --> KIMI_AGENT --> P
+  A2 -. "shared status.json gate" .-> KA
+  SYNC --> KP
+  A3 -->|"Claude Code over Kimi native (legacy)"| CLAUDE_AGENT
+
+  CLAUDE_AGENT --> KA
+  KIMI_AGENT --> KP
+  KA --> P
+  KP --> P
+  CLAUDE_AGENT --> KIMINATIVE
