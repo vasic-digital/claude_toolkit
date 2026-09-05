@@ -19,8 +19,10 @@
 #   3. kimi-<id> smoke : through the real rendered ~/.kimi-prov-<id>/config.toml
 #                       for each materialized twin (wrapper, env, status gate,
 #                       CA wiring). SKIPs honestly per prerequisite.
-#   4. CA trust       : an https kimi twin without CMA_PROVIDER_CA_CERT set is a
-#                       SKIP (the alias trusts nothing — nothing to exercise).
+#   4. CA trust       : a CONFIGURED-but-unreadable CA cert on an https twin is
+#                       a SKIP (the launch would silently trust nothing). A
+#                       public-CA https twin with no CA pin is exercised against
+#                       system roots — the mere absence of a pin is not a skip.
 #   5. LEGACY rename  : a `kc-*` key present in status.json must carry the
 #                       `cma_run_provider <kc-id>` alias form; a `kimi-kc-*` alias
 #                       may never exist. A host still holding old `kimi-for-coding`
@@ -142,11 +144,21 @@ else
         skipped=$((skipped + 1))
         continue
       fi
-      # CA wiring (spec §6.2): https kimi twins trust nothing unless the CA var
-      # is set and readable. Without it, exercise would be false confidence.
+      # CA wiring (spec §6.2): a private/self-signed https backend needs its CA
+      # cert exported (NODE_EXTRA_CA_CERTS/SSL_CERT_FILE) or TLS is refused. The
+      # launch wrapper sources the per-id env record (which may carry
+      # CMA_PROVIDER_CA_CERT via the env writers) and the ambient var is only the
+      # fallback. A PUBLIC-CA https provider (e.g. deepseek) needs NO CA var —
+      # system roots suffice — so the mere absence of a CA pin is NOT a skip;
+      # skipping it would starve the headline smoke leg on the common case. Only
+      # a CONFIGURED-but-unreadable cert skips: the wrapper gates its export on
+      # -r, so the launch would silently trust nothing and any exercise would be
+      # false confidence.
+      _ca="$(grep -E '^CMA_PROVIDER_CA_CERT=' "$ef" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'")"
+      [[ -z "$_ca" ]] && _ca="${CMA_PROVIDER_CA_CERT:-}"
       _base="$(grep -E '^CMA_PROVIDER_BASE_URL=' "$ef" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'")"
-      if [[ "$_base" == https://* ]] && { [[ -z "${CMA_PROVIDER_CA_CERT:-}" ]] || [[ ! -r "$CMA_PROVIDER_CA_CERT" ]]; }; then
-        echo "  SKIP: $id is https and CMA_PROVIDER_CA_CERT is unset/unreadable — TLS trust not wired, nothing to exercise" | tee -a "$EV"
+      if [[ "$_base" == https://* && -n "$_ca" && ! -r "$_ca" ]]; then
+        echo "  SKIP: $id configures CMA_PROVIDER_CA_CERT=$_ca but it is unreadable — TLS trust broken, nothing to exercise" | tee -a "$EV"
         skipped=$((skipped + 1))
         continue
       fi

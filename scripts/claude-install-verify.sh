@@ -20,10 +20,15 @@
 #              and its --help carries the BUNDLED router's discriminator.
 #   cma-proxy  when present it must execute; when absent it is reported as an
 #              honest, named DEGRADED capability (never a silent fall-through).
-#   kimi       (v1.27.0) when the checkout ships kimi-*.sh: every kimi-* symlink
-#              must resolve, the managed alias file must carry BOTH kimi wrapper
-#              functions, and any ~/.kimi-prov-*/config.toml a sync already
-#              rendered must carry a providers block + default_model.
+#   kimi       (v1.27.0) when the checkout ships kimi-*.sh: the managed alias
+#              file must carry BOTH kimi wrapper functions once it carries the
+#              Claude wrapper (a v1.27.0 install always has both), and any
+#              ~/.kimi-prov-*/config.toml a sync already rendered must carry a
+#              providers block + default_model. A host that has not run
+#              install.sh since v1.27.0 reports the family as DEGRADED (an
+#              optional capability), never a hard FAIL — the kimi-* symlinks
+#              are covered by test_install.sh, not probed here (matching the
+#              claude-*.sh symlinks, which this script never probes either).
 #
 # The ccr discriminator is `ccr restart` — NOT `ccr start`/`ccr serve`
 # (§11.4.201(7)(a) match structure, not a substring a carrier also carries).
@@ -194,52 +199,54 @@ else
 fi
 
 # --- 3. kimi artifacts (v1.27.0, Kimi Code CLI family) ----------------------
-# The Kimi family ships in the checkout next to the claude-* commands. When it
-# does NOT (an older checkout), no kimi assertion fires — the claude-only
-# install is still a good install. When it DOES, the wiring must be identical
-# to the Claude side: every kimi-*.sh has its $BIN_DIR symlink, the managed
-# alias file carries both kimi wrapper functions (cma_run_kimi launches the
-# kimiN account aliases, cma_run_kimi_provider <id> the kimi-<id> provider
-# aliases), and any per-id config.toml a provider sync already rendered is well
-# formed enough for the kimi CLI to start on.
-_BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+# The Kimi family is OPTIONAL on a claude-only host, so it follows the
+# cma-proxy convention (absent -> DEGRADED, never a hard FAIL): standalone use
+# of this verify (a post-pull diagnostic) on a host that has not run install.sh
+# since v1.27.0 reports the family as not-installed and stays green. A hard
+# FAIL is reserved for a PRESENT-but-broken artifact: an alias file carrying
+# the Claude wrapper yet missing the kimi wrappers (the v1.27.0 floor requires
+# both), or a ~/.kimi-prov-*/config.toml a sync rendered that cannot start the
+# kimi CLI. The kimi-*.sh symlinks are covered by test_install.sh.
 _kimi_expected=0
 for _k in "$LIB_DIR"/kimi-*.sh; do
   [[ -e "$_k" ]] || continue
   _kimi_expected=$((_kimi_expected + 1))
-  _name="$(basename "$_k" .sh)"
-  _link="$_BIN_DIR/$_name"
-  if [[ -L "$_link" ]] && [[ "$(cma_realpath "$_link")" == "$(cma_realpath "$_k")" ]]; then
-    _ok "kimi: $_BIN_DIR/$_name -> $LIB_DIR/$_name"
-  else
-    _fail "kimi: $_BIN_DIR/$_name does not resolve to $LIB_DIR/$_name (missing symlink — run install.sh)"
-  fi
 done
 
-if (( _kimi_expected > 0 )); then
-  if [[ -f "$ALIAS_FILE" ]] && grep -q '^cma_run_kimi() {' "$ALIAS_FILE" && grep -q '^cma_run_kimi_provider() {' "$ALIAS_FILE"; then
+if (( _kimi_expected == 0 )); then
+  : # older checkout without the Kimi family — nothing to assert
+elif [[ -f "$ALIAS_FILE" ]] && grep -q '^cma_run_provider() {' "$ALIAS_FILE"; then
+  # A real install has populated the alias file with the Claude managed
+  # wrapper. The v1.27.0 floor requires BOTH kimi wrappers alongside it; a
+  # file that has the Claude side but not the kimi side predates this checkout
+  # and cannot launch any kimiN / kimi-<id> alias.
+  if grep -q '^cma_run_kimi() {' "$ALIAS_FILE" && grep -q '^cma_run_kimi_provider() {' "$ALIAS_FILE"; then
     _ok "kimi: alias file carries cma_run_kimi() and cma_run_kimi_provider()"
   else
-    _fail "kimi: alias file lacks the Kimi wrappers (cma_run_kimi()/cma_run_kimi_provider()) needed by kimiN / kimi-<id> aliases — run install.sh"
+    _fail "kimi: alias file carries the Claude wrapper but lacks cma_run_kimi()/cma_run_kimi_provider() — it predates the v1.27.0 checkout. Fix: run install.sh"
   fi
-  # Per-id config, probed only when a config dir exists: sync renders it, so a
-  # fresh install may legitimately have none yet (that is a DEGRADED state, not
-  # a broken install — the alias still FAILS CLOSED at launch with a "run
-  # claude-providers sync" hint). A config.toml that IS present must carry what
-  # the kimi CLI needs to start: a providers block plus a default_model. TOML
-  # parsing itself lives in the kimi binary at launch time, so this clamps at
-  # the two anchors rather than pretending to be a TOML parser.
-  for _kd in "$HOME"/.kimi-prov-*; do
-    [[ -d "$_kd" ]] || continue
-    _id="$(basename "$_kd" | sed 's/^\.kimi-prov-//')"
-    _cfg="$_kd/config.toml"
-    if [[ -f "$_cfg" ]] && grep -q '^\[providers\.' "$_cfg" && grep -q '^default_model =' "$_cfg"; then
-      _ok "kimi: ~/.kimi-prov-$_id/config.toml carries a providers block + default_model"
-    else
-      _fail "kimi: ~/.kimi-prov-$_id/config.toml missing or unusable (no providers block / default_model). Fix: claude-providers sync"
-    fi
-  done
+elif [[ -f "$ALIAS_FILE" ]] && ( grep -q '^cma_run_kimi() {' "$ALIAS_FILE" || grep -q '^cma_run_kimi_provider() {' "$ALIAS_FILE" ); then
+  _ok "kimi: alias file carries the kimi wrapper(s)"
+else
+  _degr "kimi: family not installed (alias file has no kimi wrappers).
+             kimiN / kimi-<id> aliases unavailable until install.sh runs.
+             Fix: run install.sh"
 fi
+# Per-id config, probed only when a config dir exists: sync renders it, so a
+# fresh install may legitimately have none yet. A config.toml that IS present
+# must carry what the kimi CLI needs to start: a providers block plus a
+# default_model. TOML parsing itself lives in the kimi binary at launch time,
+# so this clamps at the two anchors rather than pretending to be a TOML parser.
+for _kd in "$HOME"/.kimi-prov-*; do
+  [[ -d "$_kd" ]] || continue
+  _id="$(basename "$_kd" | sed 's/^\.kimi-prov-//')"
+  _cfg="$_kd/config.toml"
+  if [[ -f "$_cfg" ]] && grep -q '^\[providers\.' "$_cfg" && grep -q '^default_model =' "$_cfg"; then
+    _ok "kimi: ~/.kimi-prov-$_id/config.toml carries a providers block + default_model"
+  else
+    _fail "kimi: ~/.kimi-prov-$_id/config.toml missing or unusable (no providers block / default_model). Fix: claude-providers sync"
+  fi
+done
 
 # --- verdict -----------------------------------------------------------------
 if (( _fails > 0 )); then

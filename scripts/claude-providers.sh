@@ -1781,14 +1781,22 @@ cmd_migrate_names() {
     #    that were absent come out empty rather than blocking the move.
     if [[ -f "$pdir/$old.env" ]]; then
       if (( do_write )); then
-        local e_key e_trans e_base e_model e_fast e_ctx e_out
-        IFS=$'\t' read -r e_key e_trans e_base e_model e_fast e_ctx e_out \
+        local e_key e_trans e_base e_model e_fast e_ctx e_out e_trim
+        IFS=$'\t' read -r e_key e_trans e_base e_model e_fast e_ctx e_out e_trim \
           < <( set +e +u; set -a; . "$pdir/$old.env" 2>/dev/null; set +a; \
-               printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+               printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
                  "${CMA_PROVIDER_KEYVAR:-}" "${CMA_PROVIDER_TRANSPORT:-}" \
                  "${CMA_PROVIDER_BASE_URL:-}" "${CMA_PROVIDER_MODEL:-}" \
                  "${CMA_PROVIDER_FAST_MODEL:-}" "${CMA_PROVIDER_CONTEXT_LIMIT:-}" \
-                 "${CMA_PROVIDER_MAX_OUTPUT:-}" )
+                 "${CMA_PROVIDER_MAX_OUTPUT:-}" "${CMA_PROVIDER_TRIM:-}" )
+        # cma_provider_write_env preserves the opt-in CMA_PROVIDER_TRIM knob only
+        # by reading the TARGET env before truncating it. On a rename the target
+        # does not exist yet, so the source's trim would be silently dropped —
+        # seed the target with it first (write_env sources it, then rewrites the
+        # whole file and re-emits the trim). An existing target keeps its own.
+        if [[ ! -f "$pdir/$new.env" && -n "$e_trim" && "$e_trim" != "null" ]]; then
+          printf 'CMA_PROVIDER_TRIM=%s\n' "$e_trim" > "$pdir/$new.env"
+        fi
         if cma_provider_write_env "$new" "$e_key" "$e_trans" "$e_base" "$e_model" "$e_fast" "$HOME/${CMA_PROVIDER_DIR_PREFIX}${new}" "$e_ctx" "$e_out" "$new"; then
           rm -f "$pdir/$old.env"
           printf '  renamed env: %s.env -> %s.env\n' "$old" "$new" && changed=1

@@ -106,6 +106,32 @@ assert_jq "$OVERRIDES" '."kimi-for-coding" // "absent"' "absent" "old overrides 
 assert_eq "verified" "$(jq -r '."moonshotai".status' "$PDIR/status.json")" "unrelated provider unmigrated"
 
 # ===========================================================================
+# Section 1a — the env rewrite must not drop the opt-in CMA_PROVIDER_TRIM knob.
+# cma_provider_write_env preserves trim by reading the TARGET env before
+# truncating it; on a rename the target does not exist yet, so cmd_migrate_names
+# seeds it from the source first. Regression for a silent option loss.
+# ===========================================================================
+it "migrate-names preserves CMA_PROVIDER_TRIM=bare across the env rename"
+cat > "$PDIR/kimi-k3.env" <<'ENV'
+CMA_PROVIDER_ID='kimi-k3'
+CMA_PROVIDER_KEYVAR='_CMA_KIMICODE_OAUTH_'
+CMA_PROVIDER_TRANSPORT='native'
+CMA_PROVIDER_BASE_URL='https://api.kimi.com/coding/v1'
+CMA_PROVIDER_MODEL='kimi-k3'
+CMA_PROVIDER_FAST_MODEL='kimi-k3'
+CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-kimi-k3'
+CMA_PROVIDER_CONTEXT_LIMIT='262144'
+CMA_PROVIDER_MAX_OUTPUT='65536'
+CMA_PROVIDER_ALIAS='kimi-k3'
+CMA_PROVIDER_TRIM='bare'
+ENV
+cmd_migrate_names >/dev/null 2>&1
+assert_file "$PDIR/kc-k3.env" "trim-carrying env migrated to kc-k3.env"
+assert_eq "0" "$([[ -e "$PDIR/kimi-k3.env" ]] && echo 1 || echo 0)" "old trim env gone"
+assert_eq "bare" "$(set +e; . "$PDIR/kc-k3.env" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_TRIM:-}")" "CMA_PROVIDER_TRIM=bare survived the rename"
+assert_eq "kimi-k3" "$(set +e; . "$PDIR/kc-k3.env" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_MODEL:-}")" "model survived the rename"
+
+# ===========================================================================
 # Section 1b — migrate-names --dry-run previews exactly what would change
 # and writes NOTHING (usage text line 109 promises a preview; the command must
 # keep it — a dry-run that also writes would be indistinguishable from a real

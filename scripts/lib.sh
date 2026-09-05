@@ -1233,6 +1233,10 @@ cma_run_provider() {
   # cma_run_provider <id> --force). Either way it is consumed, not forwarded.
   local _cma_force=0
   if [[ "${1:-}" == "--force" ]]; then _cma_force=1; shift; fi
+  # NOTE: `shift 2>/dev/null` here shifts ONE arg, not two — bash parses the `2`
+  # as an fd redirect, so this is `shift >/dev/null`. That is deliberate: it
+  # consumes the id, and the next line's guard re-checks --force. Do NOT "fix"
+  # it to `shift 2 || true` — that would silently eat the first user arg (-p).
   local id="$1"; shift 2>/dev/null || true
   if [[ "${1:-}" == "--force" ]]; then _cma_force=1; shift; fi
   local pdir="$HOME/.local/share/claude-multi-account/providers"
@@ -3659,13 +3663,23 @@ cma_run_kimi_provider() {
   local _ckf=0 _ckpid _ckhome _ckconf _ckbin _ckdm _ckbase
   if [[ "${1:-}" == "--force" ]]; then _ckf=1; shift; fi
   _ckpid="${1:-}"
+  # NOTE: `shift 2>/dev/null` shifts ONE arg, not two — bash parses the `2` as
+  # an fd redirect. Deliberate: it consumes the id; the next line re-checks
+  # --force. Do NOT "fix" to `shift 2 || true` — that eats the first user arg.
   shift 2>/dev/null || true
   if [[ "${1:-}" == "--force" ]]; then _ckf=1; shift; fi
   if [[ -z "$_ckpid" ]]; then
     printf '%s\n' "usage: cma_run_kimi_provider <id> [--force] [kimi args...]" >&2
     return 2
   fi
-  _ckhome="${KIMI_CODE_HOME:-$HOME/.kimi-prov-$_ckpid}"
+  # Per-id home is FORCED, never ambient-KIMI_CODE_HOME-honored: an exported
+  # KIMI_CODE_HOME (a documented Moonshot pattern for switching data roots)
+  # would point this wrapper at the WRONG config.toml/default_model while it
+  # launches against ~/.kimi-prov-<id> — a silently wrong-backend launch. Same
+  # isolation contract as cma_run_provider, which unconditionally exports
+  # CLAUDE_CONFIG_DIR (spec §6.3). Self-contained body: never sources lib.sh,
+  # so the literal path stands in for cma_kimi_provider_home.
+  _ckhome="$HOME/.kimi-prov-$_ckpid"
   _ckconf="$_ckhome/config.toml"
   _ckbin="${KIMI_BIN:-}"
   if ! command -v "$_ckbin" >/dev/null 2>&1; then

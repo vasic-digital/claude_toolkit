@@ -201,6 +201,18 @@ assert_eq 0 "$ok" "KIMI_CODE_HOME points at per-id home"
 args="$(cat "$REC_DIR/args")"
 assert_eq "-m deepseek/deepseek-chat Reply exactly: KIMI-PROV-OK" "$args" "launch uses -m default_model then user args"
 
+it "cma_run_kimi_provider FORCES the per-id home over an ambient KIMI_CODE_HOME"
+# An exported KIMI_CODE_HOME (Moonshot's documented data-root switch) must not
+# redirect the provider launch to a different config.toml — the wrapper owns
+# ~/.kimi-prov-<id> unconditionally, mirroring cma_run_provider's forced
+# CLAUDE_CONFIG_DIR. Regression for the review finding that the wrapper honored
+# the ambient var (a silently wrong-backend launch).
+: > "$REC_DIR/env"; : > "$REC_DIR/args"
+( set +eu; KIMI_CODE_HOME="$HOME/.kimi-code-other" \
+  cma_run_kimi_provider --force deepseek hi </dev/null >/dev/null 2>&1 )
+grep -q "^KIMI_CODE_HOME=$HOME/.kimi-prov-deepseek" "$REC_DIR/env" && ok=0 || ok=1
+assert_eq 0 "$ok" "ambient KIMI_CODE_HOME ignored; per-id home still used"
+
 it "cma_run_kimi_provider exports NODE_EXTRA_CA_CERTS only for https + CA"
 CA_PEM="$HOME/ca.pem"; printf 'FAKE-CERT\n' > "$CA_PEM"
 printf 'CMA_PROVIDER_CA_CERT=%s\n' "'$CA_PEM'" > "$PDIR/deepseek.env"
@@ -216,6 +228,18 @@ printf 'default_model = "deepseek/deepseek-chat"\nbase_url = "http://api.example
 ( set +eu; cma_run_kimi_provider --force deepseek hi </dev/null >/dev/null 2>&1 )
 grep -q "^NODE_EXTRA_CA_CERTS=" "$REC_DIR/env" && leak=0 || leak=1
 assert_eq 1 "$leak" "NODE_EXTRA_CA_CERTS not exported for http base"
+
+it "cma_run_kimi_provider launches an https twin with NO CA pin (system roots)"
+# A public-CA https backend (deepseek etc.) needs no CMA_PROVIDER_CA_CERT — the
+# launch must proceed and export nothing, so the live verifier may exercise it
+# rather than SKIP. Regression for the over-broad https-no-CA verifier skip.
+printf 'CMA_PROVIDER_KEYVAR=K\nCMA_PROVIDER_TRANSPORT=native\n' > "$PDIR/deepseek.env"
+printf 'default_model = "deepseek/deepseek-chat"\nbase_url = "https://api.example.com/v1"\n' > "$HOME/.kimi-prov-deepseek/config.toml"
+: > "$REC_DIR/env"
+( set +eu; cma_run_kimi_provider --force deepseek hi </dev/null >/dev/null 2>&1 ); rc=$?
+assert_eq 0 "$rc" "https twin without CA pin still launches"
+grep -q "^NODE_EXTRA_CA_CERTS=" "$REC_DIR/env" && leak=0 || leak=1
+assert_eq 1 "$leak" "NODE_EXTRA_CA_CERTS not exported without a CA pin"
 
 # ---------------------------------------------------------------------------
 # Section 9 — structural floor requires both kimi wrappers

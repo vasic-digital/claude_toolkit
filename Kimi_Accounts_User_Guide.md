@@ -17,7 +17,7 @@ install.sh                       # now also symlinks every kimi-*.sh command
 
 kimi-list-accounts               # see what's wired up
 kimi-add-account                 # interactive; prompts for an alias + dir
-kimi-add-account kimi1 --login   # create kimi1 AND drive the interactive login
+kimi-add-account --alias kimi1 --login   # create kimi1 AND drive the interactive login
 kimi1                            # launch Kimi Code's account 1
 ```
 
@@ -36,10 +36,10 @@ cma_run_kimi login
 
 | Command | Purpose |
 | ------- | ------- |
-| `kimi-add-account [NAME] [--login]` | Add a Kimi account (`~/.kimi-code-<name>`), wire shared items, write the `kimiN` alias. `--login` also drives the interactive login. |
+| `kimi-add-account [--alias NAME] [--dir PATH] [--login]` | Add a Kimi account (`~/.kimi-code-<alias>`), wire shared items, write the `kimiN` alias. `--alias` is required non-interactively; `--login` also drives the interactive login. |
 | `kimi-remove-account --alias NAME` | Drop an account; archive (default) or `--delete` its dir. |
 | `kimi-list-accounts` | Tabular status of detected Kimi accounts (alias, home, links). |
-| `kimi-unify [--dry-run]` | Merge `KIMI_SHARED_ITEMS` across detected Kimi accounts into `$SHARED_DIR/kimi/` and symlink back. |
+| `kimi-unify [--rollback] [account-dir ...]` | Merge `KIMI_SHARED_ITEMS` across detected Kimi accounts into `$SHARED_DIR/kimi/` and symlink back. `--rollback` restores the `.preunify.*` backups instead. |
 | `kimi-rollback` | Restore `.preunify.*` backups for the Kimi family. |
 | `kimi-providers` | Dispatch wrapper over `claude-providers` with Kimi framing — see §5. |
 
@@ -99,7 +99,7 @@ alias kimi-deepseek="cma_run_kimi_provider deepseek" # Kimi Code on the SAME dee
 | Flag | Effect |
 | ---- | ------ |
 | `claude-providers sync --no-kimi-aliases` | do **not** emit any `kimi-<id>` twin this run (default is to emit them) |
-| `claude-providers list` / `kimi-providers list` | now shows an **agent** column (claude/kimi) and marks `kimi-<x>` twins |
+| `kimi-providers list` | shows an **agent** column (claude/kimi) — one row for the Claude alias and one for its `kimi-<id>` twin; `claude-providers list` is unchanged (Claude-only rows) |
 
 ## 5. `kimi-providers` — a dispatch wrapper over the same engine
 
