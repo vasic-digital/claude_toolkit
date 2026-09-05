@@ -42,10 +42,16 @@ source "$LIB_DIR/lib.sh"
 RESOLVER="$LIB_DIR/providers_resolve.py"
 VERIFY="${CMA_PROVIDERS_VERIFY:-$LIB_DIR/providers-verify.sh}"
 SEMANTIC="${CMA_PROVIDERS_SEMANTIC:-$LIB_DIR/providers-semantic.sh}"
-MODEL_VERIFY="$LIB_DIR/model_verify.py"
-PROVIDERS_GENERATE="$LIB_DIR/providers_generate.py"
-KEY_ALIASES="$LIB_DIR/providers/key-aliases.json"
-OVERRIDES="$LIB_DIR/providers/overrides.json"
+MODEL_VERIFY="${CMA_PROVIDERS_MODEL_VERIFY:-$LIB_DIR/model_verify.py}"
+PROVIDERS_GENERATE="${CMA_PROVIDERS_GENERATE:-$LIB_DIR/providers_generate.py}"
+# key-aliases.json / overrides.json / legacy-renames.json are operator-editable
+# data files AND, for the Kimi kimi-* -> kc-* rename, are rewritten in place
+# once by cmd_migrate_names. They are made env-overridable (`:=`, cma_alias-style)
+# so the hermetic test suite can point them at sandbox copies — otherwise a sync
+# inside a test would rewrite the TRACKED repo files.
+KEY_ALIASES="${CMA_PROVIDERS_KEY_ALIASES:-$LIB_DIR/providers/key-aliases.json}"
+OVERRIDES="${CMA_PROVIDERS_OVERRIDES:-$LIB_DIR/providers/overrides.json}"
+LEGACY_RENAMES="${CMA_PROVIDERS_LEGACY_RENAMES:-$LIB_DIR/providers/legacy-renames.json}"
 CACHE="$(cma_providers_dir)/models.dev.cache.json"
 VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 
@@ -57,6 +63,10 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 # CMA_SYNC_MULTI=0 disables the default multi phase entirely (legacy shape).
 : "${CMA_SYNC_MULTI:=1}"
 : "${CMA_SYNC_INCLUDE_PAID:=0}"
+# Per-provider Kimi Code twin aliases (`kimi-<id>` -> `cma_run_kimi_provider`).
+# On by default; --no-kimi-aliases turns emission off for a run (existing twins
+# are only ever removed by `remove`/`prune`, never silently dropped).
+: "${KIMI_ALIASES:=1}"
 
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
@@ -90,6 +100,13 @@ Subcommands:
   verify <id> [--deep] re-run verification for one provider + persist status
                        (layers 1-3; --deep also runs the live superpowers-TUI layer 4)
   remove <id>          remove a provider alias + its config dir (backed up)
+  migrate-names        one-time, idempotent rename of legacy Kimi provider ids
+                       (kimi-for-coding/kimi-k3/... -> kc-*), per
+                       providers/legacy-renames.json: status record, env, token
+                       snapshot, config dir, alias-file line, key-aliases value,
+                       overrides key. Runs automatically at the front of every
+                       sync; execute directly to run it standalone
+                       (--dry-run previews exactly what would change)
   prune [--dry-run] [--unresolved]
                        report (or, unless --dry-run, remove) orphaned providers.
                        Two distinct classes are detected and reported separately:
@@ -124,6 +141,11 @@ Options:
                        *.env but no longer resolves) — without this flag,
                        prune only ever auto-removes status-only orphans
   --multi              with sync: run ONLY the per-model multi-alias phase
+  --kimi-aliases       emit the Kimi Code twin aliases (kimi-<id>) + config.toml
+                       for every provider alias (default ON; harmless no-op for
+                       kc-*/kimi-* ids). Env: KIMI_ALIASES=0
+  --no-kimi-aliases    skip Kimi twin emission for this run (does not remove
+                       already-emitted twins)
   --host URL           with helixllm-export: a serving endpoint to enumerate
                        (repeatable). Default: \$CMA_HELIXLLM_HOSTS, else the
                        hosts/base_url pinned in providers/helixllm-gateway.json
@@ -901,7 +923,13 @@ _cma_helixllm_catalogue_merge() {
 # lives in ~/.kimi-code/credentials/kimi-code.json. Gates on `command -v kimi`.
 # The sentinel key_var _CMA_KIMICODE_OAUTH_ signals to both the verification
 # path and the launch wrapper to read the token from the provider token file
-# ($PROVIDER_DIR/kimi-for-coding.token). Token is refreshed at sync time.
+# ($PROVIDER_DIR/<id>.token). Token is refreshed at sync time.
+#
+# Namespace (v1.27.0): the KIMI-* PROVIDER ids that used to be emitted here
+# (kimi-for-coding, kimi-k3, ...) were vacated: `kimi-<id>` now means the Kimi
+# CLI agent over a backend. Claude-over-Kimi providers therefore emit as kc-*
+# (kc-for-coding, kc-k3, ...). The models.dev CATALOG key is upstream data and
+# stays "kimi-for-coding"; only the emitted ids/aliases/token files are kc-*.
 detect_kimicode_record() {
   command -v kimi >/dev/null 2>&1 || { printf '[]\n'; return 0; }
   local cred_file="$HOME/.kimi-code/credentials/kimi-code.json"
@@ -942,17 +970,22 @@ detect_kimicode_record() {
     '$a + $b + ["kimi-for-coding"] | unique' <<<"{}")"
 
   # One token-file snapshot per alias (the launch path prefers the LIVE
-  # credentials file; these are only the last-resort fallback).
+  # credentials file; these are only the last-resort fallback). Token files are
+  # named after the EMITTED provider id (<id>.token), which is now kc-*.
   local tdir; tdir="$(cma_providers_dir)"; mkdir -p "$tdir"
   local pid
   while IFS= read -r pid; do
     [[ -n "$pid" ]] && ( umask 077; printf '%s' "$token" > "$tdir/$pid.token" ) || true
-  done < <(jq -r '.[] | if . == "kimi-for-coding" then "kimi-for-coding"
-                     elif startswith("kimi-") then . else "kimi-" + . end' <<<"$models_json")
+  done < <(jq -r 'def k($m): if $m == "kimi-for-coding" then "kc-for-coding"
+                     elif ($m | startswith("kimi-")) then "kc-" + ($m | sub("^kimi-";""))
+                     elif ($m | startswith("kc-")) then $m
+                     else "kc-" + $m end;
+                   .[] | k(.)' <<<"$models_json")
 
-  # Emit ONE record per served model. Alias naming: the account default keeps
-  # 'kimi-for-coding'; ids already carrying the kimi- prefix keep it; bare ids
-  # (k3, k2p7, ...) become kimi-<id>. Context/output limits come from the
+  # Emit ONE record per served model. Alias naming (v1.27.0): every emitted id
+  # carries the vacated kimi-* namespace as kc-* — the account default becomes
+  # 'kc-for-coding', ids already carrying the kimi- prefix keep it as kc-*, and
+  # bare ids (k3, k2p7, ...) become kc-<id>. Context/output limits come from the
   # models.dev catalog entry for the model, with the endpoint's documented
   # defaults (k3: 1M/131072; the K2.7 family: 262144/32768) as fallback.
   # NOTE: only the kimi-for-coding models subtree is passed to jq — the full
@@ -963,9 +996,10 @@ detect_kimicode_record() {
     def limits($m): ($limits[$m].limit // {})
       | {ctx: (.context // (if $m == "k3" then 1048576 else 262144 end)),
          out: (.output  // (if $m == "k3" then 131072  else 32768  end))};
-    def alias_for($m): if $m == "kimi-for-coding" then "kimi-for-coding"
-                       elif ($m | startswith("kimi-")) then $m
-                       else "kimi-" + $m end;
+    def alias_for($m): if $m == "kimi-for-coding" then "kc-for-coding"
+                       elif ($m | startswith("kimi-")) then "kc-" + ($m | sub("^kimi-";""))
+                       elif ($m | startswith("kc-")) then $m
+                       else "kc-" + $m end;
     $models[] | (limits(.) ) as $l | (alias_for(.)) as $a |
     {key_var:$keyvar, classification:"llm", provider_id:$a, alias:$a,
      base_url:$base, transport:"router", strong_model:., fast_model:.,
@@ -1498,6 +1532,12 @@ resolve_records() {
   local args=(--models-dev "$CACHE" --keys "$keys")
   [[ -f "$KEY_ALIASES" ]] && args+=(--key-aliases "$KEY_ALIASES")
   [[ -f "$OVERRIDES" ]] && args+=(--overrides "$OVERRIDES")
+  # Legacy Kimi id map (kimi-* -> kc-*): the RESOLVER applies it at emission so
+  # a key that maps to catalog id "kimi-for-coding" (models.dev upstream id)
+  # yields a kc-for-coding record. Without this the rename could never stick —
+  # cmd_migrate_names renames the disk state each sync, but resolve_records
+  # re-emits the legacy id from the catalog every run, a race the resolver wins.
+  [[ -f "$LEGACY_RENAMES" ]] && args+=(--legacy-renames "$LEGACY_RENAMES")
   local base_records extra rc
   # Capture BOTH the output and the real exit code explicitly. Do not rely on
   # `set -e` here: resolve_records() is itself invoked via a command
@@ -1696,6 +1736,203 @@ cma_demote_orphans() {
   done < <(cma_find_orphans "$resolved")
 }
 
+# --- Kimi legacy id migration (kimi-* -> kc-*) ------------------------------
+# One-time, idempotent, convergent. Every sync (and every prune-safe mount
+# point) renames the EXISTING disk state left by pre-v1.27.0 kimi-* provider
+# ids (status records, .env, .token snapshot, ~/.claude-prov-<id>, alias-file
+# line, key-aliases.json value, overrides.json key) to the vacated kc-* names.
+# The resolver's --legacy-renames mapping (see resolve_records) guarantees the
+# names STAY renamed on every re-resolve; this pass only repairs state already
+# on disk. All renames are atomic (tmp+mv, or rename-only), never deletes, so
+# `claude-providers rollback`-style recovery is a rename away. A second run on
+# a clean tree changes nothing and prints nothing (byte no-op).
+cmd_migrate_names() {
+  local map
+  map="$(jq -c . "$LEGACY_RENAMES" 2>/dev/null)" || { cma_warn "cannot read legacy-renames map: $LEGACY_RENAMES"; return 0; }
+  [[ "$map" == "{}" || "$map" == "null" ]] && return 0
+  local old new pdir changed=0
+  local do_write=1
+  [[ "$DRY_RUN" == "1" ]] && do_write=0
+  pdir="$(cma_providers_dir)"
+  while IFS=$'\t' read -r old new; do
+    [[ -n "$old" && -n "$new" ]] || continue
+    [[ "$old" != "$new" ]] || continue
+
+    # 1. status.json record key (rename in place, atomic tmp+mv).
+    if [[ -f "$pdir/status.json" ]] && [[ "$(jq -r --arg o "$old" 'has($o)' "$pdir/status.json" 2>/dev/null)" == "true" ]]; then
+      if (( do_write )); then
+        local stmp; stmp="$(mktemp "${TMPDIR:-/tmp}/cma-mig.XXXXXX")"
+        if jq --arg o "$old" --arg n "$new" \
+          'with_entries(if .key == $o then .key = $n else . end)' "$pdir/status.json" > "$stmp" 2>/dev/null; then
+          mv -f "$stmp" "$pdir/status.json" && printf '  renamed status record: %s -> %s\n' "$old" "$new" && changed=1
+        fi
+        rm -f "$stmp"
+      else
+        printf '  would rename status record: %s -> %s\n' "$old" "$new"
+      fi
+    fi
+
+    # 2. .env record — regenerate under the new id (preserves trim knob, key
+    #    from file, transport, models, limits; key material never lives here).
+    #    Values are captured OUT of the source subshell via process
+    #    substitution — a bare `( . env )` would set them only inside the
+    #    subshell and the rewrite would silently produce an empty env. A
+    #    degenerate env carrying only CMA_PROVIDER_ID still migrates; fields
+    #    that were absent come out empty rather than blocking the move.
+    if [[ -f "$pdir/$old.env" ]]; then
+      if (( do_write )); then
+        local e_key e_trans e_base e_model e_fast e_ctx e_out
+        IFS=$'\t' read -r e_key e_trans e_base e_model e_fast e_ctx e_out \
+          < <( set +e +u; set -a; . "$pdir/$old.env" 2>/dev/null; set +a; \
+               printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                 "${CMA_PROVIDER_KEYVAR:-}" "${CMA_PROVIDER_TRANSPORT:-}" \
+                 "${CMA_PROVIDER_BASE_URL:-}" "${CMA_PROVIDER_MODEL:-}" \
+                 "${CMA_PROVIDER_FAST_MODEL:-}" "${CMA_PROVIDER_CONTEXT_LIMIT:-}" \
+                 "${CMA_PROVIDER_MAX_OUTPUT:-}" )
+        if cma_provider_write_env "$new" "$e_key" "$e_trans" "$e_base" "$e_model" "$e_fast" "$HOME/${CMA_PROVIDER_DIR_PREFIX}${new}" "$e_ctx" "$e_out" "$new"; then
+          rm -f "$pdir/$old.env"
+          printf '  renamed env: %s.env -> %s.env\n' "$old" "$new" && changed=1
+        else
+          cma_warn "could not rewrite env for $old -> $new; leaving $pdir/$old.env in place"
+        fi
+      else
+        printf '  would rename env: %s.env -> %s.env\n' "$old" "$new"
+      fi
+    fi
+
+    # 3. OAuth token snapshot rename (rename preserves inode/permissions).
+    if [[ -f "$pdir/$old.token" ]]; then
+      if (( do_write )); then
+        mv -f "$pdir/$old.token" "$pdir/$new.token" 2>/dev/null \
+          && printf '  renamed token: %s.token -> %s.token\n' "$old" "$new" && changed=1
+      else
+        printf '  would rename token: %s.token -> %s.token\n' "$old" "$new"
+      fi
+    fi
+
+    # 4. Config dir rename. If a fresh kc-* dir already exists (sync re-created
+    #    it via cma_link_shared_items), keep the fresh one and ARCHIVE the old
+    #    data rather than throw it away; otherwise move the old dir into place so
+    #    the user's settings/plugins survive the rename.
+    local odir="$HOME/${CMA_PROVIDER_DIR_PREFIX}${old}" ndir="$HOME/${CMA_PROVIDER_DIR_PREFIX}${new}"
+    if [[ -e "$odir" ]]; then
+      if (( do_write )); then
+        if [[ -e "$ndir" ]]; then
+          mv "$odir" "${odir}.preunify.$(date +%Y%m%d%H%M%S)" 2>/dev/null \
+            && printf '  archived old config dir: %s -> %s.preunify.*\n' "$odir" "$odir" && changed=1
+        else
+          mv "$odir" "$ndir" 2>/dev/null \
+            && printf '  renamed config dir: %s -> %s\n' "$odir" "$ndir" && changed=1
+        fi
+      elif [[ -e "$ndir" ]]; then
+        printf '  would archive config dir: %s -> %s.preunify.*\n' "$odir" "$odir"
+      else
+        printf '  would rename config dir: %s -> %s\n' "$odir" "$ndir"
+      fi
+    fi
+
+    # 5. Alias-file line: drop the old id alias, add the new one, in ONE render.
+    if [[ -f "$ALIAS_FILE" ]] && grep -q "^alias ${old}=" "$ALIAS_FILE" 2>/dev/null; then
+      if (( do_write )); then
+        if cma_alias_commit "$old" "$(printf 'alias %s="cma_run_provider %s"' "$new" "$new")" keep 2>/dev/null; then
+          printf '  renamed alias: %s -> %s\n' "$old" "$new" && changed=1
+        fi
+      else
+        printf '  would rename alias: %s -> %s\n' "$old" "$new"
+      fi
+    fi
+
+    # 6. key-aliases.json value rewrite (atomic temp+mv; idempotent).
+    if [[ -f "$KEY_ALIASES" ]] && [[ "$(jq -r --arg o "$old" '[.[] | select(. == $o)] | length' "$KEY_ALIASES" 2>/dev/null)" != "0" ]]; then
+      if (( do_write )); then
+        local ktmp; ktmp="$(mktemp "${TMPDIR:-/tmp}/cma-mig.XXXXXX")"
+        if jq --arg o "$old" --arg n "$new" \
+          'with_entries(if .value == $o then .value = $n else . end)' "$KEY_ALIASES" > "$ktmp" 2>/dev/null; then
+          mv -f "$ktmp" "$KEY_ALIASES" && printf '  rewritten %s: value %s -> %s\n' "$KEY_ALIASES" "$old" "$new" && changed=1
+        fi
+        rm -f "$ktmp"
+      else
+        printf '  would rewrite %s: value %s -> %s\n' "$KEY_ALIASES" "$old" "$new"
+      fi
+    fi
+
+    # 7. overrides.json key rewrite (atomic temp+mv; idempotent).
+    if [[ -f "$OVERRIDES" ]] && [[ "$(jq -r --arg o "$old" 'has($o)' "$OVERRIDES" 2>/dev/null)" == "true" ]]; then
+      if (( do_write )); then
+        local otmp; otmp="$(mktemp "${TMPDIR:-/tmp}/cma-mig.XXXXXX")"
+        if jq --arg o "$old" --arg n "$new" \
+          'with_entries(if .key == $o then .key = $n else . end)' "$OVERRIDES" > "$otmp" 2>/dev/null; then
+          mv -f "$otmp" "$OVERRIDES" && printf '  rewritten %s: key %s -> %s\n' "$OVERRIDES" "$old" "$new" && changed=1
+        fi
+        rm -f "$otmp"
+      else
+        printf '  would rewrite %s: key %s -> %s\n' "$OVERRIDES" "$old" "$new"
+      fi
+    fi
+  done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<<"$map")
+
+  [[ "$changed" == "1" ]] && cma_log "migrate-names: renamed kimi-* provider ids to kc-*"
+  return 0
+}
+
+# Emit the Kimi Code twin of a provider alias. `kimi-<id>` runs the Kimi CLI
+# over the SAME backend/env as the Claude twin (launch wrapper: the lib.sh
+# cma_run_kimi_provider). Namespace contract: kc-* ids are Claude-over-Kimi and
+# never get a kimi-kc-* twin; legacy kimi-* ids are being vacated so never get
+# a kimi-kimi-* twin either (they migrate to kc-*). Excluded ids still return 0
+# (absence is the contract, not an error).
+_cma_kimi_twin_alias() {
+  local id="$1"
+  case "$id" in
+    ''|kc-*|kimi-*) return 0 ;;
+  esac
+  case "$id" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  local twin="kimi-$id"
+  cma_alias_commit "$twin" "$(printf 'alias %s="cma_run_kimi_provider %s"' "$twin" "$id")" keep 2>/dev/null || return 1
+  return 0
+}
+
+# Render the per-alias Kimi Code config (~/.kimi-prov-<id>/config.toml) from the
+# SYNC-time record. The launch wrapper (lib.sh cma_run_kimi_provider) refreshes
+# this file at launch; this is the idempotent sync-time version that
+# ensures a bare `claude-providers sync` produces the config a Kimi alias needs.
+# The api_key here is the RESOLVED KEY VALUE (or the OAuth token snapshot), never
+# a keyvar name — this file is the one secret-bearing artifact of the kimi twin.
+# Written 0600/0700 via umask + temp + atomic rename. `kc-*` ids render no
+# config (they are the Claude-over-Kimi names and have no kimi twin).
+_cma_kimi_render_config() {
+  local id="$1" keyvar="$2" transport="$3" base="$4" strong="$5" ctx="${6:-}"
+  case "$id" in ''|kc-*|kimi-*) return 0 ;; esac
+  local kdir="$HOME/.kimi-prov-$id"
+  ( umask 077; mkdir -p "$kdir" )
+  local api_key="" typ="openai"
+  case "$base" in */anthropic*|/v1/messages*) typ="anthropic" ;; esac
+  if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
+    local tokf; tokf="$(cma_providers_dir)/$id.token"
+    [[ -f "$tokf" ]] && api_key="$(cat "$tokf" 2>/dev/null)" || true
+  else
+    local kf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
+    [[ -f "$kf" ]] && api_key="$( set +e +u; set -a; . "$kf" 2>/dev/null; set +a; eval "printf '%s' \"\${$keyvar:-}\"" )" || true
+  fi
+  [[ "$transport" == "router" && -z "$api_key" ]] && cma_warn "kimi config: '$id' key empty — config.toml will carry an empty api_key"
+  [[ -n "$ctx" && "$ctx" != "null" ]] || ctx="128000"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma-kimi.XXXXXX")"
+  {
+    printf '[providers."%s"]\n' "$id"
+    printf 'type = "%s"\n' "$typ"
+    printf 'base_url = "%s"\n' "$base"
+    printf 'api_key = "%s"\n' "$api_key"
+    printf '\n[models."%s/%s"]\n' "$id" "$strong"
+    printf 'provider = "%s"\n' "$id"
+    printf 'model = "%s"\n' "$strong"
+    printf 'max_context_size = %s\n' "$ctx"
+    printf 'capabilities = [ "tool_use", "thinking" ]\n'
+    printf '\ndefault_model = "%s/%s"\n' "$id" "$strong"
+  } > "$tmp"
+  ( umask 077; mv -f "$tmp" "$kdir/config.toml" ) 2>/dev/null
+  return 0
+}
+
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
   local _filter="${1:-}"
@@ -1713,6 +1950,11 @@ cmd_sync() {
   # provider dirs into the shared store (idempotent via marker file): their
   # background-agent rosters must join the shared registry, not be stranded.
   (( DRY_RUN )) || cma_migrate_daemon_dirs_once
+  # One-time, idempotent Kimi legacy id rename (kimi-* -> kc-*): repairs the
+  # disk state carried over from pre-v1.27.0 BEFORE resolve_records re-resolves.
+  # The resolver's --legacy-renames mapping then keeps the names renamed (see
+  # cmd_migrate_names + resolve_records for why both halves are necessary).
+  (( DRY_RUN )) || cmd_migrate_names
   local records; records="$(resolve_records)"
   local total resolved
   total="$(jq 'length' <<<"$records")"
@@ -1770,7 +2012,7 @@ cmd_sync() {
       # token file BEFORE the verification subshell so ${!_CMA_KIMICODE_OAUTH_}
       # resolves correctly inside the verifier's ${!KEYVAR} expansion.
       if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
-        local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/kimi-for-coding.token"
+        local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/$pid.token"
         [[ -f "$_kimi_tokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_kimi_tokf" 2>/dev/null)"
       fi
       vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
@@ -1787,6 +2029,16 @@ cmd_sync() {
     cma_link_shared_items "$cdir"
     cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir" "$ctx_limit" "$max_out" "$alias"
     cma_provider_write_alias "$alias" "$pid"
+
+    # Kimi Code twin (v1.27.0): `kimi-<id>` = Kimi CLI over the SAME backend.
+    # Emission is independent of verify status (the launch gate in lib.sh is
+    # the single status.json gate for both twins). Excluded ids (kc-*, kimi-*)
+    # are a no-op. Config.toml is the file the Kimi CLI actually reads at
+    # launch — render it here so a bare sync produces a usable kimi alias.
+    if (( KIMI_ALIASES )); then
+      _cma_kimi_twin_alias "$pid" || true
+      _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
+    fi
 
     # Layer bookkeeping. vstatus here is 'verified' (existence+tool-call passed)
     # or 'unverified' (existence probe inconclusive). failing_layer records the
@@ -2182,11 +2434,24 @@ cmd_remove() {
   # abort cmd_remove before `rm -f "$f"`, leaving the provider half-removed.
   local alias; alias="$(grep -E "cma_run_provider $id(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)" || alias=""
   [[ -n "$alias" ]] && cma_remove_alias "$alias"
+  # Kimi twin alias is NOT matched by the grep above (`cma_run_kimi_provider`
+  # contains no `cma_run_provider` substring), so drop it explicitly. kc-* and
+  # kimi-* ids never have a twin, so the default `kimi-$id` is a no-op there.
+  if [[ "$id" != kc-* && "$id" != kimi-* ]]; then
+    grep -q "^alias kimi-$id=" "$ALIAS_FILE" 2>/dev/null && cma_remove_alias "kimi-$id"
+  fi
   rm -f "$f"
   local cdir="$HOME/${CMA_PROVIDER_DIR_PREFIX}${id}"
   if [[ -d "$cdir" ]]; then
     mv "$cdir" "${cdir}.preunify.$(date +%Y%m%d%H%M%S)"
     cma_log "backed up + removed config dir $cdir"
+  fi
+  # Kimi twin config dir backs up alongside the Claude one (same preunify
+  # convention; removed with `remove`, restored with a plain rename).
+  local kdir="$HOME/.kimi-prov-$id"
+  if [[ -d "$kdir" ]]; then
+    mv "$kdir" "${kdir}.preunify.$(date +%Y%m%d%H%M%S)"
+    cma_log "backed up + removed kimi config dir $kdir"
   fi
   # Clear the verification status record too — otherwise a removed provider's
   # LAST status (possibly "verified") lingers in status.json forever. That is
@@ -2319,6 +2584,9 @@ cmd_sync_multi() {
   cma_require jq
   ensure_catalog
   (( DRY_RUN )) || cma_ensure_alias_file   # heal stale wrappers once (final-review I-2; see cmd_sync)
+  # One-time, idempotent Kimi legacy id rename (kimi-* -> kc-*), same rationale
+  # and ordering as cmd_sync: repair pre-v1.27.0 disk state before re-resolving.
+  (( DRY_RUN )) || cmd_migrate_names
 
   local records; records="$(resolve_records)"
   local total resolved
@@ -2442,6 +2710,14 @@ cmd_sync_multi() {
       cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir" "$alias_ctx" "$alias_max" "$aname"
       cma_provider_write_alias "$aname" "$aname"
 
+      # Kimi Code twin for multi aliases: one kimi-<aname> alias + config.toml
+      # per generated Claude alias (same shared status gate; excluded kc-*/kimi-*
+      # ids are a no-op). Only the strong model is forwarded on the Kimi side.
+      if (( KIMI_ALIASES )); then
+        _cma_kimi_twin_alias "$aname" || true
+        _cma_kimi_render_config "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$alias_ctx" || true
+      fi
+
       # Persist verification status to the status cache so the activation
       # gate (cma_run_provider) can determine if this alias is usable.
       # Use the strong-model's verification score from the manifest; aliases
@@ -2469,7 +2745,7 @@ cmd_sync_multi() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export) SUBCMD="$1"; shift ;;
+  sync|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -2490,6 +2766,8 @@ while (( $# )); do
     --max-aliases) MAX_ALIASES="$2"; shift 2 ;;
     --min-score) MIN_SCORE="$2"; shift 2 ;;
     --verify-concurrency) VERIFY_CONCURRENCY="$2"; shift 2 ;;
+    --kimi-aliases) KIMI_ALIASES=1; shift ;;
+    --no-kimi-aliases) KIMI_ALIASES=0; shift ;;
     -y|--yes) ASSUME_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) POSITIONAL+=("$1"); shift ;;
@@ -2548,6 +2826,7 @@ case "$SUBCMD" in
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
   prune)       cmd_prune ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
+  migrate-names) cmd_migrate_names ;;
 esac
 
 fi  # end source-guard (BASH_SOURCE == $0)

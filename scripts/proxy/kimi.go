@@ -1,5 +1,12 @@
 // kimi.go — REQUEST transform for Kimi (moonshot-flavored) coding endpoints.
 //
+// Also registered under the alias key "kc": after the v1.27.0 rename the kimi-*
+// prefix is vacated for the Kimi CLI family and Claude-over-Kimi-native ids
+// carry the "kc-" prefix (kimi-for-coding -> kc-for-coding). Those ids still
+// talk to the same moonshot-flavored coding API, so Claude Code's tool schemas
+// need the same normalization. providerKey() resolves "kc-for-coding" to the
+// dash-prefix "kc", so this alias key is what --has-transform kc-* hits.
+//
 // Go port of kimi_proxy.py's fix_request (= fix_tools + strip_cache_control)
 // and normalize_schema. Kimi's coding API enforces a strict JSON-schema flavor
 // for tool definitions: every `$ref` must start with `#/$defs/`. Claude Code
@@ -20,7 +27,10 @@ package main
 
 import "strings"
 
-func init() { registerRequest("kimi", kimiFix) }
+func init() {
+	registerRequest("kimi", kimiFix)
+	registerRequest("kc", kimiFix)
+}
 
 // kimiFix is the Go equivalent of python fix_request(body): normalize tool
 // schemas and strip cache_control, returning the (modified) body.

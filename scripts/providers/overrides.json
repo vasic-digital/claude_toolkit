@@ -40,7 +40,7 @@
     "strong_model": "claude-sonnet-4.6",
     "fast_model": "gpt-5.4-mini"
   },
-  "kimi-for-coding": {
+  "kc-for-coding": {
     "transport": "router",
     "base_url": "https://api.kimi.com/coding/v1",
     "strong_model": "kimi-for-coding",
@@ -147,5 +147,8 @@
   "opencode-go5": {
     "strong_model": "deepseek-v4-pro",
     "fast_model": "qwen-3.7"
+  },
+  "kc-for-coding2": {
+    "transport": "router"
   }
 }

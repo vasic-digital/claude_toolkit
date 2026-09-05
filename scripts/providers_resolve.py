@@ -972,8 +972,10 @@ def sanitize_alias(name):
     return a
 
 
-def resolve(catalog, present_keys, key_aliases, overrides, only=None, credits=None):
+def resolve(catalog, present_keys, key_aliases, overrides, only=None, credits=None,
+            legacy_map=None):
     credits = credits or {}
+    legacy_map = legacy_map or {}
     # Built once: cross-provider context evidence for every model in the
     # catalog, used to adjudicate self-inconsistent records (see
     # `_corroborated_context`).
@@ -998,21 +1000,28 @@ def resolve(catalog, present_keys, key_aliases, overrides, only=None, credits=No
             records.append(rec)
             continue
 
-        pid = key_aliases.get(key_var) or find_provider_by_env(catalog, key_var)
-        if not pid or pid not in catalog:
+        base_pid = key_aliases.get(key_var) or find_provider_by_env(catalog, key_var)
+        # Legacy id rename (kimi-* -> kc-*): the EMITTED id is the mapped one,
+        # but the catalog lookup still uses the UPSTREAM id (models.dev keeps
+        # the original "kimi-for-coding"; the new kc-for-coding is not a
+        # catalog key). The uniqueness/merge/status machinery upstream keys on
+        # the emitted id, so the rename survives every re-resolve.
+        pid = legacy_map.get(base_pid, base_pid) if base_pid else base_pid
+        if not base_pid or base_pid not in catalog:
             rec["status"] = "unmapped"
             rec["reason"] = "no models.dev provider for this key var"
-            rec["provider_id"] = pid
+            rec["provider_id"] = base_pid
             records.append(rec)
             continue
 
-        provider = catalog[pid]
+        provider = catalog[base_pid]
 
         # overrides.json: per-provider manual pins (alias/base_url/transport/
         # strong_model/fast_model/credit/model_policy). This is how a user
         # promotes e.g. deepseek to a native /anthropic endpoint, or forces
-        # free-only spending, without any hardcoding in code.
-        ov = overrides.get(pid) or {}
+        # free-only spending, without any hardcoding in code. Check the mapped
+        # (kc-*) key first, then the upstream id for a legacy-written pin.
+        ov = overrides.get(pid) or overrides.get(base_pid) or {}
 
         # The credit rule runs BEFORE selection: which tier we may spend from
         # decides which models are even candidates.
@@ -1233,6 +1242,10 @@ def main(argv=None):
     ap.add_argument("--keys", default="")
     ap.add_argument("--key-aliases")
     ap.add_argument("--overrides")
+    ap.add_argument("--legacy-renames",
+                    help="legacy provider-id map (old->new, e.g. kimi-* -> kc-*): "
+                         "the EMITTED id is mapped, catalog lookup stays on the "
+                         "upstream id")
     ap.add_argument("--only")
     ap.add_argument("--credits",
                     help="credit-probe cache (model_verify.py --credit-probe); "
@@ -1244,10 +1257,11 @@ def main(argv=None):
     present = [k.strip() for k in args.keys.split(",") if k.strip()]
     key_aliases = load_json(args.key_aliases, {})
     overrides = load_json(args.overrides, {})
+    legacy_map = load_json(args.legacy_renames, {})
     credits = load_credits(args.credits)
 
     records = resolve(catalog, present, key_aliases, overrides, only=args.only,
-                      credits=credits)
+                      credits=credits, legacy_map=legacy_map)
     json.dump(records, sys.stdout, indent=2)
     sys.stdout.write("\n")
     return 0

@@ -260,7 +260,7 @@ cma_probe_help() {
 # suffixes (poe2 -> poe, kimi-k2 -> kimi) — the same folds providerKey() does.
 cma_proxy_transform_family() {
   case "$1" in
-    helixagent*|poe*|kimi*|sarvam*|nvidia*) return 0 ;;
+    helixagent*|poe*|kimi*|kc*|sarvam*|nvidia*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -2649,6 +2649,10 @@ _cma_emit_managed() {
   printf '\n'
   _cma_emit_cma_run_provider
   printf '\n'
+  _cma_emit_cma_run_kimi
+  printf '\n'
+  _cma_emit_cma_run_kimi_provider
+  printf '\n'
   _cma_emit_account_dispatch
   printf '%s\n' "$CMA_ALIAS_MANAGED_END"
 }
@@ -2893,6 +2897,12 @@ _cma_alias_gate() {
   grep -q '^export CLAUDE_BIN=' "$cand"   || { cma_warn "alias render rejected: no CLAUDE_BIN header"; return 1; }
   grep -q '^cma_run() {' "$cand"          || { cma_warn "alias render rejected: no cma_run()"; return 1; }
   grep -q '^cma_run_provider() {' "$cand" || { cma_warn "alias render rejected: no cma_run_provider()"; return 1; }
+  # The kimi wrappers are part of the emitted managed block (family layer);
+  # a render that lost either is as structurally broken as one missing cma_run,
+  # since the kimiN / kimi-<id> aliases would then exec a function that does
+  # not exist on shell start.
+  grep -q '^cma_run_kimi() {' "$cand"          || { cma_warn "alias render rejected: no cma_run_kimi()"; return 1; }
+  grep -q '^cma_run_kimi_provider() {' "$cand" || { cma_warn "alias render rejected: no cma_run_kimi_provider()"; return 1; }
 
   want="$(_cma_alias_mktemp)" || return 1
   got="$(_cma_alias_mktemp)"  || { rm -f "$want"; return 1; }
@@ -3457,6 +3467,276 @@ cma_install_session_hook() {
   # of carrying the existing block over.
   cma_alias_commit "" "" install
 }
+
+# ===========================================================================
+# Kimi family layer (v1.27.0). The Kimi Code CLI is a first-class sibling of
+# Claude Code. The family model is an orthogonal axis to the provider backend:
+# the provider engine stays shared, and each family supplies its agent binary,
+# home env var, account prefix, user-scope root, and launcher functions.
+#
+#   |                | Claude family       | Kimi family
+#   | agent binary   | claude              | kimi
+#   | home env var   | CLAUDE_CONFIG_DIR   | KIMI_CODE_HOME
+#   | account prefix | .claude-            | .kimi-code-
+#   | user-scope root| ~/.claude (excluded)| ~/.kimi-code (excluded)
+#   | account aliases| claude1…N           | kimi1…N
+#   | account launcher| cma_run            | cma_run_kimi
+#   | provider launcher| cma_run_provider  | cma_run_kimi_provider
+#   | shared store   | $SHARED_DIR/**      | $SHARED_DIR/kimi/**
+#
+# Namespace contract (the invariant): claudeN/kimiN are native accounts; <id>
+# (no prefix) is ALWAYS Claude Code over that backend; kimi-<id> is ALWAYS Kimi
+# Code over the SAME backend; kc-<id> is Claude Code over a Kimi-native backend
+# (legacy rename). kimiN account aliases must never be named kimi-*/kc-* (those
+# are reserved provider namespaces), and kc-* ids never get a kimi-kc-* twin.
+# ===========================================================================
+KIMI_ACCOUNT_PREFIX=".kimi-code-"
+KIMI_PROVIDER_PREFIX=".kimi-prov-"
+KIMI_SHARED_SUBDIR="kimi"
+
+cma_kimi_home()          { printf '%s\n' "$HOME/.kimi-code"; }
+cma_kimi_account_home()  { printf '%s\n' "$HOME/$KIMI_ACCOUNT_PREFIX$1"; }
+cma_kimi_provider_home() { printf '%s\n' "$HOME/$KIMI_PROVIDER_PREFIX$1"; }
+
+CMA_KIMI_SHARED_ITEMS=(AGENTS.md plugins skills sessions session_index.jsonl)
+
+# Resolve the Kimi Code binary for the kimi wrappers. Prefer an explicit
+# KIMI_BIN, then the per-home bundled bin (installed by install.sh / logic), then
+# ~/.local/bin, then PATH. Mirror of cma_resolve_claude_bin.
+cma_resolve_kimi_bin() {
+  if [ -n "${KIMI_BIN:-}" ]; then printf '%s\n' "$KIMI_BIN"; return 0; fi
+  if [ -x "$HOME/.kimi-code/bin/kimi" ]; then printf '%s\n' "$HOME/.kimi-code/bin/kimi"; return 0; fi
+  if [ -x "$HOME/.local/bin/kimi" ]; then printf '%s\n' "$HOME/.local/bin/kimi"; return 0; fi
+  local c; if c="$(command -v kimi 2>/dev/null)"; then printf '%s\n' "$c"; return 0; fi
+  printf '%s\n' "$HOME/.local/bin/kimi"   # fallback (created by install/symlink)
+}
+
+# Marker-based detection mirror of cma_detect_accounts for the Kimi family.
+# Matches ${KIMI_ACCOUNT_PREFIX}* (~/.kimi-code-*). The user-scope root
+# ~/.kimi-code (no trailing hyphen) and the provider homes ~/.kimi-prov-*
+# never match the glob structurally. Skips *-shared, *.lock, *.removed.*,
+# *.preunify.*, and non-empty dirs lacking any kimi marker.
+cma_detect_kimi_accounts() {
+  local d prefix="${KIMI_ACCOUNT_PREFIX:-.kimi-code-}"
+  while IFS= read -r d; do
+    [[ "$d" == *"-shared" ]] && continue
+    [[ "$(basename "$d")" == *.lock ]] && continue
+    [[ "$(basename "$d")" == *.removed.* ]] && continue
+    [[ "$(basename "$d")" == *.preunify.* ]] && continue
+    # Empty dirs always count (a brand-new account before any kimi run).
+    if [[ -z "$(ls -A "$d" 2>/dev/null)" ]]; then echo "$d"; continue; fi
+    # Non-empty: must look like a Kimi account (at least one tell-tale
+    # file/dir). Filters out dirs that merely match the `.kimi-code-*` prefix
+    # but belong to other tools.
+    if [[ -f "$d/config.toml" || -d "$d/credentials" || -d "$d/sessions" \
+       || -f "$d/session_index.jsonl" ]]; then
+      echo "$d"
+    fi
+  done < <(find "$HOME" -maxdepth 1 -type d -name "${prefix}*" 2>/dev/null | sort)
+}
+
+# Read all aliases of the form `alias name="KIMI_CODE_HOME=... cma_run_kimi"`
+# from $ALIAS_FILE and print their names (one per line).
+cma_existing_kimi_aliases() {
+  [[ -f "$ALIAS_FILE" ]] || return 0
+  grep '^alias[[:space:]][^=]*="KIMI_CODE_HOME=' "$ALIAS_FILE" 2>/dev/null \
+    | awk -F'[ =]+' '{print $2}' 2>/dev/null || true
+}
+
+# Suggest the next free `kimi<N>` alias by scanning current kimi aliases.
+cma_suggest_kimi_alias() {
+  local highest=0 n a
+  for a in $(cma_existing_kimi_aliases); do
+    if [[ "$a" =~ ^kimi([0-9]+)$ ]]; then
+      n="${BASH_REMATCH[1]}"
+      (( n > highest )) && highest="$n"
+    fi
+  done
+  printf 'kimi%s\n' "$((highest + 1))"
+}
+
+# Validate a kimi ACCOUNT alias name: same charset as cma_validate_alias, and
+# additionally the two provider namespaces `kimi-*` and `kc-*` are reserved for
+# provider aliases — a kimiN account must never be named into either.
+cma_validate_kimi_alias() {
+  cma_validate_alias "$1"
+  case "$1" in
+    kimi-*|kc-*)
+      cma_die "invalid alias name: $1 (reserved provider namespace kimi-*/kc-*)" ;;
+  esac
+}
+
+# Symlink every kimi shared item into a kimi account dir, creating empty
+# placeholders under $SHARED_DIR/kimi for items that don't exist yet.
+# Idempotent: skips items already present in the target. Mirror of
+# cma_link_shared_items but into the family-specific $SHARED_DIR/kimi area.
+cma_link_kimi_shared_items() {
+  local kdir="$1" item src tgt
+  mkdir -p "$SHARED_DIR/$KIMI_SHARED_SUBDIR" "$kdir"
+  for item in "${CMA_KIMI_SHARED_ITEMS[@]}"; do
+    src="$SHARED_DIR/$KIMI_SHARED_SUBDIR/$item"; tgt="$kdir/$item"
+    if [[ ! -e "$src" ]]; then
+      case "$item" in
+        *.json|*.jsonl|*.md) : > "$src" ;;
+        *) mkdir -p "$src" ;;
+      esac
+    fi
+    [[ -e "$tgt" || -L "$tgt" ]] || ln -s "$src" "$tgt"
+  done
+}
+
+# Add (or refresh) a single kimi ACCOUNT alias in $ALIAS_FILE. Idempotent.
+# The alias wraps `cma_run_kimi` with a KIMI_CODE_HOME= prefix so the account
+# resolves its own home, exactly as claudeN aliases carry CLAUDE_CONFIG_DIR=.
+cma_write_kimi_alias() {
+  local alias_name="$1" kdir="$2" _cma_c
+  cma_validate_kimi_alias "$alias_name"
+  # kdir is interpolated into the alias body and re-parsed by the shell when the
+  # alias is invoked. Reject shell metacharacters and whitespace — same rules as
+  # cma_write_alias.
+  for _cma_c in '"' '$' '`' \\ ';' '&' '|' '<' '>' '(' ')'; do
+    case "$kdir" in *"$_cma_c"*)
+      cma_warn "refusing to write alias '$alias_name': unsafe config dir"
+      return 1 ;;
+    esac
+  done
+  case "$kdir" in *[[:space:]]*)
+    cma_warn "refusing to write alias '$alias_name': config dir must not contain whitespace"
+    return 1 ;;
+  esac
+  cma_ensure_alias_file
+  cma_alias_commit "$alias_name" \
+    "$(printf 'alias %s="KIMI_CODE_HOME=%s cma_run_kimi"' "$alias_name" "$kdir")" keep
+}
+
+# Remove a kimi account alias line. Idempotent.
+cma_remove_kimi_alias() {
+  local alias_name="$1"
+  [[ -f "$ALIAS_FILE" ]] || return 0
+  cma_alias_commit "$alias_name" "" keep
+}
+
+# ---- Emitted kimi wrappers --------------------------------------------------
+# These are emitted into the managed block and eval'd into THIS shell from the
+# exact bytes the alias file receives (same pattern as the ccr guard), so the
+# wrapper under test is always the same function a user's shell gets.
+_cma_emit_cma_run_kimi() {
+  cat <<'CMA_KIMI_RUN_EOF'
+# Kimi Code account wrapper (kimiN). Resolves the kimi binary, scrubs the
+# Claude/Anthropic env the Kimi CLI must never inherit, then runs kimi.
+cma_run_kimi() {
+  local _ck_bin _ck_khome
+  _ck_bin="${KIMI_BIN:-}"
+  if ! command -v "$_ck_bin" >/dev/null 2>&1; then
+    if [ -x "$HOME/.kimi-code/bin/kimi" ]; then _ck_bin="$HOME/.kimi-code/bin/kimi"
+    elif [ -x "$HOME/.local/bin/kimi" ]; then _ck_bin="$HOME/.local/bin/kimi"
+    elif command -v kimi >/dev/null 2>&1; then _ck_bin="$(command -v kimi)"
+    fi
+  fi
+  if ! command -v "$_ck_bin" >/dev/null 2>&1; then
+    printf '%s\n' "cma_run_kimi: kimi binary not found (checked \$KIMI_BIN, ~/.kimi-code/bin, ~/.local/bin, PATH)" >&2
+    return 127
+  fi
+  # Family isolation: never let a Claude/Anthropic env left over from a previous
+  # alias leak into the Kimi CLI — base URL, auth token, model pins, and the
+  # Claude Code token-limit guards are all Claude-family only.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
+  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
+  "$_ck_bin" "$@"
+}
+CMA_KIMI_RUN_EOF
+}
+eval "$(_cma_emit_cma_run_kimi)"
+
+_cma_emit_cma_run_kimi_provider() {
+  cat <<'CMA_KIMI_PROV_EOF'
+# Kimi Code over a verified provider backend (kimi-<id>). Shares the SAME
+# status.json activation gate as the Claude twin (single shared record per id),
+# reads default_model/base_url from the rendered config.toml, and refuses to
+# launch on a missing or stale config. Self-contained: no lib.sh helpers.
+cma_run_kimi_provider() {
+  local _ckf=0 _ckpid _ckhome _ckconf _ckbin _ckdm _ckbase
+  if [[ "${1:-}" == "--force" ]]; then _ckf=1; shift; fi
+  _ckpid="${1:-}"
+  shift 2>/dev/null || true
+  if [[ "${1:-}" == "--force" ]]; then _ckf=1; shift; fi
+  if [[ -z "$_ckpid" ]]; then
+    printf '%s\n' "usage: cma_run_kimi_provider <id> [--force] [kimi args...]" >&2
+    return 2
+  fi
+  _ckhome="${KIMI_CODE_HOME:-$HOME/.kimi-prov-$_ckpid}"
+  _ckconf="$_ckhome/config.toml"
+  _ckbin="${KIMI_BIN:-}"
+  if ! command -v "$_ckbin" >/dev/null 2>&1; then
+    if [ -x "$HOME/.kimi-code/bin/kimi" ]; then _ckbin="$HOME/.kimi-code/bin/kimi"
+    elif [ -x "$HOME/.local/bin/kimi" ]; then _ckbin="$HOME/.local/bin/kimi"
+    elif command -v kimi >/dev/null 2>&1; then _ckbin="$(command -v kimi)"
+    fi
+  fi
+  if ! command -v "$_ckbin" >/dev/null 2>&1; then
+    printf '%s\n' "cma_run_kimi_provider: kimi binary not found" >&2
+    return 127
+  fi
+  # Shared activation gate (same record as the claude twin) — only a 'verified'
+  # id launches, unless the operator passes --force.
+  if (( ! _ckf )); then
+    local _ck_sf="$HOME/.local/share/claude-multi-account/providers/status.json" _ck_st="pending"
+    if command -v jq >/dev/null 2>&1 && [[ -s "$_ck_sf" ]]; then
+      _ck_st="$(jq -r --arg i "$_ckpid" '.[$i].status // "pending"' "$_ck_sf" 2>/dev/null)"
+      [[ -n "$_ck_st" && "$_ck_st" != "null" ]] || _ck_st="pending"
+    fi
+    if [[ "$_ck_st" != "verified" ]]; then
+      printf 'claude-providers: alias kimi-%s is %s — not launching.\n' "$_ckpid" "$_ck_st" >&2
+      printf '  Re-verify: claude-providers verify %s   (and claude-providers sync)\n' "$_ckpid" >&2
+      printf '  Override (operator): run the alias with --force\n' >&2
+      return 3
+    fi
+  fi
+  if [[ ! -f "$_ckconf" ]]; then
+    printf 'claude-providers: kimi-%s has no config.toml at %s\n' "$_ckpid" "$_ckconf" >&2
+    printf '  Run: claude-providers sync   (renders the kimi config for verified providers)\n' >&2
+    return 1
+  fi
+  # Pick up per-id launch metadata from the provider env record (tls CA cert, …
+  # ). config.toml carries the wire/API material; the env record carries host
+  # config. Optional — a record is not required for kimi launch.
+  local _ck_envf="$HOME/.local/share/claude-multi-account/providers/$_ckpid.env"
+  if [[ -f "$_ck_envf" ]]; then source "$_ck_envf"; fi
+  # default_model / base_url are read at launch from what sync rendered — never
+  # hardcoded here. Portable strip: take the value after the first `=`, drop
+  # surrounding quotes/whitespace with tr (works for the double-quoted TOML the
+  # kimi renderer emits).
+  _ckdm="$(
+    grep -E '^[[:space:]]*default_model[[:space:]]*=' "$_ckconf" 2>/dev/null \
+      | head -n1 | cut -d= -f2- | tr -d ' "' \
+  )"
+  if [[ -z "$_ckdm" ]]; then
+    printf 'claude-providers: kimi-%s config.toml has no default_model — stale config\n' "$_ckpid" >&2
+    printf '  Run: claude-providers sync   to re-render\n' >&2
+    return 1
+  fi
+  _ckbase="$(
+    grep -E '^[[:space:]]*base_url[[:space:]]*=' "$_ckconf" 2>/dev/null \
+      | head -n1 | cut -d= -f2- | tr -d ' "' \
+  )"
+  # TLS trust for self-signed backends, mirrored from the claude-side wiring:
+  # Node APPENDS NODE_EXTRA_CA_CERTS and Go replaces the pool (a CA-only
+  # SSL_CERT_FILE would narrow trust for every other dial). Gated on the cert
+  # being set+readable and the base URL being https://.
+  if [[ -n "${CMA_PROVIDER_CA_CERT:-}" && -r "${CMA_PROVIDER_CA_CERT:-}" && "$_ckbase" == https://* ]]; then
+    export NODE_EXTRA_CA_CERTS="${CMA_PROVIDER_CA_CERT}"
+    export SSL_CERT_FILE="${CMA_PROVIDER_CA_CERT}"
+  fi
+  # Same family isolation as cma_run_kimi: scrub a leftover Claude/Anthropic env.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
+  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
+  KIMI_CODE_HOME="$_ckhome" "$_ckbin" -m "$_ckdm" "$@"
+}
+CMA_KIMI_PROV_EOF
+}
+eval "$(_cma_emit_cma_run_kimi_provider)"
 
 # True only when the toolkit may prompt the user interactively. Scripts read
 # confirmations from /dev/tty (so prompts survive `curl | bash`), so this
