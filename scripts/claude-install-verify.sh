@@ -20,6 +20,10 @@
 #              and its --help carries the BUNDLED router's discriminator.
 #   cma-proxy  when present it must execute; when absent it is reported as an
 #              honest, named DEGRADED capability (never a silent fall-through).
+#   kimi       (v1.27.0) when the checkout ships kimi-*.sh: every kimi-* symlink
+#              must resolve, the managed alias file must carry BOTH kimi wrapper
+#              functions, and any ~/.kimi-prov-*/config.toml a sync already
+#              rendered must carry a providers block + default_model.
 #
 # The ccr discriminator is `ccr restart` — NOT `ccr start`/`ccr serve`
 # (§11.4.201(7)(a) match structure, not a substring a carrier also carries).
@@ -187,6 +191,54 @@ else
              helixagent/poe/kimi/sarvam aliases run WITHOUT their compat shims
              (Hermes tool-call recovery + request-schema fixes are inactive).
              Fix: claude-proxy-build   (needs the Go toolchain)"
+fi
+
+# --- 3. kimi artifacts (v1.27.0, Kimi Code CLI family) ----------------------
+# The Kimi family ships in the checkout next to the claude-* commands. When it
+# does NOT (an older checkout), no kimi assertion fires — the claude-only
+# install is still a good install. When it DOES, the wiring must be identical
+# to the Claude side: every kimi-*.sh has its $BIN_DIR symlink, the managed
+# alias file carries both kimi wrapper functions (cma_run_kimi launches the
+# kimiN account aliases, cma_run_kimi_provider <id> the kimi-<id> provider
+# aliases), and any per-id config.toml a provider sync already rendered is well
+# formed enough for the kimi CLI to start on.
+_BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+_kimi_expected=0
+for _k in "$LIB_DIR"/kimi-*.sh; do
+  [[ -e "$_k" ]] || continue
+  _kimi_expected=$((_kimi_expected + 1))
+  _name="$(basename "$_k" .sh)"
+  _link="$_BIN_DIR/$_name"
+  if [[ -L "$_link" ]] && [[ "$(cma_realpath "$_link")" == "$(cma_realpath "$_k")" ]]; then
+    _ok "kimi: $_BIN_DIR/$_name -> $LIB_DIR/$_name"
+  else
+    _fail "kimi: $_BIN_DIR/$_name does not resolve to $LIB_DIR/$_name (missing symlink — run install.sh)"
+  fi
+done
+
+if (( _kimi_expected > 0 )); then
+  if [[ -f "$ALIAS_FILE" ]] && grep -q '^cma_run_kimi() {' "$ALIAS_FILE" && grep -q '^cma_run_kimi_provider() {' "$ALIAS_FILE"; then
+    _ok "kimi: alias file carries cma_run_kimi() and cma_run_kimi_provider()"
+  else
+    _fail "kimi: alias file lacks the Kimi wrappers (cma_run_kimi()/cma_run_kimi_provider()) needed by kimiN / kimi-<id> aliases — run install.sh"
+  fi
+  # Per-id config, probed only when a config dir exists: sync renders it, so a
+  # fresh install may legitimately have none yet (that is a DEGRADED state, not
+  # a broken install — the alias still FAILS CLOSED at launch with a "run
+  # claude-providers sync" hint). A config.toml that IS present must carry what
+  # the kimi CLI needs to start: a providers block plus a default_model. TOML
+  # parsing itself lives in the kimi binary at launch time, so this clamps at
+  # the two anchors rather than pretending to be a TOML parser.
+  for _kd in "$HOME"/.kimi-prov-*; do
+    [[ -d "$_kd" ]] || continue
+    _id="$(basename "$_kd" | sed 's/^\.kimi-prov-//')"
+    _cfg="$_kd/config.toml"
+    if [[ -f "$_cfg" ]] && grep -q '^\[providers\.' "$_cfg" && grep -q '^default_model =' "$_cfg"; then
+      _ok "kimi: ~/.kimi-prov-$_id/config.toml carries a providers block + default_model"
+    else
+      _fail "kimi: ~/.kimi-prov-$_id/config.toml missing or unusable (no providers block / default_model). Fix: claude-providers sync"
+    fi
+  done
 fi
 
 # --- verdict -----------------------------------------------------------------

@@ -99,8 +99,9 @@ assert_eq "$want" "$got2" "cma_realpath is identity on a real path"
 
 it "no runtime script INVOKES 'readlink -f' (absent on BSD/macOS)"
 # Strip comments first so explanatory comments mentioning the flag don't count;
-# we only care about real invocations.
-hits="$(for f in "$SCRIPTS_DIR"/lib.sh "$SCRIPTS_DIR"/install.sh "$SCRIPTS_DIR"/claude-*.sh; do sed 's/#.*//' "$f"; done 2>/dev/null | grep -c 'readlink -f')"
+# we only care about real invocations. kimi-*.sh is in the same loop (v1.27.0)
+# so the family can never drift into a GNU-only construct.
+hits="$(for f in "$SCRIPTS_DIR"/lib.sh "$SCRIPTS_DIR"/install.sh "$SCRIPTS_DIR"/claude-*.sh "$SCRIPTS_DIR"/kimi-*.sh; do sed 's/#.*//' "$f"; done 2>/dev/null | grep -c 'readlink -f')"
 assert_eq 0 "$hits" "zero 'readlink -f' invocations in runtime scripts"
 
 it "no committed proof artifact contains a literal secret"

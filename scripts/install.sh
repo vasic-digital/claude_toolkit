@@ -78,6 +78,23 @@ for f in "$LIB_DIR"/claude-*.sh; do
     cma_log "linked $link -> $f"
   fi
 done
+# .same loop over the Kimi family commands (v1.27.0) — they end up on PATH
+# exactly like the claude-* ones, so the docs' `kimi-add-account` etc. work
+# out of the box.
+for f in "$LIB_DIR"/kimi-*.sh; do
+  name="$(basename "$f" .sh)"
+  link="$BIN_DIR/$name"
+  if [[ -L "$link" || -e "$link" ]]; then
+    if [[ "$(cma_realpath "$link")" != "$(cma_realpath "$f")" ]]; then
+      mv "$link" "${link}.preunify.$(date +%Y%m%d%H%M%S)"
+      ln -s "$f" "$link"
+      cma_log "linked $link -> $f"
+    fi
+  else
+    ln -s "$f" "$link"
+    cma_log "linked $link -> $f"
+  fi
+done
 
 # 2b. Build the BUNDLED Go claude-code-router (submodule) and install it as
 # `ccr`, so the provider aliases route through OUR vendored router rather than a
@@ -188,6 +205,14 @@ else
   cma_warn "no ~/${ACCOUNT_PREFIX}* dirs detected — add one with claude-add-account.sh"
 fi
 
+# 5b. Same unification for the Kimi family (v1.27.0), over $SHARED_DIR/kimi/.
+# Only when Kimi homes are actually present — a fresh install with none should
+# keep the same single cma_warn the Claude side emits, not two.
+if [[ -x "$LIB_DIR/kimi-unify.sh" ]] && (( $(cma_detect_kimi_accounts | wc -l) > 0 )); then
+  cma_log "running kimi-unify.sh"
+  "$LIB_DIR/kimi-unify.sh"
+fi
+
 # 6. Refresh docs if pandoc is available.
 if command -v pandoc >/dev/null 2>&1 && [[ -f "$HOME/Documents/Claude_Multi_Account_Fine_Tuning.md" ]]; then
   cma_log "running claude-export-docs.sh"
@@ -230,10 +255,12 @@ cat <<EOF
 [done] claude-multi-account installed.
 
   Scripts on PATH:  $BIN_DIR/claude-{unify,add-account,remove-account,list-accounts,rollback,export-docs}
+  Kimi on PATH:     $BIN_DIR/kimi-{unify,add-account,remove-account,list-accounts,rollback,providers}
   Alias file:       $ALIAS_FILE
   Shared store:     $SHARED_DIR
 
 Open a new shell (or run: source $ALIAS_FILE) so the aliases load, then:
   claude-list-accounts            # see what's wired up
   claude-add-account              # add another account interactively
+  kimi-add-account --alias kimi1  # provision a Kimi Code account (device flow)
 EOF

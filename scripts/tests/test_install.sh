@@ -5,9 +5,13 @@
 # referenced), so this is the sole coverage that the bootstrap actually works:
 #   * exits 0 in a clean $HOME
 #   * symlinks every claude-*.sh onto PATH (~/.local/bin -> SCRIPTS_DIR)
+#   * symlinks every kimi-*.sh onto PATH the same way (kimi family, v1.27.0)
 #   * creates the managed alias file with the cma_run wrapper + CLAUDE_BIN export
 #   * appends its PATH line to a pre-existing rc file
 #   * is idempotent (a 2nd run exits 0 and does not duplicate cma_run/PATH line)
+#   * registers claude<N> aliases for pre-existing account dirs
+#   * registers kimi<N> aliases for pre-existing kimi account dirs (install-time
+#     kimi-unify, the 5b step)
 #
 # Honest side effect: install.sh runs `npm install` in the REAL repo root for
 # the optional TOON utility. It is idempotent (a no-op once deps are present,
@@ -79,9 +83,23 @@ assert_symlink_to "$HOME/.local/bin/claude-unify"         "$SCRIPTS_DIR/claude-u
 assert_symlink_to "$HOME/.local/bin/claude-add-account"   "$SCRIPTS_DIR/claude-add-account.sh"   "claude-add-account linked"
 assert_symlink_to "$HOME/.local/bin/claude-list-accounts" "$SCRIPTS_DIR/claude-list-accounts.sh" "claude-list-accounts linked"
 
+it "install.sh symlinks kimi-* commands into ~/.local/bin -> SCRIPTS_DIR"
+assert_symlink_to "$HOME/.local/bin/kimi-unify"          "$SCRIPTS_DIR/kimi-unify.sh"          "kimi-unify linked"
+assert_symlink_to "$HOME/.local/bin/kimi-add-account"    "$SCRIPTS_DIR/kimi-add-account.sh"    "kimi-add-account linked"
+assert_symlink_to "$HOME/.local/bin/kimi-list-accounts"  "$SCRIPTS_DIR/kimi-list-accounts.sh"  "kimi-list-accounts linked"
+assert_symlink_to "$HOME/.local/bin/kimi-remove-account" "$SCRIPTS_DIR/kimi-remove-account.sh" "kimi-remove-account linked"
+assert_symlink_to "$HOME/.local/bin/kimi-rollback"       "$SCRIPTS_DIR/kimi-rollback.sh"       "kimi-rollback linked"
+assert_symlink_to "$HOME/.local/bin/kimi-providers"      "$SCRIPTS_DIR/kimi-providers.sh"      "kimi-providers linked"
+
+it "install.sh banner names the kimi family"
+assert_file_contains "$install_log" "kimi-{unify,add-account,remove-account,list-accounts,rollback,providers}" "banner lists the kimi commands"
+assert_file_contains "$install_log" "kimi-add-account --alias kimi1" "banner shows the kimi onboarding hint"
+
 it "install.sh creates the managed alias file with the wrapper + CLAUDE_BIN export"
 assert_file "$ALIAS_FILE" "alias file created"
 assert_file_contains "$ALIAS_FILE" "cma_run()"         "cma_run wrapper present"
+assert_file_contains "$ALIAS_FILE" "cma_run_kimi()"    "cma_run_kimi wrapper present"
+assert_file_contains "$ALIAS_FILE" "cma_run_kimi_provider()" "cma_run_kimi_provider wrapper present"
 assert_file_contains "$ALIAS_FILE" "export CLAUDE_BIN=" "CLAUDE_BIN exported"
 
 it "install.sh appends its PATH line to a pre-existing rc file"
@@ -123,5 +141,24 @@ assert_file_contains "$ALIAS_FILE" "alias claude1=\"CLAUDE_CONFIG_DIR=$HOME/.cla
 assert_file_contains "$ALIAS_FILE" "alias claude2=\"CLAUDE_CONFIG_DIR=$HOME/.claude-2 cma_run\"" "claude2 alias registered"
 alias_count="$(grep -cE '^alias claude[0-9]+=' "$ALIAS_FILE" || true)"
 assert_eq 2 "$alias_count" "exactly two claudeN aliases registered"
+
+# ── install.sh against pre-existing KIMI account dirs ────────────────────────
+# The install-time kimi unify (step 5b) must register kimi<N> aliases for
+# ~/.kimi-code-* dirs that already exist — the kimi analogue of the claudeN
+# regression this file was built around.
+
+it "install.sh registers kimi<N> aliases for pre-existing kimi account dirs"
+fresh_sandbox
+mkdir -p "$HOME/.kimi-code-1/sessions" "$HOME/.kimi-code-2/sessions"
+printf '{"session":"a","msg":"A"}\n' > "$HOME/.kimi-code-1/sessions/a.jsonl"
+printf '{"session":"b","msg":"B"}\n' > "$HOME/.kimi-code-2/sessions/b.jsonl"
+run_install
+rc=$?
+assert_eq 0 "$rc" "install.sh exit code with pre-existing kimi accounts"
+[[ $rc -eq 0 ]] || sed 's/^/    install.log| /' "$install_log"
+assert_file_contains "$ALIAS_FILE" "alias kimi1=\"KIMI_CODE_HOME=$HOME/.kimi-code-1 cma_run_kimi\"" "kimi1 alias registered"
+assert_file_contains "$ALIAS_FILE" "alias kimi2=\"KIMI_CODE_HOME=$HOME/.kimi-code-2 cma_run_kimi\"" "kimi2 alias registered"
+kimi_alias_count="$(grep -cE '^alias kimi[0-9]+=' "$ALIAS_FILE" || true)"
+assert_eq 2 "$kimi_alias_count" "exactly two kimiN aliases registered"
 
 summary
