@@ -22,6 +22,59 @@
             "context": 128000,
             "output": 8192
           }
+        },
+        "helixagent-ensemble": {
+          "name": "helixagent-ensemble",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        },
+        "helix-debate": {
+          "name": "helix-debate",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        },
+        "helix-llm": {
+          "name": "helix-llm",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
+    },
+    "helixllm-coder": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "HelixLLM Coder (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:18434/v1"
+      },
+      "models": {
+        "qwen2.5-coder-3b-instruct-q4_k_m": {
+          "name": "qwen2.5-coder-3b-instruct-q4_k_m",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
+    },
+    "helixllm-gateway": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "HelixLLM Gateway (TLS)",
+      "options": {
+        "baseURL": "https://127.0.0.1:8443/v1"
+      },
+      "models": {
+        "helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190": {
+          "name": "helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
         }
       }
     }
@@ -73,15 +126,6 @@
         "mcp-server-commands"
       ]
     },
-    "codegraph": {
-      "type": "local",
-      "command": [
-        "codegraph",
-        "serve",
-        "--mcp"
-      ],
-      "enabled": true
-    },
     "context7": {
       "type": "remote",
       "url": "https://mcp.context7.com/mcp"
@@ -120,7 +164,7 @@
         "npx",
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/home/milos"
+        "/home/milosvasic"
       ]
     },
     "git": {
@@ -218,19 +262,39 @@
         "-y",
         "@theo.foobar/mcp-time"
       ]
+    },
+    "codegraph": {
+      "type": "local",
+      "command": [
+        "codegraph",
+        "serve",
+        "--mcp"
+      ],
+      "enabled": true
     }
   },
   "plugin": [
-    "opencode-agent-skills@0.6.5"
+    "opencode-agent-skills@0.6.5",
+    "superpowers@git+https://github.com/obra/superpowers.git"
   ],
   "plugin_origins": [
     {
       "spec": "opencode-agent-skills@0.6.5",
-      "source": "/home/milos/.config/opencode",
+      "source": "/home/milosvasic/.config/opencode",
+      "scope": "global"
+    },
+    {
+      "spec": "superpowers@git+https://github.com/obra/superpowers.git",
+      "source": "/home/milosvasic/.config/opencode",
       "scope": "global"
     }
   ],
   "mode": {},
   "command": {},
-  "username": "milos"
+  "username": "milosvasic",
+  "skills": {
+    "paths": [
+      "/home/milosvasic/.cache/opencode/packages/superpowers@git+https:/github.com/obra/superpowers.git/node_modules/superpowers/skills"
+    ]
+  }
 }

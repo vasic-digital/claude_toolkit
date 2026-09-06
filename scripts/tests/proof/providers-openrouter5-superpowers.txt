@@ -1,7 +1,9 @@
-# ROUTE-INTENDED: openrouter5/nvidia/nemotron-nano-12b-v2-vl:free (transport=router)
-# ROUTE-INTENDED-BACKGROUND: openrouter5/nvidia/nemotron-nano-12b-v2-vl:free
-claude-providers: alias openrouter5 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for openrouter5)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=openrouter5/nvidia/nemotron-nano-12b-v2-vl:free; NO turn ran — route attribution is not applicable)
+# ROUTE-INTENDED: openrouter5/minimax/minimax-m2.7:free (transport=router)
+# ROUTE-INTENDED-BACKGROUND: openrouter5/nvidia/nemotron-3-ultra-550b-a55b:free
+[claude-code:unrecognized_model] {"model":"nvidia/nemotron-3-ultra-550b-a55b:free","query_source":"generate_session_title"}
+[claude-code:unrecognized_model] {"model":"minimax/minimax-m2.7:free","query_source":"sdk"}
+{"duration_api_ms":7103,"stop_reason":"end_turn","session_id":"30d23d93-63ba-4a9e-864e-8244da38037b","total_cost_usd":0.22185,"usage":{"input_tokens":43115,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":251,"output_tokens_details":{"thinking_tokens":0},"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"minimax/minimax-m2.7:free":{"inputTokens":43115,"outputTokens":251,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.22185,"contextWindow":262144,"maxOutputTokens":32000,"thinkingTokens":0,"canonicalModel":"minimax/minimax-m2.7:free","provider":"firstParty","costBasis":"unknown"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subagent_stats":{"spawned":0,"requested":{"background":0,"foreground":0,"unset":0},"started_in_background":0,"max_depth":0,"spawned_by_subagents":0,"completed":0,"failed":0,"killed":{"parent":0,"user":0,"system":0},"refused":{"depth_limit":0,"concurrency_limit":0,"budget":0},"by_type":{}},"is_error":false,"num_turns":2,"subtype":"success","api_error_status":null,"result":"That skill isn't available — it's not in my skill registry. The available skills are:\n\n- dataviz\n- update-config\n- keybindings-help\n- code-review\n- simplify\n- fewer-permission-prompts\n- loop\n- claude-api\n- init\n- security-review\n- run\n\nWould you like me to do something else?","ttft_ms":3682,"type":"result","duration_ms":7521,"uuid":"1e4bb807-7f1e-440f-9b28-ea1505265ad0","ttft_stream_ms":3589,"time_to_request_ms":400,"first_content_frame_ms":3590,"queued_turn_count":0}
+# ROUTE-RESOLVED: openrouter5/minimax/minimax-m2.7:free
+# ROUTE-RESOLVED-BACKGROUND: openrouter5/nvidia/nemotron-3-ultra-550b-a55b:free
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 0
+# FAIL: no-engagement

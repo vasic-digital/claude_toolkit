@@ -7,9 +7,6 @@
 ●  ✓ commands [90mconnected
 │      [90mnpx -y mcp-server-commands
 │
-●  ✓ codegraph [90mconnected
-│      [90mcodegraph serve --mcp
-│
 ●  ✓ context7 [90mconnected
 │      [90mhttps://mcp.context7.com/mcp
 │
@@ -26,7 +23,7 @@
 │      [90mnpx -y mcp-fetch-server
 │
 ●  ✓ filesystem [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-filesystem /home/milos
+│      [90mnpx -y @modelcontextprotocol/server-filesystem /home/milosvasic
 │
 ●  ✓ git [90mconnected
 │      [90mnpx -y mcp-git
@@ -34,7 +31,8 @@
 ●  ✓ markdown [90mconnected
 │      [90mnpx -y mcp-server-markdown
 │
-●  ✓ memory [90mconnected
+●  ✗ memory [90mfailed
+│      MCP error -32000: Connection closed
 │      [90mnpx -y @modelcontextprotocol/server-memory
 │
 ●  ✓ notion [90mconnected
@@ -43,7 +41,8 @@
 ●  ✓ postgres [90mconnected
 │      [90mnpx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
 │
-●  ✓ puppeteer [90mconnected
+●  ✗ puppeteer [90mfailed
+│      MCP error -32000: Connection closed
 │      [90mnpx -y @modelcontextprotocol/server-puppeteer
 │
 ●  ✓ sequential-thinking [90mconnected
@@ -60,6 +59,9 @@
 │
 ●  ✓ time [90mconnected
 │      [90mnpx -y @theo.foobar/mcp-time
+│
+●  ✓ codegraph [90mconnected
+│      [90mcodegraph serve --mcp
 │
 └  20 server(s)
 

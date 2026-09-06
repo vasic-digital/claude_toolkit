@@ -1,14 +1,7 @@
-# ROUTE-INTENDED: helixagent/HelixAgent/HelixLLM (transport=router)
-# ROUTE-INTENDED-BACKGROUND: helixagent/HelixAgent/HelixLLM
-[cma warn] helixagent: HelixLLM is not answering on http://127.0.0.1:18434 and auto-start is OFF by default.
-  Start it yourself (it claims the GPU and evicts HelixCode's coder mode):
-    helix_code/scripts/helixllm-mode.sh claude
-  Or opt in for this launch:
-    CMA_HELIX_AUTOSTART=1 <alias>
-{"is_error":true,"duration_api_ms":0,"num_turns":2,"stop_reason":null,"session_id":"1631e9ad-3b71-42af-b0d8-793fcee217ab","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"terminal_reason":"aborted_streaming","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subtype":"error_during_execution","errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"],"type":"result","duration_ms":168809,"uuid":"18af0d75-16c8-4945-97c1-c37c63a037ca"}
-# ROUTE-RESOLVED: helixagent/HelixAgent/HelixLLM
-# ROUTE-RESOLVED-BACKGROUND: helixagent/HelixAgent/HelixLLM
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 10407
-# FAIL: stream-aborted (output_tokens=0 duration_ms=168809 bound=180s)
-# SKIP Sat Aug 29 03:24:44 AM +05 2026: provider 'helixagent' has CMA_PROVIDER_TRIM=bare; superpowers engagement is intentionally disabled for this alias
-# SKIP Sat Aug 29 04:02:05 AM +05 2026: provider 'helixagent' has CMA_PROVIDER_TRIM=bare; superpowers engagement is intentionally disabled for this alias
+# ROUTE-INTENDED: helixagent/helixagent-llm (transport=router)
+# ROUTE-INTENDED-BACKGROUND: helixagent/helixagent-llm
+claude-providers: alias helixagent is unverified — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for helixagent)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=helixagent/helixagent-llm; NO turn ran — route attribution is not applicable)

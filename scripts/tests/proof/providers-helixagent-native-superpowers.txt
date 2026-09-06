@@ -1,18 +1,7 @@
-# SKIP Sat Jul 25 11:15:01 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 12:53:52 AM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 08:59:13 AM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 09:15:53 AM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 10:25:00 AM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 11:49:54 AM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 01:44:49 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 02:49:48 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 04:02:35 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 05:12:02 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 06:22:29 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 07:09:37 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 07:51:37 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sun Jul 26 09:31:02 PM MSK 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Mon Jul 27 08:13:23 PM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Tue Jul 28 12:30:17 AM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Tue Jul 28 01:30:30 AM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
-# SKIP Sat Aug 29 03:24:44 AM +05 2026: no key in $HELIXLLM_GATEWAY_KEY for 'helixagent-native'
+# ROUTE-INTENDED: helixagent-native/helixllm-multi (transport=native)
+# ROUTE-INTENDED-BACKGROUND: helixagent-native/helixllm-multi
+claude-providers: alias helixagent-native is unverified — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for helixagent-native)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=helixagent-native/helixllm-multi; NO turn ran — route attribution is not applicable)

@@ -1,7 +1,14 @@
 Kimi Code live verification: Sun Sep  6 01:02:03 AM CEST 2026
 alias file: /home/milosvasic/.local/share/claude-multi-account/aliases.sh
-  detail(native): kimi version 0.41.0 • No skill applies to replying exactly "KIMI-OK". Just reply.  • KIMI-OK  To resume this session: kimi -r session_f0d244f3-430b-424b-ad1a-c47c186f96cb
+
+  • native kimi smoke (real CLI + real OAuth subscription)
+    [32m[PASS][0m native kimi -p replies KIMI-OK
+
+  • kimi-<id> twin aliases (materialized by a v1.27.0 sync)
   SKIP: no kimi-<id> alias in /home/milosvasic/.local/share/claude-multi-account/aliases.sh — run 'claude-providers sync' to materialize (needs a provider key on the host)
+
+  • legacy rename: kc-* forms + no kimi-kc-* echo
+    [32m[PASS][0m no kimi-kc-* alias exists (the kimi-kc-* namespace is permanently vacated)
   SKIP: kimi-for-coding still in status.json (pre-sync host) — the rename runs AT 'claude-providers sync', not before it
   SKIP: kimi-for-coding2 still in status.json (pre-sync host) — the rename runs AT 'claude-providers sync', not before it
   SKIP: neither kimi-for-coding-highspeed nor kc-for-coding-highspeed in status.json on this host
@@ -9,3 +16,5 @@ alias file: /home/milosvasic/.local/share/claude-multi-account/aliases.sh
   SKIP: neither kimi-k2p7 nor kc-k2p7 in status.json on this host
 
 KIMI: passed: 2 failed: 0 skipped: 6
+
+[32m✓ 2 passed, 0 failed[0m

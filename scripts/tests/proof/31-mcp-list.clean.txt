@@ -7,9 +7,6 @@
 ●  ✓ commands connected
 │      npx -y mcp-server-commands
 │
-●  ✓ codegraph connected
-│      codegraph serve --mcp
-│
 ●  ✓ context7 connected
 │      https://mcp.context7.com/mcp
 │
@@ -26,7 +23,7 @@
 │      npx -y mcp-fetch-server
 │
 ●  ✓ filesystem connected
-│      npx -y @modelcontextprotocol/server-filesystem /home/milos
+│      npx -y @modelcontextprotocol/server-filesystem /home/milosvasic
 │
 ●  ✓ git connected
 │      npx -y mcp-git
@@ -34,7 +31,8 @@
 ●  ✓ markdown connected
 │      npx -y mcp-server-markdown
 │
-●  ✓ memory connected
+●  ✗ memory failed
+│      MCP error -32000: Connection closed
 │      npx -y @modelcontextprotocol/server-memory
 │
 ●  ✓ notion connected
@@ -43,7 +41,8 @@
 ●  ✓ postgres connected
 │      npx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
 │
-●  ✓ puppeteer connected
+●  ✗ puppeteer failed
+│      MCP error -32000: Connection closed
 │      npx -y @modelcontextprotocol/server-puppeteer
 │
 ●  ✓ sequential-thinking connected
@@ -60,6 +59,9 @@
 │
 ●  ✓ time connected
 │      npx -y @theo.foobar/mcp-time
+│
+●  ✓ codegraph connected
+│      codegraph serve --mcp
 │
 └  20 server(s)
 

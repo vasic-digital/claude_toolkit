@@ -1,6 +1,6 @@
 # ROUTE-INTENDED: zai/glm-4.7-flash (transport=router)
 # ROUTE-INTENDED-BACKGROUND: zai/glm-4.5-flash
-claude-providers: alias zai is unverified — not launching.
+claude-providers: alias zai is orphaned — not launching.
   Re-verify: claude-providers sync   (re-runs verification for zai)
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write

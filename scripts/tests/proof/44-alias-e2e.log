@@ -1,192 +1,69 @@
-◌ chutes: model=zai-org/GLM-5.2-TEE
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ chutes1: model=deepseek-ai/DeepSeek-V3.2-TEE
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ chutes2: model=Qwen/Qwen3.5-397B-A17B-TEE
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ chutes3: model=Qwen/Qwen3-235B-A22B-Thinking-2507-TEE
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ chutes4: model=zai-org/GLM-5.2-TEE
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ chutes5: model=moonshotai/Kimi-K2.6-TEE
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ fireworks-ai: model=accounts/fireworks/routers/glm-5p2-fast
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ github-models: model=deepseek/deepseek-r1-0528
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
+✗ deepseek: model=deepseek-v4-flash
+    FAIL: key_check - No API key for DEEPSEEK_API_KEY
 ◌ helixagent-native: model=helixllm-multi
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
+◌ helixagent: model=helixagent-llm
+    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
+◌ helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190: model=helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190
+    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 ◌ helixllm-gateway: model=helixllm-multi
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
-◌ inference: model=glm-5.2
+◌ huggingface: model=Qwen/Qwen3-Coder-480B-A35B-Instruct
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ kimi-for-coding-highspeed: model=kimi-for-coding-highspeed
+✗ hyper: model=deepseek-v4-pro
+    FAIL: key_check - No API key for HYPER_API_KEY
+✗ hyper1: model=deepseek-v4-pro
+    FAIL: key_check - No API key for HYPER_API_KEY
+✗ hyper2: model=glm-5.2
+    FAIL: key_check - No API key for HYPER_API_KEY
+✗ hyper3: model=kimi-k2.7-code
+    FAIL: key_check - No API key for HYPER_API_KEY
+✗ hyper4: model=qwen3.7-max
+    FAIL: key_check - No API key for HYPER_API_KEY
+✗ hyper5: model=glm-5.1
+    FAIL: key_check - No API key for HYPER_API_KEY
+✗ kilo: model=nvidia/nemotron-3-super-120b-a12b:free
+    FAIL: key_check - No API key for KILO_API_KEY
+◌ kimi-for-coding: model=kimi-for-coding
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ kimi-for-coding2: model=k3-256k
     FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ kimi-k3-256k: model=k3-256k
+✗ nvidia: model=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+    FAIL: key_check - No API key for NVIDIA_API_KEY
+✗ nvidia2: model=nvidia/nemotron-3.5-lightning-30b-a3b
+    FAIL: key_check - No API key for NVIDIA_API_KEY
+✗ nvidia3: model=minimaxai/minimax-m3
+    FAIL: key_check - No API key for NVIDIA_API_KEY
+◌ nvidia4: model=poolside/laguna-xs-2.1
     FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ kimi-k3: model=k3
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ novita-ai: model=deepseek/deepseek-v3.2
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ nvidia3: model=meta/muse-glimmer-30b
-    FAIL: direct_request - The read operation timed out
-    FAIL: transient_check - SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): The read operation timed out
-◌ nvidia4: model=meta/llama-3.2-1b-instruct
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ nvidia5: model=meta/llama-3.2-90b-vision-instruct
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ opencode-go: model=deepseek-v4-pro
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ opencode-go1: model=deepseek-v4-pro
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-go2: model=glm-5
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-go3: model=kimi-k2
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-go4: model=qwen-3.7
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-go5: model=deepseek-v4-pro
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-zen1: model=claude-fable-5
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-zen2: model=claude-opus-5
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-zen3: model=claude-sonnet-5
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-zen4: model=gpt-5.4
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode-zen5: model=gemini-3.1-pro
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ opencode2: model=nemotron-3-ultra-free
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ opencode3: model=nemotron-3.5-lightning-free
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ opencode4: model=laguna-s-2.1-free
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ openrouter4: model=liquid/lfm-2.5-2.6b:free
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ openrouter5: model=nvidia/nemotron-nano-12b-v2-vl:free
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ siliconflow: model=zai-org/GLM-5.2
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ tencent-tokenhub: model=hy3
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ upstage: model=solar-pro3
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ xiaomi: model=mimo-v2.5-pro
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+✗ opencode: model=nemotron-3.5-lightning-free
+    FAIL: key_check - No API key for ApiKey_Opencode_Zen
+✗ openrouter: model=minimax/minimax-m3:free
+    FAIL: key_check - No API key for OPENROUTER_API_KEY
+✗ openrouter2: model=dots-studio/dots-3-note-preview:free
+    FAIL: key_check - No API key for OPENROUTER_API_KEY
+✗ openrouter3: model=inclusionai/ling-3.0-flash-fin:free
+    FAIL: key_check - No API key for OPENROUTER_API_KEY
+✗ openrouter4: model=nvidia/nemotron-3-super-120b-a12b:free
+    FAIL: key_check - No API key for OPENROUTER_API_KEY
+✗ openrouter5: model=minimax/minimax-m2.7:free
+    FAIL: key_check - No API key for OPENROUTER_API_KEY
+✗ poe: model=google/gemma-4-31b
+    FAIL: key_check - No API key for ApiKey_Poe
+✗ sarvam: model=sarvam-105b
+    FAIL: key_check - No API key for SARVAM_API_KEY
 ◌ zai-coding-plan: model=glm-5.2
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
 ◌ zai: model=glm-4.7-flash
-    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
-◌ zhipuai-coding-plan: model=glm-5.2
-    FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
-◌ zhipuai: model=glm-4.7-flash
     FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 {
-  "total": 61,
-  "passed": 19,
-  "failed": 0,
+  "total": 29,
+  "passed": 0,
+  "failed": 19,
   "quota_skipped": 0,
-  "transient_skipped": 1,
-  "gated_skipped": 41,
+  "transient_skipped": 0,
+  "gated_skipped": 10,
   "results": [
-    {
-      "alias": "chutes",
-      "model": "zai-org/GLM-5.2-TEE",
-      "fast_model": "Qwen/Qwen3.6-27B-TEE",
-      "transport": "router",
-      "base_url": "https://llm.chutes.ai/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "chutes1",
-      "model": "deepseek-ai/DeepSeek-V3.2-TEE",
-      "fast_model": "Qwen/Qwen3-32B-TEE",
-      "transport": "router",
-      "base_url": "https://llm.chutes.ai/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "chutes2",
-      "model": "Qwen/Qwen3.5-397B-A17B-TEE",
-      "fast_model": "google/gemma-4-31B-turbo-TEE",
-      "transport": "router",
-      "base_url": "https://llm.chutes.ai/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "chutes3",
-      "model": "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
-      "fast_model": "MiniMaxAI/MiniMax-M2.5-TEE",
-      "transport": "router",
-      "base_url": "https://llm.chutes.ai/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "chutes4",
-      "model": "zai-org/GLM-5.2-TEE",
-      "fast_model": "moonshotai/Kimi-K2.5-TEE",
-      "transport": "router",
-      "base_url": "https://llm.chutes.ai/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "chutes5",
-      "model": "moonshotai/Kimi-K2.6-TEE",
-      "fast_model": "Qwen/Qwen3.6-27B-TEE",
-      "transport": "router",
-      "base_url": "https://llm.chutes.ai/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
     {
       "alias": "deepseek",
       "model": "deepseek-v4-flash",
@@ -195,62 +72,19 @@
       "base_url": "https://api.deepseek.com",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don\u2019t have access to your codebase unless you share the relevant code or files in this convers",
-          "error": "",
-          "latency_ms": 724
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don\u2019t have access to your codebase unless you share the relevant code or files in this conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "fireworks-ai",
-      "model": "accounts/fireworks/routers/glm-5p2-fast",
-      "fast_model": "accounts/fireworks/models/gpt-oss-20b",
-      "transport": "router",
-      "base_url": "https://api.fireworks.ai/inference/v1/",
-      "tests": [
-        {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for DEEPSEEK_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "github-models",
-      "model": "deepseek/deepseek-r1-0528",
-      "fast_model": "microsoft/phi-3-medium-4k-instruct",
-      "transport": "router",
-      "base_url": "https://models.github.ai/inference",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "helixagent-native",
       "model": "helixllm-multi",
       "fast_model": "helixllm-multi",
       "transport": "native",
-      "base_url": "http://127.0.0.1:18435",
+      "base_url": "https://127.0.0.1:8443",
       "tests": [
         {
           "name": "gated_check",
@@ -263,36 +97,42 @@
     },
     {
       "alias": "helixagent",
-      "model": "HelixAgent/HelixLLM",
-      "fast_model": "HelixAgent/HelixLLM",
+      "model": "helixagent-llm",
+      "fast_model": "helixagent-llm",
       "transport": "router",
-      "base_url": "http://127.0.0.1:18434/v1",
+      "base_url": "http://127.0.0.1:7061/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO\n\nI don't have access to your codebase or any external systems. I can only see and respond to the ",
-          "error": "",
-          "latency_ms": 214
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO\n\nI don't have access to your codebase or any external systems. I can only see and respond to the messages in our current conversation. If you'd like me to review code, you would need to paste it di"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
+    },
+    {
+      "alias": "helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190",
+      "model": "helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190",
+      "fast_model": "helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190",
+      "transport": "router",
+      "base_url": "https://127.0.0.1:8443/v1",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "helixllm-gateway",
       "model": "helixllm-multi",
       "fast_model": "helixllm-multi",
       "transport": "router",
-      "base_url": "http://127.0.0.1:18435/v1",
+      "base_url": "https://127.0.0.1:8443/v1",
       "tests": [
         {
           "name": "gated_check",
@@ -311,23 +151,13 @@
       "base_url": "https://router.huggingface.co/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO\n\nI don't have access to your codebase. I can only see the specific files and code snippets that y",
-          "error": "",
-          "latency_ms": 1844
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO\n\nI don't have access to your codebase. I can only see the specific files and code snippets that you share with me in our conversation. I don't have visibility into your repository structure, versio"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "hyper",
@@ -337,23 +167,12 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don\u2019t have access to your codebase or any files unless you explicitly share them with me in th",
-          "error": "",
-          "latency_ms": 4390
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don\u2019t have access to your codebase or any files unless you explicitly share them with me in this conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for HYPER_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "hyper1",
@@ -363,23 +182,12 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don't have access to your codebase or any files unless you explicitly share them with me in th",
-          "error": "",
-          "latency_ms": 4419
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don't have access to your codebase or any files unless you explicitly share them with me in this conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for HYPER_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "hyper2",
@@ -389,23 +197,12 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I do not have access to your codebase, local files, or any external repositories. I can only see",
-          "error": "",
-          "latency_ms": 8468
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I do not have access to your codebase, local files, or any external repositories. I can only see the text and context you provide directly in this chat. If you would like me to review your code, y"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for HYPER_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "hyper3",
@@ -415,23 +212,12 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO\n\nI cannot see your codebase. I have no access to your files, repositories, or local system unless",
-          "error": "",
-          "latency_ms": 873
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO\n\nI cannot see your codebase. I have no access to your files, repositories, or local system unless you paste code directly into our conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for HYPER_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "hyper4",
@@ -441,23 +227,12 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. \n\nI do not have access to your local files, private repositories, or external systems. I can onl",
-          "error": "",
-          "latency_ms": 8682
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. \n\nI do not have access to your local files, private repositories, or external systems. I can only see the code and text you explicitly paste or share with me in this conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for HYPER_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "hyper5",
@@ -467,39 +242,12 @@
       "base_url": "https://hyper.charm.land/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I do not have access to your local files, repositories, or any external systems. I can only see ",
-          "error": "",
-          "latency_ms": 16164
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I do not have access to your local files, repositories, or any external systems. I can only see the text and code that you explicitly paste or type into this conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "inference",
-      "model": "glm-5.2",
-      "fast_model": "gpt-4.1-nano",
-      "transport": "router",
-      "base_url": "https://api.inference.net/v1",
-      "tests": [
-        {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for HYPER_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "kilo",
@@ -509,135 +257,40 @@
       "base_url": "https://api.kilo.ai/api/gateway",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO  \nI cannot see or access your codebase, local files, repositories, or any external systems unless",
-          "error": "",
-          "latency_ms": 9776
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO  \nI cannot see or access your codebase, local files, repositories, or any external systems unless you explicitly share code snippets or details within our current conversation. I have no persistent"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "kimi-for-coding-highspeed",
-      "model": "kimi-for-coding-highspeed",
-      "fast_model": "kimi-for-coding-highspeed",
-      "transport": "router",
-      "base_url": "https://api.kimi.com/coding/v1",
-      "tests": [
-        {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for KILO_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "kimi-for-coding",
-      "model": "kimi-for-coding-highspeed",
-      "fast_model": "k3",
-      "transport": "router",
-      "base_url": "https://api.kimi.com/coding/v1",
-      "tests": [
-        {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don't have access to your codebase unless you paste it here or connect it via an integration.",
-          "error": "",
-          "latency_ms": 1906
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don't have access to your codebase unless you paste it here or connect it via an integration."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "kimi-for-coding2",
       "model": "kimi-for-coding",
       "fast_model": "kimi-for-coding",
       "transport": "router",
       "base_url": "https://api.kimi.com/coding/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I only see the messages you send in this chat, so I don\u2019t have access to your codebase, files, o",
-          "error": "",
-          "latency_ms": 3119
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I only see the messages you send in this chat, so I don\u2019t have access to your codebase, files, or repository unless you paste code here."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "kimi-k3-256k",
-      "model": "k3-256k",
-      "fast_model": "k3-256k",
-      "transport": "router",
-      "base_url": "https://api.kimi.com/coding/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "kimi-k3",
-      "model": "k3",
-      "fast_model": "k3",
-      "transport": "router",
-      "base_url": "https://api.kimi.com/coding/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "novita-ai",
-      "model": "deepseek/deepseek-v3.2",
-      "fast_model": "qwen/qwen3.6-27b",
-      "transport": "router",
-      "base_url": "https://api.novita.ai/openai",
-      "tests": [
-        {
           "name": "gated_check",
           "pass": false,
           "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+        }
+      ],
+      "overall_pass": false,
+      "gated_skip": true
+    },
+    {
+      "alias": "kimi-for-coding2",
+      "model": "k3-256k",
+      "fast_model": "kimi-for-coding",
+      "transport": "router",
+      "base_url": "https://api.kimi.com/coding/v1",
+      "tests": [
+        {
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -646,281 +299,59 @@
     {
       "alias": "nvidia",
       "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-      "fast_model": "moonshotai/kimi-k3",
+      "fast_model": "meta/muse-glimmer-30b",
       "transport": "router",
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO \u2013 no codebase is provided in the current context.",
-          "error": "",
-          "latency_ms": 2962
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO \u2013 no codebase is provided in the current context."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for NVIDIA_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "nvidia2",
-      "model": "nvidia/nemotron-3-nano-30b-a3b",
-      "fast_model": "openai/gpt-oss-120b",
-      "transport": "router",
-      "base_url": "https://integrate.api.nvidia.com/v1",
-      "tests": [
-        {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO \u2013 I don\u2019t have access to your repository or any external files; I can only work with the informat",
-          "error": "",
-          "latency_ms": 1583
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO \u2013 I don\u2019t have access to your repository or any external files; I can only work with the information you provide in this conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "nvidia3",
-      "model": "meta/muse-glimmer-30b",
+      "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
       "fast_model": "meta/llama-3.2-11b-vision-instruct",
       "transport": "router",
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
-          "name": "direct_request",
+          "name": "key_check",
           "pass": false,
-          "content": "",
-          "error": "The read operation timed out",
-          "latency_ms": 30374
-        },
-        {
-          "name": "transient_check",
-          "pass": false,
-          "error": "SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): The read operation timed out"
+          "error": "No API key for NVIDIA_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "transient_skip": true
+      "overall_pass": false
     },
     {
-      "alias": "nvidia4",
-      "model": "meta/llama-3.2-1b-instruct",
-      "fast_model": "meta/llama-3.1-8b-instruct",
-      "transport": "router",
-      "base_url": "https://integrate.api.nvidia.com/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "nvidia5",
-      "model": "meta/llama-3.2-90b-vision-instruct",
+      "alias": "nvidia3",
+      "model": "minimaxai/minimax-m3",
       "fast_model": "poolside/laguna-xs-2.1",
       "transport": "router",
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for NVIDIA_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
-      "alias": "opencode-go",
-      "model": "deepseek-v4-pro",
-      "fast_model": "deepseek-v4-flash",
+      "alias": "nvidia4",
+      "model": "poolside/laguna-xs-2.1",
+      "fast_model": "meta/llama-3.2-90b-vision-instruct",
       "transport": "router",
-      "base_url": "https://opencode.ai/zen/go/v1",
+      "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
           "name": "gated_check",
           "pass": false,
           "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-go1",
-      "model": "deepseek-v4-pro",
-      "fast_model": "deepseek-v4-flash",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/go/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-go2",
-      "model": "glm-5",
-      "fast_model": "qwen-3.7",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/go/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-go3",
-      "model": "kimi-k2",
-      "fast_model": "deepseek-v4-flash",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/go/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-go4",
-      "model": "qwen-3.7",
-      "fast_model": "kimi-k2",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/go/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-go5",
-      "model": "deepseek-v4-pro",
-      "fast_model": "qwen-3.7",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/go/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-zen1",
-      "model": "claude-fable-5",
-      "fast_model": "deepseek-v4-flash",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-zen2",
-      "model": "claude-opus-5",
-      "fast_model": "claude-haiku-4-5",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-zen3",
-      "model": "claude-sonnet-5",
-      "fast_model": "gemini-3.6-flash",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-zen4",
-      "model": "gpt-5.4",
-      "fast_model": "gpt-5.4-mini",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode-zen5",
-      "model": "gemini-3.1-pro",
-      "fast_model": "gemini-3-flash",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
       "overall_pass": false,
@@ -928,187 +359,93 @@
     },
     {
       "alias": "opencode",
-      "model": "hy3-free",
-      "fast_model": "nemotron-3-ultra-free",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I do not have access to your local files, repositories, or codebase unless you explicitly share ",
-          "error": "",
-          "latency_ms": 3607
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I do not have access to your local files, repositories, or codebase unless you explicitly share them with me in this conversation or via an integrated tool."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
-    },
-    {
-      "alias": "opencode2",
-      "model": "nemotron-3-ultra-free",
-      "fast_model": "laguna-s-2.1-free",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode3",
       "model": "nemotron-3.5-lightning-free",
       "fast_model": "nemotron-3.5-lightning-free",
       "transport": "router",
       "base_url": "https://opencode.ai/zen/v1",
       "tests": [
         {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for ApiKey_Opencode_Zen"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "opencode4",
-      "model": "laguna-s-2.1-free",
-      "fast_model": "nemotron-3.5-lightning-free",
-      "transport": "router",
-      "base_url": "https://opencode.ai/zen/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "openrouter",
-      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "fast_model": "dots-studio/dots-3-note-preview:free",
+      "model": "minimax/minimax-m3:free",
+      "fast_model": "nvidia/nemotron-3.5-lightning:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I cannot see your codebase unless you paste code snippets, upload files, or share a repository l",
-          "error": "",
-          "latency_ms": 995
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I cannot see your codebase unless you paste code snippets, upload files, or share a repository link in this conversation. I only have access to what you provide directly in our chat."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for OPENROUTER_API_KEY"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "openrouter2",
-      "model": "cohere/north-mini-code:free",
+      "model": "dots-studio/dots-3-note-preview:free",
+      "fast_model": "cohere/north-mini-code:free",
+      "transport": "router",
+      "base_url": "https://openrouter.ai/api/v1",
+      "tests": [
+        {
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for OPENROUTER_API_KEY"
+        }
+      ],
+      "overall_pass": false
+    },
+    {
+      "alias": "openrouter3",
+      "model": "inclusionai/ling-3.0-flash-fin:free",
       "fast_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. As an AI language model, I don\u2019t have direct access to external files or repositories unless the",
-          "error": "",
-          "latency_ms": 443
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. As an AI language model, I don\u2019t have direct access to external files or repositories unless they are shared with me in the conversation. If you paste the relevant code or provide details about it"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for OPENROUTER_API_KEY"
         }
       ],
-      "overall_pass": true
-    },
-    {
-      "alias": "openrouter3",
-      "model": "nvidia/nemotron-3-super-120b-a12b:free",
-      "fast_model": "minimax/minimax-m3:free",
-      "transport": "router",
-      "base_url": "https://openrouter.ai/api/v1",
-      "tests": [
-        {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. I don\u2019t have access to your files or codebase unless you share the relevant snippets or details ",
-          "error": "",
-          "latency_ms": 519
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. I don\u2019t have access to your files or codebase unless you share the relevant snippets or details directly in our conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
-        }
-      ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
       "alias": "openrouter4",
-      "model": "liquid/lfm-2.5-2.6b:free",
-      "fast_model": "liquid/lfm-2.5-2.6b:free",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "fast_model": "poolside/laguna-s-2.1:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
       "tests": [
         {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for OPENROUTER_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "openrouter5",
-      "model": "nvidia/nemotron-nano-12b-v2-vl:free",
-      "fast_model": "nvidia/nemotron-nano-12b-v2-vl:free",
+      "model": "minimax/minimax-m2.7:free",
+      "fast_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
       "transport": "router",
       "base_url": "https://openrouter.ai/api/v1",
       "tests": [
         {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for OPENROUTER_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "poe",
@@ -1118,87 +455,27 @@
       "base_url": "https://api.poe.com/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "**NO.** \n\nI only have access to the information, files, or code snippets that you explicitly upload ",
-          "error": "",
-          "latency_ms": 10395
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "**NO.** \n\nI only have access to the information, files, or code snippets that you explicitly upload or paste into this specific conversation. I cannot browse your local files or private repositories."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "key_check",
+          "pass": false,
+          "error": "No API key for ApiKey_Poe"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false
     },
     {
-      "alias": "siliconflow",
-      "model": "zai-org/GLM-5.2",
-      "fast_model": "openai/gpt-oss-20b",
+      "alias": "sarvam",
+      "model": "sarvam-105b",
+      "fast_model": "sarvam-30b",
       "transport": "router",
-      "base_url": "https://api.siliconflow.com/v1",
+      "base_url": "https://api.sarvam.ai/v1",
       "tests": [
         {
-          "name": "gated_check",
+          "name": "key_check",
           "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "error": "No API key for SARVAM_API_KEY"
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "tencent-tokenhub",
-      "model": "hy3",
-      "fast_model": "hy3",
-      "transport": "router",
-      "base_url": "https://tokenhub.tencentmaas.com/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "upstage",
-      "model": "solar-pro3",
-      "fast_model": "solar-mini",
-      "transport": "router",
-      "base_url": "https://api.upstage.ai/v1/solar",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "xiaomi",
-      "model": "mimo-v2.5-pro",
-      "fast_model": "mimo-v2.5",
-      "transport": "router",
-      "base_url": "https://api.xiaomimimo.com/v1",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": false
     },
     {
       "alias": "zai-coding-plan",
@@ -1222,38 +499,6 @@
       "fast_model": "glm-4.5-flash",
       "transport": "router",
       "base_url": "https://api.z.ai/api/paas/v4",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "zhipuai-coding-plan",
-      "model": "glm-5.2",
-      "fast_model": "glm-4.5-air",
-      "transport": "router",
-      "base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
-      "tests": [
-        {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=orphaned \u2014 filtered by the verification gate, not tested)"
-        }
-      ],
-      "overall_pass": false,
-      "gated_skip": true
-    },
-    {
-      "alias": "zhipuai",
-      "model": "glm-4.7-flash",
-      "fast_model": "glm-4.5-flash",
-      "transport": "router",
-      "base_url": "https://open.bigmodel.cn/api/paas/v4",
       "tests": [
         {
           "name": "gated_check",
