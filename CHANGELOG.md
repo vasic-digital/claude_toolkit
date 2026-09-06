@@ -55,6 +55,8 @@ aliases.**
 
 As reported by `git log v1.26.8..HEAD --oneline --no-merges`:
 
+- `2dbfd29` test(kimi): refresh the run-proof evidence set on the v1.27.0 tree
+- `a9ea71b` fix(kimi): address code-review Important findings before the v1.27.0 gate (forced per-id home, trim-preserving rename, honest CA skip, degraded-not-fail standalone verify, guide corrections)
 - `d68727e` test(kimi): live verifier, run-proof leg, and release-gate kimi smoke layer
 - `488fdbb` test(install): kimi symlink/alias/banner coverage and Unit 4 kimi install support
 - `61beb63` docs(kimi): user guide, family diagram, and the four doc mirrors
