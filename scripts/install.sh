@@ -61,39 +61,82 @@ if [[ -f "$_cma_repo_root/package.json" ]]; then
 fi
 unset _cma_repo_root
 
+# Recorded install problems, surfaced together by step 7. Declared here (BEFORE
+# their first writer, the PATH-link guard below) so `set -u` never trips on an
+# append to an unset array, and so step 7 can length-test them safely.
+CMA_INSTALL_FAILURES=()
+CMA_INSTALL_DEGRADED=()
+
 # 2. Symlink the scripts onto PATH.
+#
+# EXECUTABILITY IS PART OF LINKING (field failure 2026-09-07, operator host):
+# this loop used to `ln -s` whatever it found and say nothing about the mode.
+# Two tracked scripts had been committed 100644 — scripts/kimi-providers.sh and
+# scripts/claude-proxy-build.sh — so `kimi-providers` and `claude-proxy-build`
+# existed on PATH, resolved to a real file, and died at RUNTIME with
+#     bash: /home/.../.local/bin/kimi-providers: Permission denied
+# (exit 126) — a message naming neither the source file nor the cause. The
+# installer had printed "[done] installed" over both. Silently linking a
+# non-executable target is the defect; the fix has to survive a FRESH CLONE,
+# so it cannot be "remember to chmod".
+#
+# Policy: REPAIR, then REPORT BY NAME, and FAIL if the repair is impossible.
+#   * repair — chmod +x, so the contract "a fresh clone + install yields
+#     working commands" holds even for a checkout that lost its mode bits
+#     (zip download, restrictive umask, a copy across a filesystem that does
+#     not carry them). Refusing to link would trade a broken command for a
+#     missing one; neither is a working toolkit.
+#   * report — cma_warn names the exact file and the exact git command that
+#     records the mode, so the slip is never silent and gets fixed at source
+#     rather than being re-repaired on every install.
+#   * fail — if chmod itself cannot make it executable, the command WILL be
+#     broken on PATH, so that is a recorded install FAILURE and step 7 refuses
+#     to print the success banner over it (§ same rule as 2b).
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 mkdir -p "$BIN_DIR"
+
+cma_link_script_onto_path() {
+  local f="$1" name link
+  name="$(basename "$f" .sh)"
+  link="$BIN_DIR/$name"
+
+  if [[ ! -x "$f" ]]; then
+    cma_warn "$(basename "$f") is not executable (mode $(cma_file_mode "$f")) — repairing with chmod +x."
+    printf '  Record it at source so a fresh clone does not repeat this:\n    git update-index --chmod=+x %s\n' \
+      "${f#"$(cd "$LIB_DIR/.." && pwd)"/}" >&2
+    chmod +x "$f" 2>/dev/null || true
+    if [[ ! -x "$f" ]]; then
+      CMA_INSTALL_FAILURES+=("$(basename "$f") could not be made executable — the '$name' command on PATH will die with 'Permission denied' (exit 126). Fix: chmod +x $f")
+      return 1
+    fi
+  fi
+
+  if [[ -L "$link" || -e "$link" ]]; then
+    if [[ "$(cma_realpath "$link")" != "$(cma_realpath "$f")" ]]; then
+      mv "$link" "${link}.preunify.$(date +%Y%m%d%H%M%S)"
+      ln -s "$f" "$link"
+      cma_log "linked $link -> $f"
+    fi
+  else
+    ln -s "$f" "$link"
+    cma_log "linked $link -> $f"
+  fi
+  return 0
+}
+
+# Portable `stat` for the diagnostic above (GNU vs BSD); never fatal.
+cma_file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || printf '?'
+}
+
 for f in "$LIB_DIR"/claude-*.sh; do
-  name="$(basename "$f" .sh)"
-  link="$BIN_DIR/$name"
-  if [[ -L "$link" || -e "$link" ]]; then
-    if [[ "$(cma_realpath "$link")" != "$(cma_realpath "$f")" ]]; then
-      mv "$link" "${link}.preunify.$(date +%Y%m%d%H%M%S)"
-      ln -s "$f" "$link"
-      cma_log "linked $link -> $f"
-    fi
-  else
-    ln -s "$f" "$link"
-    cma_log "linked $link -> $f"
-  fi
+  cma_link_script_onto_path "$f" || true
 done
-# .same loop over the Kimi family commands (v1.27.0) — they end up on PATH
-# exactly like the claude-* ones, so the docs' `kimi-add-account` etc. work
-# out of the box.
+# Same treatment for the Kimi family commands (v1.27.0) — they end up on PATH
+# exactly like the claude-* ones, so the docs' `kimi-add-account`,
+# `kimi-providers` etc. work out of the box, executable bit included.
 for f in "$LIB_DIR"/kimi-*.sh; do
-  name="$(basename "$f" .sh)"
-  link="$BIN_DIR/$name"
-  if [[ -L "$link" || -e "$link" ]]; then
-    if [[ "$(cma_realpath "$link")" != "$(cma_realpath "$f")" ]]; then
-      mv "$link" "${link}.preunify.$(date +%Y%m%d%H%M%S)"
-      ln -s "$f" "$link"
-      cma_log "linked $link -> $f"
-    fi
-  else
-    ln -s "$f" "$link"
-    cma_log "linked $link -> $f"
-  fi
+  cma_link_script_onto_path "$f" || true
 done
 
 # 2b. Build the BUNDLED Go claude-code-router (submodule) and install it as
@@ -111,10 +154,7 @@ done
 # the remaining steps (PATH, aliases, unify) are independent and still worth
 # completing, and step 7 then reports EVERY problem at once instead of making
 # the operator re-run once per failure.
-# Declared together (and BEFORE first use) so `set -u` never trips on an
-# append to an unset array, and so step 7 can length-test them safely.
-CMA_INSTALL_FAILURES=()
-CMA_INSTALL_DEGRADED=()
+# (Declared above step 2 — the PATH-link guard is now their first writer.)
 if ! bash "$LIB_DIR/claude-ccr-build.sh"; then
   CMA_INSTALL_FAILURES+=("bundled claude-code-router (Go) did NOT build/install — provider aliases on the router transport cannot launch. Fix: ensure a Go toolchain new enough for submodules/claude-code-router/go.mod is available (install/upgrade Go: https://go.dev/dl/ — or, with an older Go already installed and network access: GOTOOLCHAIN=auto claude-ccr-build), then run: claude-ccr-build")
 fi
