@@ -438,6 +438,215 @@ detect_helixagent_record() {
 #
 # Both aliases share the same upstream binary; two records are emitted so the
 # sync pipeline creates two distinct aliases.
+# --- facade model resolution (the fix for the invented `helixllm-multi` pin) --
+#
+# These four helpers answer ONE question for the two facade aliases: what model
+# name should this alias carry? The old answer was a constant written into the
+# tracked pins files, and it named nothing (see the block inside
+# detect_helixllm_records). The new answer is measured.
+#
+# --- local llama.cpp coder endpoint (the third local service) ---------------
+#
+# WHY THIS IS A DETECTOR AND NOT AN EXTENSION OF `helixllm-export`.
+#
+# The coder container on :18434 is a RAW llama.cpp server, not a HelixLLM. Its
+# /v1/models entries carry no `model_identity`, and `helixllm-export` refuses
+# them for exactly that reason — see _CMA_HELIXLLM_SERVING_JQ: a missing
+# identity is how a REMOTE VENDOR PASSTHROUGH is told apart from a
+# locally-served HelixLLM model, and exporting a passthrough as a local
+# provider would point an alias at a model the host does not serve. Relaxing
+# that gate to admit :18434 would not be "extending the generator"; it would
+# delete the one signal that keeps the export honest, in order to admit a
+# service the export was never about. The refusal is correct and stays.
+#
+# The right seam is the one the other two local services already use: a
+# pins-file-gated detector merged into resolve_records, which then gets the
+# same env/alias/verify loop as every other provider. This is that, for the
+# third service.
+#
+# WHAT IS RESOLVED RATHER THAN DECLARED (the lesson from `helixllm-multi`):
+# BOTH the model id AND the context window come from the endpoint's own
+# /v1/models. llama.cpp publishes `meta.n_ctx` per model — measured 2026-09-07,
+# qwen2.5-coder-3b-instruct-q4_k_m reports n_ctx 32768 — so the context guard
+# is sourced from the backend rather than being a number someone typed. When
+# the host cannot be asked, NOTHING is emitted: no invented name, no invented
+# ceiling.
+detect_helixcoder_record() {
+  local _json="${CMA_HELIXCODER_PINS_FILE:-$LIB_DIR/providers/helixcoder.json}"
+  local _bin="${CMA_HELIXCODER_BIN-}" _id="${CMA_HELIXCODER_ID-}" \
+        _base="${CMA_HELIXCODER_BASE_URL-}" _transport="${CMA_HELIXCODER_TRANSPORT-}" \
+        _strong="${CMA_HELIXCODER_STRONG-}" _fast="${CMA_HELIXCODER_FAST-}" \
+        _keyvar="${CMA_HELIXCODER_KEYVAR-}" _ctx="${CMA_HELIXCODER_CONTEXT_LIMIT-}" \
+        _out="${CMA_HELIXCODER_MAX_OUTPUT-}"
+  if [[ -f "$_json" ]] && command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        bin)           [[ -n "${CMA_HELIXCODER_BIN+x}" ]]           || _bin="$_v" ;;
+        id)            [[ -n "${CMA_HELIXCODER_ID+x}" ]]            || _id="$_v" ;;
+        base_url)      [[ -n "${CMA_HELIXCODER_BASE_URL+x}" ]]      || _base="$_v" ;;
+        transport)     [[ -n "${CMA_HELIXCODER_TRANSPORT+x}" ]]     || _transport="$_v" ;;
+        strong_model)  [[ -n "${CMA_HELIXCODER_STRONG+x}" ]]        || _strong="$_v" ;;
+        fast_model)    [[ -n "${CMA_HELIXCODER_FAST+x}" ]]          || _fast="$_v" ;;
+        key_var)       [[ -n "${CMA_HELIXCODER_KEYVAR+x}" ]]        || _keyvar="$_v" ;;
+        context_limit) [[ -n "${CMA_HELIXCODER_CONTEXT_LIMIT+x}" ]] || _ctx="$_v" ;;
+        max_output)    [[ -n "${CMA_HELIXCODER_MAX_OUTPUT+x}" ]]    || _out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_json" 2>/dev/null)
+  fi
+  : "${_id:=helixcoder}"
+  : "${_base:=http://127.0.0.1:18434/v1}"
+  : "${_transport:=router}"
+  : "${_keyvar:=HELIXCODER_API_KEY}"
+  : "${_out:=4096}"
+
+  # Opt-in, like the other two: a tracked pins file, or the binary on PATH.
+  if [[ ! -f "$_json" ]] && { [[ -z "$_bin" ]] || ! command -v "$_bin" >/dev/null 2>&1; }; then
+    printf '[]\n'; return 0
+  fi
+  command -v jq >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+
+  # Live enumeration. The key travels over stdin, never argv (§11.4.10); an
+  # unauthenticated loopback listing is the normal shape here and sends none.
+  local _body="" _t="${CMA_HELIXCODER_HTTP_TIMEOUT:-4}" _key=""
+  if (( ! ${OFFLINE:-0} )) && command -v curl >/dev/null 2>&1; then
+    [[ "$_keyvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && _key="${!_keyvar:-}"
+    _body="$( { [[ -n "$_key" ]] && printf 'header = "Authorization: Bearer %s"\n' "$_key"; :; } \
+              | curl -sf --max-time "$_t" --config - "${_base%/}/models" 2>/dev/null)" || _body=""
+  fi
+  local _ids=""
+  [[ -n "$_body" ]] && _ids="$(jq -r '[.data[]?.id] | .[]?' <<<"$_body" 2>/dev/null)"
+  if [[ -n "$_ids" ]]; then
+    # A pinned model the host IS serving is kept; otherwise the host decides.
+    if [[ -z "$_strong" ]] || ! printf '%s\n' "$_ids" | grep -qxF -- "$_strong"; then
+      _strong="$(printf '%s\n' "$_ids" | head -n1)"
+    fi
+    printf '%s\n' "$_ids" | grep -qxF -- "${_fast:-}" 2>/dev/null || _fast="$_strong"
+    # Context window from the backend's own metadata when it publishes one.
+    local _live_ctx
+    _live_ctx="$(jq -r --arg m "$_strong" '[.data[]? | select(.id==$m)
+                   | (.meta.n_ctx // empty)] | .[0] // empty' <<<"$_body" 2>/dev/null)"
+    [[ "$_live_ctx" =~ ^[0-9]+$ ]] && _ctx="$_live_ctx"
+  fi
+  : "${_fast:=$_strong}"
+  # Same `skipped`-not-omitted rule as the HelixLLM facades: the endpoint
+  # configuration is true even while the host is down, so the record travels and
+  # stays inspectable, but without a nameable model it is not `resolved`, so
+  # cmd_sync writes no alias and no env record for it.
+  local _status="resolved" _reason
+  _reason="local llama.cpp coder endpoint serving $_strong at ${_base%/}"
+  if [[ -z "$_strong" ]]; then
+    _status="skipped"
+    _reason="$_base named no model and none is pinned, so there is nothing to point an alias at"
+    cma_warn "helixcoder: '$_id' has an endpoint but no nameable model — $_reason"
+  fi
+  jq -n --arg keyvar "$_keyvar" --arg pid "$_id" --arg base "${_base%/}" \
+        --arg transport "$_transport" --arg strong "$_strong" --arg fast "$_fast" \
+        --arg status "$_status" --arg reason "$_reason" \
+        --argjson ctx "${_ctx:-null}" --argjson out "${_out:-null}" \
+    '[{key_var:$keyvar, classification:"llm", provider_id:$pid, alias:$pid,
+       base_url:$base, transport:$transport, strong_model:$strong, fast_model:$fast,
+       context_limit:$ctx, max_output:$out, status:$status, reason:$reason}]'
+}
+#
+# They deliberately reuse the machinery the per-model fan-out already owns —
+# _cma_helixllm_fetch_models, _CMA_HELIXLLM_SERVING_JQ, _cma_helixllm_catalogue,
+# all defined further down this file — so "a model this host is serving" has ONE
+# definition here and cannot drift into two that disagree. (Bash resolves
+# function names at CALL time, so defining these before those is fine: nothing
+# below runs until the whole file is sourced.)
+
+# _cma_helixllm_listing_base BASE — the /v1 root whose /models lists this host.
+# The gateway facade's base already ends in /v1; the native facade's base is the
+# Anthropic-compatible root and does not. Measured on the live gateway:
+# GET /models -> 404, GET /v1/models -> 200.
+_cma_helixllm_listing_base() {
+  local b="${1%/}"
+  case "$b" in */v1) printf '%s' "$b" ;; *) printf '%s/v1' "$b" ;; esac
+}
+
+# _cma_helixllm_served_ids BASE KEYVAR — every model id this host says it is
+# SERVING right now, one per line, sorted. Prints NOTHING when the host cannot
+# be asked (offline, unreachable, non-2xx, not a model listing) — "cannot be
+# asked" and "serves nothing" both correctly yield no ids here, and the caller
+# treats both as "the live tier could not answer" rather than as a withdrawal.
+#
+# Memoised on the listing base: both facades front the same upstream, so a sync
+# asks once, not four times (strong + fast per facade). The lookup timeout is
+# deliberately shorter than the export path's — this runs on every sync,
+# including the background one lib.sh fires, and a hung host must not stretch it.
+_CMA_HELIXLLM_SERVED_MEMO_KEY=""
+_CMA_HELIXLLM_SERVED_MEMO_VAL=""
+_cma_helixllm_served_ids() {
+  local base; base="$(_cma_helixllm_listing_base "$1")"
+  local keyvar="${2:-}"
+  (( ${OFFLINE:-0} )) && return 0
+  command -v curl >/dev/null 2>&1 || return 0
+  command -v jq   >/dev/null 2>&1 || return 0
+  if [[ "$_CMA_HELIXLLM_SERVED_MEMO_KEY" == "$base" ]]; then
+    printf '%s' "$_CMA_HELIXLLM_SERVED_MEMO_VAL"; return 0
+  fi
+  # `local` is dynamically scoped in bash, so this bounds the fetch below
+  # without mutating the caller's environment or the export path's timeout.
+  local CMA_HELIXLLM_HTTP_TIMEOUT="${CMA_HELIXLLM_FACADE_TIMEOUT:-4}"
+  local body ids=""
+  if body="$(_cma_helixllm_fetch_models "$base" "$keyvar")"; then
+    ids="$(jq -r '.data[]? | '"$_CMA_HELIXLLM_SERVING_JQ"' | .id' <<<"$body" 2>/dev/null | sort)"
+  fi
+  _CMA_HELIXLLM_SERVED_MEMO_KEY="$base"; _CMA_HELIXLLM_SERVED_MEMO_VAL="$ids"
+  printf '%s' "$ids"
+}
+
+# _cma_helixllm_catalogue_model BASE — the id the LAST successful live listing
+# recorded for this host, from the catalogue `helixllm-export` writes. Real
+# measured data with a timestamp, not a literal anyone typed, which is why it
+# outranks an unproven pins-file value when the host cannot be reached now.
+_cma_helixllm_catalogue_model() {
+  local base; base="$(_cma_helixllm_listing_base "$1")"
+  local f; f="$(_cma_helixllm_catalogue)"
+  [[ -s "$f" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  jq -r --arg b "$base" '[(.entries // [])[]
+                          | select((.base_url // "") == $b) | .id]
+                         | sort | .[0] // empty' "$f" 2>/dev/null
+}
+
+# _cma_helixllm_facade_model BASE KEYVAR PINNED ENV_PINNED — the model name a
+# facade alias should carry, or empty when none can be named. Precedence:
+#
+#   1. A process-env pin (CMA_HELIXLLM_GW_STRONG / _FAST, CMA_HELIXLLM_NATIVE_*).
+#      The operator naming a model explicitly is never second-guessed, even if
+#      the host does not list it — they may know something the listing omits.
+#   2. The live listing, when the host answered with something it is serving:
+#      2a. a pins-file value the host IS serving wins (stable across runs, and
+#          it keeps an operator's deliberate choice among several models);
+#      2b. otherwise the host is serving something ELSE, and what it serves
+#          wins. THIS IS THE FIX. The old behaviour — a pinned name surviving a
+#          live listing that does not contain it — is precisely what let
+#          `helixllm-multi` persist through every sync while returning 503.
+#          A pin is a preference, not a fact; the serving layer is the fact.
+#   3. The catalogue: the last listing this toolkit actually measured. Used
+#      when the host cannot be asked, so a briefly-down gateway does not lose
+#      its facades (the same "unreachable is not withdrawn" rule the retirement
+#      sweep is built around).
+#   4. A pins-file literal, unproven by anything. Last, and only because an
+#      operator who put it there gets it back when nothing better is known.
+#   5. Nothing. The caller does not emit the record.
+_cma_helixllm_facade_model() {
+  local base="$1" keyvar="${2:-}" pinned="${3:-}" env_pinned="${4:-0}"
+  if (( env_pinned )) && [[ -n "$pinned" ]]; then printf '%s' "$pinned"; return 0; fi
+  local ids; ids="$(_cma_helixllm_served_ids "$base" "$keyvar")"
+  if [[ -n "$ids" ]]; then
+    if [[ -n "$pinned" ]] && printf '%s\n' "$ids" | grep -qxF -- "$pinned"; then
+      printf '%s' "$pinned"; return 0
+    fi
+    printf '%s\n' "$ids" | head -n1 | tr -d '\n'; return 0
+  fi
+  local cached; cached="$(_cma_helixllm_catalogue_model "$base")"
+  if [[ -n "$cached" ]]; then printf '%s' "$cached"; return 0; fi
+  printf '%s' "$pinned"
+}
+
 detect_helixllm_records() {
   local _ljson="${CMA_HELIXLLM_PINS_FILE:-$LIB_DIR/providers/helixllm-gateway.json}"
   local _njson="${CMA_HELIXLLM_NATIVE_PINS_FILE:-$LIB_DIR/providers/helixagent-native.json}"
@@ -472,15 +681,55 @@ detect_helixllm_records() {
     done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_ljson" 2>/dev/null)
   fi
   # Defaults (only used when neither the env nor the pins file supplied a value)
+  #
+  # THERE IS DELIBERATELY NO DEFAULT MODEL NAME HERE. There used to be:
+  # `helixllm-multi`, for strong AND fast, on BOTH facades, in the pins files
+  # and again as the built-in `:=` fallback. It was never a model any HelixLLM
+  # served — `grep -rn helixllm-multi submodules/helix_llm` returns ZERO hits —
+  # it was invented when these aliases were first added (8695577) and nothing
+  # downstream could tell. Measured 2026-09-07 against the live gateway:
+  #
+  #   POST https://127.0.0.1:8443/v1/chat/completions {"model":"helixllm-multi"}
+  #     -> HTTP 503 "no model-serving backend is currently available"
+  #   POST     (same second, an id from that host's own /v1/models)
+  #     -> HTTP 200
+  #
+  # So both facades carried a name the endpoint refuses: neither could ever
+  # reach `verified`, and `claude-providers list` — which shows only verified
+  # providers — never displayed either of them. That is the dead-PORT defect
+  # documented above, one field over, and it is fixed the same way it was: by
+  # MEASURING. The model is RESOLVED from the host's own /v1/models listing
+  # (CONST-036 — the serving layer is the single source of truth for what it
+  # serves), never guessed, never baked in. See _cma_helixllm_facade_model for
+  # the precedence. When nothing can name a model the record is NOT emitted,
+  # because an alias pinned to an unservable name is worse than no alias.
   : "${_lgw_bin:=helixllm}"
   : "${_lgw_id:=helixllm-gateway}"
   : "${_lgw_base:=https://127.0.0.1:8443/v1}"
   : "${_lgw_transport:=router}"
-  : "${_lgw_strong:=helixllm-multi}"
-  : "${_lgw_fast:=helixllm-multi}"
   : "${_lgw_keyvar:=HELIXLLM_GATEWAY_KEY}"
-  : "${_lgw_ctx:=229376}"
+  # 32768, not the 229376 that used to sit here. That number was a second,
+  # quieter copy of an advertisement no HelixLLM backend can honour: measured
+  # 2026-09-07, the model this gateway fronts publishes n_ctx = 32768 (and
+  # n_ctx_train = 32768) on its own /v1/models, and the gateway refuses larger
+  # prompts with HTTP 413 rather than silently truncating them. Advertising 7x
+  # the real ceiling makes the auto-compact guard (CLAUDE_CODE_AUTO_COMPACT_WINDOW,
+  # which is built from this value) compact far too late, so a session walks
+  # into a hard refusal it was told could not happen. The gateway does not
+  # publish a context field of its own; when it does, source this from the
+  # listing instead of carrying it here.
+  : "${_lgw_ctx:=32768}"
   : "${_lgw_out:=8192}"
+  # Was the model PINNED by the process environment? Recorded before resolution
+  # so an explicit operator pin (tier 1, never second-guessed) stays
+  # distinguishable from a pins-file value, which is honoured only when the host
+  # is actually serving it.
+  local _lgw_envpin=0 _lgw_envpin_fast=0
+  [[ -n "${CMA_HELIXLLM_GW_STRONG+x}" ]] && _lgw_envpin=1
+  [[ -n "${CMA_HELIXLLM_GW_FAST+x}"   ]] && _lgw_envpin_fast=1
+  _lgw_strong="$(_cma_helixllm_facade_model "$_lgw_base" "$_lgw_keyvar" "$_lgw_strong" "$_lgw_envpin")"
+  _lgw_fast="$(_cma_helixllm_facade_model   "$_lgw_base" "$_lgw_keyvar" "${_lgw_fast:-$_lgw_strong}" "$_lgw_envpin_fast")"
+  : "${_lgw_fast:=$_lgw_strong}"
 
   # --- helixagent-native pins -----------------------------------------------
   # Same precedence, same reason, CMA_HELIXLLM_NATIVE_* prefix (the one already
@@ -510,11 +759,22 @@ detect_helixllm_records() {
   : "${_lnat_id:=helixagent-native}"
   : "${_lnat_base:=https://127.0.0.1:8443}"
   : "${_lnat_transport:=native}"
-  : "${_lnat_strong:=helixllm-multi}"
-  : "${_lnat_fast:=helixllm-multi}"
   : "${_lnat_keyvar:=HELIXLLM_GATEWAY_KEY}"
-  : "${_lnat_ctx:=229376}"
+  # Same measured ceiling as the gateway — same upstream. See the note above.
+  : "${_lnat_ctx:=32768}"
   : "${_lnat_out:=8192}"
+  # Same model-reality resolution as the gateway above, same reason. The native
+  # base_url has no `/v1` suffix (it is the Anthropic-compatible root), and the
+  # model listing lives one level down at `<base>/v1/models` — measured: GET
+  # https://127.0.0.1:8443/models -> 404, /v1/models -> 200 — which is what
+  # _cma_helixllm_listing_base normalises. Both facades front the SAME upstream,
+  # so this is the same listing and the memo makes it one request.
+  local _lnat_envpin=0 _lnat_envpin_fast=0
+  [[ -n "${CMA_HELIXLLM_NATIVE_STRONG+x}" ]] && _lnat_envpin=1
+  [[ -n "${CMA_HELIXLLM_NATIVE_FAST+x}"   ]] && _lnat_envpin_fast=1
+  _lnat_strong="$(_cma_helixllm_facade_model "$_lnat_base" "$_lnat_keyvar" "$_lnat_strong" "$_lnat_envpin")"
+  _lnat_fast="$(_cma_helixllm_facade_model   "$_lnat_base" "$_lnat_keyvar" "${_lnat_fast:-$_lnat_strong}" "$_lnat_envpin_fast")"
+  : "${_lnat_fast:=$_lnat_strong}"
 
   # Gate: register BOTH providers when EITHER the helixllm binary is on PATH
   # OR the pins files exist (opt-in via tracked config, Variant B).
@@ -531,26 +791,61 @@ detect_helixllm_records() {
     _n_reason="helixagent-native detected on PATH"
   fi
 
-  # Emit TWO records — one for the CCR-routed gateway, one for the native path.
-  jq -n \
+  # Emit TWO records — one for the CCR-routed gateway, one for the native path —
+  # and mark a record whose model could NOT be named `skipped` rather than
+  # `resolved`.
+  #
+  # WHY `skipped`, AND NOT "omit the record entirely".
+  #
+  # Omitting looked right at first, by analogy with the per-model fan-out below
+  # ("a host that does not answer contributes NOTHING"). But the facades are not
+  # the fan-out. A fan-out record IS a model. A facade record is the
+  # CONFIGURATION of an endpoint — which port, which scheme, which key var,
+  # which transport — and that configuration is true whether or not the host is
+  # up this second. Omitting it conflates "this gateway is momentarily
+  # unreachable" with "this gateway is not configured", and destroys the ability
+  # to inspect or grade the endpoint at all while the host is down.
+  # test_helix_endpoint_reality.sh exists to grade exactly those base_urls and
+  # cannot grade a record that is not there — omitting broke ten of its
+  # assertions, not one of which is about a model.
+  #
+  # `skipped` says both true things at once. It is a status the resolver already
+  # emits and cmd_sync already handles, so the record travels (endpoint stays
+  # visible and gradeable) while the sync loop's `[[ "$status" == "resolved" ]]`
+  # guard means NO alias and NO env record is written from it. The invariant
+  # that actually matters is intact — an alias is never created pointing at a
+  # model name no endpoint accepts — and `reason` says why, in words.
+  local _l_out="[]" _l_status="resolved" _n_status="resolved"
+  if [[ -z "$_lgw_strong" ]]; then
+    _l_status="skipped"
+    _l_reason="no model could be named for $_lgw_base — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG."
+    cma_warn "helixllm: '$_lgw_id' has an endpoint but no nameable model — $_l_reason"
+  fi
+  if [[ -z "$_lnat_strong" ]]; then
+    _n_status="skipped"
+    _n_reason="no model could be named for $_lnat_base (see the note for '$_lgw_id'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it)."
+    cma_warn "helixllm: '$_lnat_id' has an endpoint but no nameable model — $_n_reason"
+  fi
+  _l_out="$(jq -cn \
     --arg gw_keyvar "$_lgw_keyvar" --arg gw_pid "$_lgw_id" --arg gw_alias "$_lgw_id" \
     --arg gw_base "$_lgw_base" --arg gw_transport "$_lgw_transport" \
     --arg gw_strong "$_lgw_strong" --arg gw_fast "$_lgw_fast" \
-    --arg gw_reason "$_l_reason" \
+    --arg gw_reason "$_l_reason" --arg gw_status "$_l_status" \
     --argjson gw_ctx "${_lgw_ctx:-null}" --argjson gw_out "${_lgw_out:-null}" \
     --arg nat_keyvar "$_lnat_keyvar" --arg nat_pid "$_lnat_id" --arg nat_alias "$_lnat_id" \
     --arg nat_base "$_lnat_base" --arg nat_transport "$_lnat_transport" \
     --arg nat_strong "$_lnat_strong" --arg nat_fast "$_lnat_fast" \
-    --arg nat_reason "$_n_reason" \
+    --arg nat_reason "$_n_reason" --arg nat_status "$_n_status" \
     --argjson nat_ctx "${_lnat_ctx:-null}" --argjson nat_out "${_lnat_out:-null}" \
     '[{key_var:$gw_keyvar, classification:"llm", provider_id:$gw_pid, alias:$gw_alias,
        base_url:$gw_base, transport:$gw_transport, strong_model:$gw_strong,
        fast_model:$gw_fast, context_limit:$gw_ctx, max_output:$gw_out,
-       status:"resolved", reason:$gw_reason},
+       status:$gw_status, reason:$gw_reason},
       {key_var:$nat_keyvar, classification:"llm", provider_id:$nat_pid, alias:$nat_alias,
        base_url:$nat_base, transport:$nat_transport, strong_model:$nat_strong,
        fast_model:$nat_fast, context_limit:$nat_ctx, max_output:$nat_out,
-       status:"resolved", reason:$nat_reason}]'
+       status:$nat_status, reason:$nat_reason}]')"
+  printf '%s\n' "$_l_out"
 }
 
 # --- HelixLLM per-model-per-host fan-out ------------------------------------
@@ -798,7 +1093,9 @@ detect_helixllm_model_records() {
   fi
   transport="${CMA_HELIXLLM_MODEL_TRANSPORT:-${transport:-router}}"
   keyvar="${CMA_HELIXLLM_MODEL_KEYVAR:-${keyvar:-HELIXLLM_GATEWAY_KEY}}"
-  ctx="${ctx:-229376}"; out="${out:-8192}"
+  # Fallback only (the pins normally supply it). 32768 is the measured
+  # ceiling of the backend these ids are served by; see detect_helixllm_records.
+  ctx="${ctx:-32768}"; out="${out:-8192}"
 
   # HOW THE MODEL LISTING IS READ, AND WHY NOT @tsv.
   #
@@ -1577,6 +1874,10 @@ resolve_records() {
   if ! printf '%s' "$extra_hl" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_helixllm_records produced no/invalid JSON output"
   fi
+  extra_hc="$(detect_helixcoder_record)" || true
+  if ! printf '%s' "$extra_hc" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_helixcoder_record produced no/invalid JSON output"
+  fi
   extra_z="$(detect_opencode_zen_records)" || true
   if ! printf '%s' "$extra_z" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_opencode_zen_records produced no/invalid JSON output"
@@ -1598,8 +1899,8 @@ resolve_records() {
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" '
-    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8) | unique_by(.provider_id)
   '
 }
 
@@ -1631,6 +1932,19 @@ cma_status_delete() {
 # same padded-string membership test ("$seen"/case) already used elsewhere in
 # this file for dedupe, rather than a jq/grep set-diff, so provider ids can
 # never be misinterpreted as regex/glob patterns.
+# _cma_provider_source ID — the CMA_PROVIDER_SOURCE marker on a provider's env
+# record, or empty. Read in a subshell so nothing from the (generated, but
+# still user-writable) env file leaks into this process — the same isolation
+# _cma_helixllm_retire_stale uses to read the very same field.
+_cma_provider_source() {
+  local pdir; pdir="$(cma_providers_dir)"
+  local f="$pdir/$1.env"
+  [[ -f "$f" ]] || return 0
+  # shellcheck disable=SC1090
+  ( unset CMA_PROVIDER_SOURCE; set +e; . "$f" >/dev/null 2>&1
+    printf '%s' "${CMA_PROVIDER_SOURCE:-}" )
+}
+
 cma_find_orphans() {
   local resolved=" $1 " pdir; pdir="$(cma_providers_dir)"
   local sf; sf="$(cma_status_cache)"
@@ -1649,7 +1963,33 @@ cma_find_orphans() {
     done
   fi
   for cid in $candidates; do
-    case "$resolved" in *" $cid "*) ;; *) printf '%s\n' "$cid" ;; esac
+    case "$resolved" in *" $cid "*) continue ;; esac
+    # NOT EVERY UNRESOLVED ID IS AN ORPHAN — SOME HAVE A DIFFERENT OWNER.
+    #
+    # "Resolved" here means "sync's detectors produced a record for it this
+    # run". Records written by `helixllm-export --apply` are, BY DESIGN, never
+    # in that set: FR-018 keeps the per-model fan-out OUT of the default sync
+    # (see cmd_helixllm_export's header — fanning every served model out on
+    # every sync is exactly the silent config mutation FR-018 forbids). So
+    # every one of them looked "no longer resolves against the current
+    # catalog/keys" to this sweep and was demoted on the very next sync.
+    #
+    # Measured 2026-09-07, one `claude-providers sync` after an export + verify:
+    #   helixllm-anton-...-f6771589d190: verified -> orphaned
+    # The launch gate trusts only `verified`, so a route the operator had just
+    # configured and proved working stopped working, every time, with the two
+    # commands silently undoing each other. (A previous agent restored such a
+    # route by hand and recorded that the next sync would break it again.)
+    #
+    # The marker is a POSITIVE, per-file claim of ownership, written by exactly
+    # one code path and read here exactly as _cma_helixllm_retire_stale reads
+    # it. Skipping is not "trust it forever": export-owned records have their
+    # OWN convergence sweep, which retires them on evidence this one does not
+    # have — that their serving host is up, is serving, and no longer lists the
+    # model. That sweep can delete; this one only demotes. Deferring to the
+    # owner that can actually tell is the whole fix.
+    [[ -n "$(_cma_provider_source "$cid")" ]] && continue
+    printf '%s\n' "$cid"
   done
 }
 

@@ -161,6 +161,37 @@ assert_eq 0 $? "CMA_PROVIDER_FAST_MODEL is the pinned facade HelixAgent/HelixLLM
 assert_file_not_contains "$PDIR/helixagent.env" "$GGUF_ID" \
   "the endpoint-reported .gguf path appears NOWHERE in the generated record"
 
+# --- §11.4.120 RECONCILIATION -----------------------------------------------
+# This file's own committed proof artifact (proof/93-...txt) RECORDED a broken
+# state as the expected output of a passing run. Every green run wrote — and
+# re-blessed — these two lines:
+#
+#   provider 'helixagent-native' -> alias 'helixagent-native' [native] model=helixllm-multi
+#   provider 'helixllm-gateway'  -> alias 'helixllm-gateway'  [router] model=helixllm-multi
+#
+# `helixllm-multi` is a model no HelixLLM has ever served (zero hits in
+# submodules/helix_llm; HTTP 503 from the live gateway while a real id returned
+# 200 in the same second). This test never asserted on it — it grades the
+# `helixagent` facade — so the artifact accumulated evidence of a live defect
+# while reporting pass=10 fail=0.
+#
+# Per §11.4.120 the gate is RECONCILED, not deleted and not weakened: the file
+# that used to RECORD the invention now REFUSES it. The positive assertions —
+# that the facades carry a live-resolved model — live in
+# test_helixllm_facade_model_reality.sh, which stands up its own serving mock;
+# this file guards the artifact it actually produces.
+# Paired §1.1 mutation: restore `: "${_lgw_strong:=helixllm-multi}"` in
+# detect_helixllm_records -> this assertion FAILS.
+it "the sync this test drives never names a model no endpoint serves (§11.4.120)"
+assert_file_not_contains "$PROOF" "helixllm-multi" \
+  "'helixllm-multi' — an invented, unservable model id — appears nowhere in the captured sync output"
+if compgen -G "$PDIR/*.env" >/dev/null 2>&1 && grep -lF -- "helixllm-multi" "$PDIR"/*.env >/dev/null 2>&1; then
+  _fail "a generated provider record still pins 'helixllm-multi'" \
+        "$(grep -lF -- 'helixllm-multi' "$PDIR"/*.env | tr '\n' ' ')"
+else
+  _pass "no generated provider record pins 'helixllm-multi'"
+fi
+
 it "the other pinned fields survive too (they always did — regression floor)"
 grep -qF "http://127.0.0.1:$PORT/v1" "$PDIR/helixagent.env"
 assert_eq 0 $? "base_url = pinned endpoint"

@@ -3,9 +3,7 @@
   "id": "helixllm-gateway",
   "base_url": "https://127.0.0.1:8443/v1",
   "transport": "router",
-  "strong_model": "helixllm-multi",
-  "fast_model": "helixllm-multi",
   "key_var": "HELIXLLM_GATEWAY_KEY",
-  "context_limit": 229376,
+  "context_limit": 32768,
   "max_output": 8192
 }
