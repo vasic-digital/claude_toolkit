@@ -2241,9 +2241,13 @@ _cma_kimi_twin_alias() {
 }
 
 # Render the per-alias Kimi Code config (~/.kimi-prov-<id>/config.toml) from the
-# SYNC-time record. The launch wrapper (lib.sh cma_run_kimi_provider) refreshes
-# this file at launch; this is the idempotent sync-time version that
-# ensures a bare `claude-providers sync` produces the config a Kimi alias needs.
+# SYNC-time record. This function is the ONLY writer of that file: the launch
+# wrapper (lib.sh cma_run_kimi_provider) READS default_model/base_url out of it
+# and refuses to launch when it is missing, but never rewrites it. So whatever
+# is rendered here is what the Kimi CLI dials — there is no second, later chance
+# to correct it. (An earlier revision of this comment claimed the wrapper
+# refreshes the file at launch; it does not, and believing that sends anyone
+# debugging a wrong backend to the wrong file.)
 # The api_key here is the RESOLVED KEY VALUE (or the OAuth token snapshot), never
 # a keyvar name — this file is the one secret-bearing artifact of the kimi twin.
 # Written 0600/0700 via umask + temp + atomic rename. `kc-*` ids render no
@@ -2253,7 +2257,40 @@ _cma_kimi_render_config() {
   case "$id" in ''|kc-*|kimi-*) return 0 ;; esac
   local kdir="$HOME/.kimi-prov-$id"
   ( umask 077; mkdir -p "$kdir" )
+  # WIRE SELECTION — from the TRANSPORT, not from what the URL happens to spell.
+  #
+  # The kimi CLI dispatches on `type`, and each wire's SDK builds its path
+  # RELATIVE to base_url: the bundled openai SDK posts "/chat/completions", the
+  # bundled @anthropic-ai/sdk posts "/v1/messages" (and kimi strips a trailing
+  # `/v1` for the anthropic wire so it cannot become /v1/v1/messages). So the
+  # wire label decides which URL is actually dialled.
+  #
+  # Selecting it from the URL shape alone mislabels every provider that speaks
+  # Anthropic natively without saying so in its path. Measured on the real
+  # gateway — transport `native`, base https://127.0.0.1:8443 with no `/v1`:
+  #
+  #   GET  /v1/models            200      GET  /models             404
+  #   POST /v1/chat/completions  400      POST /chat/completions   404
+  #   POST /v1/messages          400
+  #
+  # Typed `openai`, the twin aimed at /chat/completions — a 404. Typed
+  # `anthropic`, it aims at /v1/messages, which is the route that exists. The
+  # base_url is NOT wrong; it is correct for its own native transport (Claude
+  # Code appends /v1/messages to it too). Only the wire label was.
+  #
+  # AND THE FIX IS NOT "APPEND /v1" TO THE BASE. `deepseek`
+  # (https://api.deepseek.com), `kilo` (/api/gateway) and `zai` (/paas/v4) are
+  # openai-typed providers with no `/v1` whose roots serve /chat/completions
+  # directly; appending would break all three, and appending to this native
+  # record would give the Claude side /v1/v1/messages. transport is the honest
+  # discriminator — providers_resolve.transport_for defines it as exactly this:
+  # "native iff the provider speaks the Anthropic API natively".
   local api_key="" typ="openai"
+  [[ "$transport" == "native" ]] && typ="anthropic"
+  # Kept for the router-transport provider that has been PROMOTED to an
+  # Anthropic endpoint via overrides.json (the documented
+  # "deepseek -> native /anthropic" path): its transport can still read router
+  # while its base names the anthropic surface.
   case "$base" in */anthropic*|/v1/messages*) typ="anthropic" ;; esac
   if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
     local tokf; tokf="$(cma_providers_dir)/$id.token"
@@ -2524,6 +2561,18 @@ cmd_helixllm_export() {
       printf 'CMA_PROVIDER_CA_CERT=%s\n' "'$CMA_PROVIDER_CA_CERT'" >> "$(cma_providers_dir)/$pid.env"
     fi
     cma_provider_write_alias "$pid" "$pid"
+    # Kimi Code twin — the SAME pairing every other alias-emitting path makes
+    # (cmd_sync and the multi-sync leg both do this under the same gate). Its
+    # absence here was the whole defect: an exported record got a `claude` alias
+    # and no `kimi-` twin, so `kimi-<id>` simply did not exist for any model that
+    # arrived through the export path — while the two other paths produced twins
+    # normally, making the gap look like an intermittent one. Emission is
+    # independent of verify status; the launch gate in lib.sh is the single
+    # status.json gate for both twins. Excluded ids (kc-*, kimi-*) are a no-op.
+    if (( KIMI_ALIASES )); then
+      _cma_kimi_twin_alias "$pid" || true
+      _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
+    fi
     n_written=$((n_written + 1))
   done < <(jq -r '.[] | [.provider_id, .key_var, .transport, .base_url,
                          .strong_model, .fast_model,
@@ -2735,10 +2784,23 @@ _list_rows() {
     echo "No provider aliases installed. Run: claude-providers sync"
     return 0
   fi
-  printf '%-14s %-16s %-10s %-12s %-24s\n' ALIAS PROVIDER STATUS LAYER STRONG_MODEL
+  # CHECKED is not decoration. A verdict is a claim about a REMOTE endpoint at
+  # ONE moment, and this listing is the surface an operator reads most — so a
+  # verdict rendered with no age reads as present-tense success forever. That
+  # really happened: `helixllm-gateway` showed STATUS `verified` here while a
+  # live probe of that exact endpoint answered HTTP 401. The record ALREADY
+  # carried `checked_at`; only the renderer never looked.
+  #
+  # WHY A MARKER AND NOT A RE-PROBE. Re-verifying on read would make `list` — a
+  # command people run reflexively — do N network round-trips against every
+  # configured backend, several of them remote, before printing a line. The
+  # verdict's AGE is local, free, and already recorded; showing it lets the
+  # operator decide whether to trust it, and `claude-providers verify <id>`
+  # remains the one command that actually re-probes.
+  printf '%-14s %-16s %-15s %-8s %-12s %-24s\n' ALIAS PROVIDER STATUS CHECKED LAYER STRONG_MODEL
   local f
   for f in "$pdir"/*.env; do
-    local id status layer keep=0
+    local id status layer checked age age_s keep=0
     # shellcheck disable=SC1090
     id="$( ( set -a; . "$f"; set +a; printf '%s' "$CMA_PROVIDER_ID" ) )"
     status="$(cma_status_read "$id")"
@@ -2748,15 +2810,35 @@ _list_rows() {
       all)      keep=1 ;;
     esac
     (( keep )) || continue
-    layer="$(cma_status_all | awk -F'\t' -v i="$id" '$1==i{print $5}')"
+    # One read of the cache serves both columns (layer was already paying for it),
+    # and the row is split IN THE SHELL rather than by piping it through `cut`
+    # twice: this loop runs once per provider and every subshell here is a fork
+    # the operator waits for on a command people run reflexively.
+    local srow _s_id _s_status _s_model
+    srow="$(cma_status_all | awk -F'\t' -v i="$id" '$1==i{print; exit}')"
+    # A herestring always supplies a trailing newline, so this `read` returns 0
+    # (leaving every field empty) even when the record is absent — it cannot
+    # abort the listing under `set -e`, which the alias-less-provider case in
+    # tests/test_providers.sh covers.
+    IFS=$'\t' read -r _s_id _s_status _s_model checked layer <<<"$srow"
+    # MEASURE ONCE, DERIVE TWICE. The human string and the staleness verdict are
+    # two readings of ONE age; asking each helper to parse the timestamp itself
+    # forked `date` twice per row for the same number. Measured on a 40-row
+    # listing: ~4.72 s -> ~2.83 s (baseline without the column, ~1.64 s).
+    age_s="$(cma_status_age_seconds "$checked")"
+    age="$(cma_status_age_human_s "$age_s")"
+    # A PROVABLY old verdict is prefixed so the bare word `verified` cannot
+    # appear on a row whose evidence is past the horizon. An UNKNOWN age is not
+    # marked stale — it is unknown, and the `?` in CHECKED says exactly that.
+    if cma_status_is_stale_s "$age_s"; then status="stale:$status"; fi
     # shellcheck disable=SC1090
     ( set -a; . "$f"; set +a
       # `|| alias=""` is LOAD-BEARING: under `set -euo pipefail` a no-match grep
       # (exit 1, propagated by pipefail) would abort the subshell — and the whole
       # listing — for any provider whose alias line is absent.
       alias="$(grep -E "cma_run_provider $CMA_PROVIDER_ID(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)" || alias=""
-      printf '%-14s %-16s %-10s %-12s %-24s\n' \
-        "${alias:-?}" "$CMA_PROVIDER_ID" "$status" "${layer:--}" "$CMA_PROVIDER_MODEL" )
+      printf '%-14s %-16s %-15s %-8s %-12s %-24s\n' \
+        "${alias:-?}" "$CMA_PROVIDER_ID" "$status" "$age" "${layer:--}" "$CMA_PROVIDER_MODEL" )
   done
 }
 cmd_list()        { _list_rows verified; }
@@ -3147,6 +3229,59 @@ if (( REFRESH_ALIASES )); then
       [[ -n "$_rid" ]] || continue
       [[ -n "$_ral" ]] || _ral="$_rid"
       cma_provider_write_alias "$_ral" "$_rid" 2>/dev/null || true
+      # The kimi twin is an alias line like any other, and this loop is what
+      # REBUILDS the alias file — so omitting it here meant that after the alias
+      # file was lost or rotated, the session hook faithfully restored every
+      # claude alias and silently restored no kimi twin at all. Measured: with a
+      # synced provider, deleting the alias file and running --refresh-aliases
+      # gave back `alias beta` and not `alias kimi-beta`.
+      #
+      # Only the alias LINE is written here, never the config.toml: this path is
+      # the no-network/no-probe fast path that runs on every interactive shell
+      # start, and rendering config.toml would make it read the keys file and
+      # write a secret-bearing artifact on every shell.
+      #
+      # RESTORE ONLY WHERE THE CONFIG ALREADY EXISTS, and that gate carries the
+      # weight of this whole block. RESTORE is the operative word: this path may
+      # put back a twin a sync established, and may not INVENT one.
+      #
+      #  1. It is what keeps refresh a NO-OP. The `-f` test is the difference
+      #     between "this shell start rewrites nothing" and "this shell start
+      #     rewrites the alias file". Ungated, EVERY record without a twin line
+      #     — one seeded by cma_provider_write_alias alone, one written before
+      #     twins existed, one synced under --no-kimi-aliases — makes the first
+      #     shell start after that state a whole-file rewrite. That is not a
+      #     cosmetic idempotence nicety: the no-op guard is precisely what keeps
+      #     steady-state shell starts OUT of the concurrent-writer race that
+      #     shredded the live aliases.sh on 2026-07-20 (see the header of
+      #     tests/test_alias_file_concurrency.sh), and this session hook fires on
+      #     every single interactive shell. Ungated it FAILS that suite's
+      #     "the refresh fast path is a no-op too" case, by design of the case.
+      #
+      #  2. It honours --no-kimi-aliases. All three emitting paths (cmd_sync,
+      #     the multi-sync leg, helixllm-export --apply) pair the twin alias and
+      #     the config under the SAME `(( KIMI_ALIASES ))` gate, so the config's
+      #     presence records what that flag decided for this record. Ungated,
+      #     a record synced with --no-kimi-aliases grew a twin back on the next
+      #     shell start, because KIMI_ALIASES defaults to 1 here (:69) and the
+      #     session hook passes no override.
+      #
+      #  3. It cannot manufacture drift. kimi-providers.sh defines a REAL twin
+      #     as BOTH artifacts on disk (alias line AND config.toml) and reports
+      #     anything else as `no-twin`. This path can only ever restore the
+      #     alias half; emitting it without the config half would fabricate the
+      #     exact half-wired state that tool exists to flag — an alias that
+      #     lists but cannot launch, which is what the operator hit with
+      #     `kimi-helixllm-anton-…`.
+      #
+      # The gate FAILS CLOSED: no config, no alias — never an alias that
+      # cma_run_kimi_provider would refuse anyway. A record whose config was
+      # deleted independently is repaired by `sync` (or, for the export class,
+      # `helixllm-export --apply`), which is the only writer of that file, and
+      # both then restore the twin here on the next shell start.
+      if (( KIMI_ALIASES )) && [[ -f "$HOME/.kimi-prov-$_rid/config.toml" ]]; then
+        _cma_kimi_twin_alias "$_rid" 2>/dev/null || true
+      fi
     done
   fi
   (( QUIET )) || cma_log "refreshed provider aliases from cache (no network)"

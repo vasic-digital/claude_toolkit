@@ -142,6 +142,46 @@ claude-providers verify <id> --deep
 claude-providers list --refresh-aliases
 ```
 
+## Reading the `list` output — the `CHECKED` column
+
+The list family prints one row per alias:
+
+```
+ALIAS          PROVIDER         STATUS          CHECKED  LAYER        STRONG_MODEL
+```
+
+`STATUS` is the last verdict recorded for that alias. `CHECKED` is **how old that
+verdict is** — `42s`, `9m`, `5h`, `3d`, or `?` when the record carries no
+timestamp at all.
+
+That column exists because a verdict is a claim about a *remote* endpoint at
+*one* moment, and nothing in the status cache ever learns that the endpoint
+later started refusing. Without an age, a `verified` written before an outage
+keeps reading as present-tense success. That is not hypothetical: an alias here
+displayed `verified` while a live probe of that exact endpoint answered
+HTTP 401.
+
+So a verdict older than `CMA_STATUS_TTL` (default: the same 24h horizon as
+`CMA_MODELS_DEV_TTL`) is prefixed:
+
+```
+helixllm-gate  helixllm-gateway stale:verified  3d       -            qwen2.5-coder
+```
+
+The alias is still listed and still launchable — the prefix is a statement about
+the **evidence**, not about the alias. A `?` means the age is unknown, which is
+deliberately *not* reported as stale: not knowing when something was checked is
+not the same as knowing it was checked recently.
+
+`list` never re-probes. Re-verifying on read would put a network round-trip per
+alias behind a command people run reflexively. To actually refresh a verdict:
+
+```bash
+claude-providers verify <id>          # re-probe one alias
+claude-providers verify <id> --deep   # all four layers
+claude-providers sync                 # re-verify everything
+```
+
 ## The Activation Gate
 
 When you launch a provider alias (e.g., `deepseek`), the activation gate checks the provider's status in `~/.local/share/claude-multi-account/providers/status.json`. If the status is not `verified`, the launch is refused with an actionable message.

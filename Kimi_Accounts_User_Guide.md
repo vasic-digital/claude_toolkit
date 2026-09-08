@@ -116,6 +116,21 @@ kimi-providers verify <id>   # same 1-3 layer gates as the Claude alias
 kimi-providers migrate-names # run the one-time legacy rename explicitly
 ```
 
+The `list` family reprints the engine's own table with an extra `AGENT` column
+in front, so the columns are the engine's columns:
+
+```
+AGENT  ALIAS          PROVIDER         STATUS          CHECKED  LAYER        STRONG_MODEL
+```
+
+`CHECKED` is carried through deliberately: both twins share **one** status
+record, so the age of the verdict is the same on both rows — and a `verified`
+printed without its age reads as present-tense success forever, which is the
+defect the column exists to prevent (see `docs/Provider_Verification_Guide.md`).
+On a `kimi` row whose twin is **not** wired, `STATUS` reads `no-twin`, `LAYER`
+reads `run-sync`, and `CHECKED` reads `-` — that row is a statement about the
+missing wiring, not a verdict of its own, so it has no age to report.
+
 ## 6. The one-time legacy rename: `kimi-*` → `kc-*`
 
 The `kimi-` prefix is reserved so it means *only* "Kimi Code CLI agent".

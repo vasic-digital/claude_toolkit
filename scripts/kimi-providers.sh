@@ -111,16 +111,34 @@ if [[ -f "$_alias_file" ]]; then
            | sed -e 's/^alias kimi-//' -e 's/=$//')
 fi
 
-printf '%-6s %-14s %-16s %-10s %-12s %-24s\n' AGENT ALIAS PROVIDER STATUS LAYER STRONG_MODEL
+# COLUMNS ARE READ BY POSITION, so this view must track the engine's row shape
+# or it silently RELABELS data. It already did: when the engine grew a CHECKED
+# column between STATUS and LAYER, this awk still read `layer=$4; model=$5`, so
+# every row printed the AGE under LAYER, the LAYER under STRONG_MODEL, and
+# dropped the model entirely — on the one surface that reports `no-twin` drift.
+# The engine's header is the contract; tests/test_kimi_wire_and_status_freshness.sh
+# section 4 asserts every column of this table by position so the next column
+# change fails a test instead of relabelling an operator's inventory.
+#
+# CHECKED IS CARRIED THROUGH, not dropped. Both twins share ONE status record,
+# so the age of the verdict is the same for both rows — and the reason the
+# engine grew that column applies verbatim here: a `verified` printed with no
+# age reads as present-tense success forever (that is the D1 defect, measured on
+# `helixllm-gateway`). Repeating the verdict in the Kimi view while hiding its
+# age would reintroduce exactly that defect on this surface. STATUS is 15 wide
+# to match the engine, because a stale verdict renders as `stale:verified`.
+printf '%-6s %-14s %-16s %-15s %-8s %-12s %-24s\n' AGENT ALIAS PROVIDER STATUS CHECKED LAYER STRONG_MODEL
 printf '%s\n' "$output" | awk -F' ' -v wired="$wired" '
   $1 == "ALIAS" { next }
-  NF < 5 { next }
+  NF < 6 { next }
   {
-    alias=$1; pid=$2; status=$3; layer=$4; model=$5
-    printf "%-6s %-14s %-16s %-10s %-12s %-24s\n", "claude", alias, pid, status, layer, model
+    alias=$1; pid=$2; status=$3; checked=$4; layer=$5; model=$6
+    printf "%-6s %-14s %-16s %-15s %-8s %-12s %-24s\n", "claude", alias, pid, status, checked, layer, model
     if (pid !~ /^kc-/ && pid !~ /^kimi-/) {
-      kstatus = (index(wired, " " pid " ") > 0) ? status : "no-twin"
-      klayer  = (index(wired, " " pid " ") > 0) ? layer  : "run-sync"
-      printf "%-6s %-14s %-16s %-10s %-12s %-24s\n", "kimi", "kimi-" pid, pid, kstatus, klayer, model
+      twin    = (index(wired, " " pid " ") > 0)
+      kstatus = twin ? status  : "no-twin"
+      kchecked= twin ? checked : "-"
+      klayer  = twin ? layer   : "run-sync"
+      printf "%-6s %-14s %-16s %-15s %-8s %-12s %-24s\n", "kimi", "kimi-" pid, pid, kstatus, kchecked, klayer, model
     }
   }'

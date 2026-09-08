@@ -1,16 +1,17 @@
 === test_free_tier_multi_sync.sh evidence ===
-date: 2026-09-05T22:14:06Z
-server port: 50429 pid: 2628276
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m discovered 24 key vars; 24 resolve to a provider
+date: 2026-09-08T08:21:30Z
+server port: 39035 pid: 1849178
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.wnagFe/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
+[33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
+[33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
+[36m[cma][0m discovered 25 key vars; 22 resolve to a provider
 [36m[cma][0m provider 'chutes1' -> alias 'chutes1' [router] model=deepseek-ai/DeepSeek-V3.2-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes2' -> alias 'chutes2' [router] model=Qwen/Qwen3.5-397B-A17B-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes3' -> alias 'chutes3' [router] model=Qwen/Qwen3-235B-A22B-Thinking-2507-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes4' -> alias 'chutes4' [router] model=zai-org/GLM-5.2-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes5' -> alias 'chutes5' [router] model=moonshotai/Kimi-K2.6-TEE (unverified/existence)
 [36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=helixagent-llm (unverified/existence)
-[36m[cma][0m provider 'helixagent-native' -> alias 'helixagent-native' [native] model=helixllm-multi (unverified/existence)
-[36m[cma][0m provider 'helixllm-gateway' -> alias 'helixllm-gateway' [router] model=helixllm-multi (unverified/existence)
 [36m[cma][0m provider 'hyper1' -> alias 'hyper1' [router] model=deepseek-v4-pro (unverified/existence)
 [36m[cma][0m provider 'hyper2' -> alias 'hyper2' [router] model=glm-5.2 (unverified/existence)
 [36m[cma][0m provider 'hyper3' -> alias 'hyper3' [router] model=kimi-k2.7-code (unverified/existence)
@@ -27,10 +28,13 @@ server port: 50429 pid: 2628276
 [36m[cma][0m provider 'opencode-zen4' -> alias 'opencode-zen4' [router] model=gpt-5.4 (unverified/existence)
 [36m[cma][0m provider 'opencode-zen5' -> alias 'opencode-zen5' [router] model=gemini-3.1-pro (unverified/existence)
 [36m[cma][0m provider 'stubprov' -> alias 'stubprov' [router] model=freealpha (unverified/existence)
-[36m[cma][0m sync done: 24 active, 0 disabled (failed verify), 0 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m multi-sync: discovered 24 key vars; 24 resolve to a provider
+[36m[cma][0m sync done: 22 active, 0 disabled (failed verify), 3 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/cma-test.wnagFe/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.wnagFe/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
+[33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
+[33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
+[36m[cma][0m multi-sync: discovered 25 key vars; 22 resolve to a provider
 [36m[cma][0m multi-sync: verifying models for 'chutes1' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'chutes1'
@@ -49,12 +53,6 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:7061/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'helixagent'
-[36m[cma][0m multi-sync: verifying models for 'helixagent-native' at https://127.0.0.1:8443/chat/completions (free-tier only)...
-Error: no models specified and no catalog available
-[33m[cma warn][0m verification failed for 'helixagent-native'
-[36m[cma][0m multi-sync: verifying models for 'helixllm-gateway' at https://127.0.0.1:8443/v1/chat/completions (free-tier only)...
-Error: no models specified and no catalog available
-[33m[cma warn][0m verification failed for 'helixllm-gateway'
 [36m[cma][0m multi-sync: verifying models for 'hyper1' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'hyper1'
@@ -100,30 +98,31 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'opencode-zen5'
-[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:50429/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:39035/v1/chat/completions (free-tier only)...
 free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
 Verifying 5 models for stubprov...
   ✗ brokenfree: score=0 (Server error (500))
-  ✓ freegamma: score=65 ()
-  ✓ freedelta: score=65 ()
   ✓ freealpha: score=65 ()
   ✓ freebeta: score=65 ()
+  ✓ freegamma: score=65 ()
+  ✓ freedelta: score=65 ()
 [36m[cma][0m   stubprov: 4 models verified
 [36m[cma][0m   stubprov: 2 aliases generated
 [36m[cma][0m   alias 'stubprov': strong=freealpha fast=freebeta [router]
 [36m[cma][0m   alias 'stubprov2': strong=freedelta fast=freegamma [router]
 [36m[cma][0m multi-sync done: 2 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m discovered 24 key vars; 24 resolve to a provider
+[36m[cma][0m reload your shell or: source /tmp/cma-test.wnagFe/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.wnagFe/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
+[33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
+[33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
+[36m[cma][0m discovered 25 key vars; 22 resolve to a provider
 [36m[cma][0m provider 'chutes1' -> alias 'chutes1' [router] model=deepseek-ai/DeepSeek-V3.2-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes2' -> alias 'chutes2' [router] model=Qwen/Qwen3.5-397B-A17B-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes3' -> alias 'chutes3' [router] model=Qwen/Qwen3-235B-A22B-Thinking-2507-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes4' -> alias 'chutes4' [router] model=zai-org/GLM-5.2-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes5' -> alias 'chutes5' [router] model=moonshotai/Kimi-K2.6-TEE (unverified/existence)
 [36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=helixagent-llm (unverified/existence)
-[36m[cma][0m provider 'helixagent-native' -> alias 'helixagent-native' [native] model=helixllm-multi (unverified/existence)
-[36m[cma][0m provider 'helixllm-gateway' -> alias 'helixllm-gateway' [router] model=helixllm-multi (unverified/existence)
 [36m[cma][0m provider 'hyper1' -> alias 'hyper1' [router] model=deepseek-v4-pro (unverified/existence)
 [36m[cma][0m provider 'hyper2' -> alias 'hyper2' [router] model=glm-5.2 (unverified/existence)
 [36m[cma][0m provider 'hyper3' -> alias 'hyper3' [router] model=kimi-k2.7-code (unverified/existence)
@@ -141,10 +140,13 @@ Verifying 5 models for stubprov...
 [36m[cma][0m provider 'opencode-zen5' -> alias 'opencode-zen5' [router] model=gemini-3.1-pro (unverified/existence)
 [36m[cma][0m provider 'stubprov' -> alias 'stubprov' [router] model=freealpha (unverified/existence)
 [33m[cma warn][0m provider 'stubprov2' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
-[36m[cma][0m sync done: 24 active, 0 disabled (failed verify), 0 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m multi-sync: discovered 24 key vars; 24 resolve to a provider
+[36m[cma][0m sync done: 22 active, 0 disabled (failed verify), 3 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/cma-test.wnagFe/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.wnagFe/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
+[33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
+[33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
+[36m[cma][0m multi-sync: discovered 25 key vars; 22 resolve to a provider
 [36m[cma][0m multi-sync: verifying models for 'chutes1' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'chutes1'
@@ -163,12 +165,6 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:7061/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'helixagent'
-[36m[cma][0m multi-sync: verifying models for 'helixagent-native' at https://127.0.0.1:8443/chat/completions (free-tier only)...
-Error: no models specified and no catalog available
-[33m[cma warn][0m verification failed for 'helixagent-native'
-[36m[cma][0m multi-sync: verifying models for 'helixllm-gateway' at https://127.0.0.1:8443/v1/chat/completions (free-tier only)...
-Error: no models specified and no catalog available
-[33m[cma warn][0m verification failed for 'helixllm-gateway'
 [36m[cma][0m multi-sync: verifying models for 'hyper1' at https://hyper.charm.land/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'hyper1'
@@ -214,24 +210,25 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'opencode-zen5'
-[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:50429/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:39035/v1/chat/completions (free-tier only)...
 free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
 [36m[cma][0m   stubprov: 4 models verified
 [36m[cma][0m   stubprov: 2 aliases generated
 [36m[cma][0m   alias 'stubprov': strong=freealpha fast=freebeta [router]
 [36m[cma][0m   alias 'stubprov2': strong=freedelta fast=freegamma [router]
 [36m[cma][0m multi-sync done: 2 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m discovered 24 key vars; 24 resolve to a provider
+[36m[cma][0m reload your shell or: source /tmp/cma-test.wnagFe/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.wnagFe/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
+[33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
+[33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
+[36m[cma][0m discovered 25 key vars; 22 resolve to a provider
 [36m[cma][0m provider 'chutes1' -> alias 'chutes1' [router] model=deepseek-ai/DeepSeek-V3.2-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes2' -> alias 'chutes2' [router] model=Qwen/Qwen3.5-397B-A17B-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes3' -> alias 'chutes3' [router] model=Qwen/Qwen3-235B-A22B-Thinking-2507-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes4' -> alias 'chutes4' [router] model=zai-org/GLM-5.2-TEE (unverified/existence)
 [36m[cma][0m provider 'chutes5' -> alias 'chutes5' [router] model=moonshotai/Kimi-K2.6-TEE (unverified/existence)
 [36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=helixagent-llm (unverified/existence)
-[36m[cma][0m provider 'helixagent-native' -> alias 'helixagent-native' [native] model=helixllm-multi (unverified/existence)
-[36m[cma][0m provider 'helixllm-gateway' -> alias 'helixllm-gateway' [router] model=helixllm-multi (unverified/existence)
 [36m[cma][0m provider 'hyper1' -> alias 'hyper1' [router] model=deepseek-v4-pro (unverified/existence)
 [36m[cma][0m provider 'hyper2' -> alias 'hyper2' [router] model=glm-5.2 (unverified/existence)
 [36m[cma][0m provider 'hyper3' -> alias 'hyper3' [router] model=kimi-k2.7-code (unverified/existence)
@@ -249,10 +246,13 @@ free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
 [36m[cma][0m provider 'opencode-zen5' -> alias 'opencode-zen5' [router] model=gemini-3.1-pro (unverified/existence)
 [36m[cma][0m provider 'stubprov' -> alias 'stubprov' [router] model=freealpha (unverified/existence)
 [33m[cma warn][0m provider 'stubprov2' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
-[36m[cma][0m sync done: 24 active, 0 disabled (failed verify), 0 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/providers/models.dev.cache.json)
-[36m[cma][0m multi-sync: discovered 24 key vars; 24 resolve to a provider
+[36m[cma][0m sync done: 22 active, 0 disabled (failed verify), 3 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/cma-test.wnagFe/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.wnagFe/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
+[33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
+[33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
+[36m[cma][0m multi-sync: discovered 25 key vars; 22 resolve to a provider
 [36m[cma][0m multi-sync: verifying models for 'chutes1' at https://llm.chutes.ai/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'chutes1'
@@ -271,12 +271,6 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:7061/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'helixagent'
-[36m[cma][0m multi-sync: verifying models for 'helixagent-native' at https://127.0.0.1:8443/chat/completions (INCLUDING PAID (explicit opt-in))...
-Error: no models specified and no catalog available
-[33m[cma warn][0m verification failed for 'helixagent-native'
-[36m[cma][0m multi-sync: verifying models for 'helixllm-gateway' at https://127.0.0.1:8443/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
-Error: no models specified and no catalog available
-[33m[cma warn][0m verification failed for 'helixllm-gateway'
 [36m[cma][0m multi-sync: verifying models for 'hyper1' at https://hyper.charm.land/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'hyper1'
@@ -322,14 +316,14 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'opencode-zen5'
-[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:50429/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:39035/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Cache hit: 5 models, 2 to verify
 Verifying 7 models for stubprov...
   ✗ brokenfree: score=0 (Server error (500))
   ✓ freedelta: score=65 ()
-  ✓ freealpha: score=65 ()
   ✓ freebeta: score=65 ()
   ✓ freegamma: score=65 ()
+  ✓ freealpha: score=65 ()
   ✓ paidx: score=65 ()
   ✓ mysterym: score=65 ()
 [36m[cma][0m   stubprov: 6 models verified
@@ -338,6 +332,6 @@ Verifying 7 models for stubprov...
 [36m[cma][0m   alias 'stubprov2': strong=freedelta fast=freegamma [router]
 [36m[cma][0m   alias 'stubprov3': strong=mysterym fast=paidx [router]
 [36m[cma][0m multi-sync done: 3 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ZPRbZb/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.wnagFe/.local/share/claude-multi-account/aliases.sh
 
 === result: pass=28 fail=0 ===

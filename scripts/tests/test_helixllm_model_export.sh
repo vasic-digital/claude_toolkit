@@ -526,8 +526,24 @@ assert_jq "$CATALOGUE" '[.entries[]|select(.id=="'"$_gone_id"'")]|length' 0 \
 assert_file "$PDIR/$_kept_id.env" "the model beta STILL serves was left alone"
 assert_file "$PDIR/hand-authored-thing.env" \
   "the hand-authored provider was not touched (it never claimed this tool wrote it)"
-_backups="$(find "$HOME" -maxdepth 1 -name "*${_gone_id}.preunify.*" -type d | wc -l | tr -d ' ')"
-assert_eq 1 "$_backups" "the retired provider's config dir was BACKED UP, not deleted"
+# RECONCILED, not relaxed. This counted `*<id>.preunify.*` with a LEADING
+# wildcard, so it could not tell WHICH config dir it had found — and it expected
+# exactly one because `helixllm-export --apply` used to emit no Kimi twin. Now
+# that the export path emits the twin like every other alias-emitting path, a
+# retirement correctly backs up BOTH dirs, and the old count of 1 became 2.
+# The answer is to name the two dirs separately, which asserts strictly MORE
+# than the old count did: each one is backed up exactly once, and neither is
+# left live. (Deleting either backup still fails this — the guard did not go soft.)
+_claude_backups="$(find "$HOME" -maxdepth 1 -name "${CMA_PROVIDER_DIR_PREFIX:-.claude-prov-}${_gone_id}.preunify.*" -type d | wc -l | tr -d ' ')"
+_kimi_backups="$(find "$HOME" -maxdepth 1 -name ".kimi-prov-${_gone_id}.preunify.*" -type d | wc -l | tr -d ' ')"
+assert_eq 1 "$_claude_backups" "the retired provider's CLAUDE config dir was BACKED UP, not deleted"
+assert_eq 1 "$_kimi_backups"   "the retired provider's KIMI twin dir was BACKED UP, not deleted"
+[[ ! -d "$HOME/${CMA_PROVIDER_DIR_PREFIX:-.claude-prov-}${_gone_id}" ]]
+assert_eq 0 $? "the retired provider's claude config dir is no longer live"
+[[ ! -d "$HOME/.kimi-prov-${_gone_id}" ]]
+assert_eq 0 $? "the retired provider's kimi twin dir is no longer live"
+grep -q "^alias kimi-${_gone_id}=" "$ALIAS_FILE" 2>/dev/null
+assert_eq 1 $? "the retired provider's kimi twin alias is gone — it is no longer invocable"
 
 it "an UNREACHABLE host never causes a removal — silence is not evidence"
 assert_file "$PDIR/$_alpha_survivor.env" "control: alpha's provider exists before alpha goes away"

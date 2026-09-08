@@ -3177,6 +3177,100 @@ cma_status_all() {
      "$f" 2>/dev/null || true
 }
 
+# --- verdict freshness ------------------------------------------------------
+# A verification verdict is a claim about a REMOTE endpoint at ONE moment.
+# Nothing in this cache ever learns that the endpoint later started refusing, so
+# a verdict presented with no age reads as present-tense success forever. That
+# is not hypothetical: `helixllm-gateway` showed STATUS `verified` in
+# `claude-providers list` while a live probe of that exact endpoint answered
+# HTTP 401. These three helpers are what let a renderer say how old a verdict
+# is — and refuse to present an old one as current.
+#
+# The horizon defaults to the one this toolkit ALREADY uses for provider
+# metadata (CMA_MODELS_DEV_TTL, 24h) rather than a newly invented number: it is
+# the same staleness question, so it gets the same answer. Overridable on its
+# own (CMA_STATUS_TTL) for a caller that wants a tighter bound.
+#
+# RESOLVED AT CALL TIME, NOT AT SOURCE TIME — and that is the whole point.
+# claude-providers.sh sources this file at its line 32 and only then defaults
+# CMA_MODELS_DEV_TTL in its knobs block at line 37. A top-level
+# `: "${CMA_STATUS_TTL:=${CMA_MODELS_DEV_TTL:-86400}}"` here therefore runs
+# while CMA_MODELS_DEV_TTL is still UNSET, falls through to the literal, and
+# freezes 86400 in — so the two numbers agreeing was a coincidence of two
+# identical literals, not an inheritance, and raising CMA_MODELS_DEV_TTL moved
+# nothing unless it happened to be EXPORTED into the environment. Deferring the
+# lookup to the one place that needs it makes the inheritance real for every
+# way the knob can be set, and an explicit CMA_STATUS_TTL still wins.
+
+# cma_status_age_seconds <checked_at> -> age in whole seconds, or NOTHING when
+# the timestamp is absent or unparseable. An empty result means UNKNOWN age and
+# MUST NOT be rendered as a fresh one (§11.4.6: not knowing when something was
+# checked is not the same as knowing it was checked recently).
+# cma_status_write emits one fixed portable UTC format (%Y-%m-%dT%H:%M:%SZ);
+# both date dialects are handled because this runs on Linux AND macOS (§11.4.81).
+cma_status_age_seconds() {
+  local ts="${1:-}" _then _now
+  [[ -n "$ts" && "$ts" != "null" ]] || return 0
+  # The OS dialect cannot change inside one process, so probe it once and cache
+  # it in a shell global: `list` calls this once per row, and a per-call
+  # `uname` was one fork per row for an answer that never varies.
+  [[ -n "${_CMA_UNAME_S:-}" ]] || _CMA_UNAME_S="$(uname -s)"
+  case "$_CMA_UNAME_S" in
+    Darwin*) _then="$(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null)" ;;
+    *)       _then="$(date -u -d "$ts" +%s 2>/dev/null)" ;;
+  esac
+  [[ "$_then" =~ ^[0-9]+$ ]] || return 0
+  _now="$(date -u +%s)"
+  # A timestamp from the future is clock skew, not an age: clamp to 0 rather
+  # than emit a negative, which would compare as "fresh" everywhere downstream.
+  (( _then > _now )) && { printf '0'; return 0; }
+  printf '%s' "$(( _now - _then ))"
+}
+
+# --- age -> rendering, split so ONE measurement can serve BOTH answers -------
+# The `_s` pair takes an ALREADY-MEASURED age in seconds (empty = unknown); the
+# timestamp-taking pair below is the same behaviour with the measurement folded
+# in, kept because it is the friendlier API for a one-shot caller.
+#
+# WHY THE SPLIT EXISTS. A renderer needs both the human string and the stale
+# verdict for the same row, and calling both timestamp-taking helpers measured
+# the SAME timestamp twice — each measurement forking `date` (and, before the
+# cache above, `uname`). Measured here on a 40-row listing, 3 runs each:
+# ~4.72 s before, ~2.83 s after, against ~1.64 s for the same listing with no
+# CHECKED column at all — so this removes about 61% of the column's cost, and
+# what remains is the one timestamp parse per row the column actually needs.
+# Semantics are untouched: both pairs are pure functions of the age, and
+# "unknown" is still never "fresh".
+
+# cma_status_age_human_s <age_seconds|""> -> "42s" | "9m" | "5h" | "3d" | "?"
+# "?" is the honest rendering of an age we do not know.
+cma_status_age_human_s() {
+  local _age="${1:-}"
+  [[ -n "$_age" ]] || { printf '?'; return 0; }
+  if   (( _age < 60 ));    then printf '%ds' "$_age"
+  elif (( _age < 3600 ));  then printf '%dm' "$(( _age / 60 ))"
+  elif (( _age < 86400 )); then printf '%dh' "$(( _age / 3600 ))"
+  else                          printf '%dd' "$(( _age / 86400 ))"
+  fi
+}
+
+# cma_status_is_stale_s <age_seconds|""> -> 0 when PROVABLY older than
+# CMA_STATUS_TTL. An unknown age is NOT reported stale — it is unknown, and the
+# caller renders "?" for it. Only a MEASURED age past the horizon earns the claim.
+cma_status_is_stale_s() {
+  local _age="${1:-}"
+  [[ -n "$_age" ]] || return 1
+  local _ttl="${CMA_STATUS_TTL:-${CMA_MODELS_DEV_TTL:-86400}}"
+  [[ "$_ttl" =~ ^[0-9]+$ ]] || _ttl=86400
+  (( _age >= _ttl ))
+}
+
+# cma_status_age_human <checked_at> -> the same rendering, measuring for you.
+cma_status_age_human() { cma_status_age_human_s "$(cma_status_age_seconds "${1:-}")"; }
+
+# cma_status_is_stale <checked_at> -> the same verdict, measuring for you.
+cma_status_is_stale() { cma_status_is_stale_s "$(cma_status_age_seconds "${1:-}")"; }
+
 # Union daemon/roster.json files into one registry. workers are merged by id
 # with the newer updatedAt winning per worker; proto and supervisorPid come
 # from the newest roster; top-level updatedAt is the max. Used by
@@ -3709,7 +3803,25 @@ cma_run_kimi_provider() {
   fi
   if [[ ! -f "$_ckconf" ]]; then
     printf 'claude-providers: kimi-%s has no config.toml at %s\n' "$_ckpid" "$_ckconf" >&2
-    printf '  Run: claude-providers sync   (renders the kimi config for verified providers)\n' >&2
+    # TWO repairs, because ONE of them provably cannot fix the export class.
+    # _cma_kimi_render_config is the ONLY writer of this file, and it is reached
+    # from exactly three paths: cmd_sync, the multi-sync leg, and
+    # `helixllm-export --apply`. Records written by the export path are BY
+    # DESIGN never in sync's resolved set (FR-018 keeps the per-model fan-out
+    # out of the default sync), so `sync` will never render THEIR config.toml.
+    # Naming only `sync` sent that operator to a command that could not work.
+    #
+    # HOW AN ALIAS OUTLIVES ITS CONFIG. The alias line and this file are two
+    # separate artifacts written together but removed independently: the config
+    # can be deleted, or a home restored without it, while the alias line the
+    # last render published is still in the alias file. `--refresh-aliases`
+    # cannot repair that — it restores a twin alias LINE only where this config
+    # ALREADY exists (a fail-closed `-f` gate, so the fast path can never
+    # manufacture a listable-but-unlaunchable twin, and never renders a
+    # secret-bearing file on a shell start). Re-rendering is the writer's job,
+    # which is why both writers are named below.
+    printf '  Run: claude-providers sync                  (providers that come from sync)\n' >&2
+    printf '  Or:  claude-providers helixllm-export --apply  (per-model records from the export path)\n' >&2
     return 1
   fi
   # Pick up per-id launch metadata from the provider env record (tls CA cert, …
