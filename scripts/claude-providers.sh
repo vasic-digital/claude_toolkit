@@ -2381,6 +2381,10 @@ cmd_sync() {
 
     # Verification (pluggable). verified|unverified -> activate; failed -> disable.
     local vstatus="unverified"
+    # Declared here, not in the branch below: the failure branch reads it even
+    # when --no-verify skipped the probe entirely, and under `set -u` an unset
+    # read is fatal. Empty is the honest value there — nothing was measured.
+    local _vreason="" _vreason_f=""
     if (( ! NO_VERIFY )); then
       local vargs=(--provider "$pid" --model "$model" --key-var "$keyvar")
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
@@ -2400,13 +2404,21 @@ cmd_sync() {
         local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/$pid.token"
         [[ -f "$_kimi_tokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_kimi_tokf" 2>/dev/null)"
       fi
-      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
+      # providers-verify.sh:59 emit(): VERDICT on stdout, REASON on stderr. The
+      # reason used to go to /dev/null and the failure branch below then wrote
+      # the literal `existence` for all eight of the verifier's distinct
+      # `failed` reasons — seven of which are not about the model existing. Keep
+      # the stderr: it is the only evidence of WHY, and it is free.
+      _vreason_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify.XXXXXX")"
+      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
+      [[ -s "$_vreason_f" ]] && _vreason="$(cat "$_vreason_f")"
+      rm -f "$_vreason_f"
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
 
     if [[ "$vstatus" == "failed" ]]; then
-      cma_warn "provider '$pid' FAILED verification — alias NOT activated"
-      cma_status_write "$pid" failed "$model" existence
+      cma_warn "provider '$pid' FAILED verification — alias NOT activated${_vreason:+: $_vreason}"
+      cma_status_write "$pid" failed "$model" "$(cma_verify_failing_layer "$_vreason")"
       n_disabled=$((n_disabled+1))
       continue
     fi
