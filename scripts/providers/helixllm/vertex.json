@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-vertex",
+  "base_url": "https://127.0.0.1:8443/v1",
+  "transport": "router",
+  "key_var": "GOOGLE_APPLICATION_CREDENTIALS",
+  "strong_model": "gemini-2.0-flash-exp",
+  "fast_model": "gemini-1.5-flash",
+  "context_limit": 1048576,
+  "max_output": 8192
+}

@@ -58,7 +58,40 @@ done
 # depending on whether this host happens to have built the submodule.
 VERIFIER_BIN="${CMA_VERIFIER_BIN:-$LIB_DIR/../submodules/LLMsVerifier/bin/model-verification}"
 
-emit() { echo "$1"; [[ -n "${2:-}" ]] && echo "providers-verify[$PROVIDER]: $2" >&2; }
+# emit VERDICT REASON [LAYER]
+#
+# THE LAYER IS A THIRD OUTPUT, and it needs its own channel. stdout carries the
+# single verdict word every caller compares with `==`, so nothing may be added
+# there. stderr carries the human REASON — prose, deliberately, because it is
+# written for an operator. A caller that wants to RECORD which layer failed
+# would have to pattern-match that prose, and a diagnostic derived by grepping
+# an error message is exactly as durable as the wording of the message.
+#
+# So the layer travels as a token in a file the CALLER names via
+# CMA_VERIFY_LAYER_FILE. Unset (every existing caller, every existing test) is
+# a silent no-op: this function's stdout and stderr are byte-identical to
+# before, so nothing that consumes them can notice.
+#
+# The token vocabulary is closed, and each value names the layer the evidence
+# ACTUALLY identified:
+#   existence     the model/endpoint did not answer the chat probe usably
+#   tool_call     it chatted fine, then failed the tool-calling probe
+#   context       its context window is smaller than the probe itself
+#   attribution   base_url is the ccr gateway: no verdict is attributable
+#   llmsverifier  the LLMsVerifier binary (layer 1) declined
+#   preconditions no probe was attempted at all (offline / no curl / no key)
+#   ""            nothing failed (a verified verdict)
+#
+# A caller that finds this file absent or empty has learned that NO layer was
+# determined, and must record that honestly rather than assume one.
+emit() {
+  echo "$1"
+  [[ -n "${2:-}" ]] && echo "providers-verify[$PROVIDER]: $2" >&2
+  if [[ -n "${CMA_VERIFY_LAYER_FILE:-}" ]]; then
+    printf '%s' "${3:-}" > "$CMA_VERIFY_LAYER_FILE" 2>/dev/null || true
+  fi
+  return 0
+}
 
 # --- CA trust for a private / self-signed endpoint --------------------------
 # A local backend commonly serves TLS with a self-signed certificate — HelixLLM
@@ -199,7 +232,7 @@ _cma_pv_curl_diag() {
 # or fully-expanded IPv6 loopbacks, `LOCALHOST`, or a `user@`/`?query`/`#frag`
 # spelling. One definition, three call sites, no drift.
 if _cma_is_ccr_gateway "$BASEURL"; then
-  emit failed "base_url ($BASEURL) is the ccr gateway itself — any probe is answered by whichever provider ccr routes to, so no verdict is attributable to this alias. Repoint it at its real backing endpoint."
+  emit failed "base_url ($BASEURL) is the ccr gateway itself — any probe is answered by whichever provider ccr routes to, so no verdict is attributable to this alias. Repoint it at its real backing endpoint." attribution
   exit 1
 fi
 
@@ -209,7 +242,7 @@ if [[ -x "$VERIFIER_BIN" ]]; then
   if grep -q 'Status: verified' <<<"$out" && grep -q 'Can See Code: true' <<<"$out"; then
     emit verified "LLMsVerifier confirmed model + code visibility"; exit 0
   fi
-  emit failed "LLMsVerifier did not confirm (see its output)"; exit 1
+  emit failed "LLMsVerifier did not confirm (see its output)" llmsverifier; exit 1
 fi
 
 # --- Strategy 2: live chat + tool-calling probes -----------------------------
@@ -384,7 +417,7 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
     case "$code" in
       200)
         if jq -e '.error' "$resp" >/dev/null 2>&1; then
-          emit failed "chat probe returned HTTP 200 with an error body at $url"; exit 1
+          emit failed "chat probe returned HTTP 200 with an error body at $url" existence; exit 1
         fi
         # MIS-SERVE DETECTION — a 200 from the WRONG SERVICE.
         #
@@ -420,7 +453,7 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
           *VERIFY_OK*) break ;;  # sentinel confirmed -> probe 2
           *)
             if (( attempt < 2 )); then sleep 3; continue; fi
-            emit failed "chat probe 200 but VERIFY_OK sentinel missing at $url on both attempts (bluff or non-functional model)"; exit 1 ;;
+            emit failed "chat probe 200 but VERIFY_OK sentinel missing at $url on both attempts (bluff or non-functional model)" existence; exit 1 ;;
         esac ;;
       400|401|402|403|404|412)
         # A 400 whose body says the request overflowed the model's OWN context
@@ -437,9 +470,9 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
         # verify_providers_live.sh.)
         if [[ "$code" == 400 ]] && grep -qiE 'exceeds the available context size|maximum context length|context (window|length) .*(exceed|too )' "$resp" 2>/dev/null; then
           ov="$(grep -oiE 'request \([0-9]+ tokens\) exceeds the available context size \([0-9]+ tokens\)' "$resp" | head -n1)"
-          emit failed "context-inadequate: the model's context window is smaller than even the verification probe at $url (backend 400: ${ov:-context overflow}) — relaunch the backing server with a larger context"; exit 1
+          emit failed "context-inadequate: the model's context window is smaller than even the verification probe at $url (backend 400: ${ov:-context overflow}) — relaunch the backing server with a larger context" context; exit 1
         fi
-        emit failed "chat probe HTTP $code at $url (auth/billing/model-missing/account-suspended is definitive)"; exit 1 ;;
+        emit failed "chat probe HTTP $code at $url (auth/billing/model-missing/account-suspended is definitive)" existence; exit 1 ;;
       5??)
         # REACHABLE BUT UNABLE — a distinct condition from an unreachable
         # endpoint, and previously reported with the same words. A 5xx means
@@ -449,11 +482,11 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
         # not proven — but the operator is now pointed at the backend instead
         # of at the endpoint configuration.
         _bs="$(backend_says)"
-        emit unverified "REACHABLE BUT UNABLE: $url answered HTTP $code, so the endpoint is correct and the service is up — it could not serve the request${_bs:+ (backend says: $_bs)}. Fix the backend (upstream/model availability), not the base_url."
+        emit unverified "REACHABLE BUT UNABLE: $url answered HTTP $code, so the endpoint is correct and the service is up — it could not serve the request${_bs:+ (backend says: $_bs)}. Fix the backend (upstream/model availability), not the base_url." existence
         exit 2 ;;
       *)
         _crc="$(cat "$rcf" 2>/dev/null || true)"
-        emit unverified "chat probe inconclusive (HTTP $code at $url) — $(_cma_pv_curl_diag "${_crc:-0}" "$url")"; exit 2 ;;
+        emit unverified "chat probe inconclusive (HTTP $code at $url) — $(_cma_pv_curl_diag "${_crc:-0}" "$url")" existence; exit 2 ;;
     esac
   done
 
@@ -473,17 +506,17 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
           emit verified "chat + tool-calling probes passed at $url"; exit 0
         fi
         if (( attempt < 2 )); then sleep 3; continue; fi
-        emit failed "chat probe passed but the model made no tool call at $url on both attempts (tool calling is required by Claude Code)"; exit 1 ;;
+        emit failed "chat probe passed but the model made no tool call at $url on both attempts (tool calling is required by Claude Code)" tool_call; exit 1 ;;
       429)
-        emit unverified "chat probe passed but tool probe rate-limited (HTTP 429 at $url)"; exit 2 ;;
+        emit unverified "chat probe passed but tool probe rate-limited (HTTP 429 at $url)" tool_call; exit 2 ;;
       4??)
-        emit failed "tool-calling probe rejected (HTTP $code at $url)"; exit 1 ;;
+        emit failed "tool-calling probe rejected (HTTP $code at $url)" tool_call; exit 1 ;;
       5??)
         _bs="$(backend_says)"
-        emit unverified "chat probe passed, then $url answered HTTP $code to the tool-calling probe — reachable and up, but unable to serve it${_bs:+ (backend says: $_bs)}"; exit 2 ;;
+        emit unverified "chat probe passed, then $url answered HTTP $code to the tool-calling probe — reachable and up, but unable to serve it${_bs:+ (backend says: $_bs)}" tool_call; exit 2 ;;
       *)
         _crc="$(cat "$rcf" 2>/dev/null || true)"
-        emit unverified "chat probe passed but tool probe inconclusive (HTTP $code at $url) — $(_cma_pv_curl_diag "${_crc:-0}" "$url")"; exit 2 ;;
+        emit unverified "chat probe passed but tool probe inconclusive (HTTP $code at $url) — $(_cma_pv_curl_diag "${_crc:-0}" "$url")" tool_call; exit 2 ;;
     esac
   done
 fi
@@ -509,5 +542,5 @@ elif [[ -z "$key" ]]; then
 else
   _why="no probe strategy applied"
 fi
-emit unverified "not verified — $_why. Layer 1 is unavailable too: no LLMsVerifier binary at $VERIFIER_BIN (build submodules/LLMsVerifier for full verification)."
+emit unverified "not verified — $_why. Layer 1 is unavailable too: no LLMsVerifier binary at $VERIFIER_BIN (build submodules/LLMsVerifier for full verification)." preconditions
 exit 2

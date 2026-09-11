@@ -1744,9 +1744,18 @@ it "cmd_sync: existence=unverified (inconclusive) -> failing_layer=existence (NO
 # ever invoked, so an accidental future call into layer-3 from the
 # existence-inconclusive path is caught even if the failing_layer text happens
 # to still read correctly.
+# Honours the verifier's layer contract (providers-verify.sh's `emit`): verdict
+# on stdout, machine-readable layer into $CMA_VERIFY_LAYER_FILE. Before that
+# contract existed the CALLER hardcoded `existence` on every non-verified
+# verdict, so this assertion passed no matter which layer had really failed.
+# The stub now states the layer it is standing in for, which is what makes the
+# assertion below mean "existence was REPORTED" rather than "existence is what
+# the caller always writes".
 cat > "$HOME/fakebin/verify-unverified" <<'EOF'
 #!/usr/bin/env bash
 echo unverified
+[[ -n "${CMA_VERIFY_LAYER_FILE:-}" ]] && printf existence > "$CMA_VERIFY_LAYER_FILE"
+exit 0
 EOF
 chmod +x "$HOME/fakebin/verify-unverified"
 rm -f "$HOME/sem-marker-fired"
@@ -1779,9 +1788,12 @@ assert_eq 0 "$cond" "semantic layer not invoked when existence is inconclusive"
 cma_provider_write_env "gamma" "GAMMA_API_KEY" "router" "https://api.gamma.ai/v1" \
   "gamma-x" "" "$HOME/.claude-prov-gamma" "" "" "gamma"
 
+# Same layer contract as verify-unverified above (see its comment).
 cat > "$HOME/fakebin/verify-fail" <<'EOF'
 #!/usr/bin/env bash
 echo failed
+[[ -n "${CMA_VERIFY_LAYER_FILE:-}" ]] && printf existence > "$CMA_VERIFY_LAYER_FILE"
+exit 0
 EOF
 cat > "$HOME/fakebin/semantic-ok" <<'EOF'
 #!/usr/bin/env bash

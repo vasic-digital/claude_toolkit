@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-copilot",
+  "base_url": "https://127.0.0.1:8443/v1",
+  "transport": "router",
+  "key_var": "GITHUB_MODELS_API_KEY",
+  "strong_model": "gpt-4o",
+  "fast_model": "gpt-4o-mini",
+  "context_limit": 128000,
+  "max_output": 8192
+}

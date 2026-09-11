@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-ollama",
+  "base_url": "http://127.0.0.1:11434/v1",
+  "transport": "router",
+  "key_var": "OLLAMA_API_KEY",
+  "strong_model": "llama3.1:70b",
+  "fast_model": "llama3.1:8b",
+  "context_limit": 128000,
+  "max_output": 8192
+}

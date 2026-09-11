@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-deepseek",
+  "base_url": "https://127.0.0.1:8443/v1",
+  "transport": "router",
+  "key_var": "DEEPSEEK_API_KEY",
+  "strong_model": "deepseek-v3.2",
+  "fast_model": "deepseek-v3-flash",
+  "context_limit": 131072,
+  "max_output": 8192
+}

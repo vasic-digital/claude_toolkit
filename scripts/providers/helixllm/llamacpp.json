@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-llamacpp",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "transport": "router",
+  "key_var": "LLAMACPP_API_KEY",
+  "strong_model": "llama-3.1-70b-instruct",
+  "fast_model": "llama-3.1-8b-instruct",
+  "context_limit": 131072,
+  "max_output": 8192
+}

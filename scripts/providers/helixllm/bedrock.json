@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-bedrock",
+  "base_url": "https://127.0.0.1:8443/v1",
+  "transport": "router",
+  "key_var": "AWS_ACCESS_KEY_ID",
+  "strong_model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  "fast_model": "anthropic.claude-3-haiku-20240307-v1:0",
+  "context_limit": 200000,
+  "max_output": 8192
+}

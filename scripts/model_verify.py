@@ -29,7 +29,9 @@ import argparse
 import json
 import os
 import re
+import ssl
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -78,6 +80,94 @@ WEIGHT_LATENCY = 10        # Response speed (inverse)
 WEIGHT_FREE = 5            # Free tier bonus
 
 
+# --- CA trust for a private / self-signed endpoint ---------------------------
+# THE SAME KNOB THE SHELL PROBE ALREADY READS. providers-verify.sh:62-75 reads
+# CMA_PROVIDER_CA_CERT and hands it to curl, because a local backend commonly
+# serves TLS with a self-signed certificate and curl then refuses at exit 60
+# while `%{http_code}` still prints 000 — so a LIVE endpoint is
+# indistinguishable from a dead one. This file had no TLS handling at all, so
+# the identical endpoint came back here as
+# "Connection failed: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] …>":
+# every model behind it scored 0 and was recorded as failed while the backend
+# was serving. Same conflation, other half of the verification pair.
+#
+# Read from the ENVIRONMENT, never from argv — argv is world-readable through
+# /proc/<pid>/cmdline, which is why CMA_PROBE_KEY is an env var too (module
+# docstring, above). There is deliberately NO default (CONST-045): a
+# certificate path is a property of the host, not of the toolkit.
+#
+# THERE IS NO INSECURE MODE. Unset, unreadable or malformed all degrade to
+# NORMAL system verification — never to verification-disabled. A --insecure /
+# CERT_NONE / check_hostname=False escape would let a real MITM collect a
+# `verified` badge, which is the opposite of what this verifier is for.
+_CA_LOCK = threading.Lock()
+_CA_CACHE = {}          # path-as-read -> SSLContext | None
+_CA_WARNED = set()      # message dedupe: N threads must not print N copies
+
+
+def _ca_warn(msg):
+    """Emit one CA diagnostic to stderr, at most once per distinct message."""
+    if msg in _CA_WARNED:
+        return
+    _CA_WARNED.add(msg)
+    print("model_verify: %s" % msg, file=sys.stderr)
+
+
+def ca_ssl_context():
+    """SSLContext trusting CMA_PROVIDER_CA_CERT, or None for system defaults.
+
+    Returning None is meaningful and safe: urlopen(context=None) performs its
+    normal, fully-verifying handshake. Every rejection path below returns None,
+    so a bad value can only ever cost the caller the EXTRA trust anchor — it can
+    never cost it verification.
+
+    SCOPE NOTE, deliberate: create_default_context(cafile=…) trusts THAT anchor
+    INSTEAD OF the system store, which is exactly what `curl --cacert` does on
+    the shell side. Setting this variable therefore scopes a run to endpoints
+    the named CA covers, in both verifiers identically. Widening it here (system
+    CAs *plus* the named one) would break that parity in the other direction —
+    a path accepted here and rejected by the shell probe — so it is not done.
+    """
+    path = os.environ.get("CMA_PROVIDER_CA_CERT", "")
+    if not path:
+        return None
+    with _CA_LOCK:
+        if path in _CA_CACHE:
+            return _CA_CACHE[path]
+        ctx = None
+        # Character check, mirroring claude-providers.sh:1006-1011 and
+        # providers-verify.sh:293. Python has no config parser to break out of,
+        # so this is not an injection guard HERE — it is a PARITY guard: the
+        # two verifiers must accept exactly the same set of paths, or an
+        # operator fixes the shell probe and the Python one still reports the
+        # endpoint dead (or the reverse). Refusing loudly beats diverging
+        # silently.
+        if '"' in path or "\\" in path or "\n" in path:
+            _ca_warn(
+                "CMA_PROVIDER_CA_CERT contains a quote, backslash or newline — "
+                "the shell probe refuses such a path (curl's config parser reads "
+                "backslash escapes inside a quoted value), so this one refuses it "
+                "too rather than accepting a path its sibling rejects; probing "
+                "with system CA verification only (a self-signed endpoint will "
+                "fail at TLS)")
+        elif not os.path.isfile(path) or not os.access(path, os.R_OK):
+            _ca_warn(
+                "CMA_PROVIDER_CA_CERT=%s is not a readable file — probing with "
+                "system CA verification only (a self-signed endpoint will fail "
+                "at TLS)" % path)
+        else:
+            try:
+                ctx = ssl.create_default_context(cafile=path)
+            except (ssl.SSLError, OSError, ValueError) as e:
+                ctx = None
+                _ca_warn(
+                    "CMA_PROVIDER_CA_CERT=%s could not be loaded as a CA/cert "
+                    "PEM (%s) — probing with system CA verification only"
+                    % (path, e))
+        _CA_CACHE[path] = ctx
+        return ctx
+
+
 # --- HTTP helpers ------------------------------------------------------------
 
 def http_post_json(url, body, headers=None, timeout=TIMEOUT_DEFAULT):
@@ -92,7 +182,7 @@ def http_post_json(url, body, headers=None, timeout=TIMEOUT_DEFAULT):
     req = Request(url, data=data, headers=hdrs, method="POST")
     start = time.monotonic()
     try:
-        with urlopen(req, timeout=timeout) as resp:
+        with urlopen(req, timeout=timeout, context=ca_ssl_context()) as resp:
             elapsed = int((time.monotonic() - start) * 1000)
             raw = resp.read().decode("utf-8", errors="replace")
             try:
@@ -117,7 +207,7 @@ def http_get_json(url, headers=None, timeout=TIMEOUT_DEFAULT):
     hdrs = headers or {}
     req = Request(url, headers=hdrs, method="GET")
     try:
-        with urlopen(req, timeout=timeout) as resp:
+        with urlopen(req, timeout=timeout, context=ca_ssl_context()) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             return resp.status, json.loads(raw)
     except HTTPError as e:

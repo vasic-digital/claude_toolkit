@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-anthropic",
+  "base_url": "https://127.0.0.1:8443/v1",
+  "transport": "router",
+  "key_var": "ANTHROPIC_API_KEY",
+  "strong_model": "claude-3.5-sonnet",
+  "fast_model": "claude-3.5-haiku",
+  "context_limit": 200000,
+  "max_output": 8192
+}
