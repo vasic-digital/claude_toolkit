@@ -3160,6 +3160,45 @@ cma_status_write() {
   fi
 }
 
+# cma_verify_failing_layer <verifier-stderr-reason>
+# Maps providers-verify.sh's emitted REASON to the layer that actually failed.
+#
+# WHY THIS EXISTS. providers-verify.sh:59 puts the verdict on stdout and the
+# reason on STDERR. Every caller that captures only stdout has the verdict and
+# has thrown the reason away — and the two sites that then wrote a layer wrote
+# the LITERAL `existence`, for all eight of the verifier's distinct `failed`
+# reasons. Seven of those eight are not about the model existing. The damage is
+# not cosmetic: a live provider here answers a nonce prompt correctly and fails
+# only for lacking tool calling, yet its row said the model was missing, which
+# is an investigation pointed at a model that is not missing.
+#
+# The mapping is deliberately keyed on the verifier's own phrases, so if a
+# reason is reworded this returns `unknown` rather than silently mis-filing it
+# under a neighbouring layer. Order is load-bearing: several reasons begin
+# "chat probe ..." and the more specific class must win.
+#
+# `unknown` is a real answer, not a fallback to be tidied away (§11.4.6,
+# §11.4.201). An unrecognised or absent reason means the cause was not
+# measured; saying so is correct, and naming a specific cause instead is the
+# exact defect this function was added to remove.
+cma_verify_failing_layer() {
+  local reason="${1:-}"
+  case "$reason" in
+    '')                                     printf 'unknown\n' ;;
+    *'is the ccr gateway itself'*)          printf 'route\n' ;;
+    *'tool call'*|*'tool-calling probe'*)   printf 'tool_calling\n' ;;
+    *'VERIFY_OK sentinel missing'*)         printf 'sentinel\n' ;;
+    *'context-inadequate'*)                 printf 'context\n' ;;
+    *'error body'*)                         printf 'chat\n' ;;
+    *'LLMsVerifier did not confirm'*)       printf 'existence\n' ;;
+    # A definitive non-200 on the chat probe. The verifier itself says this is
+    # "auth/billing/model-missing/account-suspended" — it does NOT single out
+    # any one of them, so neither may we.
+    *'chat probe HTTP'*)                    printf 'chat_http\n' ;;
+    *)                                      printf 'unknown\n' ;;
+  esac
+}
+
 # cma_status_read <id> -> status word (pending if absent/unreadable).
 cma_status_read() {
   local id="$1" f; f="$(cma_status_cache)"

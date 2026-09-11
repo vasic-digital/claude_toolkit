@@ -2380,7 +2380,11 @@ cmd_sync() {
     fi
 
     # Verification (pluggable). verified|unverified -> activate; failed -> disable.
-    local vstatus="unverified" _vlayer=""
+    local vstatus="unverified"
+    # Declared here, not in the branch below: the failure branch reads it even
+    # when --no-verify skipped the probe entirely, and under `set -u` an unset
+    # read is fatal. Empty is the honest value there — nothing was measured.
+    local _vreason="" _vreason_f=""
     if (( ! NO_VERIFY )); then
       local vargs=(--provider "$pid" --model "$model" --key-var "$keyvar")
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
@@ -2400,44 +2404,21 @@ cmd_sync() {
         local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/$pid.token"
         [[ -f "$_kimi_tokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_kimi_tokf" 2>/dev/null)"
       fi
-      # KEEP THE REASON — the same fix cmd_verify already carries (see its
-      # "KEEP THE REASON" block below), which was never applied here. The
-      # verifier writes one word to stdout and its EXPLANATION to stderr, and
-      # this call site sent that stderr to /dev/null. The consequences
-      # compounded: a provider that fails DURING SYNC also `continue`s past
-      # cma_provider_write_env below, so no .env is written — and cmd_verify,
-      # the one command that keeps and prints the reason, refuses to run
-      # without an .env ("unknown provider: <id>"). So the only account of WHY
-      # a provider failed was destroyed at the only moment it existed, and the
-      # only way to ask again was another whole-fleet sync, whose stderr went
-      # to /dev/null too. That is why a failed alias had no recoverable reason
-      # anywhere on disk.
-      #
-      # The layer file is the machine-readable half of the same evidence: the
-      # verifier names the layer it actually identified (providers-verify.sh's
-      # emit), and an EMPTY/absent file means it identified none — which is
-      # recorded as such below, never as a guess.
-      local _verr _vlayerf
-      _verr="$(mktemp "${TMPDIR:-/tmp}/cma-sync-reason.XXXXXX")"
-      _vlayerf="$(mktemp "${TMPDIR:-/tmp}/cma-sync-layer.XXXXXX")"; : > "$_vlayerf"
-      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; CMA_VERIFY_LAYER_FILE="$_vlayerf" bash "$VERIFY" "${vargs[@]}" 2>"$_verr" ) )" || true
+      # providers-verify.sh:59 emit(): VERDICT on stdout, REASON on stderr. The
+      # reason used to go to /dev/null and the failure branch below then wrote
+      # the literal `existence` for all eight of the verifier's distinct
+      # `failed` reasons — seven of which are not about the model existing. Keep
+      # the stderr: it is the only evidence of WHY, and it is free.
+      _vreason_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify.XXXXXX")"
+      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
+      [[ -s "$_vreason_f" ]] && _vreason="$(cat "$_vreason_f")"
+      rm -f "$_vreason_f"
       [[ -z "$vstatus" ]] && vstatus="unverified"
-      _vlayer="$(cat "$_vlayerf" 2>/dev/null)"
-      if [[ "$vstatus" != "verified" ]] && [[ -s "$_verr" ]]; then
-        while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
-      fi
-      rm -f "$_verr" "$_vlayerf"
     fi
 
     if [[ "$vstatus" == "failed" ]]; then
-      cma_warn "provider '$pid' FAILED verification — alias NOT activated"
-      # The layer the verifier IDENTIFIED, or an honest 'unknown'. It used to
-      # be the literal `existence` on every failure, which was wrong for every
-      # tool-calling, context, attribution, llmsverifier and preconditions
-      # failure the verifier distinguishes — and this field is published as
-      # evidence outside the toolkit, so a never-determined value became a
-      # false diagnostic in a QA artefact (§11.4.6).
-      cma_status_write "$pid" failed "$model" "${_vlayer:-unknown}"
+      cma_warn "provider '$pid' FAILED verification — alias NOT activated${_vreason:+: $_vreason}"
+      cma_status_write "$pid" failed "$model" "$(cma_verify_failing_layer "$_vreason")"
       n_disabled=$((n_disabled+1))
       continue
     fi
@@ -2475,12 +2456,8 @@ cmd_sync() {
         # 'verified' | 'skip' | '' -> keep the existence verdict (verified).
       fi
     else
-      # The verdict was not 'verified', so SOME layer did not pass — but which
-      # one is the verifier's finding, not ours to assume. It reports it in the
-      # layer file; an empty one means it determined none (a stub, an older
-      # verifier, or --no-verify, under which nothing was probed at all), and
-      # that is recorded as 'unknown' rather than as a confident 'existence'.
-      flayer="${_vlayer:-unknown}"
+      # existence probe was inconclusive -> the layer that did not pass is existence.
+      flayer="existence"
     fi
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
@@ -2755,7 +2732,7 @@ cmd_verify() {
         [[ -f "$_ktokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_ktokf" 2>/dev/null)"
       fi
     fi
-    local vst sst flayer="" _verr _vlayerf _vlayer=""
+    local vst sst flayer="" _verr
     # KEEP THE REASON. The verifier writes one word to stdout and its
     # EXPLANATION to stderr, and this call site used to send that stderr to
     # /dev/null — so `claude-providers verify <id>` answered "unverified" and
@@ -2765,24 +2742,15 @@ cmd_verify() {
     # request vs no credential configured) died right here. Capture it and
     # print it on stderr for any non-verified verdict; stdout stays the single
     # verdict word, so callers that capture it are unaffected.
-    #
-    # The layer file is the machine-readable half of that same evidence. The
-    # reason above is prose for a human; deriving a RECORDED field by grepping
-    # prose would make the diagnostic only as stable as the wording. The
-    # verifier states the layer it identified directly, and states nothing when
-    # it identified none — which is recorded as 'unknown', not as a guess.
     _verr="$(mktemp "${TMPDIR:-/tmp}/cma-verify-reason.XXXXXX")"
-    _vlayerf="$(mktemp "${TMPDIR:-/tmp}/cma-verify-layer.XXXXXX")"; : > "$_vlayerf"
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
-              CMA_VERIFY_LAYER_FILE="$_vlayerf" \
               bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     [[ -z "$vst" ]] && vst=unverified
-    _vlayer="$(cat "$_vlayerf" 2>/dev/null)"; rm -f "$_vlayerf"
     if [[ "$vst" != "verified" ]] && [[ -s "$_verr" ]]; then
       while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
     fi
-    if [[ "$vst" == "failed" ]]; then rm -f "$_verr"; cma_status_write "$id" failed "$model" "${_vlayer:-unknown}"; echo "failed"; return; fi
-    if [[ "$vst" != "verified" ]]; then rm -f "$_verr"; cma_status_write "$id" unverified "$model" "${_vlayer:-unknown}"; echo "unverified"; return; fi
+    if [[ "$vst" == "failed" ]]; then rm -f "$_verr"; cma_status_write "$id" failed "$model" existence; echo "failed"; return; fi
+    if [[ "$vst" != "verified" ]]; then rm -f "$_verr"; cma_status_write "$id" unverified "$model" existence; echo "unverified"; return; fi
     sst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
               bash "$SEMANTIC" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     if [[ "$sst" == "unverified" ]]; then
@@ -3194,19 +3162,15 @@ cmd_sync_multi() {
 
       # Persist verification status to the status cache so the activation
       # gate (cma_run_provider) can determine if this alias is usable.
-      # Use the strong-model's verification score from the manifest. What this
-      # branch MEASURED is the aggregate score, so that is what it records:
-      # `score`. It used to record `existence`, which the score does not
-      # establish — model_verify.py's total blends existence, tool calling,
-      # reasoning, context, streaming and latency (its WEIGHT_* constants), so
-      # a model that exists and answers perfectly but cannot tool-call scores
-      # below the bar and was being reported as failing to EXIST (§11.4.6).
+      # Use the strong-model's verification score from the manifest; aliases
+      # with score below MIN_SCORE are marked unverified with failing_layer
+      # "existence" (mirrors the cmd_sync pattern).
       local ascore
       ascore="$(jq -r ".aliases[$i].strong_score // 0 | floor" "$manifest_out" 2>/dev/null || echo 0)"
       if (( ascore >= MIN_SCORE )); then
         cma_status_write "$aname" verified "$strong" ""
       else
-        cma_status_write "$aname" unverified "$strong" score
+        cma_status_write "$aname" unverified "$strong" existence
       fi
 
       cma_log "  alias '$aname': strong=$strong fast=$ffast [$alias_transport]"
