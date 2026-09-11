@@ -14,5 +14,6 @@
   "DEEPINFRA_API_KEY": "deepinfra",
   "MOONSHOT_API_KEY": "moonshotai",
   "ApiKey_Kimi": "kc-for-coding",
-  "ApiKey_SecondKimi": "kc-for-coding2"
+  "ApiKey_SecondKimi": "kc-for-coding2",
+  "TOKENROUTER_API_KEY": "tokenrouter"
 }

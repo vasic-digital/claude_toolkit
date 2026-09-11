@@ -2657,6 +2657,10 @@ _cma_emit_managed() {
   printf '\n'
   _cma_emit_cma_run_kimi_provider
   printf '\n'
+  _cma_emit_cma_run_pi
+  printf '\n'
+  _cma_emit_cma_run_pi_provider
+  printf '\n'
   _cma_emit_account_dispatch
   printf '%s\n' "$CMA_ALIAS_MANAGED_END"
 }
@@ -3902,6 +3906,273 @@ cma_run_kimi_provider() {
 CMA_KIMI_PROV_EOF
 }
 eval "$(_cma_emit_cma_run_kimi_provider)"
+
+# ===========================================================================
+# Pi family layer. The Pi CLI agent is a first-class sibling of Claude Code
+# and Kimi Code. The family model is an orthogonal axis to the provider backend:
+# the provider engine stays shared, and each family supplies its agent binary,
+# home env var, account prefix, user-scope root, and launcher functions.
+#
+#   |                | Claude family       | Kimi family       | Pi family
+#   | agent binary   | claude              | kimi              | pi
+#   | home env var   | CLAUDE_CONFIG_DIR   | KIMI_CODE_HOME    | PI_HOME
+#   | account prefix | .claude-            | .kimi-code-       | .pi-
+#   | user-scope root| ~/.claude (excluded)| ~/.kimi-code (excluded)| ~/.pi (excluded)
+#   | account aliases| claude1…N           | kimi1…N           | pi1…N
+#   | account launcher| cma_run            | cma_run_kimi      | cma_run_pi
+#   | provider launcher| cma_run_provider  | cma_run_kimi_provider| cma_run_pi_provider
+#   | shared store   | $SHARED_DIR/**      | $SHARED_DIR/kimi/ | $SHARED_DIR/pi/
+#
+# Namespace contract (the invariant): claudeN/kimiN/piN are native accounts; <id>
+# (no prefix) is ALWAYS Claude Code over that backend; kimi-<id> is ALWAYS Kimi
+# Code over the SAME backend; pi-<id> is ALWAYS Pi CLI over the SAME backend.
+# piN account aliases must never be named pi-*/kimi-*/kc-* (those are reserved
+# provider namespaces).
+# ===========================================================================
+PI_ACCOUNT_PREFIX=".pi-"
+PI_PROVIDER_PREFIX=".pi-prov-"
+PI_SHARED_SUBDIR="pi"
+
+cma_pi_home()          { printf '%s\n' "$HOME/.pi"; }
+cma_pi_account_home()  { printf '%s\n' "$HOME/$PI_ACCOUNT_PREFIX$1"; }
+cma_pi_provider_home() { printf '%s\n' "$HOME/$PI_PROVIDER_PREFIX$1"; }
+
+CMA_PI_SHARED_ITEMS=(AGENTS.md plugins skills sessions session_index.jsonl)
+
+# Resolve the Pi CLI binary for the pi wrappers. Prefer an explicit
+# PI_BIN, then the per-home bundled bin, then ~/.local/bin, then PATH.
+cma_resolve_pi_bin() {
+  if [ -n "${PI_BIN:-}" ]; then printf '%s\n' "$PI_BIN"; return 0; fi
+  if [ -x "$HOME/.pi/bin/pi" ]; then printf '%s\n' "$HOME/.pi/bin/pi"; return 0; fi
+  if [ -x "$HOME/.local/bin/pi" ]; then printf '%s\n' "$HOME/.local/bin/pi"; return 0; fi
+  local c; if c="$(command -v pi 2>/dev/null)"; then printf '%s\n' "$c"; return 0; fi
+  printf '%s\n' "$HOME/.local/bin/pi"   # fallback (created by install/symlink)
+}
+
+# Marker-based detection mirror of cma_detect_accounts for the Pi family.
+# Matches ${PI_ACCOUNT_PREFIX}* (~/.pi-*). The user-scope root
+# ~/.pi (no trailing hyphen) and the provider homes ~/.pi-prov-*
+# never match the glob structurally. Skips *-shared, *.lock, *.removed.*,
+# *.preunify.*, and non-empty dirs lacking any pi marker.
+cma_detect_pi_accounts() {
+  local d prefix="${PI_ACCOUNT_PREFIX:-.pi-}"
+  while IFS= read -r d; do
+    [[ "$d" == *"-shared" ]] && continue
+    [[ "$(basename "$d")" == *.lock ]] && continue
+    [[ "$(basename "$d")" == *.removed.* ]] && continue
+    [[ "$(basename "$d")" == *.preunify.* ]] && continue
+    # Empty dirs always count (a brand-new account before any pi run).
+    if [[ -z "$(ls -A "$d" 2>/dev/null)" ]]; then echo "$d"; continue; fi
+    # Non-empty: must look like a Pi account (at least one tell-tale
+    # file/dir). Filters out dirs that merely match the `.pi-*` prefix
+    # but belong to other tools.
+    if [[ -f "$d/config.toml" || -d "$d/credentials" || -d "$d/sessions" \
+       || -f "$d/session_index.jsonl" ]]; then
+      echo "$d"
+    fi
+  done < <(find "$HOME" -maxdepth 1 -type d -name "${prefix}*" 2>/dev/null | sort)
+}
+
+# Read all aliases of the form `alias name="PI_HOME=... cma_run_pi"`
+# from $ALIAS_FILE and print their names (one per line).
+cma_existing_pi_aliases() {
+  [[ -f "$ALIAS_FILE" ]] || return 0
+  grep '^alias[[:space:]][^=]*="PI_HOME=' "$ALIAS_FILE" 2>/dev/null \
+    | awk -F'[ =]+' '{print $2}' 2>/dev/null || true
+}
+
+# Suggest the next free `pi<N>` alias by scanning current pi aliases.
+cma_suggest_pi_alias() {
+  local highest=0 n a
+  for a in $(cma_existing_pi_aliases); do
+    if [[ "$a" =~ ^pi([0-9]+)$ ]]; then
+      n="${BASH_REMATCH[1]}"
+      (( n > highest )) && highest="$n"
+    fi
+  done
+  printf 'pi%s\n' "$((highest + 1))"
+}
+
+# Validate a pi ACCOUNT alias name: same charset as cma_validate_alias, and
+# additionally the provider namespaces `pi-*`, `kimi-*`, and `kc-*` are reserved for
+# provider aliases — a piN account must never be named into any of them.
+cma_validate_pi_alias() {
+  cma_validate_alias "$1"
+  case "$1" in
+    pi-*|kimi-*|kc-*)
+      cma_die "invalid alias name: $1 (reserved provider namespace pi-*/kimi-*/kc-*)" ;;
+  esac
+}
+
+# Symlink every pi shared item into a pi account dir, creating empty
+# placeholders under $SHARED_DIR/pi for items that don't exist yet.
+# Idempotent: skips items already present in the target.
+cma_link_pi_shared_items() {
+  local pdir="$1" item src tgt
+  mkdir -p "$SHARED_DIR/$PI_SHARED_SUBDIR" "$pdir"
+  for item in "${CMA_PI_SHARED_ITEMS[@]}"; do
+    src="$SHARED_DIR/$PI_SHARED_SUBDIR/$item"; tgt="$pdir/$item"
+    if [[ ! -e "$src" ]]; then
+      case "$item" in
+        *.json|*.jsonl|*.md) : > "$src" ;;
+        *) mkdir -p "$src" ;;
+      esac
+    fi
+    [[ -e "$tgt" || -L "$tgt" ]] || ln -s "$src" "$tgt"
+  done
+}
+
+# Add (or refresh) a single pi ACCOUNT alias in $ALIAS_FILE. Idempotent.
+# The alias wraps `cma_run_pi` with a PI_HOME= prefix so the account
+# resolves its own home, exactly as claudeN aliases carry CLAUDE_CONFIG_DIR=.
+cma_write_pi_alias() {
+  local alias_name="$1" pdir="$2" _cma_c
+  cma_validate_pi_alias "$alias_name"
+  # pdir is interpolated into the alias body and re-parsed by the shell when the
+  # alias is invoked. Reject shell metacharacters and whitespace.
+  for _cma_c in '"' '$' '`' \\ ';' '&' '|' '<' '>' '(' ')'; do
+    case "$pdir" in *"$_cma_c"*)
+      cma_warn "refusing to write alias '$alias_name': unsafe config dir"
+      return 1 ;;
+    esac
+  done
+  case "$pdir" in *[[:space:]]*)
+    cma_warn "refusing to write alias '$alias_name': config dir must not contain whitespace"
+    return 1 ;;
+  esac
+  cma_ensure_alias_file
+  cma_alias_commit "$alias_name" \
+    "$(printf 'alias %s="PI_HOME=%s cma_run_pi"' "$alias_name" "$pdir")" keep
+}
+
+# Remove a pi account alias line. Idempotent.
+cma_remove_pi_alias() {
+  local alias_name="$1"
+  [[ -f "$ALIAS_FILE" ]] || return 0
+  cma_alias_commit "$alias_name" "" keep
+}
+
+# ---- Emitted pi wrappers --------------------------------------------------
+# These are emitted into the managed block and eval'd into THIS shell from the
+# exact bytes the alias file receives.
+_cma_emit_cma_run_pi() {
+  cat <<'CMA_PI_RUN_EOF'
+# Pi CLI account wrapper (piN). Resolves the pi binary, scrubs the
+# Claude/Anthropic/Kimi env the Pi CLI must never inherit, then runs pi.
+cma_run_pi() {
+  local _cp_bin _cp_phome
+  _cp_bin="${PI_BIN:-}"
+  if ! command -v "$_cp_bin" >/dev/null 2>&1; then
+    if [ -x "$HOME/.pi/bin/pi" ]; then _cp_bin="$HOME/.pi/bin/pi"
+    elif [ -x "$HOME/.local/bin/pi" ]; then _cp_bin="$HOME/.local/bin/pi"
+    elif command -v pi >/dev/null 2>&1; then _cp_bin="$(command -v pi)"
+    fi
+  fi
+  if ! command -v "$_cp_bin" >/dev/null 2>&1; then
+    printf '%s\n' "cma_run_pi: pi binary not found (checked \$PI_BIN, ~/.pi/bin, ~/.local/bin, PATH)" >&2
+    return 127
+  fi
+  # Family isolation: never let a Claude/Anthropic/Kimi env left over from a previous
+  # alias leak into the Pi CLI — base URL, auth token, model pins, and the
+  # token-limit guards are all family-specific.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
+  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
+  unset KIMI_CODE_HOME
+  "$_cp_bin" "$@"
+}
+CMA_PI_RUN_EOF
+}
+eval "$(_cma_emit_cma_run_pi)"
+
+_cma_emit_cma_run_pi_provider() {
+  cat <<'CMA_PI_PROV_EOF'
+# Pi CLI over a verified provider backend (pi-<id>). Shares the SAME
+# status.json activation gate as the Claude twin (single shared record per id),
+# reads default_model/base_url from the rendered config.toml, and refuses to
+# launch on a missing or stale config. Self-contained: no lib.sh helpers.
+cma_run_pi_provider() {
+  local _cpf=0 _cppid _cphome _cpconf _cpbin _cpdm _cpbase
+  if [[ "${1:-}" == "--force" ]]; then _cpf=1; shift; fi
+  _cppid="${1:-}"
+  shift 2>/dev/null || true
+  if [[ "${1:-}" == "--force" ]]; then _cpf=1; shift; fi
+  if [[ -z "$_cppid" ]]; then
+    printf '%s\n' "usage: cma_run_pi_provider <id> [--force] [pi args...]" >&2
+    return 2
+  fi
+  # Per-id home is FORCED, never ambient-PI_HOME-honored: an exported
+  # PI_HOME would point this wrapper at the WRONG config.toml/default_model while it
+  # launches against ~/.pi-prov-<id> — a silently wrong-backend launch. Same
+  # isolation contract as cma_run_provider, which unconditionally exports
+  # CLAUDE_CONFIG_DIR. Self-contained body: never sources lib.sh.
+  _cphome="$HOME/.pi-prov-$_cppid"
+  _cpconf="$_cphome/config.toml"
+  _cpbin="${PI_BIN:-}"
+  if ! command -v "$_cpbin" >/dev/null 2>&1; then
+    if [ -x "$HOME/.pi/bin/pi" ]; then _cpbin="$HOME/.pi/bin/pi"
+    elif [ -x "$HOME/.local/bin/pi" ]; then _cpbin="$HOME/.local/bin/pi"
+    elif command -v pi >/dev/null 2>&1; then _cpbin="$(command -v pi)"
+    fi
+  fi
+  if ! command -v "$_cpbin" >/dev/null 2>&1; then
+    printf '%s\n' "cma_run_pi_provider: pi binary not found" >&2
+    return 127
+  fi
+  # Shared activation gate (same record as the claude twin) — only a 'verified'
+  # id launches, unless the operator passes --force.
+  if (( ! _cpf )); then
+    local _cp_sf="$HOME/.local/share/claude-multi-account/providers/status.json" _cp_st="pending"
+    if command -v jq >/dev/null 2>&1 && [[ -s "$_cp_sf" ]]; then
+      _cp_st="$(jq -r --arg i "$_cppid" '.[$i].status // "pending"' "$_cp_sf" 2>/dev/null)"
+      [[ -n "$_cp_st" && "$_cp_st" != "null" ]] || _cp_st="pending"
+    fi
+    if [[ "$_cp_st" != "verified" ]]; then
+      printf 'claude-providers: alias pi-%s is %s — not launching.\n' "$_cppid" "$_cp_st" >&2
+      printf '  Re-verify: claude-providers verify %s   (and claude-providers sync)\n' "$_cppid" >&2
+      printf '  Override (operator): run the alias with --force\n' >&2
+      return 3
+    fi
+  fi
+  if [[ ! -f "$_cpconf" ]]; then
+    printf 'claude-providers: pi-%s has no config.toml at %s\n' "$_cppid" "$_cpconf" >&2
+    printf '  Run: claude-providers sync                  (providers that come from sync)\n' >&2
+    printf '  Or:  claude-providers helixllm-export --apply  (per-model records from the export path)\n' >&2
+    return 1
+  fi
+  # Pick up per-id launch metadata from the provider env record (tls CA cert, …).
+  # config.toml carries the wire/API material; the env record carries host config.
+  local _cp_envf="$HOME/.local/share/claude-multi-account/providers/$_cppid.env"
+  if [[ -f "$_cp_envf" ]]; then source "$_cp_envf"; fi
+  # default_model / base_url are read at launch from what sync rendered.
+  _cpdm="$(
+    grep -E '^[[:space:]]*default_model[[:space:]]*=' "$_cpconf" 2>/dev/null \
+      | head -n1 | cut -d= -f2- | tr -d ' "' \
+  )"
+  if [[ -z "$_cpdm" ]]; then
+    printf 'claude-providers: pi-%s config.toml has no default_model — stale config\n' "$_cppid" >&2
+    printf '  Run: claude-providers sync   to re-render\n' >&2
+    return 1
+  fi
+  _cpbase="$(
+    grep -E '^[[:space:]]*base_url[[:space:]]*=' "$_cpconf" 2>/dev/null \
+      | head -n1 | cut -d= -f2- | tr -d ' "' \
+  )"
+  # TLS trust for self-signed backends, mirrored from the claude-side wiring.
+  if [[ -n "${CMA_PROVIDER_CA_CERT:-}" && -r "${CMA_PROVIDER_CA_CERT:-}" && "$_cpbase" == https://* ]]; then
+    export NODE_EXTRA_CA_CERTS="${CMA_PROVIDER_CA_CERT}"
+    export SSL_CERT_FILE="${CMA_PROVIDER_CA_CERT}"
+  fi
+  # Family isolation: scrub a leftover Claude/Anthropic/Kimi env.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
+  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
+  unset KIMI_CODE_HOME
+  PI_HOME="$_cphome" "$_cpbin" -m "$_cpdm" "$@"
+}
+CMA_PI_PROV_EOF
+}
+eval "$(_cma_emit_cma_run_pi_provider)"
 
 # True only when the toolkit may prompt the user interactively. Scripts read
 # confirmations from /dev/tty (so prompts survive `curl | bash`), so this

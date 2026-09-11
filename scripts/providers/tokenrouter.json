@@ -1,0 +1,7 @@
+{
+  "base_url": "https://api.tokenrouter.com/v1",
+  "transport": "router",
+  "key_var": "TOKENROUTER_API_KEY",
+  "context_limit": 2000000,
+  "max_output": 131072
+}

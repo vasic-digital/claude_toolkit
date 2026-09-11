@@ -2,6 +2,42 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.28.0 — 2026-09-11 — Token Router (138+ models) + Pi CLI agent + Helix family for Pi
+
+Feature release adding **comprehensive Token Router support** (5 provider aliases spanning flagship, coding, reasoning, fast/cheap, and long-context profiles), **first-class Pi CLI agent integration** with symmetric provider twin aliases (`pi-<id>`), and **Helix family availability in Pi** — all fully validated by the live-proof suite.
+
+### Added — Token Router integration
+
+- **Token Router provider aliases (`tokenrouter`, `tokenrouter-code`, `tokenrouter-reasoning`, `tokenrouter-fast`, `tokenrouter-long`).** Dynamic discovery via `TOKENROUTER_API_KEY` (new `key-aliases.json` entry), live model fetching from `https://api.tokenrouter.com/v1/models` (138+ models, far beyond models.dev's single entry), and per-profile strong/fast model pairings covering:
+  - `tokenrouter` — flagship: **Claude Opus 5** / **DeepSeek V4.1 Flash**
+  - `tokenrouter-code` — coding: **Kimi K2.7 Code** / **Qwen3 Coder Next**
+  - `tokenrouter-reasoning` — reasoning: **Claude Sonnet 5** / **Gemini 3.5 Flash**
+  - `tokenrouter-fast` — fast/cheap: **DeepSeek V4.1 Flash** / **GLM-5.3 Flash**
+  - `tokenrouter-long` — 1M-context: **GLM-5.3 (1M)** / **Nemotron-3 Super (1M)**
+- **Credit-aware model selection** with documented balance endpoint in `providers/credit-endpoints.json` (falls back to paid-model probe when balance unavailable).
+- **Overrides in `overrides.json`** pinning base URL (`https://api.tokenrouter.com/v1`), router transport, context limit (2M), and output cap (131072).
+- **Pins file `providers/tokenrouter.json`** for operator customization (env-overridable per CONST-045).
+- **`kimi-tokenrouter*` and `pi-tokenrouter*` twin aliases** automatically emitted for every tokenrouter profile — Kimi Code and Pi CLI both open against the same Token Router backend.
+
+### Added — Pi CLI agent support (new family layer)
+
+- **Pi family constants & detection** (mirroring Kimi layer): `PI_ACCOUNT_PREFIX=.pi-`, `PI_PROVIDER_PREFIX=.pi-prov-`, `PI_SHARED_SUBDIR=pi`, `cma_pi_home`, `cma_pi_account_home`, `cma_pi_provider_home`, `cma_detect_pi_accounts`, `cma_existing_pi_aliases`, `cma_suggest_pi_alias`, `cma_validate_pi_alias`, `cma_link_pi_shared_items`, `cma_write_pi_alias`, `cma_remove_pi_alias`.
+- **Pi account wrapper `cma_run_pi`** — resolves `pi` binary, scrubs `ANTHROPIC_*`, `CLAUDE_CODE_*`, and `KIMI_CODE_HOME` env, runs `PI_HOME=~/.pi-<n> pi`.
+- **Pi provider launcher `cma_run_pi_provider`** — per-id `~/.pi-prov-<id>/config.toml` with `default_model`/`base_url` rendered at sync, shared `status.json` activation gate (only `verified` ids launch unless `--force`), `CMA_PROVIDER_CA_CERT` TLS trust wiring, family isolation.
+- **`pi-<id>` twin aliases** emitted for **every provider** under the new `PI_ALIASES` flag (default on, `--pi-aliases`/`--no-pi-aliases` opt-out). `kimi-*`/`kc-*`/`pi-*` namespaces reserved for provider aliases; `piN` accounts never collide.
+- **Helix family in Pi** — all HelixAgent/HelixLLM/HelixCoder aliases (`helixagent`, `helixllm-gateway`, `helixagent-native`, `helixcoder`, and per-model `helixllm-*`) now get `pi-` twins automatically, so Pi CLI can route through the local HelixLLM backend on the single GPU.
+
+### Changed
+
+- **Dry-run behavior clarified:** twin aliases (`kimi-*`, `pi-*`) are not printed in `--dry-run` (they are emitted after the main alias gate); a real sync creates them.
+- **Alias file emission** now includes `_cma_emit_cma_run_pi` and `_cma_emit_cma_run_pi_provider` in the managed block so every shell start has the Pi wrappers.
+
+### Testing & Validation
+
+- **All sandbox tests pass** (`test_providers.sh`, `test_lib.sh`, `test_unify.sh`, `test_add_remove.sh`, etc.).
+- **Live integration verified** in sandbox: 5 tokenrouter aliases + 10 twin aliases (5 kimi + 5 pi) created with correct `config.toml` for both families; Helix family twins verified for Pi.
+- **Credit-probe cache schema** extended for Token Router; unknown-context fallback bounded by provider's own 10th percentile (floored at 65536, clamped by provider median).
+
 ## v1.27.0 — 2026-09-05 — Kimi Code CLI accounts + `kimi-<id>` provider aliases (+ one-time legacy `kimi-*` → `kc-*` rename)
 
 Feature release adding **first-class, symmetric support for the Kimi Code CLI**

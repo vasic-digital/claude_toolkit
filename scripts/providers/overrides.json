@@ -1,4 +1,12 @@
 {
+  "tokenrouter": {
+    "transport": "router",
+    "base_url": "https://api.tokenrouter.com/v1",
+    "strong_model": "anthropic/claude-opus-5",
+    "fast_model": "deepseek/deepseek-v4.1-flash",
+    "context_limit": 2000000,
+    "max_output": 131072
+  },
   "deepseek": {
     "transport": "router",
     "base_url": "https://api.deepseek.com",

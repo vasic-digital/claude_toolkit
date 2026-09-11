@@ -141,11 +141,16 @@ Options:
                        *.env but no longer resolves) — without this flag,
                        prune only ever auto-removes status-only orphans
   --multi              with sync: run ONLY the per-model multi-alias phase
-  --kimi-aliases       emit the Kimi Code twin aliases (kimi-<id>) + config.toml
-                       for every provider alias (default ON; harmless no-op for
-                       kc-*/kimi-* ids). Env: KIMI_ALIASES=0
+--kimi-aliases       emit the Kimi Code twin aliases (kimi-<id>) + config.toml
+                        for every provider alias (default ON; harmless no-op for
+                        kc-*/kimi-* ids). Env: KIMI_ALIASES=0
   --no-kimi-aliases    skip Kimi twin emission for this run (does not remove
-                       already-emitted twins)
+                        already-emitted twins)
+  --pi-aliases         emit the Pi CLI twin aliases (pi-<id>) + config.toml
+                        for every provider alias (default ON; harmless no-op for
+                        pi-*/kimi-*/kc-* ids). Env: PI_ALIASES=0
+  --no-pi-aliases      skip Pi twin emission for this run (does not remove
+                        already-emitted twins)
   --host URL           with helixllm-export: a serving endpoint to enumerate
                        (repeatable). Default: \$CMA_HELIXLLM_HOSTS, else the
                        hosts/base_url pinned in providers/helixllm-gateway.json
@@ -1824,6 +1829,139 @@ detect_hyper_records() {
     ]'
 }
 
+# --- Token Router multi-model detection ---------------------------------------
+# Token Router serves 138+ models via an OpenAI-compatible endpoint (https://api.tokenrouter.com/v1).
+# One API key (TOKENROUTER_API_KEY) maps to the entire catalog.
+# Detection gates on the tracked pins file (providers/tokenrouter.json) AND the API key being present.
+# The detector emits multiple provider records (tokenrouter1 through tokenrouterN) with distinct
+# strong/fast model pairings spanning different capability profiles.
+detect_tokenrouter_records() {
+  local _tr_json="${CMA_TOKENROUTER_PINS_FILE:-$LIB_DIR/providers/tokenrouter.json}"
+  [[ -f "$_tr_json" ]] || { printf '[]\n'; return 0; }
+
+  local _key_present=0
+  if [[ -f "$CMA_KEYS_FILE" ]]; then
+    local _key_val
+    # shellcheck source=/dev/null
+    _key_val="$( ( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; printf '%s' "${TOKENROUTER_API_KEY:-}" ) )" || true
+    [[ -n "$_key_val" ]] && _key_present=1
+  fi
+  (( _key_present )) || { printf '[]\n'; return 0; }
+
+  local _tr_base="" _tr_transport="" _tr_keyvar="" _tr_ctx="" _tr_out=""
+  if command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        base_url)      _tr_base="$_v" ;;
+        transport)     _tr_transport="$_v" ;;
+        key_var)       _tr_keyvar="$_v" ;;
+        context_limit) _tr_ctx="$_v" ;;
+        max_output)    _tr_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_tr_json" 2>/dev/null)
+  fi
+
+  : "${_tr_base:=https://api.tokenrouter.com/v1}"
+  : "${_tr_transport:=router}"
+  : "${_tr_keyvar:=TOKENROUTER_API_KEY}"
+  : "${_tr_ctx:=2000000}"
+  : "${_tr_out:=131072}"
+
+  local _reason="Token Router multi-alias detected via pins-file (138+ models, OpenAI-compatible)"
+
+  # Fetch live models from Token Router API for dynamic model selection
+  local _models_json=""
+  if (( ! OFFLINE )); then
+    _models_json="$(curl -s --max-time 15 \
+      --config <(printf 'header = "Authorization: Bearer %s"\n' "$_key_val") \
+      "$_tr_base/models" 2>/dev/null | jq -c '[.data[]?.id] | unique' 2>/dev/null)"
+  fi
+  [[ -z "$_models_json" || "$_models_json" == "[]" || "$_models_json" == "null" ]] && _models_json="[]"
+
+  # Define model profiles based on capabilities and use cases
+  # These profiles ensure we cover different use cases: best overall, coding, reasoning, fast/cheap, long-context
+  jq -n \
+    --arg keyvar "$_tr_keyvar" \
+    --arg base    "$_tr_base" \
+    --arg transport "$_tr_transport" \
+    --arg reason  "$_reason" \
+    --argjson models "$_models_json" \
+    --argjson ctx "${_tr_ctx:-null}" \
+    --argjson out "${_tr_out:-null}" \
+    '[
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "tokenrouter",
+        alias:               "tokenrouter",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "anthropic/claude-opus-5",
+        fast_model:          "deepseek/deepseek-v4.1-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (flagship: Claude Opus 5 / DeepSeek V4.1 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "tokenrouter-code",
+        alias:               "tokenrouter-code",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "moonshotai/kimi-k2.7-code",
+        fast_model:          "qwen/qwen3-coder-next",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (coding: Kimi K2.7 Code / Qwen3 Coder Next)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "tokenrouter-reasoning",
+        alias:               "tokenrouter-reasoning",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "anthropic/claude-sonnet-5",
+        fast_model:          "google/gemini-3.5-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (reasoning: Claude Sonnet 5 / Gemini 3.5 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "tokenrouter-fast",
+        alias:               "tokenrouter-fast",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "deepseek/deepseek-v4.1-flash",
+        fast_model:          "z-ai/glm-5.3-flash",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (fast/cheap: DeepSeek V4.1 Flash / GLM-5.3 Flash)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "tokenrouter-long",
+        alias:               "tokenrouter-long",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "z-ai/glm-5.3",
+        fast_model:          "nvidia/nemotron-3-super-120b-a12b",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (long-context: GLM-5.3 1M / Nemotron-3 Super 1M)")
+      }
+    ]'
+}
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -1894,13 +2032,17 @@ resolve_records() {
   if ! printf '%s' "$extra_hy" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_hyper_records produced no/invalid JSON output"
   fi
-  # Merge all eight sources, deduped by provider_id. The Kimi Code OAuth
+  extra_tr="$(detect_tokenrouter_records)" || true
+  if ! printf '%s' "$extra_tr" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_tokenrouter_records produced no/invalid JSON output"
+  fi
+  # Merge all nine sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" '
-    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" --argjson e9 "$extra_tr" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8 + $e9) | unique_by(.provider_id)
   '
 }
 
@@ -2240,6 +2382,62 @@ _cma_kimi_twin_alias() {
   return 0
 }
 
+# Emit the Pi CLI twin of a provider alias. `pi-<id>` runs the Pi CLI
+# over the SAME backend/env as the Claude twin (launch wrapper: the lib.sh
+# cma_run_pi_provider). Namespace contract: pi-*, kimi-*, kc-* are reserved
+# provider namespaces — excluded ids still return 0 (absence is the contract).
+_cma_pi_twin_alias() {
+  local id="$1"
+  case "$id" in
+    ''|pi-*|kimi-*|kc-*) return 0 ;;
+  esac
+  case "$id" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  local twin="pi-$id"
+  cma_alias_commit "$twin" "$(printf 'alias %s="cma_run_pi_provider %s"' "$twin" "$id")" keep 2>/dev/null || return 1
+  return 0
+}
+
+# Render the per-alias Pi CLI config (~/.pi-prov-<id>/config.toml) from the
+# SYNC-time record. This function is the ONLY writer of that file: the launch
+# wrapper (lib.sh cma_run_pi_provider) READS default_model/base_url out of it
+# and refuses to launch when it is missing, but never rewrites it.
+_cma_pi_render_config() {
+  local id="$1" keyvar="$2" transport="$3" base="$4" strong="$5" ctx="${6:-}"
+  case "$id" in ''|pi-*|kimi-*|kc-*) return 0 ;; esac
+  local pdir="$HOME/.pi-prov-$id"
+  ( umask 077; mkdir -p "$pdir" )
+  # WIRE SELECTION — from the TRANSPORT, not from what the URL happens to spell.
+  local wire=""
+  case "$transport" in
+    native) wire="anthropic" ;;
+    *) wire="openai" ;;
+  esac
+  # Resolve the actual API key value for this provider (not the keyvar name).
+  # The key is read from the keys file at launch time, but we need the value
+  # at sync time to write it into config.toml. This mirrors the kimi logic.
+  local api_key=""
+  if [[ -f "$CMA_KEYS_FILE" ]]; then
+    # shellcheck source=/dev/null
+    api_key="$( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; eval "printf '%s' \"\${$keyvar:-}\"" )" || true
+  fi
+  local base_clean="${base%/}"
+  local model_for_kimi="$strong"
+  cat > "$pdir/config.toml.tmp" <<EOF
+# generated by claude-providers — secret-bearing (api_key). Do not edit by hand.
+[providers."$id"]
+type = "$wire"
+base_url = "$base_clean"
+api_key = "$api_key"
+
+[models."$id/$strong"]
+max_context_size = ${ctx:-2000000}
+capabilities = ["tool_use", "thinking"]
+
+default_model = "$id/$strong"
+EOF
+  mv "$pdir/config.toml.tmp" "$pdir/config.toml"
+}
+
 # Render the per-alias Kimi Code config (~/.kimi-prov-<id>/config.toml) from the
 # SYNC-time record. This function is the ONLY writer of that file: the launch
 # wrapper (lib.sh cma_run_kimi_provider) READS default_model/base_url out of it
@@ -2437,6 +2635,17 @@ cmd_sync() {
       _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
     fi
 
+    # Pi CLI twin (v1.28.0): `pi-<id>` = Pi CLI over the SAME backend.
+    # Emission is independent of verify status (the launch gate in lib.sh is
+    # the single status.json gate for both twins). Excluded ids (pi-*, kimi-*, kc-*)
+    # are a no-op. Config.toml is the file the Pi CLI actually reads at
+    # launch — render it here so a bare sync produces a usable pi alias.
+    : "${PI_ALIASES:=1}"
+    if (( PI_ALIASES )); then
+      _cma_pi_twin_alias "$pid" || true
+      _cma_pi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
+    fi
+
     # Layer bookkeeping. vstatus here is 'verified' (existence+tool-call passed)
     # or 'unverified' (existence probe inconclusive). failing_layer records the
     # FIRST layer that did not pass ("" when none failed).
@@ -2584,6 +2793,12 @@ cmd_helixllm_export() {
     if (( KIMI_ALIASES )); then
       _cma_kimi_twin_alias "$pid" || true
       _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
+    fi
+
+    # Pi CLI twin — mirrors the Kimi twin logic for Pi CLI agent.
+    if (( PI_ALIASES )); then
+      _cma_pi_twin_alias "$pid" || true
+      _cma_pi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
     fi
     n_written=$((n_written + 1))
   done < <(jq -r '.[] | [.provider_id, .key_var, .transport, .base_url,
@@ -3160,6 +3375,14 @@ cmd_sync_multi() {
         _cma_kimi_render_config "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$alias_ctx" || true
       fi
 
+      # Pi CLI twin for multi aliases: one pi-<aname> alias + config.toml
+      # per generated Claude alias (same shared status gate; excluded pi-*/kimi-*/kc-*
+      # ids are a no-op). Only the strong model is forwarded on the Pi side.
+      if (( PI_ALIASES )); then
+        _cma_pi_twin_alias "$aname" || true
+        _cma_pi_render_config "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$alias_ctx" || true
+      fi
+
       # Persist verification status to the status cache so the activation
       # gate (cma_run_provider) can determine if this alias is usable.
       # Use the strong-model's verification score from the manifest; aliases
@@ -3210,6 +3433,8 @@ while (( $# )); do
     --verify-concurrency) VERIFY_CONCURRENCY="$2"; shift 2 ;;
     --kimi-aliases) KIMI_ALIASES=1; shift ;;
     --no-kimi-aliases) KIMI_ALIASES=0; shift ;;
+    --pi-aliases) PI_ALIASES=1; shift ;;
+    --no-pi-aliases) PI_ALIASES=0; shift ;;
     -y|--yes) ASSUME_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) POSITIONAL+=("$1"); shift ;;
@@ -3293,6 +3518,9 @@ if (( REFRESH_ALIASES )); then
       # both then restore the twin here on the next shell start.
       if (( KIMI_ALIASES )) && [[ -f "$HOME/.kimi-prov-$_rid/config.toml" ]]; then
         _cma_kimi_twin_alias "$_rid" 2>/dev/null || true
+      fi
+      if (( PI_ALIASES )) && [[ -f "$HOME/.pi-prov-$_rid/config.toml" ]]; then
+        _cma_pi_twin_alias "$_rid" 2>/dev/null || true
       fi
     done
   fi

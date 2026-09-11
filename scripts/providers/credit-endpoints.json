@@ -65,5 +65,23 @@
         "desc": "false once the account has purchased credits; weaker than a live balance, so it is only consulted when limit_remaining is null"
       }
     ]
+  },
+
+  "tokenrouter": {
+    "url": "https://api.tokenrouter.com/v1/user/balance",
+    "auth": "bearer",
+    "doc": "https://www.tokenrouter.com/docs/tokenrouter-feature-guide/",
+    "signals": [
+      {
+        "path": ["balance"],
+        "type": "balance",
+        "desc": "wallet balance (decimal string); >0 means funded"
+      },
+      {
+        "path": ["is_active"],
+        "type": "boolean",
+        "desc": "account active status as a secondary signal"
+      }
+    ]
   }
 }
