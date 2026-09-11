@@ -1172,3 +1172,262 @@ provider is a gate **failure** (fix it, or pick another with `--provider`),
 never a silent skip. For `helixagent` specifically that means the HelixLLM
 backend must be in claude mode first (§12).
 
+
+---
+
+## 13. HelixCode / HelixLLM Providers (Native HelixCode Integration)
+
+HelixCode includes a **native LLM provider system** (`internal/llm/`) that operates independently of the `claude-providers` toolkit. These providers are configured via `helix_code/config/config.yaml` and accessed through the HelixCode server API or CLI (`helixcode llm ...`).
+
+### Key Differences from claude-providers
+
+| Aspect | `claude-providers` | HelixCode Native |
+|--------|-------------------|------------------|
+| **Target** | Claude Code sessions | HelixCode server/CLI/TUI |
+| **Configuration** | `~/api_keys.sh` + models.dev | `config/config.yaml` + env vars |
+| **Verification** | Live sentinel + tool-calling probes | Health checks + LLMsVerifier |
+| **Model Selection** | Credit-aware tier + scoring | Performance + capability + fallback |
+| **Cloud Gate** | None (always tries) | W2c-1 gate (`llm.cloud.enabled`) |
+
+### HelixCode Provider List (15+ Providers)
+
+All providers implement the `Provider` interface (`internal/llm/provider.go`) and are registered via `ModelManager` (`internal/llm/model_manager.go`).
+
+#### Cloud Providers (Require `llm.cloud.enabled: true`)
+
+| Provider | Type | Env Var | Endpoint | Notable Features |
+|----------|------|---------|----------|------------------|
+| **Anthropic** | Cloud | `ANTHROPIC_API_KEY` | `https://api.anthropic.com` | Extended thinking, prompt caching, tool caching, vision, streaming |
+| **Google Gemini** | Cloud | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | `https://generativelanguage.googleapis.com` | 2M context, multimodal, function calling, flash models |
+| **OpenAI** | Cloud | `OPENAI_API_KEY` | `https://api.openai.com` | 1M+ context, function calling, vision, reasoning (o1/o3) |
+| **XAI (Grok)** | Cloud | `XAI_API_KEY` | `https://api.x.ai` | Fast reasoning, free tier |
+| **Groq** | Cloud | `GROQ_API_KEY` | `https://api.groq.com` | Ultra-fast inference, free tier |
+| **Mistral** | Cloud | `MISTRAL_API_KEY` | `https://api.mistral.ai` | Code-optimized (Codestral), function calling |
+| **DeepSeek** | Cloud | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | Strong reasoning (R1), code generation |
+| **OpenRouter** | Cloud | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | 300+ models unified, free models |
+| **Cohere** | Cloud | `COHERE_API_KEY` | `https://api.cohere.ai` | Multilingual, RAG-optimized (Command R+) |
+| **GitHub Copilot** | Cloud | `GITHUB_TOKEN` | `https://api.githubcopilot.com` | Free with GitHub sub, multiple models |
+| **Azure OpenAI** | Cloud | `AZURE_OPENAI_API_KEY` | Azure endpoint | Enterprise, private deployments |
+| **AWS Bedrock** | Cloud | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | AWS regional | Multiple model families, IAM auth |
+| **GCP Vertex AI** | Cloud | `GOOGLE_APPLICATION_CREDENTIALS` | GCP regional | Enterprise, private endpoints |
+| **Qwen** | Cloud | `QWEN_API_KEY` / OAuth2 | `https://dashscope.aliyuncs.com` | Chinese-optimized, 2K free req/day |
+| **Replicate** | Cloud | `REPLICATE_API_TOKEN` | `https://api.replicate.com` | 1000+ open models, pay-per-second |
+
+#### Local Providers (Exempt from Cloud Gate)
+
+| Provider | Type | Requirements | Models | Notable Features |
+|----------|------|--------------|--------|------------------|
+| **Ollama** | Local | Ollama service on `localhost:11434` | Any GGUF | Easy mgmt, local-only, model library |
+| **Llama.cpp** | Local | llama.cpp server/binary | GGUF models | Direct llama.cpp, HW accel (Metal/CUDA) |
+| **vLLM** | Local | vLLM OpenAI-compatible server | Any HF model | PagedAttention, high throughput |
+| **LocalAI** | Local | LocalAI server | OpenAI-compat | Drop-in OpenAI replacement |
+| **FastChat** | Local | FastChat controller/worker | Vicuna, LLaMA | Conversation templates |
+| **LM Studio** | Local | LM Studio local server | GGUF models | GUI + API server |
+| **Jan** | Local | Jan app local server | GGUF models | Desktop app with API |
+| **GPT4All** | Local | GPT4All local server | Quantized models | Consumer-friendly |
+| **TabbyAPI** | Local | TabbyAPI server | exllama models | ExLLaMAv2 wrapper |
+| **MLX** | Local | Apple Silicon + MLX | MLX-format models | Apple Silicon native |
+| **Mistral.rs** | Local | mistral.rs binary | Any HF model | Rust impl, fast inference |
+| **KoboldAI** | Local | KoboldAI server | Story/writing models | Storytelling-focused |
+| **Xiaomi MiMo** | Local/Cloud | MiMo API key | MiMo v2.5 Pro/Omni | 1M context, multimodal, tools |
+
+#### Special Providers
+- **HelixAgent** — Embedded multi-agent workflow provider
+- **Cerebras** — Wafer-scale inference for Llama models
+- **Together AI** — Optimized open-model serving
+- **HuggingFace** — Inference endpoints for HF models
+
+### HelixCode Model Selection Strategy
+
+HelixCode uses `ModelManager.SelectOptimalModel()` (`internal/llm/model_manager.go`) with:
+
+1. **Capability Matching** — Matches task requirements (tools, vision, reasoning) to model capabilities
+2. **Performance Scoring** — Latency, throughput, success rate from health checks
+3. **Fallback Chains** — Automatic failover: primary → fallback → local
+4. **LLMsVerifier Integration** — Real verification scores from `internal/verifier/`
+5. **Health Monitoring** — Background poller checks provider health every 30s
+
+**Configuration** (`config/config.yaml`):
+```yaml
+llm:
+  selection:
+    strategy: "performance"  # or "capability", "cost", "hybrid"
+    fallback_enabled: true
+    health_check_interval: 30
+```
+
+### HelixCode Verification — LLMsVerifier Integration
+
+HelixCode includes a **built-in verification system** (`internal/verifier/`):
+
+- **REST API Client** — Connects to LLMsVerifier service
+- **Two-Tier Cache** — Memory + Redis cache with TTL
+- **Circuit Breaker** — Prevents cascade failures
+- **Background Poller** — Refreshes model scores periodically
+- **Score Adapter** — Normalizes verifier scores to selection weights
+- **Event Publisher** — Emits provider status changes
+
+**Verification Flow:**
+```
+ModelManager.SelectOptimalModel()
+  → VerifierAdapter.GetScores()  // cached or live
+  → ScoreAdapter.Adapt()         // normalize to weights
+  → CapabilityFilter()           // match task requirements
+  → PerformanceRank()            // latency + success rate
+  → Return optimal model
+```
+
+### HelixCode CLI Usage
+
+```bash
+# List configured providers with status
+helixcode llm providers list
+
+# List available models across all providers
+helixcode llm models list
+
+# Set default provider
+helixcode llm provider set anthropic
+
+# Generate with specific model
+helixcode llm generate --model claude-4-sonnet "design a cache system"
+
+# Chat with history
+helixcode llm chat --model gemini-2.5-pro
+
+# Run provider health checks
+helixcode llm health
+
+# Verify models via LLMsVerifier
+helixcode llm verify --provider anthropic --model claude-4-sonnet
+```
+
+### HelixCode Server API
+
+```bash
+# List providers with health status
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/llm/providers
+
+# List models
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/llm/models
+
+# Generate completion
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-4-sonnet", "messages": [{"role": "user", "content": "Hello"}]}' \
+  http://localhost:8080/api/v1/llm/generate
+```
+
+### Provider Capabilities Matrix
+
+| Provider | Tools | Vision | Reasoning | Streaming | Max Context | Local |
+|----------|-------|--------|-----------|-----------|-------------|-------|
+| Anthropic | ✅ | ✅ | ✅ (extended) | ✅ | 200K | ❌ |
+| Gemini | ✅ | ✅ | ✅ | ✅ | 2M | ❌ |
+| OpenAI | ✅ | ✅ | ✅ (o1/o3) | ✅ | 1M+ | ❌ |
+| XAI | ✅ | ❌ | ✅ | ✅ | 128K | ❌ |
+| Groq | ✅ | ❌ | ❌ | ✅ | 128K | ❌ |
+| Mistral | ✅ | ❌ | ❌ | ✅ | 32K | ❌ |
+| DeepSeek | ✅ | ❌ | ✅ (R1) | ✅ | 64K | ❌ |
+| OpenRouter | ✅ | ✅* | ✅* | ✅* | Varies* | ❌ |
+| Cohere | ✅ | ❌ | ❌ | ✅ | 128K | ❌ |
+| Copilot | ✅ | ✅* | ✅* | ✅* | 128K* | ❌ |
+| Azure | ✅ | ✅* | ✅* | ✅* | 128K* | ❌ |
+| Bedrock | ✅ | ✅* | ✅* | ✅* | 200K* | ❌ |
+| VertexAI | ✅ | ✅* | ✅* | ✅* | 2M* | ❌ |
+| Qwen | ✅ | ✅ | ✅ | ✅ | 128K | ❌ |
+| Replicate | ✅* | ✅* | ✅* | ✅* | Varies* | ❌ |
+| **Ollama** | ✅* | ✅* | ✅* | ✅* | 128K* | ✅ |
+| **Llama.cpp** | ✅* | ❌ | ❌ | ✅* | 128K* | ✅ |
+| **vLLM** | ✅* | ✅* | ✅* | ✅* | Model* | ✅ |
+| **LocalAI** | ✅* | ✅* | ✅* | ✅* | Model* | ✅ |
+| **Xiaomi** | ✅ | ✅ | ✅ | ✅ | 1M | Both |
+
+* = Depends on specific model deployed
+
+### Cloud Gate (W2c-1) — Local-First Default
+
+HelixCode enforces a **cloud gate** (`llm.cloud.enabled` in config, default `false`):
+
+```yaml
+llm:
+  cloud:
+    enabled: false  # Set true to allow cloud providers
+```
+
+When **disabled** (default):
+- Only local providers work (Ollama, Llama.cpp, vLLM, LocalAI, etc.)
+- Cloud provider construction returns `ErrCloudDisabled`
+- Error message guides to local alternatives or enabling the gate
+
+When **enabled**:
+- All 15+ cloud providers available
+- Requires valid API keys in environment
+- Health checks run automatically
+
+**Rationale**: Prevents accidental cloud usage/costs; operators must explicitly opt-in.
+
+### LLMsVerifier Single Source of Truth (CONST-036)
+
+Per CONST-036, HelixCode uses **LLMsVerifier as the sole authoritative source** for:
+- Model metadata (names, IDs, context windows, capabilities)
+- Provider metadata (endpoints, auth types, supported models)
+- Verification status (verified, partial, failed, pending)
+- Scoring data (overall scores, capability scores, tier rankings)
+
+**No hardcoded model lists** — all model discovery flows through LLMsVerifier.
+
+**Fallback Models** (constitutionally permitted, `internal/verifier/fallback_models.go`):
+```go
+var FallbackModels = []FallbackModel{
+  {Name: "claude-4-sonnet", Provider: "anthropic", Score: 95, Verified: true},
+  {Name: "gemini-2.5-pro", Provider: "gemini", Score: 93, Verified: true},
+  {Name: "gpt-4.1", Provider: "openai", Score: 92, Verified: true},
+  {Name: "grok-3", Provider: "xai", Score: 88, Verified: true},
+  {Name: "deepseek-v3", Provider: "deepseek", Score: 90, Verified: true},
+  {Name: "mistral-large", Provider: "mistral", Score: 87, Verified: true},
+  {Name: "llama-3.3-70b", Provider: "ollama", Score: 85, Verified: true},
+}
+```
+
+### Anti-Bluff Guarantees (CONST-035, CONST-037, CONST-038)
+
+- **CONST-035**: Every model displayed to users verified by LLMsVerifier within 24h
+- **CONST-037**: Models >24h old show "stale" indicator, deprioritized
+- **CONST-038**: Model status (available, rate-limited, cooldown, offline) reflects LLMsVerifier within 60s
+- **CONST-039**: Integrates ALL providers LLMsVerifier supports (minimum: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, xAI, OpenRouter, Ollama, Llama.cpp)
+
+### Integration with claude-providers
+
+HelixCode native providers and `claude-providers` can **coexist**:
+
+1. **HelixCode server** uses native providers for its own LLM operations
+2. **claude-providers** creates Claude Code aliases for interactive coding
+3. **Shared verification** — both can use LLMsVerifier submodule
+4. **Different use cases** — HelixCode for automation/workflows, claude-providers for interactive coding
+
+**Example workflow:**
+```bash
+# HelixCode native for automated tasks
+helixcode llm generate --model claude-4-sonnet "Create REST API"
+
+# claude-providers for interactive session
+source ~/.local/share/claude-multi-account/aliases.sh
+deepseek  # Opens Claude Code on DeepSeek backend
+```
+
+### Configuration Files
+
+- **HelixCode native**: `helix_code/config/config.yaml` (or `production-config.yaml`, `minimal-config.yaml`)
+- **Model aliases**: `helix_code/config/model-aliases.example.yaml` → `.helix/model-aliases.yaml`
+- **claude-providers**: `~/api_keys.sh` + `scripts/providers/overrides.json` + `scripts/providers/key-aliases.json`
+
+### Migration from Hardcoded Lists
+
+Previously (BLUFF-002, BLUFF-004), HelixCode had hardcoded model lists in CLI. Now **fixed**:
+- `cmd/cli/main.go` → Uses `ModelManager` + `VerifierAdapter` for dynamic discovery
+- `internal/llm/model_manager.go` → Queries LLMsVerifier for live model catalog
+- `internal/verifier/` → Full verification client with caching, circuit breaker, polling
+
+---
+
