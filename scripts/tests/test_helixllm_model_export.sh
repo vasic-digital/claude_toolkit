@@ -143,6 +143,16 @@ PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
 # helix gateway keyvars so the fixture is the only source.
 unset HELIXLLM_GATEWAY_KEY HELIXAGENT_GATEWAY_KEY
 
+# Same hermeticity class, CA family (fixed 2026-09-12): the "re-apply WITHOUT
+# the anchor converges the line away" case runs --apply with NO
+# CMA_PROVIDER_CA_CERT and asserts the env record loses its CA line. A runner
+# whose shell exports CMA_PROVIDER_CA_CERT — this host does, pointing at
+# projects/.../helix_llm/certs/cert.pem — leaks it into the child, the line is
+# re-added, and the case fails for a reason unrelated to the code under test.
+# The positive case above sets the variable INLINE on its own command, so
+# scrubbing the ambient copy here does not weaken it.
+unset CMA_PROVIDER_CA_CERT SSL_CERT_FILE NODE_EXTRA_CA_CERTS
+
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 mkdir -p "$PDIR"
 echo '{}' > "$PDIR/models.dev.cache.json"
