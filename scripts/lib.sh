@@ -3181,42 +3181,28 @@ cma_status_write() {
   fi
 }
 
-# cma_verify_failing_layer <verifier-stderr-reason>
-# Maps providers-verify.sh's emitted REASON to the layer that actually failed.
+# cma_read_verify_layer <layer-file> -> the layer token the VERIFIER declared.
 #
-# WHY THIS EXISTS. providers-verify.sh:59 puts the verdict on stdout and the
-# reason on STDERR. Every caller that captures only stdout has the verdict and
-# has thrown the reason away — and the two sites that then wrote a layer wrote
-# the LITERAL `existence`, for all eight of the verifier's distinct `failed`
-# reasons. Seven of those eight are not about the model existing. The damage is
-# not cosmetic: a live provider here answers a nonce prompt correctly and fails
-# only for lacking tool calling, yet its row said the model was missing, which
-# is an investigation pointed at a model that is not missing.
+# providers-verify.sh publishes the failed layer as a first-class token through
+# the file named by CMA_VERIFY_LAYER_FILE, in a CLOSED vocabulary
+# (providers-verify.sh:70-84):
 #
-# The mapping is deliberately keyed on the verifier's own phrases, so if a
-# reason is reworded this returns `unknown` rather than silently mis-filing it
-# under a neighbouring layer. Order is load-bearing: several reasons begin
-# "chat probe ..." and the more specific class must win.
+#   existence | tool_call | context | attribution | llmsverifier | preconditions
 #
-# `unknown` is a real answer, not a fallback to be tidied away (§11.4.6,
-# §11.4.201). An unrecognised or absent reason means the cause was not
-# measured; saying so is correct, and naming a specific cause instead is the
-# exact defect this function was added to remove.
-cma_verify_failing_layer() {
-  local reason="${1:-}"
-  case "$reason" in
-    '')                                     printf 'unknown\n' ;;
-    *'is the ccr gateway itself'*)          printf 'route\n' ;;
-    *'tool call'*|*'tool-calling probe'*)   printf 'tool_calling\n' ;;
-    *'VERIFY_OK sentinel missing'*)         printf 'sentinel\n' ;;
-    *'context-inadequate'*)                 printf 'context\n' ;;
-    *'error body'*)                         printf 'chat\n' ;;
-    *'LLMsVerifier did not confirm'*)       printf 'existence\n' ;;
-    # A definitive non-200 on the chat probe. The verifier itself says this is
-    # "auth/billing/model-missing/account-suspended" — it does NOT single out
-    # any one of them, so neither may we.
-    *'chat probe HTTP'*)                    printf 'chat_http\n' ;;
-    *)                                      printf 'unknown\n' ;;
+# This reader enforces that vocabulary and maps anything else — a missing file,
+# an empty file, an unrecognised token — to `unknown`. It NEVER defaults to
+# `existence`: absence means the layer was NOT measured, and naming a specific
+# cause instead is the exact defect this replaces (§11.4.6, §11.4.201). Note the
+# vocabulary says `tool_call`; the retired prose-matcher emitted `tool_calling`,
+# which is not in the set.
+cma_read_verify_layer() {
+  local f="${1:-}" v=""
+  [[ -n "$f" && -s "$f" ]] && v="$(tr -d '[:space:]' < "$f" 2>/dev/null || true)"
+  case "$v" in
+    existence|tool_call|context|attribution|llmsverifier|preconditions)
+      printf '%s\n' "$v" ;;
+    *)
+      printf 'unknown\n' ;;
   esac
 }
 

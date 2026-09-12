@@ -2591,7 +2591,7 @@ cmd_sync() {
     # Declared here, not in the branch below: the failure branch reads it even
     # when --no-verify skipped the probe entirely, and under `set -u` an unset
     # read is fatal. Empty is the honest value there — nothing was measured.
-    local _vreason="" _vreason_f=""
+    local _vreason="" _vreason_f="" _vlayer_f="" vlayer=unknown
     if (( ! NO_VERIFY )); then
       local vargs=(--provider "$pid" --model "$model" --key-var "$keyvar")
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
@@ -2617,15 +2617,21 @@ cmd_sync() {
       # `failed` reasons — seven of which are not about the model existing. Keep
       # the stderr: it is the only evidence of WHY, and it is free.
       _vreason_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify.XXXXXX")"
-      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
+      # The LAYER travels out-of-band in its own file (providers-verify.sh:70-84
+      # via CMA_VERIFY_LAYER_FILE), so the caller reads the verifier's OWN
+      # declaration instead of re-deriving one from the stderr prose.
+      _vlayer_f="$(mktemp "${TMPDIR:-/tmp}/cma-layer.XXXXXX")"
+      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; CMA_VERIFY_LAYER_FILE="$_vlayer_f" bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
       [[ -s "$_vreason_f" ]] && _vreason="$(cat "$_vreason_f")"
       rm -f "$_vreason_f"
+      vlayer="$(cma_read_verify_layer "$_vlayer_f")"
+      rm -f "$_vlayer_f"
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
 
     if [[ "$vstatus" == "failed" ]]; then
       cma_warn "provider '$pid' FAILED verification — alias NOT activated${_vreason:+: $_vreason}"
-      cma_status_write "$pid" failed "$model" "$(cma_verify_failing_layer "$_vreason")"
+      cma_status_write "$pid" failed "$model" "$vlayer"
       n_disabled=$((n_disabled+1))
       continue
     fi
@@ -2674,8 +2680,14 @@ cmd_sync() {
         # 'verified' | 'skip' | '' -> keep the existence verdict (verified).
       fi
     else
-      # existence probe was inconclusive -> the layer that did not pass is existence.
-      flayer="existence"
+      # The exit probe was inconclusive. Record the layer the VERIFIER declared
+      # ($vlayer: tool_call | context | attribution | llmsverifier |
+      # preconditions | existence | unknown) instead of blanket-labelling every
+      # inconclusive verdict `existence`. That blanket label is exactly what
+      # made a provider that chatted correctly but could not tool-call read as a
+      # missing model; and `unknown` is the honest value when nothing measured a
+      # layer (§11.4.6).
+      flayer="$vlayer"
     fi
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
@@ -2967,21 +2979,28 @@ cmd_verify() {
     # print it on stderr for any non-verified verdict; stdout stays the single
     # verdict word, so callers that capture it are unaffected.
     _verr="$(mktemp "${TMPDIR:-/tmp}/cma-verify-reason.XXXXXX")"
+    # The layer travels out-of-band in its own file (providers-verify.sh:70-84).
+    # This site used to write the LITERAL `existence` for every non-verified
+    # verdict and never read the verifier's own layer at all, which is why a
+    # live provider that chatted correctly but could not tool-call was recorded
+    # as a missing model.
+    _vlay="$(mktemp "${TMPDIR:-/tmp}/cma-verify-layer.XXXXXX")"
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
-              bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
+              CMA_VERIFY_LAYER_FILE="$_vlay" bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     [[ -z "$vst" ]] && vst=unverified
+    vlay="$(cma_read_verify_layer "$_vlay")"
     if [[ "$vst" != "verified" ]] && [[ -s "$_verr" ]]; then
       while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
     fi
-    if [[ "$vst" == "failed" ]]; then rm -f "$_verr"; cma_status_write "$id" failed "$model" existence; echo "failed"; return; fi
-    if [[ "$vst" != "verified" ]]; then rm -f "$_verr"; cma_status_write "$id" unverified "$model" existence; echo "unverified"; return; fi
+    if [[ "$vst" == "failed" ]]; then rm -f "$_verr" "$_vlay"; cma_status_write "$id" failed "$model" "$vlay"; echo "failed"; return; fi
+    if [[ "$vst" != "verified" ]]; then rm -f "$_verr" "$_vlay"; cma_status_write "$id" unverified "$model" "$vlay"; echo "unverified"; return; fi
     sst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
               bash "$SEMANTIC" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     if [[ "$sst" == "unverified" ]]; then
       [[ -s "$_verr" ]] && while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
-      rm -f "$_verr"; cma_status_write "$id" unverified "$model" semantic; echo "unverified"; return
+      rm -f "$_verr" "$_vlay"; cma_status_write "$id" unverified "$model" semantic; echo "unverified"; return
     fi
-    rm -f "$_verr"
+    rm -f "$_verr" "$_vlay"
     if (( deep )); then
       # Capture the exit code into a variable BEFORE it is consumed by the
       # `if`/`fi` test below — `$?` immediately after an `if cond; then …; fi`
