@@ -13,6 +13,17 @@ source "$TESTS_DIR/lib/assert.sh"
 # shellcheck source=lib/sandbox.sh
 source "$TESTS_DIR/lib/sandbox.sh"
 make_sandbox
+
+# Hermeticity (test defect, fixed 2026-09-12): the "https twin with NO CA pin"
+# case asserts that a provider whose env record carries no CMA_PROVIDER_CA_CERT
+# exports NO NODE_EXTRA_CA_CERTS. A runner whose shell EXPORTS
+# CMA_PROVIDER_CA_CERT — this host does, pointing at
+# projects/.../helix_llm/certs/cert.pem — leaks it into the child, the wrapper
+# faithfully exports the variable, and the case fails for a reason unrelated to
+# the code under test. Same class already fixed in test_ccr_upstream_ca.sh and
+# test_helixllm_model_export.sh.
+unset CMA_PROVIDER_CA_CERT SSL_CERT_FILE NODE_EXTRA_CA_CERTS
+
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
