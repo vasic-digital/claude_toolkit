@@ -68,6 +68,15 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 # are only ever removed by `remove`/`prune`, never silently dropped).
 : "${KIMI_ALIASES:=1}"
 
+# Per-provider Pi CLI twin aliases (`pi-<id>` -> `cma_run_pi_provider`). On by
+# default; --no-pi-aliases turns emission off for a run. Declared here (not
+# lazily) because the emission path evaluates `(( PI_ALIASES ))` under `set -u`:
+# without this initializer the flag was UNBOUND for every run that did not pass
+# --pi-aliases, so `helixllm-export --apply` died with "PI_ALIASES: unbound
+# variable" before writing a single record. The Kimi twin beside it always had
+# its default; the Pi twin was added without one.
+: "${PI_ALIASES:=1}"
+
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
 REFRESH_ALIASES=0 QUIET=0 PRUNE_UNRESOLVED=0
