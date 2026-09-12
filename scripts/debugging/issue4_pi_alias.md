@@ -2,7 +2,33 @@
 
 **Feature**: spec 006, WS-C Issue 4
 **Date**: 2026-09-12
-**Status**: investigated; the refusal is a DESIGNED activation gate. No fix authored.
+**Status**: refusal = designed gate (below) **AND a real defect found and fixed** in
+the Pi-twin feature: `PI_ALIASES` was never initialized, so `helixllm-export
+--apply` died with *"PI_ALIASES: unbound variable"* under `set -u`.
+
+## Real defect found while validating this issue (FIXED)
+
+Running the export suite surfaced a **25-failure** baseline on `main`. Every
+failure traced to one line:
+
+```
+claude-providers.sh: line 2799: PI_ALIASES: unbound variable
+```
+
+The Pi CLI twin feature evaluates `(( PI_ALIASES ))` on the emission path but
+only ever **set** the variable from `--pi-aliases` / `--no-pi-aliases`. Its Kimi
+twin had a default (`: "${KIMI_ALIASES:=1}"`); the Pi twin was added without one.
+Under `set -u` the reference aborted the whole `--apply` run, so no records were
+written and the command exited non-zero — which reads from outside as "--apply
+does nothing" rather than a crash.
+
+| Step | Evidence |
+|---|---|
+| Baseline | `test_helixllm_model_export.sh` → **25 failed / 80 passed** (also on the trunk, so pre-existing) |
+| Fix (`e78835d`) | `: "${PI_ALIASES:=1}"` beside `KIMI_ALIASES` → **1 failed / 104 passed** |
+| Test hermeticity (`fa9bf43`) | last failure was the ambient `CMA_PROVIDER_CA_CERT` leak → **105 passed / 0 failed** |
+| Paired §1.1 mutation | leave `PI_ALIASES` unset → **24 failed / 81 passed**; reverted, no residue |
+| Regression sweep | ccr 13/0 · facade 21/0 · failure-attribution 50/0 · mechanical 17/0 · session 62/0 · sessions 30/0 |
 
 ## Reported symptom
 
