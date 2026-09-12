@@ -2,7 +2,20 @@
 
 **Feature**: spec 006, WS-C Issue 1
 **Date**: 2026-09-12
-**Status**: root cause identified by CODE ANALYSIS; **runtime reproduction NOT achieved**
+**Status**: **FIXED at the code level with a discriminating RED→GREEN + paired mutation.**
+Runtime reproduction of the *reported* live failure was NOT achieved (see boundary).
+
+## Outcome (2026-09-12)
+
+| Step | Commit | Evidence |
+|---|---|---|
+| 1. Hermeticity of the suite | `aae3246` | test suite was **2 failed / 10 passed** on UNCHANGED product code because this host's shell exports `CMA_PROVIDER_CA_CERT` (the INPUT `lib.sh` reads) → scrubbed → **12/12** |
+| 2. RED reproducing the defect | `282f154` | `[FAIL] ca-bundle.pem was rewritten IN PLACE (inode 101583 unchanged)` — 1 failed, 12 passed |
+| 3. Fix + paired mutation | `3e9a3f8` | `[PASS] rewritten atomically (inode 101631 -> 101639)` — **13/13**; mutation (`mv` → `cat >`) FAILs the test; restored, no residue; neighbours 50/0 and 17/0 |
+
+The fix: build the bundle in a temp file in the **same directory** under `umask 077`,
+`chmod 600`, then `rename(2)` over the destination. A failed build removes its temp
+file and leaves any existing good bundle untouched.
 
 ## Reported symptom
 
