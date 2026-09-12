@@ -45,6 +45,20 @@ SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 source "$TESTS_DIR/lib/sandbox.sh"
 make_sandbox
+
+# Hermeticity (test defect, fixed 2026-09-12): the NEGATIVE controls below
+# assert that a provider WITHOUT a configured CA exports NO CA environment at
+# all. The developer's shell may already carry any of these —
+#   CMA_PROVIDER_CA_CERT  <- the INPUT lib.sh reads
+#   SSL_CERT_FILE / NODE_EXTRA_CA_CERTS  <- the OUTPUTS lib.sh derives from it
+# — and make_sandbox does not scrub them. Measured on this host, the caller's
+# shell exported CMA_PROVIDER_CA_CERT=/…/helix_llm/certs/cert.pem, which lib.sh
+# faithfully turned into NODE_EXTRA_CA_CERTS for a provider that had NO CA
+# configured, failing the negative control for a reason unrelated to the code
+# under test (the suite was 2 failed / 10 passed BEFORE any product change).
+# Scrub the whole family before sourcing lib.sh.
+unset CMA_PROVIDER_CA_CERT SSL_CERT_FILE NODE_EXTRA_CA_CERTS
+
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
