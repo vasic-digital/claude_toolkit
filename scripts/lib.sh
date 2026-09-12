@@ -1874,10 +1874,27 @@ cma_run_provider() {
                 /etc/ssl/cert.pem; do
         [[ -r "$_c" ]] && { _ccr_sys_ca="$_c"; break; }
       done
-      if [[ -n "$_ccr_sys_ca" ]]; then
-        cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_home/ca-bundle.pem" 2>/dev/null || true
+      # ATOMIC write (spec 006 WS-C Issue 1). Build the bundle in a temp file in
+      # the SAME directory, fix its mode, then rename it over the destination.
+      # `cat ... > ca-bundle.pem` truncated the live file in place, so a
+      # concurrent reader — the running router, which reads this via
+      # SSL_CERT_FILE at dial time — could observe an empty or half-written
+      # bundle and fail with the very x509 error this block exists to prevent.
+      # rename(2) is atomic within a filesystem, so a reader sees either the old
+      # complete bundle or the new complete bundle, never a partial one.
+      local _ccr_tmp="${_ccr_home}/.ca-bundle.pem.$$.${RANDOM:-0}"
+      if ( umask 077
+           if [[ -n "$_ccr_sys_ca" ]]; then
+             cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
+           else
+             cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
+           fi ); then
+        chmod 600 "$_ccr_tmp" 2>/dev/null || true
+        mv -f "$_ccr_tmp" "$_ccr_home/ca-bundle.pem" 2>/dev/null || rm -f "$_ccr_tmp"
       else
-        cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_home/ca-bundle.pem" 2>/dev/null || true
+        # A failed build must not leave a partial temp file behind, and must not
+        # replace an existing good bundle with nothing.
+        rm -f "$_ccr_tmp"
       fi
       # The bundle carries a private upstream CA: same 600 discipline as the
       # config dir it lives in (the shell's umask is not guaranteed here).
