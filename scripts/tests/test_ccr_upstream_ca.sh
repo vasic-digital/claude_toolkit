@@ -209,4 +209,27 @@ it "native WITHOUT CA: NODE_EXTRA_CA_CERTS stays unset"
 grep -q 'NODE_EXTRA_CA_CERTS=\[\]' "$claudeenv"
 assert_eq 0 $? "claude child saw an empty NODE_EXTRA_CA_CERTS (log: $(cat "$claudeenv"))"
 
+
+# --- Issue 1 (spec 006 WS-C): the ca-bundle write must be ATOMIC -------------
+# A truncate-in-place write (`cat … > ca-bundle.pem`) keeps the SAME inode and
+# opens a window in which a concurrent reader — the running router, which reads
+# the bundle via SSL_CERT_FILE at dial time — observes an empty or half-written
+# file. That surfaces later as the very x509 failure the bundle exists to fix.
+# An atomic write (write a temp file in the SAME directory, then rename)
+# publishes a NEW inode, so no reader can ever observe a partial bundle. The
+# inode change is the observable signature of that atomicity and is
+# deterministic, unlike racing a reader against the writer.
+it "router+CA: the ca-bundle rewrite is atomic (publishes a new inode, never truncates in place)"
+inode_before="$(stat -c %i "$bundle" 2>/dev/null || echo none)"
+cma_run_provider testrtr >/dev/null 2>&1
+inode_after="$(stat -c %i "$bundle" 2>/dev/null || echo none)"
+if [[ "$inode_after" == "none" ]]; then
+  assert_eq 0 1 "ca-bundle.pem disappeared after a rewrite"
+elif [[ "$inode_before" == "$inode_after" ]]; then
+  assert_eq 0 1 "ca-bundle.pem was rewritten IN PLACE (inode $inode_before unchanged): a concurrent reader can observe a truncated bundle — the write must be temp-file + rename"
+else
+  assert_eq 0 0 "ca-bundle rewritten atomically (inode $inode_before -> $inode_after)"
+fi
+
+
 summary
