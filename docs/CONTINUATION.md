@@ -1,13 +1,13 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-07-28
-**Last commit:** `main @ 5474545` — *feat: auto-start HelixLLM for helixagent alias (v1.26.6)*
-**Working tree:** **DIRTY** — the whole `v1.26.7` payload is uncommitted (see §1.2)
-**Active branch:** `main`
-**Declared version:** `1.26.7` (`package.json`, `CHANGELOG.md` entry dated 2026-07-27) — **not tagged, not released**
-**Next action:** commit + tag + push the `v1.26.7` payload (§2). Everything in it is written and the hermetic suite is green; nothing is half-implemented.
+**Last updated:** 2026-09-13
+**Last commit:** `feature/006-hardware-aware-model-management @ 4671999` — *docs(ws-c): document the failing_layer contract + the pi twin*
+**Working tree:** **CLEAN** (on the spec-006 feature branch; `main` is untouched — see §6)
+**Active branch:** `feature/006-hardware-aware-model-management` (work-stream: `/home/milosvasic/Projects/helix_code_ws_006/claude-toolkit`)
+**Declared version:** unchanged by this work-stream — no tag, no release (WS-E not started)
+**Next action:** spec-006 WS-C is complete except the live-reproduction gaps in §6.3; the remaining work in this repo is `main`'s own v1.26.7 payload (§2), which this branch deliberately does **not** touch.
 
-> **How to read this file.** §1 is the *current* state — trust it. §2 is what remains. §3 is the honest evidence snapshot. §4 collects known gaps. §5 is a dated archive of superseded programme history, kept only so a reader can date a claim they find elsewhere; **nothing in §5 describes the tree as it is today.**
+> **How to read this file.** §1 is the *current* state — trust it. §2 is what remains. §3 is the honest evidence snapshot. §4 collects known gaps. §5 is a dated archive of superseded programme history, kept only so a reader can date a claim they find elsewhere; **nothing in §5 describes the tree as it is today.** §6 covers the spec-006 WS-C work-stream (2026-09-12 → 13).
 
 ---
 
@@ -235,6 +235,45 @@ Design and plan artifacts, kept for provenance:
 
 ---
 
-## 6. Update protocol
+## 6. spec-006 WS-C work-stream (2026-09-12 → 13)
+
+An isolated work-stream (branch `feature/006-hardware-aware-model-management`,
+sibling checkout at `/home/milosvasic/Projects/helix_code_ws_006/claude-toolkit`)
+carried spec 006's WS-C: fix the five reported provider-alias issues. **`main`
+was not modified**; nothing here is tagged or released.
+
+### 6.1 What the five reported issues turned out to be
+
+| Issue | Outcome |
+|---|---|
+| 1 · ca-bundle overwrite | **REAL DEFECT, FIXED** — the bundle was written with a truncating `cat >` while the running router read it via `SSL_CERT_FILE`. Now temp-file + `umask 077` + `chmod 600` + `rename(2)`. |
+| 2 · session resume | **ALREADY GUARDED** — `cma_existing_session_id` deliberately returns empty rather than inject `--resume` with a never-created UUID, which is exactly what causes "No conversation found". No fix; forensics recorded. |
+| 3 · 32 MB request limit | **ALREADY TESTED, NOT A DEFECT** — oversized bodies are rejected rather than OOM-killed. Raising the ceiling was the *wrong* fix. |
+| 4 · Pi alias unverified | **GATE BY DESIGN + A REAL DEFECT FOUND** — the refusal is the activation gate working (message verbatim), but validating it surfaced `PI_ALIASES` being **uninitialised**, which aborted every `helixllm-export --apply` with `unbound variable`. |
+| 5 · gateway endpoint | **CONFIGURABLE + COVERED** — the pin is overridable via `CMA_HELIXLLM_PINS_FILE`; the reported errors most likely mean the gateway was simply not running. No fix. |
+
+### 6.2 Defects found beyond the reported five
+
+- **`PI_ALIASES` unbound** — the Pi twin feature evaluated `(( PI_ALIASES ))` but never gave it a default, unlike its Kimi sibling. Under `set -u` this killed `--apply` silently. Suite went **25 failed / 80 passed → 105 / 0**.
+- **`failing_layer` blanket-labelled `existence`** — the verifier already publishes the failed layer via `CMA_VERIFY_LAYER_FILE` in a closed vocabulary; two call sites wrote a literal `existence` instead and a third was missed entirely (caught by independent review). Now the file token wins, with a documented legacy reason-fallback.
+- **Ambient-CA test hermeticity** — three suites failed for a reason unrelated to the code because the developer's shell exports `CMA_PROVIDER_CA_CERT`. Scrubbed centrally in `make_sandbox()`.
+
+### 6.3 What is NOT done (honest)
+
+- **No live reproduction** for issues 2, 3 or 5. The fixes/verdicts rest on code analysis, the verifier's own published contract, and green suites — not on a live gateway run. Each forensics doc in `scripts/debugging/` names the exact command that would confirm or kill its hypothesis.
+- **The `failing_layer` vocabulary is deliberately two sets** (closed set from the file; legacy strings from the reason fallback). Both suites pin their own; reconciling them is a deliberate future change, not a drive-by simplification.
+- **F6 from the WS-C review**: the ca-bundle temp file leaks only on SIGKILL/timeout. No correctness impact; recorded, not fixed.
+
+### 6.4 Evidence
+
+`scripts/tests/proof/` is the generated per-suite evidence. The full suite
+(`scripts/tests/run-all.sh`) was **ALL GREEN, 73/73 files** on 2026-09-13 after the
+work above. Forensics records live in `scripts/debugging/`:
+`issue1_ca_bundle.md`, `issue2_session_resume.md`, `issue3_request_size.md`,
+`issue4_pi_alias.md`, `issue5_gateway_endpoint.md`, `failing_layer_attribution.md`.
+
+---
+
+## 7. Update protocol
 
 Every commit that advances state MUST update this file in the SAME commit (§6.S / §11.4.131). The header block's **Last updated** / **Last commit** / **Working tree** lines MUST track reality. **A stale CONTINUATION is a CRITICAL DEFECT** — a hand-off document that describes a state that no longer exists is worse than no hand-off at all, because it is believed.
