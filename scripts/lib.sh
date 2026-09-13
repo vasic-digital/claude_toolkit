@@ -1882,13 +1882,24 @@ cma_run_provider() {
       # bundle and fail with the very x509 error this block exists to prevent.
       # rename(2) is atomic within a filesystem, so a reader sees either the old
       # complete bundle or the new complete bundle, never a partial one.
-      local _ccr_tmp="${_ccr_home}/.ca-bundle.pem.$$.${RANDOM:-0}"
-      if ( umask 077
-           if [[ -n "$_ccr_sys_ca" ]]; then
-             cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
-           else
-             cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
-           fi ); then
+      # mktemp, not "$$.$RANDOM": $$ is the PARENT shell PID, identical in every
+      # subshell of one shell, so uniqueness would rest on $RANDOM alone
+      # (~15 bits) and two concurrent writers for the SAME provider could
+      # pick the same path and interleave their output.
+      local _ccr_tmp
+      _ccr_tmp="$(mktemp "${_ccr_home}/.ca-bundle.pem.XXXXXX")" || _ccr_tmp=""
+      if [[ -z "$_ccr_tmp" ]]; then
+        # Could not create a temp file. Do NOT fall back to writing the
+        # destination directly: that reintroduces the in-place truncation this
+        # block exists to remove. Leave any existing bundle alone and let the
+        # best-effort chmod/read below decide what is usable.
+        :
+      elif ( umask 077
+             if [[ -n "$_ccr_sys_ca" ]]; then
+               cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
+             else
+               cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
+             fi ); then
         chmod 600 "$_ccr_tmp" 2>/dev/null || true
         mv -f "$_ccr_tmp" "$_ccr_home/ca-bundle.pem" 2>/dev/null || rm -f "$_ccr_tmp"
       else
@@ -3189,12 +3200,21 @@ cma_status_write() {
 #
 #   existence | tool_call | context | attribution | llmsverifier | preconditions
 #
-# This reader enforces that vocabulary and maps anything else — a missing file,
-# an empty file, an unrecognised token — to `unknown`. It NEVER defaults to
-# `existence`: absence means the layer was NOT measured, and naming a specific
-# cause instead is the exact defect this replaces (§11.4.6, §11.4.201). Note the
-# vocabulary says `tool_call`; the retired prose-matcher emitted `tool_calling`,
-# which is not in the set.
+# This reader enforces that vocabulary for the FILE path and maps anything else
+# — a missing file, an empty file, an unrecognised token — to `unknown`. It NEVER
+# defaults to `existence`: absence means the layer was NOT measured, and naming a
+# specific cause instead is the exact defect this replaces (§11.4.6, §11.4.201).
+#
+# FALLBACK VOCABULARY — THE TWO SETS DIVERGE, DELIBERATELY AND EXPLICITLY.
+# When no file token is present the reason matcher below is used, and it emits
+# `tool_calling`, `sentinel`, `route`, `chat`, `chat_http` — NONE of which are in
+# the closed set above. That is not an oversight to be normalised away in one
+# direction: test_sync_failing_layer_attribution.sh asserts the LEGACY strings
+# and test_failing_layer_attribution.sh asserts the CLOSED set, so a
+# modern verifier is expected to write the file and every legacy caller is
+# expected to see the old strings. The divergence is recorded here rather than
+# hidden, and the two suites pin both halves. Reconciling them into one
+# vocabulary is a deliberate future change, not a drive-by simplification.
 cma_read_verify_layer() {
   local f="${1:-}" reason="${2:-}" v=""
   [[ -n "$f" && -s "$f" ]] && v="$(tr -d '[:space:]' < "$f" 2>/dev/null || true)"

@@ -51,7 +51,9 @@ make_sandbox
 # all. The developer's shell may already carry any of these —
 #   CMA_PROVIDER_CA_CERT  <- the INPUT lib.sh reads
 #   SSL_CERT_FILE / NODE_EXTRA_CA_CERTS  <- the OUTPUTS lib.sh derives from it
-# — and make_sandbox does not scrub them. Measured on this host, the caller's
+# — which USED to leak because make_sandbox did not scrub them. It now does
+# (centrally, 2026-09-13), so the unset below is belt-and-braces for a caller
+# that sources lib.sh without make_sandbox. Measured on this host, the caller's
 # shell exported CMA_PROVIDER_CA_CERT=/…/helix_llm/certs/cert.pem, which lib.sh
 # faithfully turned into NODE_EXTRA_CA_CERTS for a provider that had NO CA
 # configured, failing the negative control for a reason unrelated to the code
@@ -220,9 +222,29 @@ assert_eq 0 $? "claude child saw an empty NODE_EXTRA_CA_CERTS (log: $(cat "$clau
 # inode change is the observable signature of that atomicity and is
 # deterministic, unlike racing a reader against the writer.
 it "router+CA: the ca-bundle rewrite is atomic (publishes a new inode, never truncates in place)"
-inode_before="$(stat -c %i "$bundle" 2>/dev/null || echo none)"
+inode_before="$(stat -c %i "$bundle" 2>/dev/null || stat -f %i "$bundle" 2>/dev/null || echo none)"
 cma_run_provider testrtr >/dev/null 2>&1
-inode_after="$(stat -c %i "$bundle" 2>/dev/null || echo none)"
+inode_after="$(stat -c %i "$bundle" 2>/dev/null || stat -f %i "$bundle" 2>/dev/null || echo none)"
+# The inode comparison above proves the destination was REPLACED, but not that
+# a reader is never left without one: an unlink-then-create implementation
+# ("rm -f dest; cat > dest") also changes the inode while opening a window in
+# which the path is ABSENT (and a non-O_EXCL create briefly yields a 0-byte
+# file). A reader loop across a rewrite closes that gap — with rename(2) the
+# path always holds a COMPLETE bundle, old or new.
+_ra="$SANDBOX_HOME/atomic.reader"
+( absent=0; partial=0
+  for _i in $(seq 1 4000); do
+    if [[ ! -f "$bundle" ]]; then absent=$((absent+1)); continue; fi
+    grep -q 'CMA-TEST-UPSTREAM-CA-MARKER' "$bundle" 2>/dev/null || partial=$((partial+1))
+  done
+  printf '%s %s\n' "$absent" "$partial" > "$_ra" ) &
+_reader=$!
+for _i in 1 2 3; do cma_run_provider testrtr >/dev/null 2>&1; done
+wait "$_reader"
+read -r _absent _partial < "$_ra"
+assert_eq 0 "$_absent" "a concurrent reader never found the bundle ABSENT during a rewrite (unlink window)"
+assert_eq 0 "$_partial" "a concurrent reader never found a PARTIAL bundle during a rewrite"
+
 if [[ "$inode_after" == "none" ]]; then
   assert_eq 0 1 "ca-bundle.pem disappeared after a rewrite"
 elif [[ "$inode_before" == "$inode_after" ]]; then
