@@ -4,7 +4,46 @@
 
 Every provider alias goes through a 4-layer verification pipeline before it can launch Claude Code. A provider that passes all available layers is marked `verified` and is launchable. A provider that fails any layer is marked `failed` or `unverified` and is refused by the activation gate.
 
-**One verdict, two aliases.** Since v1.27.0 each provider id also gets a `kimi-<id>` twin (Kimi Code over the **same** backend, see the Provider Aliases User Guide §4.2). There is no separate Kimi verification — the single `status.json` record that gates the Claude alias `<id>` gates its `kimi-<id>` twin too. Any `kimi-<id>` alias is refused at launch unless its id is `verified` (override with `--force`), exactly like the Claude-side gate.
+**One verdict, two aliases.** Since v1.27.0 each provider id also gets a `kimi-<id>` twin (Kimi Code over the **same** backend, see the Provider Aliases User Guide §4.2). Since v1.28.0 it also gets a `pi-<id>` twin (Pi CLI over the same backend, same guide §4.3). There is no separate twin verification — the single `status.json` record that gates the Claude alias `<id>` gates its `kimi-<id>` and `pi-<id>` twins too. Any twin is refused at launch unless its id is `verified` (override with `--force`), exactly like the Claude-side gate.
+
+## `failing_layer` — what failed, and how it is recorded
+
+`status.json` carries a `failing_layer` alongside each verdict. It exists because
+"the model is missing" and "the model cannot tool-call" are different problems,
+and a wrong layer points an investigation at something that is not broken.
+
+The layer is **published by the verifier**, not inferred by the caller. The
+verifier writes a token to the file named by `CMA_VERIFY_LAYER_FILE`, from a
+closed vocabulary:
+
+| Token | Meaning |
+|---|---|
+| `existence` | the model/endpoint did not answer the chat probe usably |
+| `tool_call` | it chatted fine, then failed the **tool-calling** probe |
+| `context` | its context window is smaller than the probe itself |
+| `attribution` | `base_url` is the ccr gateway: no verdict is attributable |
+| `llmsverifier` | the LLMsVerifier binary (layer 1) declined |
+| `preconditions` | no probe was attempted (offline / no curl / no key) |
+| `unknown` | **no layer was measured** |
+
+Two rules follow, and both matter when reading a status:
+
+- **`unknown` is a real answer, never a fallback to tidy away.** An absent or
+  unrecognised token means the cause was not measured. Naming a specific layer
+  instead is how a tool-call-incapable provider came to be recorded as a missing
+  model.
+- **A low quality SCORE is not a layer.** The multi-provider sync marks an alias
+  `unverified` when its manifest score is below `MIN_SCORE`; that records
+  `unknown`, because a score says nothing about *which layer* failed.
+
+**Legacy callers see a different vocabulary.** When no layer file is present —
+an older verifier, or a stub in a test — the toolkit falls back to deriving the
+layer from the verifier's stderr reason, and that path emits the older strings
+(`tool_calling`, `sentinel`, `route`, `chat`, `chat_http`). This divergence is
+deliberate and documented rather than silently normalised; see
+`cma_read_verify_layer` and `cma_derive_layer_from_reason` in `scripts/lib.sh`.
+If you are comparing `failing_layer` values across versions, expect the two sets.
+
 
 ## The Four Layers
 
