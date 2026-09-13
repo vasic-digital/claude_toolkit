@@ -2624,7 +2624,7 @@ cmd_sync() {
       vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; CMA_VERIFY_LAYER_FILE="$_vlayer_f" bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
       [[ -s "$_vreason_f" ]] && _vreason="$(cat "$_vreason_f")"
       rm -f "$_vreason_f"
-      vlayer="$(cma_read_verify_layer "$_vlayer_f")"
+      vlayer="$(cma_read_verify_layer "$_vlayer_f" "$_vreason")"
       rm -f "$_vlayer_f"
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
@@ -2988,7 +2988,7 @@ cmd_verify() {
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
               CMA_VERIFY_LAYER_FILE="$_vlay" bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     [[ -z "$vst" ]] && vst=unverified
-    vlay="$(cma_read_verify_layer "$_vlay")"
+    vlay="$(cma_read_verify_layer "$_vlay" "$(cat "$_verr" 2>/dev/null || true)")"
     if [[ "$vst" != "verified" ]] && [[ -s "$_verr" ]]; then
       while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
     fi

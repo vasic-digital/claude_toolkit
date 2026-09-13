@@ -3196,13 +3196,40 @@ cma_status_write() {
 # vocabulary says `tool_call`; the retired prose-matcher emitted `tool_calling`,
 # which is not in the set.
 cma_read_verify_layer() {
-  local f="${1:-}" v=""
+  local f="${1:-}" reason="${2:-}" v=""
   [[ -n "$f" && -s "$f" ]] && v="$(tr -d '[:space:]' < "$f" 2>/dev/null || true)"
   case "$v" in
     existence|tool_call|context|attribution|llmsverifier|preconditions)
-      printf '%s\n' "$v" ;;
-    *)
-      printf 'unknown\n' ;;
+      printf '%s\n' "$v"; return 0 ;;
+  esac
+  # No file token. That is the LEGACY case, not an absence of information: a
+  # verifier or stub that predates the file protocol still emits its reason on
+  # stderr, so fall back to the reason matcher below. Both paths are real —
+  # test_failing_layer_attribution.sh exercises the file (modern) and
+  # test_sync_failing_layer_attribution.sh exercises the reason (legacy) — and
+  # dropping either one breaks a passing suite (§11.4.120).
+  cma_derive_layer_from_reason "$reason"
+}
+
+# cma_derive_layer_from_reason <verifier-stderr-reason> -> legacy layer token.
+#
+# Kept for verifiers that predate CMA_VERIFY_LAYER_FILE. Its vocabulary is the
+# LEGACY one (`tool_calling`, `sentinel`, `route`, `chat`), which is NOT the
+# closed set published by providers-verify.sh:70-84 (`tool_call`, `attribution`);
+# the pair is recorded here deliberately so the divergence is visible rather
+# than silently normalised in one direction.
+cma_derive_layer_from_reason() {
+  local reason="${1:-}"
+  case "$reason" in
+    '')                                     printf 'unknown\n' ;;
+    *'is the ccr gateway itself'*)          printf 'route\n' ;;
+    *'tool call'*|*'tool-calling probe'*)   printf 'tool_calling\n' ;;
+    *'VERIFY_OK sentinel missing'*)         printf 'sentinel\n' ;;
+    *'context-inadequate'*)                 printf 'context\n' ;;
+    *'error body'*)                         printf 'chat\n' ;;
+    *'LLMsVerifier did not confirm'*)       printf 'existence\n' ;;
+    *'chat probe HTTP'*)                    printf 'chat_http\n' ;;
+    *)                                      printf 'unknown\n' ;;
   esac
 }
 
