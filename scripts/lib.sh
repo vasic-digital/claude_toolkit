@@ -1894,18 +1894,26 @@ cma_run_provider() {
         # block exists to remove. Leave any existing bundle alone and let the
         # best-effort chmod/read below decide what is usable.
         :
-      elif ( umask 077
+      else
+        # Reap the temp file if this shell is interrupted between creation and
+        # the rename (review F6). SIGKILL cannot be caught, so a kill -9 can
+        # still leave one; that is a disk-cost, never a correctness issue.
+        trap 'rm -f "$_ccr_tmp"' INT TERM
+        if ( umask 077
              if [[ -n "$_ccr_sys_ca" ]]; then
                cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
              else
                cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
              fi ); then
-        chmod 600 "$_ccr_tmp" 2>/dev/null || true
-        mv -f "$_ccr_tmp" "$_ccr_home/ca-bundle.pem" 2>/dev/null || rm -f "$_ccr_tmp"
-      else
-        # A failed build must not leave a partial temp file behind, and must not
-        # replace an existing good bundle with nothing.
-        rm -f "$_ccr_tmp"
+          trap - INT TERM
+          chmod 600 "$_ccr_tmp" 2>/dev/null || true
+          mv -f "$_ccr_tmp" "$_ccr_home/ca-bundle.pem" 2>/dev/null || rm -f "$_ccr_tmp"
+        else
+          trap - INT TERM
+          # A failed build must not leave a partial temp file behind, and must
+          # not replace an existing good bundle with nothing.
+          rm -f "$_ccr_tmp"
+        fi
       fi
       # The bundle carries a private upstream CA: same 600 discipline as the
       # config dir it lives in (the shell's umask is not guaranteed here).

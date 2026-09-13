@@ -254,4 +254,34 @@ else
 fi
 
 
+
+# --- concurrent writers -------------------------------------------------------
+# Several writers for the SAME provider run at once. Each takes its own mktemp
+# temp file, so the last rename wins with a COMPLETE bundle.
+#
+# HONEST SCOPE: this is a BEST-EFFORT check, not the oracle for temp-file
+# uniqueness. Reverting the implementation to a shared name (`$$.$RANDOM`) was
+# tried as a paired mutation and did NOT reproduce a collision in a run — a
+# collision needs two writers to pick the same value inside a narrow window, so
+# the test cannot prove the absence of the race. The DETERMINISTIC guarantee is
+# mktemp's atomic O_EXCL creation, which is why the implementation uses it; what
+# this case adds is a check that the published bundle is complete and that no
+# temp file is left behind under real parallelism.
+it "concurrent writers leave a complete bundle and no temp files"
+( for _i in 1 2 3 4 5 6; do cma_run_provider testrtr >/dev/null 2>&1; done ) &
+_w1=$!
+( for _i in 1 2 3 4 5 6; do cma_run_provider testrtr >/dev/null 2>&1; done ) &
+_w2=$!
+( for _i in 1 2 3 4 5 6; do cma_run_provider testrtr >/dev/null 2>&1; done ) &
+_w3=$!
+wait "$_w1" "$_w2" "$_w3"
+
+_marker_count="$(grep -c 'CMA-TEST-UPSTREAM-CA-MARKER' "$bundle" 2>/dev/null || echo 0)"
+assert_eq 1 "$_marker_count" "the bundle carries the upstream CA exactly ONCE (no interleaving)"
+assert_eq 0 "$(grep -q 'END CERTIFICATE' "$bundle" 2>/dev/null && echo 0 || echo 1)" \
+  "the published bundle is COMPLETE (ends with a PEM footer)"
+# No temp files may survive the writers.
+_leftovers="$(find "$(dirname "$bundle")" -maxdepth 1 -name '.ca-bundle.pem.*' 2>/dev/null | wc -l)"
+assert_eq 0 "$_leftovers" "no temp bundle files were left behind"
+
 summary
