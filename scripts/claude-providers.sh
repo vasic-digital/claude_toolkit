@@ -67,6 +67,19 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 # On by default; --no-kimi-aliases turns emission off for a run (existing twins
 # are only ever removed by `remove`/`prune`, never silently dropped).
 : "${KIMI_ALIASES:=1}"
+# Per-provider Pi CLI twin aliases (`pi-<id>` -> `cma_run_pi_provider`), mirrors
+# KIMI_ALIASES immediately above. Root-caused via an independent deterministic-
+# validation audit, 2026-09-17: unlike KIMI_ALIASES, this had NO top-level
+# default - only a local `: "${PI_ALIASES:=1}"` inside ONE function
+# (cmd_sync's own multi-sync leg, :2815), so any OTHER function referencing
+# `(( PI_ALIASES ))` before that one ever ran in the same process - e.g.
+# cmd_helixllm_export's --apply path at :2971 - hit a real "PI_ALIASES: unbound
+# variable" crash under this script's own `set -u`. Confirmed live: this was
+# the SOLE root cause of 26 real test failures across
+# test_helixllm_model_export.sh (25) and test_kimi_wire_and_status_freshness.sh
+# (1) - every one of them traced to this exact line via the real captured
+# evidence in scripts/tests/proof/97-helixllm-model-export.txt.
+: "${PI_ALIASES:=1}"
 
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
