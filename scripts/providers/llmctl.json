@@ -1,0 +1,7 @@
+{
+  "bin": "llmctl",
+  "key_var": "LLMCTL_API_KEY",
+  "transport": "router",
+  "context_limit": 8192,
+  "max_output": 4096
+}

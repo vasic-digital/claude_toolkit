@@ -1962,6 +1962,174 @@ detect_tokenrouter_records() {
       }
     ]'
 }
+
+# --- local llmctl PATH-detection (multi-profile, one record per RUNNING port) -
+#
+# llmctl (a sibling local-LLM orchestrator, github.com/.../llmctl) runs each
+# catalog PROFILE as its OWN independent llama.cpp/colibri server process on a
+# FIXED, catalog-assigned port (`llmctl plan --json` -> .profiles.<name>.port,
+# llmctl/lib/catalog.sh `catalog_port` -- a per-profile constant; only WHICH
+# profiles fit the host varies with hardware, WHERE a fitting one listens does
+# not). This is architecturally different from HelixAgent/HelixLLM (ONE
+# multi-model server, one /v1/models listing many ids): llmctl is
+# N-INDEPENDENT-SERVERS, zero to many of which may be running at once (llmctl
+# supports multi-model co-residency). This detector therefore emits ZERO, ONE,
+# or MANY records per sync -- one per profile that answers ITS OWN /v1/models
+# right now -- never a static list of "what the catalog COULD run".
+#
+# THE CATALOG (profile names + ports) IS RESOLVED FROM LLMCTL ITSELF, NEVER
+# HARDCODED HERE (CONST-045 / §11.4.111): `llmctl plan --json` is llmctl's own
+# hardware-aware planner and the single source of truth for where each profile
+# listens. Copying that port list into a second file here would recreate
+# exactly the class of stale/duplicated pin the HelixLLM :18434/:18435
+# postmortem above in this file warns about, so this detector re-asks llmctl
+# every sync instead of caching its answer in a tracked pins file.
+#
+# RUNNING == answers ITS OWN /v1/models with a genuine OpenAI-shaped listing
+# right now. A port merely being *occupied* is not enough evidence: measured
+# live on the development host, port 8080 (llmctl's own "fast" profile port)
+# was held by an UNRELATED service that answers HTTP 200 plain-text "404 page
+# not found" on /v1/models -- jq fails to parse that as JSON, `.data[0].id`
+# yields empty, and the profile is correctly read as NOT running rather than
+# mis-registered against the wrong backend. This is the same defensive posture
+# detect_helixcoder_record and detect_helixagent_record already take -- a
+# non-JSON/empty response is silently "not this backend", never a crash and
+# never a bluffed record.
+#
+# key_var default LLMCTL_API_KEY is deliberately a NORMALLY-UNSET variable:
+# llmctl's llama-server processes are launched with no API-key flag (confirmed
+# in llmctl/lib/scheduler.sh's sched_build_launch -- it never adds an
+# --api-key argument), so every profile's /v1 is unauthenticated plaintext
+# localhost HTTP -- the same no-key-needed shape this file already handles for
+# other loopback backends. The var still gets a name so the resolved record
+# and the .env file carry the SAME field every other provider does, and an
+# operator who later fronts llmctl with an auth proxy can export it without
+# any code change here.
+detect_llmctl_records() {
+  local _lc_json="${CMA_LLMCTL_PINS_FILE:-$LIB_DIR/providers/llmctl.json}"
+  local _lc_bin="${CMA_LLMCTL_BIN-}" _lc_keyvar="${CMA_LLMCTL_KEYVAR-}" \
+        _lc_transport="${CMA_LLMCTL_TRANSPORT-}" _lc_ctx="${CMA_LLMCTL_CONTEXT_LIMIT-}" \
+        _lc_out="${CMA_LLMCTL_MAX_OUTPUT-}"
+  if [[ -f "$_lc_json" ]] && command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        bin)           [[ -n "${CMA_LLMCTL_BIN+x}" ]]           || _lc_bin="$_v" ;;
+        key_var)       [[ -n "${CMA_LLMCTL_KEYVAR+x}" ]]        || _lc_keyvar="$_v" ;;
+        transport)     [[ -n "${CMA_LLMCTL_TRANSPORT+x}" ]]     || _lc_transport="$_v" ;;
+        context_limit) [[ -n "${CMA_LLMCTL_CONTEXT_LIMIT+x}" ]] || _lc_ctx="$_v" ;;
+        max_output)    [[ -n "${CMA_LLMCTL_MAX_OUTPUT+x}" ]]    || _lc_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_lc_json" 2>/dev/null)
+  fi
+  : "${_lc_bin:=llmctl}"
+  : "${_lc_keyvar:=LLMCTL_API_KEY}"
+  : "${_lc_transport:=router}"
+  : "${_lc_ctx:=8192}"
+  : "${_lc_out:=4096}"
+  [[ "$_lc_ctx" =~ ^[0-9]+$ ]] || _lc_ctx=8192
+  [[ "$_lc_out" =~ ^[0-9]+$ ]] || _lc_out=4096
+
+  # PATH/pins gate, same shape as detect_helixagent_record/detect_helixcoder_record:
+  # attempt discovery iff EITHER the llmctl binary resolves OR the git-tracked
+  # pins file exists. UNLIKE those two, llmctl's ports are never declared in
+  # the pins file (see the header comment above) -- they can only be learned
+  # by actually running `llmctl plan --json` -- so a pins-file-only host with
+  # no runnable binary honestly discovers zero profiles below; the gate still
+  # admits it (rather than requiring the binary up front) so an operator who
+  # tracks llmctl.json purely to override key_var/context defaults is not
+  # silently ignored, and so CMA_LLMCTL_PINS_FILE alone can exercise this
+  # function hermetically.
+  if ! command -v "$_lc_bin" >/dev/null 2>&1 && [[ ! -f "$_lc_json" ]]; then
+    printf '[]\n'; return 0
+  fi
+  command -v jq   >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+  command -v curl >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+
+  # Cannot discover ANYTHING without a runnable binary: llmctl.json (unlike
+  # helixagent.json/helixcoder.json) carries no base_url/port by design (see
+  # header) -- pins-only-no-binary is therefore an honest empty catalog, not a
+  # crash and not a guess.
+  command -v "$_lc_bin" >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+
+  # OFFLINE means "assume nothing is reachable" everywhere else in this file
+  # (_cma_helixllm_served_ids, detect_helixcoder_record); "running" is a
+  # live-network fact even on loopback, so honour the same contract: zero
+  # probes attempted -> zero profiles provably running -> [].
+  (( ${OFFLINE:-0} )) && { printf '[]\n'; return 0; }
+
+  # This file is sourced with `set -euo pipefail` active, so every command
+  # substitution below MUST be guarded (`|| true` / `|| var=default`) --
+  # `var="$(cmd)"` as a bare simple command is subject to errexit exactly like
+  # any other, and an unguarded one here would silently abort the WHOLE
+  # function (and the whole multi-profile scan) the instant `llmctl` exits
+  # nonzero or `jq` fails to parse one profile's response -- observed live
+  # while writing this detector's own test: an unguarded `jq` on the
+  # "wrong-service" mock's non-JSON body killed detection of every OTHER,
+  # perfectly-healthy profile in the same pass, not just the bad one.
+  local _plan_timeout="${CMA_LLMCTL_PLAN_TIMEOUT:-10}" _plan=""
+  if command -v timeout >/dev/null 2>&1; then
+    _plan="$(timeout "$_plan_timeout" "$_lc_bin" plan --json 2>/dev/null)" || _plan=""
+  else
+    _plan="$("$_lc_bin" plan --json 2>/dev/null)" || _plan=""
+  fi
+  if ! printf '%s' "$_plan" | jq -e '.profiles | type == "object"' >/dev/null 2>&1; then
+    cma_warn "llmctl: '$_lc_bin plan --json' produced no/invalid catalog -- treating as no running profiles"
+    printf '[]\n'; return 0
+  fi
+
+  # name<TAB>port<TAB>ctx for every catalog profile llmctl currently knows
+  # about, regardless of `fits`/`recommended` -- a profile can be STARTED and
+  # answering even on a host llmctl itself would not recommend it for (an
+  # operator override), so those two fields are irrelevant to "is it running
+  # right now" and are deliberately not consulted here.
+  local _t="${CMA_LLMCTL_HTTP_TIMEOUT:-3}"
+  local _name _port _pctx _served_json="[]"
+  while IFS=$'\t' read -r _name _port _pctx; do
+    [[ -n "$_name" && "$_port" =~ ^[0-9]+$ ]] || continue
+    local _base="http://127.0.0.1:${_port}/v1"
+    local _body=""
+    _body="$(curl -sf --max-time "$_t" "${_base}/models" 2>/dev/null)" || _body=""
+    [[ -n "$_body" ]] || continue
+    local _mid="" _mctx=""
+    # A non-JSON / non-OpenAI-shaped body (the real "another service already
+    # owns this port" case, measured live: HTTP 200 plain-text "404 page not
+    # found") makes jq fail to parse -- `|| _mid=""` is what keeps that
+    # failure LOCAL to this one profile instead of aborting every other
+    # profile's detection in the same pass (see the set -e note above).
+    _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
+    [[ -n "$_mid" ]] || continue
+    _mctx="$(jq -r --arg m "$_mid" \
+      '[.data[]? | select(.id==$m) | (.meta.n_ctx // empty)] | .[0] // empty' \
+      <<<"$_body" 2>/dev/null)" || _mctx=""
+    [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_pctx"
+    [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_lc_ctx"
+    _served_json="$(jq -c --arg name "$_name" --arg port "$_port" --arg base "$_base" \
+                       --arg model "$_mid" --arg ctx "$_mctx" \
+      '. + [{name:$name, port:($port|tonumber), base_url:$base, model:$model, context_limit:($ctx|tonumber)}]' \
+      <<<"$_served_json" 2>/dev/null)" || _served_json=""
+    [[ -n "$_served_json" ]] || _served_json="[]"
+  done < <(jq -r '.profiles | to_entries[] | [.key, (.value.port|tostring), ((.value.ctx // 0)|tostring)] | @tsv' \
+             <<<"$_plan" 2>/dev/null)
+
+  if [[ "$_served_json" == "[]" || -z "$_served_json" ]]; then
+    printf '[]\n'; return 0
+  fi
+
+  jq -cn --argjson served "$_served_json" --arg keyvar "$_lc_keyvar" \
+         --arg transport "$_lc_transport" --argjson out "$_lc_out" '
+    [ $served[] |
+      {key_var: $keyvar, classification: "llm",
+       provider_id: ("llmctl-" + .name), alias: ("llmctl-" + .name),
+       base_url: .base_url, transport: $transport,
+       strong_model: .model, fast_model: .model,
+       context_limit: .context_limit, max_output: $out,
+       status: "resolved",
+       reason: ("llmctl profile " + .name + " live at " + .base_url + " serving " + .model)}
+    ]
+  '
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -2036,13 +2204,17 @@ resolve_records() {
   if ! printf '%s' "$extra_tr" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_tokenrouter_records produced no/invalid JSON output"
   fi
-  # Merge all nine sources, deduped by provider_id. The Kimi Code OAuth
+  extra_lc="$(detect_llmctl_records)" || true
+  if ! printf '%s' "$extra_lc" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_llmctl_records produced no/invalid JSON output"
+  fi
+  # Merge all ten sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" --argjson e9 "$extra_tr" '
-    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8 + $e9) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" --argjson e9 "$extra_tr" --argjson e10 "$extra_lc" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8 + $e9 + $e10) | unique_by(.provider_id)
   '
 }
 

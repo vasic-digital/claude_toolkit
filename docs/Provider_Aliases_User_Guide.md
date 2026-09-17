@@ -1131,6 +1131,82 @@ What trim deliberately does **not** touch:
   provider via the `.env` line, wired today only for `helixagent` but reusable
   for any local-model provider that needs a fresh minimal session each launch.
 
+### llmctl (local, multi-profile) — one alias per RUNNING model server
+
+[llmctl](https://github.com/vasic-digital/llmctl) is a sibling local-LLM
+orchestrator — a separate project, not part of this toolkit — that probes your
+hardware, downloads GGUF models with cryptographic verification, builds
+llama.cpp/colibri from pinned source, and runs multiple models concurrently as
+systemd user services (Linux) or launchd agents (macOS). Each catalog
+**profile** (`fast`, `small`, `vision`, `vision-pro`, `coder`, `moe-fast`,
+`colibri-qwen36`, …) is its **own independent** llama.cpp/colibri server
+process on a fixed, catalog-assigned port, serving an OpenAI-compatible `/v1`.
+
+#### How the alias works
+
+`claude-providers sync` asks `llmctl plan --json` for the current catalog
+(profile names + ports — never hardcoded here, see the detector's own header
+comment in `scripts/claude-providers.sh`) and live-probes `/v1/models` on
+every profile's port. A profile that answers with a genuine OpenAI-shaped
+listing right now gets its own alias, `llmctl-<profile>` (e.g. `llmctl-fast`,
+`llmctl-vision`); a profile that is not currently running gets **no** alias —
+this is the one local provider in this toolkit that can register **zero, one,
+or many** aliases from a single sync, because llmctl supports running several
+model servers side by side (co-residency). Transport is **router** (every
+profile's endpoint is OpenAI-compatible, so launches go through
+`claude-code-router`), and no API key is required — llmctl's servers bind to
+`127.0.0.1` unauthenticated by default.
+
+Strong/fast model and context window are **never pinned** — they are read
+live from each running profile's own `/v1/models` response (the model id
+llama.cpp/colibri reports, and `meta.n_ctx` when the backend publishes one,
+falling back to the catalog's own planned `ctx` for that profile). A profile
+answering with a non-JSON or non-OpenAI-shaped body — e.g. an unrelated
+service that happens to already own that port — is correctly treated as "not
+running", never mis-registered against the wrong backend.
+
+#### Setup
+
+1. Set up llmctl in its own repository and start one or more model profiles:
+   ```bash
+   cd /path/to/llmctl
+   ./bin/llmctl setup                 # doctor + build engines + hardware plan
+   ./bin/llmctl models download fast  # verified download of a profile
+   ./bin/llmctl start fast            # serves 127.0.0.1:<fast's port>/v1
+   ```
+2. Back in this toolkit, run `claude-providers sync` — every currently-running
+   profile is discovered and registered automatically, with zero manual
+   per-model configuration.
+3. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new
+   shell).
+
+#### Usage example
+
+```bash
+llmctl-fast                         # launch Claude Code on the 'fast' profile (via ccr)
+llmctl-fast -p "explain this function"
+claude-providers list                # see exactly which llmctl-<profile> aliases exist right now
+```
+
+Stop a profile (`llmctl stop fast`) and re-run `claude-providers sync`; that
+alias's `.env` is left in place (the same "installed but not currently
+answering" honesty as `helixagent`/`helixcoder`) rather than deleted, and
+`claude-providers verify llmctl-fast` reports `unverified` until the profile
+is started again.
+
+#### Overrides
+
+Every knob is env-overridable (`CMA_LLMCTL_BIN`, `CMA_LLMCTL_PINS_FILE`,
+`CMA_LLMCTL_KEYVAR`, `CMA_LLMCTL_TRANSPORT`, `CMA_LLMCTL_CONTEXT_LIMIT`,
+`CMA_LLMCTL_MAX_OUTPUT`, `CMA_LLMCTL_PLAN_TIMEOUT`, `CMA_LLMCTL_HTTP_TIMEOUT`)
+and the tracked pins file `scripts/providers/llmctl.json` sets the defaults
+(`bin`, `key_var`, `transport`, and the `context_limit`/`max_output` fallbacks
+used only when a running profile's own response names none). The pins file
+deliberately carries **no** base URLs or ports — those can only be learned by
+asking the real `llmctl plan --json`, never invented here (the same lesson
+the `helixagent`/`helixllm` pins learned the hard way, documented above: a
+stale hardcoded port is worse than no pin at all).
+
 ## 13. Releasing — the mandatory live pre-release gate
 
 `claude-release-gate` is the release gate: **no release commit may be made
