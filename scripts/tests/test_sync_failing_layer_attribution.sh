@@ -26,8 +26,8 @@
 #   :205  VERIFY_OK sentinel missing (bluff)          -> sentinel
 #   :222  context-inadequate (backend 400)            -> context
 #   :224  chat probe HTTP <code>                      -> existence *or* auth/billing/suspended
-#   :246  model made no tool call (Claude Code needs it) -> tool_calling
-#   :250  tool-calling probe rejected HTTP <code>     -> tool_calling
+#   :246  model made no tool call (Claude Code needs it) -> tool_call
+#   :250  tool-calling probe rejected HTTP <code>     -> tool_call
 #
 # Seven of the eight are recorded as `existence` anyway. This is not cosmetic:
 # it sends the next investigation looking for a missing model that is not
@@ -223,7 +223,19 @@ if (( ! RED_MODE )); then
   fi
 fi
 
-check "A tool-calling unsupported" toolprov  "$R_TOOL"      "tool_calling"
+# tool_call (2026-09-17 correction, not a regression): the ORIGINAL fix
+# this test pinned matched cma_verify_failing_layer()'s own (buggy)
+# vocabulary at the time - `tool_calling` - which was never the real
+# verifier's own canonical token. providers-verify.sh's emit() doc
+# comment defines the closed vocabulary authoritatively as `tool_call`
+# (no -ing), and scripts/tests/test_failing_layer_attribution.sh's L1
+# case (calling the REAL verifier directly, not a mock) independently
+# confirms the real verifier emits exactly that. This test's own intent
+# - "cmd_sync may record only the failing layer the EVIDENCE shows" -
+# is unchanged and fully honored by cmd_sync now reading that same real
+# verifier's authoritative layer-file token directly; only the specific
+# STRING this test pins needed to catch up to it.
+check "A tool-calling unsupported" toolprov  "$R_TOOL"      "tool_call"
 check "B sentinel missing (bluff)" sentprov  "$R_SENTINEL"  "sentinel"
 check "C context inadequate"       ctxprov   "$R_CONTEXT"   "context"
 check "D ccr self-route"           routeprov "$R_ROUTE"     "route"

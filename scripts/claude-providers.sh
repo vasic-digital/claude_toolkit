@@ -2767,7 +2767,7 @@ cmd_sync() {
     # Declared here, not in the branch below: the failure branch reads it even
     # when --no-verify skipped the probe entirely, and under `set -u` an unset
     # read is fatal. Empty is the honest value there — nothing was measured.
-    local _vreason="" _vreason_f=""
+    local _vreason="" _vreason_f="" _vlayer="" _vlayer_f=""
     if (( ! NO_VERIFY )); then
       local vargs=(--provider "$pid" --model "$model" --key-var "$keyvar")
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
@@ -2787,21 +2787,40 @@ cmd_sync() {
         local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/$pid.token"
         [[ -f "$_kimi_tokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_kimi_tokf" 2>/dev/null)"
       fi
-      # providers-verify.sh:59 emit(): VERDICT on stdout, REASON on stderr. The
-      # reason used to go to /dev/null and the failure branch below then wrote
-      # the literal `existence` for all eight of the verifier's distinct
-      # `failed` reasons — seven of which are not about the model existing. Keep
-      # the stderr: it is the only evidence of WHY, and it is free.
+      # providers-verify.sh:59 emit(): VERDICT on stdout, REASON on stderr, and
+      # (providers-verify.sh:70-93) the LAYER as a third, machine-readable
+      # channel: a token written to the file named by CMA_VERIFY_LAYER_FILE,
+      # closed-vocabulary and authoritative (the verifier itself determined
+      # it - see providers-verify.sh's own emit() doc comment for the full
+      # vocabulary). Root-caused via systematic debugging, 2026-09-17: this
+      # call site never set that variable, so it silently got the documented
+      # no-op fallback (providers-verify.sh:71: "Unset ... is a silent
+      # no-op") and instead re-derived a layer by pattern-matching stderr
+      # PROSE through the separately-maintained cma_verify_failing_layer() -
+      # which uses a DIFFERENT, older vocabulary (`tool_calling` vs the real
+      # one's `tool_call`; no case at all for an HTTP-404/"model missing"
+      # reason, which fell through to a generic `chat_http` bucket instead of
+      # `existence`). The reason used to go to /dev/null entirely and this
+      # branch wrote the literal `existence` for all eight of the verifier's
+      # distinct `failed` reasons - seven of which are not about the model
+      # existing; keeping stderr was step one, reading the authoritative
+      # layer token the verifier already computed (instead of re-guessing it
+      # from that same prose) is the fix that actually closes the gap.
       _vreason_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify.XXXXXX")"
-      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
+      _vlayer_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify-layer.XXXXXX")"; : > "$_vlayer_f"
+      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; CMA_VERIFY_LAYER_FILE="$_vlayer_f" bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
       [[ -s "$_vreason_f" ]] && _vreason="$(cat "$_vreason_f")"
-      rm -f "$_vreason_f"
+      _vlayer="$(cat "$_vlayer_f" 2>/dev/null)"
+      rm -f "$_vreason_f" "$_vlayer_f"
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
 
     if [[ "$vstatus" == "failed" ]]; then
       cma_warn "provider '$pid' FAILED verification — alias NOT activated${_vreason:+: $_vreason}"
-      cma_status_write "$pid" failed "$model" "$(cma_verify_failing_layer "$_vreason")"
+      # Authoritative layer token first (see the comment above); the
+      # stderr-prose regex mapper is now only a fallback for a verifier
+      # implementation that predates the layer-file protocol.
+      cma_status_write "$pid" failed "$model" "${_vlayer:-$(cma_verify_failing_layer "$_vreason")}"
       n_disabled=$((n_disabled+1))
       continue
     fi
@@ -2850,8 +2869,16 @@ cmd_sync() {
         # 'verified' | 'skip' | '' -> keep the existence verdict (verified).
       fi
     else
-      # existence probe was inconclusive -> the layer that did not pass is existence.
-      flayer="existence"
+      # Not "verified": prefer the verifier's OWN authoritative layer token
+      # (root-caused 2026-09-17, see the comment at the verify call site
+      # above) - an "unverified" (not "failed") verdict is not always an
+      # inconclusive existence probe (e.g. a tool-probe rate-limit is
+      # "unverified" too, and its real layer is tool_call, not existence);
+      # `unknown` - never a confident wrong guess - when the verifier
+      # determined no layer at all, matching providers-verify.sh's own
+      # documented contract ("found this file absent or empty has learned
+      # that NO layer was determined, and must record that honestly").
+      flayer="${_vlayer:-unknown}"
     fi
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
@@ -3132,7 +3159,7 @@ cmd_verify() {
         [[ -f "$_ktokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_ktokf" 2>/dev/null)"
       fi
     fi
-    local vst sst flayer="" _verr
+    local vst sst flayer="" _verr _vlayer=""
     # KEEP THE REASON. The verifier writes one word to stdout and its
     # EXPLANATION to stderr, and this call site used to send that stderr to
     # /dev/null — so `claude-providers verify <id>` answered "unverified" and
@@ -3142,15 +3169,26 @@ cmd_verify() {
     # request vs no credential configured) died right here. Capture it and
     # print it on stderr for any non-verified verdict; stdout stays the single
     # verdict word, so callers that capture it are unaffected.
+    #
+    # LAYER: root-caused 2026-09-17 (systematic debugging, same finding as
+    # cmd_sync above) - this call site previously wrote the literal
+    # `existence` unconditionally for BOTH a "failed" and an "unverified"
+    # verdict, regardless of what the verifier actually determined. Set
+    # CMA_VERIFY_LAYER_FILE so providers-verify.sh's own emit() (its
+    # doc-commented authoritative third output channel) tells us the REAL
+    # layer; `unknown` — never a confident wrong guess — when it determined
+    # none.
     _verr="$(mktemp "${TMPDIR:-/tmp}/cma-verify-reason.XXXXXX")"
+    local _vlayer_f; _vlayer_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify-layer.XXXXXX")"; : > "$_vlayer_f"
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
-              bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
+              CMA_VERIFY_LAYER_FILE="$_vlayer_f" bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
+    _vlayer="$(cat "$_vlayer_f" 2>/dev/null)"; rm -f "$_vlayer_f"
     [[ -z "$vst" ]] && vst=unverified
     if [[ "$vst" != "verified" ]] && [[ -s "$_verr" ]]; then
       while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
     fi
-    if [[ "$vst" == "failed" ]]; then rm -f "$_verr"; cma_status_write "$id" failed "$model" existence; echo "failed"; return; fi
-    if [[ "$vst" != "verified" ]]; then rm -f "$_verr"; cma_status_write "$id" unverified "$model" existence; echo "unverified"; return; fi
+    if [[ "$vst" == "failed" ]]; then rm -f "$_verr"; cma_status_write "$id" failed "$model" "${_vlayer:-unknown}"; echo "failed"; return; fi
+    if [[ "$vst" != "verified" ]]; then rm -f "$_verr"; cma_status_write "$id" unverified "$model" "${_vlayer:-unknown}"; echo "unverified"; return; fi
     sst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
               bash "$SEMANTIC" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
     if [[ "$sst" == "unverified" ]]; then

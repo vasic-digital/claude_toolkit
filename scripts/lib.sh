@@ -3190,7 +3190,14 @@ cma_verify_failing_layer() {
   case "$reason" in
     '')                                     printf 'unknown\n' ;;
     *'is the ccr gateway itself'*)          printf 'route\n' ;;
-    *'tool call'*|*'tool-calling probe'*)   printf 'tool_calling\n' ;;
+    # tool_call (NOT tool_calling) - matches providers-verify.sh's own
+    # documented closed vocabulary exactly (its emit() doc comment lists
+    # `tool_call` as the canonical token); this function is now only the
+    # fallback for a verifier that predates the CMA_VERIFY_LAYER_FILE
+    # authoritative-layer protocol (root-caused 2026-09-17), so it must
+    # speak the SAME vocabulary as the mechanism it stands in for, not a
+    # second, independently-drifting one.
+    *'tool call'*|*'tool-calling probe'*)   printf 'tool_call\n' ;;
     *'VERIFY_OK sentinel missing'*)         printf 'sentinel\n' ;;
     *'context-inadequate'*)                 printf 'context\n' ;;
     *'error body'*)                         printf 'chat\n' ;;
