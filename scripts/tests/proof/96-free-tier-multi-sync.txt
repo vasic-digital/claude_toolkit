@@ -1,7 +1,7 @@
 === test_free_tier_multi_sync.sh evidence ===
-date: 2026-09-18T10:14:32Z
-server port: 40189 pid: 681135
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ReQk3m/.local/share/claude-multi-account/providers/models.dev.cache.json)
+date: 2026-09-18T14:20:54Z
+server port: 53961 pid: 3423181
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -34,8 +34,8 @@ server port: 40189 pid: 681135
 [36m[cma][0m provider 'tokenrouter-long' -> alias 'tokenrouter-long' [router] model=z-ai/glm-5.3 (unverified/unknown)
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [36m[cma][0m sync done: 27 active, 0 disabled (failed verify), 3 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ReQk3m/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ReQk3m/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -103,14 +103,14 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'opencode-zen5'
-[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:40189/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:53961/v1/chat/completions (free-tier only)...
 free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
 Verifying 5 models for stubprov...
   ✗ brokenfree: score=0 (Server error (500))
-  ✓ freegamma: score=65 ()
   ✓ freealpha: score=65 ()
-  ✓ freedelta: score=65 ()
   ✓ freebeta: score=65 ()
+  ✓ freedelta: score=65 ()
+  ✓ freegamma: score=65 ()
 [36m[cma][0m   stubprov: 4 models verified
 [36m[cma][0m   stubprov: 2 aliases generated
 [36m[cma][0m   alias 'stubprov': strong=freealpha fast=freebeta [router]
@@ -131,8 +131,8 @@ Error: no models specified and no catalog available
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'tokenrouter-reasoning'
 [36m[cma][0m multi-sync done: 2 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ReQk3m/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ReQk3m/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -166,8 +166,8 @@ Error: no models specified and no catalog available
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [33m[cma warn][0m provider 'stubprov2' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
 [36m[cma][0m sync done: 27 active, 0 disabled (failed verify), 3 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ReQk3m/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ReQk3m/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -235,7 +235,7 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'opencode-zen5'
-[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:40189/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:53961/v1/chat/completions (free-tier only)...
 free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
 [36m[cma][0m   stubprov: 4 models verified
 [36m[cma][0m   stubprov: 2 aliases generated
@@ -257,8 +257,8 @@ Error: no models specified and no catalog available
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'tokenrouter-reasoning'
 [36m[cma][0m multi-sync done: 2 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ReQk3m/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ReQk3m/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -292,8 +292,8 @@ Error: no models specified and no catalog available
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [33m[cma warn][0m provider 'stubprov2' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
 [36m[cma][0m sync done: 27 active, 0 disabled (failed verify), 3 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ReQk3m/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.ReQk3m/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -361,12 +361,12 @@ Error: no models specified and no catalog available
 [36m[cma][0m multi-sync: verifying models for 'opencode-zen5' at https://opencode.ai/zen/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'opencode-zen5'
-[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:40189/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:53961/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
 Cache hit: 5 models, 2 to verify
 Verifying 7 models for stubprov...
   ✗ brokenfree: score=0 (Server error (500))
-  ✓ freealpha: score=65 ()
   ✓ freedelta: score=65 ()
+  ✓ freealpha: score=65 ()
   ✓ freegamma: score=65 ()
   ✓ freebeta: score=65 ()
   ✓ paidx: score=65 ()
@@ -392,6 +392,6 @@ Error: no models specified and no catalog available
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'tokenrouter-reasoning'
 [36m[cma][0m multi-sync done: 3 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.ReQk3m/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.Qu3A9T/.local/share/claude-multi-account/aliases.sh
 
 === result: pass=28 fail=0 ===

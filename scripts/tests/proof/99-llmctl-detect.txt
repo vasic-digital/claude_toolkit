@@ -1,18 +1,18 @@
 === test_llmctl_detect.sh evidence ===
-date: 2026-09-18T10:26:38Z
-fast mock port=48999 pid=1072980
-vision mock port=49801 pid=1072983
-wrong-service mock port=56085 pid=1072987
+date: 2026-09-18T14:34:32Z
+fast mock port=58107 pid=3613098
+vision mock port=45047 pid=3613100
+wrong-service mock port=37479 pid=3613102
 dead port (never bound)=1
 --- detect_llmctl_records output (CASE A, catalog names only dead ports) ---
 []
 --- detect_llmctl_records output (CASE B, one running profile) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:48999/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:48999/v1 serving qwen2.5-coder-7b-instruct-q4_k_m"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:58107/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:58107/v1 serving qwen2.5-coder-7b-instruct-q4_k_m"}]
 --- detect_llmctl_records output (CASE C, multiple running profiles) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:48999/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:48999/v1 serving qwen2.5-coder-7b-instruct-q4_k_m"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-vision","alias":"llmctl-vision","base_url":"http://127.0.0.1:49801/v1","transport":"router","strong_model":"llava-1.6-mistral-7b-q4_k_m","fast_model":"llava-1.6-mistral-7b-q4_k_m","context_limit":4096,"max_output":4096,"status":"resolved","reason":"llmctl profile vision live at http://127.0.0.1:49801/v1 serving llava-1.6-mistral-7b-q4_k_m"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:58107/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:58107/v1 serving qwen2.5-coder-7b-instruct-q4_k_m"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-vision","alias":"llmctl-vision","base_url":"http://127.0.0.1:45047/v1","transport":"router","strong_model":"llava-1.6-mistral-7b-q4_k_m","fast_model":"llava-1.6-mistral-7b-q4_k_m","context_limit":4096,"max_output":4096,"status":"resolved","reason":"llmctl profile vision live at http://127.0.0.1:45047/v1 serving llava-1.6-mistral-7b-q4_k_m"}]
 --- raw response from the wrong-service mock ---
 404 page not found
-[33m[cma warn][0m llmctl: '/tmp/cma-test.U7BZau/.local/bin/llmctl-broken plan --json' produced no/invalid catalog -- treating as no running profiles
+[33m[cma warn][0m llmctl: '/tmp/cma-test.ZrqZhS/.local/bin/llmctl-broken plan --json' produced no/invalid catalog -- treating as no running profiles
 --- detect_llmctl_records output (CASE G, pins-only, no binary) ---
 []
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
@@ -48,7 +48,7 @@ dead port (never bound)=1
 [36m[cma][0m provider 'tokenrouter-long' -> alias 'tokenrouter-long' [router] model=z-ai/glm-5.3 (unverified/unknown)
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [36m[cma][0m sync done: 27 active, 0 disabled (failed verify), 3 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.U7BZau/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.ZrqZhS/.local/share/claude-multi-account/aliases.sh
 [33m[cma warn][0m helixllm: 'helixllm-gateway' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443/v1 — the host named none it is serving, nothing was exported into the model catalogue, and nothing is pinned. Run 'claude-providers helixllm-export' once the gateway is serving, or pin one with CMA_HELIXLLM_GW_STRONG.
 [33m[cma warn][0m helixllm: 'helixagent-native' has an endpoint but no nameable model — no model could be named for https://127.0.0.1:8443 (see the note for 'helixllm-gateway'; pin one with CMA_HELIXLLM_NATIVE_STRONG if you know it).
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
@@ -133,7 +133,7 @@ Error: no models specified and no catalog available
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'tokenrouter-reasoning'
 [36m[cma][0m multi-sync done: 0 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.U7BZau/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.ZrqZhS/.local/share/claude-multi-account/aliases.sh
 
 === llmctl-fast.env (final) ===
 # generated by claude-providers — non-secret. Do not edit by hand.
@@ -141,10 +141,10 @@ Error: no models specified and no catalog available
 CMA_PROVIDER_ID='llmctl-fast'
 CMA_PROVIDER_KEYVAR='LLMCTL_API_KEY'
 CMA_PROVIDER_TRANSPORT='router'
-CMA_PROVIDER_BASE_URL='http://127.0.0.1:48999/v1'
+CMA_PROVIDER_BASE_URL='http://127.0.0.1:58107/v1'
 CMA_PROVIDER_MODEL='qwen2.5-coder-7b-instruct-q4_k_m'
 CMA_PROVIDER_FAST_MODEL='qwen2.5-coder-7b-instruct-q4_k_m'
-CMA_PROVIDER_CONFIG_DIR='/tmp/cma-test.U7BZau/.claude-prov-llmctl-fast'
+CMA_PROVIDER_CONFIG_DIR='/tmp/cma-test.ZrqZhS/.claude-prov-llmctl-fast'
 # Context-window limits from the models.dev catalog for the selected strong model.
 # CMA_PROVIDER_CONTEXT_LIMIT: input context window (tokens); empty = unknown.
 #   -> exported as CLAUDE_CODE_AUTO_COMPACT_WINDOW (input-side guard).
