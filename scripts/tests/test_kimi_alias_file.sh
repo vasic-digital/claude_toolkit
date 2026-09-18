@@ -223,6 +223,12 @@ printf 'default_model = "deepseek/deepseek-chat"\nbase_url = "https://api.exampl
 grep -q "^NODE_EXTRA_CA_CERTS=$CA_PEM" "$REC_DIR/env" && ok=0 || ok=1
 assert_eq 0 "$ok" "NODE_EXTRA_CA_CERTS exported for https+CA"
 # http base -> no export
+# Neutralize any CA-derived variable already present in the invoking shell's
+# ambient environment: the fake kimi stub records WHATEVER NODE_EXTRA_CA_CERTS
+# / SSL_CERT_FILE it inherits, so an ambient leftover (unrelated to what
+# cma_run_kimi_provider itself exports) must not make this "no export"
+# assertion fail by accident (research.md R1/R2 applied to this scenario too).
+unset CMA_PROVIDER_CA_CERT NODE_EXTRA_CA_CERTS SSL_CERT_FILE
 printf 'default_model = "deepseek/deepseek-chat"\nbase_url = "http://api.example.com/v1"\n' > "$HOME/.kimi-prov-deepseek/config.toml"
 : > "$REC_DIR/env"
 ( set +eu; cma_run_kimi_provider --force deepseek hi </dev/null >/dev/null 2>&1 )
@@ -233,6 +239,12 @@ it "cma_run_kimi_provider launches an https twin with NO CA pin (system roots)"
 # A public-CA https backend (deepseek etc.) needs no CMA_PROVIDER_CA_CERT — the
 # launch must proceed and export nothing, so the live verifier may exercise it
 # rather than SKIP. Regression for the over-broad https-no-CA verifier skip.
+# Neutralize the invoking shell's ambient environment before this "WITHOUT CA"
+# scenario: deepseek.env below intentionally omits CMA_PROVIDER_CA_CERT=, but
+# an ambient value (this host's, a sibling project's, or a leftover from an
+# earlier test in this same process) must not leak through and make either
+# assertion below pass or fail by accident (research.md R1/R2).
+unset CMA_PROVIDER_CA_CERT NODE_EXTRA_CA_CERTS SSL_CERT_FILE
 printf 'CMA_PROVIDER_KEYVAR=K\nCMA_PROVIDER_TRANSPORT=native\n' > "$PDIR/deepseek.env"
 printf 'default_model = "deepseek/deepseek-chat"\nbase_url = "https://api.example.com/v1"\n' > "$HOME/.kimi-prov-deepseek/config.toml"
 : > "$REC_DIR/env"

@@ -171,6 +171,15 @@ else
 fi
 
 # ── ROUTER negative control ──
+# Neutralize any CA-derived variable already present in the invoking shell's
+# ambient environment (CMA_PROVIDER_CA_CERT plus its two derived exports)
+# BEFORE this scenario runs — the test-harness gap this suite closes:
+# testrtrno's own .env carries no CMA_PROVIDER_CA_CERT= line, but the product
+# code under test reads whatever is already in the process environment when
+# the fixture omits it, so an ambient leftover (from this host, a sibling
+# project, or a prior test in this same process) must not silently make this
+# "WITHOUT CA" assertion pass or fail by accident (research.md R1/R2).
+unset CMA_PROVIDER_CA_CERT NODE_EXTRA_CA_CERTS SSL_CERT_FILE
 : > "$ccrenv"
 cma_run_provider testrtrno -p hi >/dev/null 2>&1
 it "router WITHOUT CA: SSL_CERT_FILE stays unset (trust is not narrowed)"
@@ -189,6 +198,10 @@ grep -q "NODE_EXTRA_CA_CERTS=\[$CA_PEM\]" "$claudeenv"
 assert_eq 0 $? "claude child saw NODE_EXTRA_CA_CERTS=$CA_PEM (log: $(cat "$claudeenv"))"
 
 # ── NATIVE negative control ──
+# Same neutralization as the router negative control above — this scenario's
+# own .env carries no CMA_PROVIDER_CA_CERT= line either, so it must not depend
+# on the invoking shell's ambient environment (research.md R1/R2).
+unset CMA_PROVIDER_CA_CERT NODE_EXTRA_CA_CERTS SSL_CERT_FILE
 : > "$claudeenv"
 cma_run_provider testnatno -p hi >/dev/null 2>&1
 it "native WITHOUT CA: NODE_EXTRA_CA_CERTS stays unset"
