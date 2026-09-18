@@ -396,6 +396,17 @@ assert_file_contains "$PDIR/$_first_id.env" "CMA_PROVIDER_CA_CERT='$_ca_pem'" \
   "the env record carries the CA anchor for the launch path"
 
 it "a re-apply WITHOUT the anchor converges the line away (no stale CA)"
+# Neutralize any CA-derived variable already present in the invoking shell's
+# ambient environment before this "the anchor is gone" scenario: the prior
+# case scoped CMA_PROVIDER_CA_CERT to its OWN command only (a one-shot
+# VAR=value prefix, never exported into this shell), but THIS re-apply call
+# carries no such prefix, so it inherits whatever the invoking shell's own
+# ambient environment already has — on a host where CMA_PROVIDER_CA_CERT is
+# ambiently set (e.g. from a sibling project), the exporter would see a CA
+# still "pinned" and never converge the line away, making this "the anchor
+# is gone" assertion fail for reasons unrelated to the code under test
+# (the same test-isolation gap as research.md R1/R2, applied here).
+unset CMA_PROVIDER_CA_CERT NODE_EXTRA_CA_CERTS SSL_CERT_FILE
 bash "$PROVIDERS_SH" helixllm-export --apply --keys-file "$KEYS" >>"$PROOF" 2>&1
 assert_eq 0 $? "re-apply without CMA_PROVIDER_CA_CERT exits cleanly"
 grep -q 'CMA_PROVIDER_CA_CERT' "$PDIR/$_first_id.env"
