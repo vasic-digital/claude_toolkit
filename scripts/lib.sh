@@ -3935,6 +3935,18 @@ eval "$(_cma_emit_cma_run_kimi_provider)"
 # Code over the SAME backend; pi-<id> is ALWAYS Pi CLI over the SAME backend.
 # piN account aliases must never be named pi-*/kimi-*/kc-* (those are reserved
 # provider namespaces).
+#
+# KNOWN DIVERGENCE (disclosed, not (yet) reconciled): the "home env var" row's
+# PI_HOME cell above is what the ACCOUNT launcher (cma_run_pi, piN aliases)
+# sets — it is a real Pi CLI account-home switch. cma_run_pi_provider (the
+# pi-<id> PROVIDER launcher) does NOT use PI_HOME: it was verified live that
+# the real pi CLI has no PI_HOME env var and no TOML config reader at all, so
+# cma_run_pi_provider instead exports PI_CODING_AGENT_DIR (pi's real, verified
+# per-directory override) and reads a models.json (pi's real, verified custom-
+# provider format) — see the root-cause note above cma_run_pi_provider. The
+# piN account layer's PI_HOME usage was NOT re-verified against the live pi
+# CLI as part of that fix (out of scope for the pi-<id> provider-twin track)
+# and may share the same defect; tracked as a separate, disclosed finding.
 # ===========================================================================
 PI_ACCOUNT_PREFIX=".pi-"
 PI_PROVIDER_PREFIX=".pi-prov-"
@@ -4096,8 +4108,21 @@ _cma_emit_cma_run_pi_provider() {
   cat <<'CMA_PI_PROV_EOF'
 # Pi CLI over a verified provider backend (pi-<id>). Shares the SAME
 # status.json activation gate as the Claude twin (single shared record per id),
-# reads default_model/base_url from the rendered config.toml, and refuses to
-# launch on a missing or stale config. Self-contained: no lib.sh helpers.
+# reads the provider/model id + baseUrl from the rendered models.json, and
+# refuses to launch on a missing or stale config. Self-contained: no lib.sh
+# helpers (jq is the one external tool it leans on, exactly like its
+# status.json activation-gate read two lines below).
+#
+# ROOT-CAUSE NOTE (do not "simplify" this back to config.toml / PI_HOME — both
+# were verified, live, to be complete no-ops against the real pi CLI):
+#   - Pi has NO `-m` shorthand for `--model` (unlike the sibling Kimi CLI,
+#     which documents one); `pi -m X` exits 1 with "Unknown option: -m".
+#   - Pi has NO TOML reader and NO `PI_HOME` env var anywhere in its source
+#     (grepped its installed dist/ bundle for both: zero hits). Its real
+#     per-directory override is `PI_CODING_AGENT_DIR` (see its dist/config.js
+#     `ENV_AGENT_DIR = "PI_CODING_AGENT_DIR"`), and its real custom-provider
+#     config file is JSON named exactly `models.json` (docs/models.md), read
+#     from that directory — never `config.toml`.
 cma_run_pi_provider() {
   local _cpf=0 _cppid _cphome _cpconf _cpbin _cpdm _cpbase
   if [[ "${1:-}" == "--force" ]]; then _cpf=1; shift; fi
@@ -4108,13 +4133,14 @@ cma_run_pi_provider() {
     printf '%s\n' "usage: cma_run_pi_provider <id> [--force] [pi args...]" >&2
     return 2
   fi
-  # Per-id home is FORCED, never ambient-PI_HOME-honored: an exported
-  # PI_HOME would point this wrapper at the WRONG config.toml/default_model while it
-  # launches against ~/.pi-prov-<id> — a silently wrong-backend launch. Same
-  # isolation contract as cma_run_provider, which unconditionally exports
-  # CLAUDE_CONFIG_DIR. Self-contained body: never sources lib.sh.
+  # Per-id home is FORCED, never ambient-PI_CODING_AGENT_DIR-honored: an
+  # exported PI_CODING_AGENT_DIR would point this wrapper at the WRONG
+  # models.json while it launches against ~/.pi-prov-<id> — a silently
+  # wrong-backend launch. Same isolation contract as cma_run_provider, which
+  # unconditionally exports CLAUDE_CONFIG_DIR. Self-contained body: never
+  # sources lib.sh.
   _cphome="$HOME/.pi-prov-$_cppid"
-  _cpconf="$_cphome/config.toml"
+  _cpconf="$_cphome/models.json"
   _cpbin="${PI_BIN:-}"
   if ! command -v "$_cpbin" >/dev/null 2>&1; then
     if [ -x "$HOME/.pi/bin/pi" ]; then _cpbin="$HOME/.pi/bin/pi"
@@ -4142,29 +4168,30 @@ cma_run_pi_provider() {
     fi
   fi
   if [[ ! -f "$_cpconf" ]]; then
-    printf 'claude-providers: pi-%s has no config.toml at %s\n' "$_cppid" "$_cpconf" >&2
+    printf 'claude-providers: pi-%s has no models.json at %s\n' "$_cppid" "$_cpconf" >&2
     printf '  Run: claude-providers sync                  (providers that come from sync)\n' >&2
     printf '  Or:  claude-providers helixllm-export --apply  (per-model records from the export path)\n' >&2
     return 1
   fi
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'claude-providers: pi-%s needs jq to read its rendered models.json (%s) — install jq\n' "$_cppid" "$_cpconf" >&2
+    return 1
+  fi
   # Pick up per-id launch metadata from the provider env record (tls CA cert, …).
-  # config.toml carries the wire/API material; the env record carries host config.
+  # models.json carries the wire/API material; the env record carries host config.
   local _cp_envf="$HOME/.local/share/claude-multi-account/providers/$_cppid.env"
   if [[ -f "$_cp_envf" ]]; then source "$_cp_envf"; fi
-  # default_model / base_url are read at launch from what sync rendered.
-  _cpdm="$(
-    grep -E '^[[:space:]]*default_model[[:space:]]*=' "$_cpconf" 2>/dev/null \
-      | head -n1 | cut -d= -f2- | tr -d ' "' \
-  )"
-  if [[ -z "$_cpdm" ]]; then
-    printf 'claude-providers: pi-%s config.toml has no default_model — stale config\n' "$_cppid" >&2
+  # provider/model id and base_url are read at launch from what sync rendered.
+  # _cma_pi_render_config (claude-providers.sh) is the ONLY writer and always
+  # emits EXACTLY one provider key with EXACTLY one model entry, so the FIRST
+  # entry of each is authoritative — never re-derived or guessed here.
+  _cpdm="$(jq -r '.providers | to_entries[0] | (.key + "/" + (.value.models[0].id // ""))' "$_cpconf" 2>/dev/null)"
+  if [[ -z "$_cpdm" || "$_cpdm" == "/" || "$_cpdm" == "null/"* ]]; then
+    printf 'claude-providers: pi-%s models.json has no provider/model entry — stale config\n' "$_cppid" >&2
     printf '  Run: claude-providers sync   to re-render\n' >&2
     return 1
   fi
-  _cpbase="$(
-    grep -E '^[[:space:]]*base_url[[:space:]]*=' "$_cpconf" 2>/dev/null \
-      | head -n1 | cut -d= -f2- | tr -d ' "' \
-  )"
+  _cpbase="$(jq -r '.providers | to_entries[0].value.baseUrl // ""' "$_cpconf" 2>/dev/null)"
   # TLS trust for self-signed backends, mirrored from the claude-side wiring.
   if [[ -n "${CMA_PROVIDER_CA_CERT:-}" && -r "${CMA_PROVIDER_CA_CERT:-}" && "$_cpbase" == https://* ]]; then
     export NODE_EXTRA_CA_CERTS="${CMA_PROVIDER_CA_CERT}"
@@ -4175,7 +4202,11 @@ cma_run_pi_provider() {
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
   unset KIMI_CODE_HOME
-  PI_HOME="$_cphome" "$_cpbin" -m "$_cpdm" "$@"
+  # NOTE: `--model`, NEVER the bare `-m` (see the root-cause note above the
+  # function). NOTE: `PI_CODING_AGENT_DIR`, NEVER `PI_HOME` (same note) — this
+  # is what makes pi actually resolve THIS per-id models.json instead of its
+  # shared, unconfigured `~/.pi/agent/` default.
+  PI_CODING_AGENT_DIR="$_cphome" "$_cpbin" --model "$_cpdm" "$@"
 }
 CMA_PI_PROV_EOF
 }
