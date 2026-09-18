@@ -2685,7 +2685,25 @@ _cma_kimi_render_config() {
   [[ "$transport" == "router" && -z "$api_key" ]] && cma_warn "kimi config: '$id' key empty — config.toml will carry an empty api_key"
   [[ -n "$ctx" && "$ctx" != "null" ]] || ctx="128000"
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma-kimi.XXXXXX")"
+  # `default_model` MUST be written BEFORE any `[table]` header. TOML has no
+  # "close this table" syntax: once a `[table]` header opens, every following
+  # `key = value` line belongs to THAT table until the NEXT table header — so
+  # emitting `default_model = "..."` at the end of this heredoc (after
+  # `[models."<id>/<model>"]` had already opened) silently nested it INSIDE
+  # that model's own table instead of the file's root table. The Kimi CLI
+  # reads `defaultModel` from the ROOT config (confirmed against the shipped
+  # binary's own decompiled error path: `config.get("defaultModel")` /
+  # `AuthModelNotResolvedError` when it comes back undefined), so a
+  # root-less default_model made every `kimi-<id>` twin — cloud AND
+  # locally-hosted alike — fail non-interactive `-p` prompt mode with
+  # "no default model configured" / "No model configured", even though
+  # `kimi doctor` and `kimi provider list` both read it as fine (neither
+  # consults `defaultModel`). A plain `grep '^default_model ='` (what
+  # cma_run_kimi_provider itself uses to build its `-m` argument) still finds
+  # the line regardless of TOML scope, which is why this stayed invisible.
+  # Regression coverage: test_kimi_render_config_default_model_toml.sh.
   {
+    printf 'default_model = "%s/%s"\n\n' "$id" "$strong"
     printf '[providers."%s"]\n' "$id"
     printf 'type = "%s"\n' "$typ"
     printf 'base_url = "%s"\n' "$base"
@@ -2695,7 +2713,6 @@ _cma_kimi_render_config() {
     printf 'model = "%s"\n' "$strong"
     printf 'max_context_size = %s\n' "$ctx"
     printf 'capabilities = [ "tool_use", "thinking" ]\n'
-    printf '\ndefault_model = "%s/%s"\n' "$id" "$strong"
   } > "$tmp"
   ( umask 077; mv -f "$tmp" "$kdir/config.toml" ) 2>/dev/null
   return 0
