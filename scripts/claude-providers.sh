@@ -3364,7 +3364,19 @@ cmd_sync_all_llmctl() {
   for _p in "${_profiles[@]}"; do
     _pid="llmctl-$_p"
     cma_log "sync-all-llmctl: [$_pid] switching..."
-    _sw_out="$("$_lc_bin" switch "$_p" 2>&1)"; _sw_rc=$?
+    # `|| _sw_rc=$?` is load-bearing, not stylistic: under this script's own
+    # `set -euo pipefail` (line 26), a bare `_sw_out="$(cmd)"; _sw_rc=$?`
+    # trips errexit THE MOMENT `cmd` fails - the assignment statement itself
+    # is a failing simple command, so the shell exits right there and the
+    # trailing `; _sw_rc=$?` on the SAME LINE never even runs, let alone the
+    # GATED-classification branch below. A live-reproduced defect: sweeping
+    # the real catalog, the first genuinely-oversized profile silently
+    # killed the ENTIRE sweep after only logging "switching..." - zero
+    # GATED line, zero report table, zero summary. Appending `|| _sw_rc=$?`
+    # makes the assignment's failure the handled branch of an `||` list, so
+    # errexit does not fire and `_sw_rc` still ends up correctly set.
+    _sw_rc=0
+    _sw_out="$("$_lc_bin" switch "$_p" 2>&1)" || _sw_rc=$?
     if (( _sw_rc != 0 )); then
       _detail="llmctl switch exit $_sw_rc: $(printf '%s' "$_sw_out" | tr '\n' ' ' | cut -c1-200)"
       cma_warn "sync-all-llmctl: [$_pid] GATED -- $_detail"
@@ -3374,8 +3386,12 @@ cmd_sync_all_llmctl() {
     cma_log "sync-all-llmctl: [$_pid] switched -- verifying (chat-completion + tool-call)..."
     # A subshell isolates cmd_sync's own cma_die (unmatched/unresolved
     # provider — e.g. switched but never answered /v1/models in time) so one
-    # profile's failure can NEVER abort the whole sweep.
-    _sync_out="$( ( cmd_sync "$_pid" ) 2>&1 )"; _sync_rc=$?
+    # profile's failure can NEVER abort the whole sweep. Same `|| _sync_rc=$?`
+    # discipline as the switch call above, for the identical set -e reason:
+    # a bare `_sync_out="$(...)"; _sync_rc=$?` trips errexit on a failing
+    # cmd_sync before `_sync_rc` is ever captured.
+    _sync_rc=0
+    _sync_out="$( ( cmd_sync "$_pid" ) 2>&1 )" || _sync_rc=$?
     _verdict="$(cma_status_read "$_pid")"
     if [[ "$_verdict" == "verified" ]]; then
       _rows+=("$_p"$'\t'"PASS"$'\t'"verified")

@@ -1,15 +1,15 @@
 === test_kimi_wire_and_status_freshness.sh evidence ===
-date:            2026-09-22T22:22:24Z
+date:            2026-09-22T23:06:14Z
 RED_MODE:        0   (1 = assert the defects ARE present, pre-fix tree)
 tree under test: /home/milosvasic/Projects/claude_toolkit/scripts
-mock:            http://127.0.0.1:49079   serving id: helixllm-mockmodel-a1b2c3d4e5f6
+mock:            http://127.0.0.1:60649   serving id: helixllm-mockmodel-a1b2c3d4e5f6
 --- mock route shape (the real gateway's measured shape) ---
 GET  /v1/models             200
 GET  /models                404
 POST /v1/chat/completions   200
 POST /chat/completions      404
 POST /v1/messages           200
---- claude-providers list (fresh=2026-09-22T22:21:24Z stale=2026-09-18T07:15:44Z) ---
+--- claude-providers list (fresh=2026-09-22T23:05:14Z stale=2026-09-18T07:59:34Z) ---
 ALIAS          PROVIDER         STATUS          CHECKED  LAYER        STRONG_MODEL            
 ?              newprov          verified        1m       -            m-newprov               
 ?              oldprov          stale:verified  4d       -            m-oldprov               
@@ -17,28 +17,28 @@ ALIAS          PROVIDER         STATUS          CHECKED  LAYER        STRONG_MOD
 ALIAS          PROVIDER         STATUS          CHECKED  LAYER        STRONG_MODEL            
 ?              noage            verified        ?        -            m-noage                 
 [36m[cma][0m HelixLLM: 1 model option(s) across 1 host(s)
-  helixllm-mockmodel-a1b2c3d4e5f6              helixllm/mock/qwen-test                  http://127.0.0.1:49079/v1
-[36m[cma][0m catalogue: /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-mockmodel-a1b2c3d4e5f6              helixllm/mock/qwen-test                  http://127.0.0.1:60649/v1
+[36m[cma][0m catalogue: /tmp/cma-test.7Hh662/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 1 HelixLLM model provider(s)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.7Hh662/.local/share/claude-multi-account/aliases.sh
 --- ids written by helixllm-export --apply ---
 helixllm-mockmodel-a1b2c3d4e5f6
 --- twin coverage: missing_alias=0 missing_config=0 of 1 ---
 alias kimi-helixllm-mockmodel-a1b2c3d4e5f6="cma_run_kimi_provider helixllm-mockmodel-a1b2c3d4e5f6"
 [36m[cma][0m HelixLLM: 1 model option(s) across 1 host(s)
-  helixllm-mockmodel-a1b2c3d4e5f6              helixllm/mock/qwen-test                  http://127.0.0.1:49079/v1
-[36m[cma][0m catalogue: /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-mockmodel-a1b2c3d4e5f6              helixllm/mock/qwen-test                  http://127.0.0.1:60649/v1
+[36m[cma][0m catalogue: /tmp/cma-test.7Hh662/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 1 HelixLLM model provider(s)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.7Hh662/.local/share/claude-multi-account/aliases.sh
 --- alias file rebuilt from cache after deletion ---
 alias helixllm-mockmodel-a1b2c3d4e5f6="cma_run_provider helixllm-mockmodel-a1b2c3d4e5f6"
 alias kimi-helixllm-mockmodel-a1b2c3d4e5f6="cma_run_kimi_provider helixllm-mockmodel-a1b2c3d4e5f6"
 [36m[cma][0m HelixLLM: 1 model option(s) across 1 host(s)
-  helixllm-mockmodel-a1b2c3d4e5f6              helixllm/mock/qwen-test                  http://127.0.0.1:49079/v1
-[36m[cma][0m catalogue: /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/providers/helixllm-models.json
+  helixllm-mockmodel-a1b2c3d4e5f6              helixllm/mock/qwen-test                  http://127.0.0.1:60649/v1
+[36m[cma][0m catalogue: /tmp/cma-test.7Hh662/.local/share/claude-multi-account/providers/helixllm-models.json
 [36m[cma][0m applied 1 HelixLLM model provider(s)
-[36m[cma][0m reload your shell or: source /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.8CyJ54/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/cma-test.7Hh662/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/cma-test.7Hh662/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [33m[cma warn][0m helixcoder: 'helixcoder' has an endpoint but no nameable model — http://127.0.0.1:18434/v1 named no model and none is pinned, so there is nothing to point an alias at
 [36m[cma][0m discovered 9 key vars; 7 resolve to a provider
 [36m[cma][0m provider 'helixagent-native' -> alias 'helixagent-native' [native] model=helixllm-mockmodel-a1b2c3d4e5f6 (unverified/unknown)
@@ -49,14 +49,14 @@ alias kimi-helixllm-mockmodel-a1b2c3d4e5f6="cma_run_kimi_provider helixllm-mockm
 [36m[cma][0m provider 'tokenrouter-long' -> alias 'tokenrouter-long' [router] model=z-ai/glm-5.3 (unverified/unknown)
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [36m[cma][0m sync done: 7 active, 0 disabled (failed verify), 2 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.8CyJ54/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.7Hh662/.local/share/claude-multi-account/aliases.sh
 --- rendered kimi configs (api_key redacted) ---
-## /tmp/cma-test.8CyJ54/.kimi-prov-helixagent-native/config.toml
+## /tmp/cma-test.7Hh662/.kimi-prov-helixagent-native/config.toml
 default_model = "helixagent-native/helixllm-mockmodel-a1b2c3d4e5f6"
 
 [providers."helixagent-native"]
 type = "anthropic"
-base_url = "http://127.0.0.1:49079"
+base_url = "http://127.0.0.1:60649"
 api_key = "<redacted>"
 
 [models."helixagent-native/helixllm-mockmodel-a1b2c3d4e5f6"]
@@ -64,12 +64,12 @@ provider = "helixagent-native"
 model = "helixllm-mockmodel-a1b2c3d4e5f6"
 max_context_size = 229376
 capabilities = [ "tool_use", "thinking" ]
-## /tmp/cma-test.8CyJ54/.kimi-prov-helixllm-gateway/config.toml
+## /tmp/cma-test.7Hh662/.kimi-prov-helixllm-gateway/config.toml
 default_model = "helixllm-gateway/helixllm-mockmodel-a1b2c3d4e5f6"
 
 [providers."helixllm-gateway"]
 type = "openai"
-base_url = "http://127.0.0.1:49079/v1"
+base_url = "http://127.0.0.1:60649/v1"
 api_key = "<redacted>"
 
 [models."helixllm-gateway/helixllm-mockmodel-a1b2c3d4e5f6"]
@@ -78,8 +78,8 @@ model = "helixllm-mockmodel-a1b2c3d4e5f6"
 max_context_size = 229376
 capabilities = [ "tool_use", "thinking" ]
 --- wire reality ---
-native  base=http://127.0.0.1:49079 type=anthropic -> HTTP 200
-router  base=http://127.0.0.1:49079/v1 type=openai -> HTTP 200
+native  base=http://127.0.0.1:60649 type=anthropic -> HTTP 200
+router  base=http://127.0.0.1:60649/v1 type=openai -> HTTP 200
 --- mock hit log ---
       1 GET-404 /models
       4 GET /v1/models

@@ -178,4 +178,96 @@ assert_eq 0 "$ok" "REGRESSION GUARD: real CLI invocation does NOT fall through t
 [[ "$cli_out" == *"llmctl"* ]] && ok=0 || ok=1
 assert_eq 0 "$ok" "real CLI invocation reaches cmd_sync_all_llmctl's own honest refusal (names llmctl)"
 
+# ---------------------------------------------------------------------------
+# REAL SUBPROCESS REGRESSION: cmd_sync_all_llmctl.sh's own top-level
+# `set -euo pipefail` (claude-providers.sh:26) stays active for the ENTIRE
+# duration of a real `bash claude-providers.sh sync-all-llmctl` invocation.
+# But every assertion above calls cmd_sync_all_llmctl either as a sourced
+# function OR through a real-CLI invocation that ALWAYS fails before ever
+# reaching the per-profile switch loop (a deliberately-unresolvable llmctl
+# binary) - so no assertion in this file has ever exercised what happens
+# when ONE profile's `llmctl switch <p>` genuinely fails MID-SWEEP, under
+# set -e, for real.
+#
+# A real, live-reproduced defect this session (found running the ACTUAL
+# sweep against the REAL running llmctl instance, immediately after fixing
+# the CLI-dispatch bug above): the sweep's own per-profile switch line is
+#   _sw_out="$("$_lc_bin" switch "$_p" 2>&1)"; _sw_rc=$?
+# - a command-substitution ASSIGNMENT whose command failed. Under
+# `set -euo pipefail`, THIS IS A CLASSIC BASH FOOTGUN: the failing
+# assignment statement itself trips errexit and the shell exits
+# IMMEDIATELY - the trailing `; _sw_rc=$?` on the SAME LINE never even
+# runs, let alone the `if (( _sw_rc != 0 ))` GATED-classification branch
+# four lines later. Confirmed in isolation:
+#   bash -c 'set -euo pipefail; f(){ return 1; }; out="$(f)"; rc=$?; echo AFTER'
+# never prints AFTER and exits 1 - "AFTER" is never reached.
+# The identical pattern appears a second time four lines later for
+# `cmd_sync`'s own subshell result (`_sync_out="$( ( cmd_sync "$_pid" )
+# 2>&1 )"; _sync_rc=$?`).
+#
+# Live symptom: sweeping the real 10-profile catalog, the FIRST profile
+# (llmctl-coder) genuinely does not fit this host's RAM budget - an
+# entirely expected, honest GATED outcome the sweep is DESIGNED to
+# classify and continue past - yet the whole sweep died silently after
+# logging only "[llmctl-coder] switching..." with ZERO further output:
+# no GATED line, no report table, no summary, nothing. One legitimately
+# GATED profile silently killed the ENTIRE deterministic sweep across
+# every other catalog profile - the exact "isolate each profile's failure
+# so the sweep never aborts" guarantee this function's own comments
+# promise, defeated by this footgun.
+#
+# Why the existing 14+ function-level assertions above never caught this:
+# this test file does `source "$PROVIDERS_SH"` (which runs the sourced
+# script's OWN `set -euo pipefail` line 26 momentarily) and then
+# immediately `set +e` (this file, line 47) - permanently turning
+# errexit BACK OFF for the rest of this file's shell process, including
+# every direct call to cmd_sync_all_llmctl as a function. A real
+# subprocess launched via `bash "$PROVIDERS_SH" ...` never has that `set
+# +e` applied to it - its OWN set -euo pipefail stays live for its whole
+# run. Proving the function's logic is correct when errexit is off is
+# not the same as proving it survives under the real script's own
+# execution mode; this test closes that exact gap by exercising a REAL
+# switch failure inside a REAL, live subprocess with set -e genuinely
+# active throughout. ---------------------------------------------------
+it "REAL CLI: a switch failure for one profile does NOT abort the sweep for later profiles (set -e / command-substitution-assignment footgun regression)"
+GATE_DIR="$HOME/lc-state-gate"; mkdir -p "$GATE_DIR"
+GATE_PLAN="$GATE_DIR/plan.json"
+cat > "$GATE_PLAN" <<'JSON'
+{"profiles": {"a-first": {"port": 19001}, "m-middle": {"port": 19002}, "z-last": {"port": 19003}}}
+JSON
+GATE_BIN="$HOME/.local/bin/llmctl-allgated-fake"
+sandbox_stub "$GATE_BIN" <<'EOF'
+#!/usr/bin/env bash
+set -u
+DIR="${LLMCTL_TEST_DIR:?}"
+PLAN="${LLMCTL_TEST_PLAN:?}"
+mkdir -p "$DIR"
+case "${1:-}" in
+  plan)
+    [[ "${2:-}" == "--json" ]] || exit 2
+    cat "$PLAN"
+    ;;
+  switch)
+    profile="${2:-}"
+    printf 'switch %s\n' "$profile" >> "$DIR/calls"
+    echo "switch to '$profile' failed - simulated GATED for regression test" >&2
+    exit 1
+    ;;
+  *)
+    echo "llmctl-allgated-fake: unhandled args: $*" >&2
+    exit 64
+    ;;
+esac
+EOF
+rm -f "$GATE_DIR/calls"
+gate_out="$(CMA_LLMCTL_BIN="$GATE_BIN" LLMCTL_TEST_DIR="$GATE_DIR" LLMCTL_TEST_PLAN="$GATE_PLAN" bash "$PROVIDERS_SH" sync-all-llmctl 2>&1)"
+# All three profiles' switch must have been ATTEMPTED, in full - proving the
+# real subprocess did NOT die after the first (alphabetically: a-first)
+# GATED failure.
+assert_eq "switch a-first
+switch m-middle
+switch z-last" "$(sort "$GATE_DIR/calls" 2>/dev/null)" "REGRESSION GUARD: every catalog profile's switch was attempted by the REAL subprocess even though every one of them GATED (failed) - proves the sweep survives a mid-catalog switch failure under set -e instead of dying silently"
+[[ "$gate_out" == *"a-first"*"GATED"* && "$gate_out" == *"m-middle"*"GATED"* && "$gate_out" == *"z-last"*"GATED"* ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "report table classifies all three profiles GATED (the sweep reached its own report/summary stage instead of dying mid-loop)"
+
 summary
