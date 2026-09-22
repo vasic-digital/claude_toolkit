@@ -3820,7 +3820,7 @@ cmd_sync_multi() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names) SUBCMD="$1"; shift ;;
+  sync|sync-all-llmctl|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()

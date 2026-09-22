@@ -153,4 +153,29 @@ out3="$(LLMCTL_TEST_PLAN="$EMPTY_PLAN" cmd_sync_all_llmctl 2>&1)"; rc3=$?
 [[ "$rc3" -ne 0 ]] && ok=0 || ok=1
 assert_eq 0 "$ok" "empty catalog is a non-zero refusal, not a silent no-op"
 
+# ---------------------------------------------------------------------------
+# REAL CLI-ENTRYPOINT REGRESSION: every assertion above calls
+# cmd_sync_all_llmctl as a sourced FUNCTION, never through the real CLI
+# argument dispatcher (`claude-providers.sh`'s own `case "${1:-}" in ...`
+# whitelist that sets $SUBCMD before the later `case "$SUBCMD" in
+# sync-all-llmctl) ...` dispatch arm can ever run). A real, live-reproduced
+# defect this session: the dispatch arm was added, but "sync-all-llmctl"
+# was never added to that EARLIER whitelist - so `$SUBCMD` silently stayed
+# at its "sync" default, "sync-all-llmctl" fell through as a POSITIONAL
+# argument (a provider id) to the default sync command, and running
+# `claude-providers.sh sync-all-llmctl` for real failed with "no provider
+# matching 'sync-all-llmctl' found" - the feature was completely
+# unreachable from the command line despite 14/14 function-level
+# assertions passing. Proving the function works is not the same as
+# proving the CLI routes to it; this test closes that exact gap by
+# actually EXECUTING the real script as a subprocess. -----------------------
+it "REAL CLI: 'claude-providers.sh sync-all-llmctl' actually reaches cmd_sync_all_llmctl (not swallowed as a sync provider-id positional)"
+cli_out="$(CMA_LLMCTL_BIN=/no/such/llmctl-binary-for-cli-dispatch-test bash "$PROVIDERS_SH" sync-all-llmctl 2>&1)"; cli_rc=$?
+[[ "$cli_rc" -ne 0 ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "real CLI invocation exits non-zero (llmctl binary deliberately unresolvable)"
+[[ "$cli_out" == *"no provider matching"* ]] && ok=1 || ok=0
+assert_eq 0 "$ok" "REGRESSION GUARD: real CLI invocation does NOT fall through to sync's 'no provider matching' positional-arg path"
+[[ "$cli_out" == *"llmctl"* ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "real CLI invocation reaches cmd_sync_all_llmctl's own honest refusal (names llmctl)"
+
 summary

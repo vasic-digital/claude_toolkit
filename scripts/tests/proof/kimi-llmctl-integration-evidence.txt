@@ -1,4 +1,4 @@
-Kimi/llmctl live integration: Tue Sep 22 11:34:26 PM CEST 2026
+Kimi/llmctl live integration: Wed Sep 23 12:21:29 AM CEST 2026
 server reachable: http://127.0.0.1:8085/v1/models -> {"models":[{"name":"/home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf","model":"/home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf","
 --- exit=1 ---
 kimi version 0.42.0
