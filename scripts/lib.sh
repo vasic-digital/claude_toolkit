@@ -4027,10 +4027,10 @@ cma_run_kimi_provider() {
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
-  # On-demand llmctl profile switch (no-op for every non-llmctl-* provider,
-  # e.g. kimi-for-coding) — see _cma_llmctl_ensure_active's header comment
-  # above cma_run_provider for the full rationale. A failed switch aborts
-  # HERE, before kimi is ever exec'd against $_ckbase's fixed port.
+  # On-demand llmctl profile switch (no-op for every provider id that does
+  # not start with "llmctl-") — see _cma_llmctl_ensure_active's header
+  # comment above cma_run_provider for the full rationale. A failed switch
+  # aborts HERE, before kimi is ever exec'd against $_ckbase's fixed port.
   _cma_llmctl_ensure_active "$_ckpid" || return $?
   KIMI_CODE_HOME="$_ckhome" "$_ckbin" -m "$_ckdm" "$@"
 }
