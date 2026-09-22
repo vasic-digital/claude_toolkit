@@ -1207,6 +1207,118 @@ cma_run() {
 CMA_RUN_BODY_EOF
 }
 
+# _cma_llmctl_ensure_active <provider_id> — on-demand llmctl profile switch,
+# shared by ALL THREE llmctl-backed launch families (cma_run_provider /
+# cma_run_kimi_provider / cma_run_pi_provider). Emitted ONCE into the managed
+# alias-file block (see _cma_emit_managed) so every wrapper calls the SAME
+# self-contained function rather than three copies drifting apart.
+#
+# THE GAP THIS CLOSES. An `llmctl-<profile>` provider record only ever gets
+# REGISTERED (detect_llmctl_records, claude-providers.sh) while <profile> is
+# ALREADY the live model at its fixed, catalog-assigned port — llmctl runs
+# each catalog profile as its OWN independent server process, and this host's
+# RAM/VRAM budget typically fits only 1-2 profiles running at once, so a
+# second profile's alias (e.g. `llmctl-fast` while `vision` is the one
+# actually running) previously either connected to the WRONG model or to
+# nothing at all. `bin/llmctl switch <profile>` (llmctl repo, fixed and
+# TDD-covered 2026-09-22 — atomic rollback-on-failure, see
+# lib/scheduler.sh::_sched_switch_impl) is the safe, existing mechanism this
+# function drives: it stops every other running profile and starts exactly
+# the requested one, restoring the previously-running set on any failure so a
+# failed switch attempt never strands the host with fewer services than
+# before.
+#
+# EFFICIENCY: `llmctl switch` ALREADY no-ops (no stop/restart, no model
+# reload) when <profile> is already the sole running profile — but calling it
+# unconditionally on every single alias invocation still pays the cost of
+# `llmctl`'s own lock acquisition + service scan on every back-to-back use of
+# the SAME alias. This function checks `llmctl status` FIRST (mirroring
+# llmctl's own sched_switch no-op condition byte-for-byte: "the profile is
+# already the sole running profile") and only calls `llmctl switch` when the
+# check says a switch is actually needed.
+#
+# SAFETY: a failed `llmctl switch` (non-zero exit) MUST NEVER be silently
+# absorbed — the underlying CLI must NOT be launched against a fixed port
+# that may now host the wrong model or nothing at all. This function
+# propagates llmctl's own exit code verbatim and prints llmctl's own stderr,
+# so the caller's `_cma_llmctl_ensure_active ... || return $?` idiom aborts
+# the launch with a clear, actionable, honest error.
+#
+# Binary resolution mirrors detect_llmctl_records (claude-providers.sh) as
+# far as is possible from a self-contained, decoupled alias-file body with no
+# access to that script's own LIB_DIR (§11.4.28/§11.4.177 — this body must
+# stay project-path-agnostic): CMA_LLMCTL_BIN env override first (same
+# variable name detect_llmctl_records already honors), then the `bin` field
+# of an explicitly-pointed-at CMA_LLMCTL_PINS_FILE, then the bare `llmctl`
+# name resolved off PATH (the real host has ~/.local/bin/llmctl on PATH,
+# exactly like every other CLI this toolkit's aliases resolve bare).
+_cma_emit_llmctl_ensure_active() {
+  cat <<'CMA_LLMCTL_ENSURE_ACTIVE_EOF'
+_cma_llmctl_ensure_active() {
+  local _cma_lc_id="${1:-}"
+  case "$_cma_lc_id" in
+    llmctl-*) : ;;
+    *) return 0 ;;
+  esac
+  local _cma_lc_profile="${_cma_lc_id#llmctl-}"
+  [[ -n "$_cma_lc_profile" ]] || return 0
+  local _cma_lc_bin="${CMA_LLMCTL_BIN:-}"
+  if [[ -z "$_cma_lc_bin" ]]; then
+    local _cma_lc_pins="${CMA_LLMCTL_PINS_FILE:-}"
+    if [[ -n "$_cma_lc_pins" && -f "$_cma_lc_pins" ]] && command -v jq >/dev/null 2>&1; then
+      _cma_lc_bin="$(jq -r '.bin // empty' "$_cma_lc_pins" 2>/dev/null)" || _cma_lc_bin=""
+      [[ "$_cma_lc_bin" != "null" ]] || _cma_lc_bin=""
+    fi
+  fi
+  : "${_cma_lc_bin:=llmctl}"
+  if ! command -v "$_cma_lc_bin" >/dev/null 2>&1; then
+    printf 'claude-providers: llmctl binary (%s) not found -- cannot verify or switch the active model for %s.\n' \
+      "$_cma_lc_bin" "$_cma_lc_id" >&2
+    printf '  Refusing to launch against a port that may host the wrong model or nothing at all.\n' >&2
+    printf '  Install llmctl (or set CMA_LLMCTL_BIN to its path) and retry.\n' >&2
+    return 9
+  fi
+  # Is <profile> ALREADY the sole running llmctl profile? Parse `llmctl
+  # status`'s data rows the same way lib/scheduler.sh::sched_status prints
+  # them (`printf '%-16s ...' "profile" ...` header, one left-justified row
+  # per running profile, or the literal line "no llmctl services running"
+  # when none are). This is exactly the set `_sched_switch_impl` itself
+  # compares against for its own no-op decision -- never re-derived from a
+  # different source of truth.
+  local _cma_lc_status="" _cma_lc_rows=0 _cma_lc_row=""
+  _cma_lc_status="$("$_cma_lc_bin" status 2>/dev/null)" || _cma_lc_status=""
+  if [[ -n "$_cma_lc_status" && "$_cma_lc_status" != "no llmctl services running" ]]; then
+    local _cma_lc_line
+    while IFS= read -r _cma_lc_line; do
+      [[ -n "$_cma_lc_line" ]] || continue
+      [[ "${_cma_lc_line%%[[:space:]]*}" == "profile" ]] && continue
+      _cma_lc_rows=$(( _cma_lc_rows + 1 ))
+      _cma_lc_row="${_cma_lc_line%%[[:space:]]*}"
+    done <<<"$_cma_lc_status"
+  fi
+  if [[ "$_cma_lc_rows" -eq 1 && "$_cma_lc_row" == "$_cma_lc_profile" ]]; then
+    return 0
+  fi
+  printf 'claude-providers: switching llmctl to profile %s (currently: %s)...\n' \
+    "$_cma_lc_profile" "${_cma_lc_row:-<none>}" >&2
+  local _cma_lc_switch_out="" _cma_lc_switch_rc=0
+  _cma_lc_switch_out="$("$_cma_lc_bin" switch "$_cma_lc_profile" 2>&1)" || _cma_lc_switch_rc=$?
+  if (( _cma_lc_switch_rc != 0 )); then
+    printf 'claude-providers: llmctl switch to %s FAILED (exit %d) -- refusing to launch against a possibly-wrong or absent backend.\n' \
+      "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2
+    [[ -n "$_cma_lc_switch_out" ]] && printf '%s\n' "$_cma_lc_switch_out" >&2
+    return "$_cma_lc_switch_rc"
+  fi
+  return 0
+}
+CMA_LLMCTL_ENSURE_ACTIVE_EOF
+}
+# Self-eval immediately (mirrors cma_run_kimi_provider/cma_run_pi_provider
+# below): all three callers must be able to reach _cma_llmctl_ensure_active
+# the instant lib.sh is sourced, not only after cma_ensure_alias_file has
+# generated + something has sourced the managed alias file.
+eval "$(_cma_emit_llmctl_ensure_active)"
+
 _cma_emit_cma_run_provider() {
   cat <<'CMA_PROV_BODY_EOF'
 cma_run_provider() {
@@ -1697,6 +1809,11 @@ cma_run_provider() {
   export ANTHROPIC_DEFAULT_SONNET_MODEL="$CMA_PROVIDER_MODEL"
   export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
   export ANTHROPIC_DEFAULT_FABLE_MODEL="$CMA_PROVIDER_MODEL"
+  # On-demand llmctl profile switch (no-op for every non-llmctl-* provider):
+  # a failed switch aborts HERE, before either transport branch below ever
+  # connects to CMA_PROVIDER_BASE_URL's fixed port — see
+  # _cma_llmctl_ensure_active's header comment for the full rationale.
+  _cma_llmctl_ensure_active "$CMA_PROVIDER_ID" || return $?
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
     # Resolve OUR router by its stable install identity, NOT by PATH order
     # (live issue 2026-07-22, §11.4.111 resolve-by-stable-name): the npm
@@ -2650,6 +2767,8 @@ _cma_emit_managed() {
   _cma_emit_ccr_gateway_guard
   printf '\n'
   _cma_emit_cma_run
+  printf '\n'
+  _cma_emit_llmctl_ensure_active
   printf '\n'
   _cma_emit_cma_run_provider
   printf '\n'
@@ -3908,6 +4027,11 @@ cma_run_kimi_provider() {
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_CONTEXT_TOKENS
+  # On-demand llmctl profile switch (no-op for every non-llmctl-* provider,
+  # e.g. kimi-for-coding) — see _cma_llmctl_ensure_active's header comment
+  # above cma_run_provider for the full rationale. A failed switch aborts
+  # HERE, before kimi is ever exec'd against $_ckbase's fixed port.
+  _cma_llmctl_ensure_active "$_ckpid" || return $?
   KIMI_CODE_HOME="$_ckhome" "$_ckbin" -m "$_ckdm" "$@"
 }
 CMA_KIMI_PROV_EOF
@@ -4206,6 +4330,11 @@ cma_run_pi_provider() {
   # function). NOTE: `PI_CODING_AGENT_DIR`, NEVER `PI_HOME` (same note) — this
   # is what makes pi actually resolve THIS per-id models.json instead of its
   # shared, unconfigured `~/.pi/agent/` default.
+  # On-demand llmctl profile switch (no-op for every non-llmctl-* provider) —
+  # see _cma_llmctl_ensure_active's header comment above cma_run_provider for
+  # the full rationale. A failed switch aborts HERE, before pi is ever exec'd
+  # against $_cpbase's fixed port.
+  _cma_llmctl_ensure_active "$_cppid" || return $?
   PI_CODING_AGENT_DIR="$_cphome" "$_cpbin" --model "$_cpdm" "$@"
 }
 CMA_PI_PROV_EOF

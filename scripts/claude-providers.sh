@@ -16,6 +16,10 @@
 #   show <id>         detail for one provider
 #   remove <id>       remove a provider alias + config dir
 #   add  --from-key VAR [--id ID]   register a key→provider mapping, then sync
+#   sync-all-llmctl   deterministic one-by-one sweep: switches the local
+#                     llmctl orchestrator through EVERY catalog profile
+#                     (discovered live, never hardcoded), verifying each and
+#                     reporting PASS/FAIL/GATED per profile
 #
 # Nothing about providers/models is hardcoded — everything derives from
 # models.dev + the editable providers/key-aliases.json and overrides.json.
@@ -2018,6 +2022,31 @@ detect_tokenrouter_records() {
 # and the .env file carry the SAME field every other provider does, and an
 # operator who later fronts llmctl with an auth proxy can export it without
 # any code change here.
+#
+# ON-DEMAND SWITCH (lib.sh, scripts/lib.sh). Registering a record here does
+# NOT mean the profile stays running forever — this host's RAM/VRAM budget
+# typically fits only 1-2 llmctl profiles at once. So an `llmctl-<profile>`
+# alias (base `llmctl-<profile>`, Kimi twin `kimi-llmctl-<profile>`, Pi twin
+# `pi-llmctl-<profile>`) does NOT assume its registered port still hosts the
+# right model at launch time: cma_run_provider / cma_run_kimi_provider /
+# cma_run_pi_provider each call the shared `_cma_llmctl_ensure_active`
+# (lib.sh) immediately before actually exec'ing claude/kimi/pi, which checks
+# `llmctl status` and, if <profile> is not already the sole running profile,
+# transparently runs `llmctl switch <profile>` FIRST. This means: (a)
+# invoking any llmctl-backed alias may trigger a LIVE MODEL SWITCH on the
+# host — expect the launch to take noticeably longer than usual the first
+# time you switch to a given profile in a session, and expect it to switch
+# away from whatever OTHER llmctl profile was previously active; (b) a
+# `llmctl switch` failure ABORTS the launch outright (a clear, actionable
+# stderr message, never a silent connect-to-the-wrong-model); (c) invoking
+# the SAME alias twice in a row is cheap — the status check short-circuits
+# and no switch/reload happens when the profile is already active.
+#
+# FULL-CATALOG SWEEP: `claude-providers.sh sync-all-llmctl` (cmd_sync_all_llmctl
+# below) drives this SAME switch mechanism through EVERY catalog profile,
+# one at a time, deterministically, verifying each with the ordinary cmd_sync
+# pipeline and reporting PASS/FAIL/GATED per profile — see cmd_sync_all_llmctl's
+# own header comment for the full contract.
 detect_llmctl_records() {
   local _lc_json="${CMA_LLMCTL_PINS_FILE:-$LIB_DIR/providers/llmctl.json}"
   local _lc_bin="${CMA_LLMCTL_BIN-}" _lc_keyvar="${CMA_LLMCTL_KEYVAR-}" \
@@ -3265,6 +3294,118 @@ cmd_verify() {
     cma_status_write "$id" verified "$model" ""; echo "verified" )
 }
 
+# --- subcommand: sync-all-llmctl --------------------------------------------
+#
+# Full-catalog, deterministic, one-by-one sweep: switches llmctl through
+# EVERY catalog profile (never a hardcoded profile-name list — the catalog
+# is discovered LIVE from `llmctl plan --json`, the exact same source
+# detect_llmctl_records already uses, so this stays correct as llmctl's own
+# catalog evolves), and for each profile: switches to it, then reuses cmd_sync
+# verbatim (the SAME chat-completion + tool-call verification probe already
+# run for every other llmctl provider — never reimplemented) to register +
+# verify it, recording ONE of three deterministic outcomes:
+#
+#   PASS  — `llmctl switch <profile>` succeeded AND cmd_sync's verification
+#           left the provider's status "verified".
+#   FAIL  — the switch succeeded but verification did not reach "verified"
+#           (unverified/failed/absent) — a genuine defect worth investigating,
+#           never silently skipped.
+#   GATED — `llmctl switch <profile>` itself failed. This is a LEGITIMATE,
+#           honest outcome — e.g. llmctl reporting the host cannot even start
+#           that profile in isolation (insufficient RAM/VRAM) — never a bug to
+#           hide and never a reason to omit the profile from the report; cmd_sync
+#           is never invoked for a GATED profile (there is nothing running to
+#           verify).
+#
+# cmd_sync's own resolve_records() call re-probes ALL currently-running llmctl
+# profiles via detect_llmctl_records — a `cma_die` there (e.g. the switch
+# reported success but the profile never actually answered /v1/models in
+# time) is isolated to THIS profile's subshell, so one profile's failure can
+# NEVER abort the sweep — that is the entire point of validating each
+# profile deterministically, one by one.
+#
+# Binary resolution mirrors detect_llmctl_records as closely as a standalone
+# subcommand reasonably can: CMA_LLMCTL_BIN env override first, then the
+# `bin` field of CMA_LLMCTL_PINS_FILE (defaulting to this script's own
+# providers/llmctl.json pins file, exactly like detect_llmctl_records), then
+# the bare `llmctl` name resolved off PATH.
+cmd_sync_all_llmctl() {
+  local _lc_json="${CMA_LLMCTL_PINS_FILE:-$LIB_DIR/providers/llmctl.json}"
+  local _lc_bin="${CMA_LLMCTL_BIN-}"
+  if [[ -z "$_lc_bin" ]]; then
+    if [[ -f "$_lc_json" ]] && command -v jq >/dev/null 2>&1; then
+      _lc_bin="$(jq -r '.bin // empty' "$_lc_json" 2>/dev/null)" || _lc_bin=""
+      [[ "$_lc_bin" != "null" ]] || _lc_bin=""
+    fi
+  fi
+  : "${_lc_bin:=llmctl}"
+  command -v jq >/dev/null 2>&1 || cma_die "sync-all-llmctl needs jq"
+  command -v "$_lc_bin" >/dev/null 2>&1 \
+    || cma_die "llmctl binary ($_lc_bin) not found -- cannot run the full-catalog sweep (install llmctl, or set CMA_LLMCTL_BIN)"
+
+  local _plan_timeout="${CMA_LLMCTL_PLAN_TIMEOUT:-10}" _plan=""
+  if command -v timeout >/dev/null 2>&1; then
+    _plan="$(timeout "$_plan_timeout" "$_lc_bin" plan --json 2>/dev/null)" || _plan=""
+  else
+    _plan="$("$_lc_bin" plan --json 2>/dev/null)" || _plan=""
+  fi
+  printf '%s' "$_plan" | jq -e '.profiles | type == "object"' >/dev/null 2>&1 \
+    || cma_die "'$_lc_bin plan --json' produced no/invalid catalog -- cannot discover the profile set"
+
+  local -a _profiles=()
+  while IFS= read -r _p; do [[ -n "$_p" ]] && _profiles+=("$_p"); done \
+    < <(jq -r '.profiles | keys[]' <<<"$_plan" 2>/dev/null)
+  (( ${#_profiles[@]} )) || cma_die "llmctl catalog has zero profiles (see: $_lc_bin models list)"
+
+  cma_log "sync-all-llmctl: sweeping ${#_profiles[@]} catalog profile(s): ${_profiles[*]}"
+
+  local -a _rows=()
+  local _p _pid _sw_out _sw_rc _sync_out _sync_rc _verdict _detail
+  for _p in "${_profiles[@]}"; do
+    _pid="llmctl-$_p"
+    cma_log "sync-all-llmctl: [$_pid] switching..."
+    _sw_out="$("$_lc_bin" switch "$_p" 2>&1)"; _sw_rc=$?
+    if (( _sw_rc != 0 )); then
+      _detail="llmctl switch exit $_sw_rc: $(printf '%s' "$_sw_out" | tr '\n' ' ' | cut -c1-200)"
+      cma_warn "sync-all-llmctl: [$_pid] GATED -- $_detail"
+      _rows+=("$_p"$'\t'"GATED"$'\t'"$_detail")
+      continue
+    fi
+    cma_log "sync-all-llmctl: [$_pid] switched -- verifying (chat-completion + tool-call)..."
+    # A subshell isolates cmd_sync's own cma_die (unmatched/unresolved
+    # provider — e.g. switched but never answered /v1/models in time) so one
+    # profile's failure can NEVER abort the whole sweep.
+    _sync_out="$( ( cmd_sync "$_pid" ) 2>&1 )"; _sync_rc=$?
+    _verdict="$(cma_status_read "$_pid")"
+    if [[ "$_verdict" == "verified" ]]; then
+      _rows+=("$_p"$'\t'"PASS"$'\t'"verified")
+      cma_log "sync-all-llmctl: [$_pid] PASS (verified)"
+    else
+      _detail="$_verdict"
+      (( _sync_rc != 0 )) && _detail="$_verdict (sync exit $_sync_rc): $(printf '%s' "$_sync_out" | tail -1 | cut -c1-200)"
+      _rows+=("$_p"$'\t'"FAIL"$'\t'"$_detail")
+      cma_warn "sync-all-llmctl: [$_pid] FAIL -- $_detail"
+    fi
+  done
+
+  printf '\n%-16s %-8s %s\n' "profile" "verdict" "detail"
+  local _row _rp _rv _rd
+  for _row in "${_rows[@]}"; do
+    IFS=$'\t' read -r _rp _rv _rd <<<"$_row"
+    printf '%-16s %-8s %s\n' "$_rp" "$_rv" "$_rd"
+  done
+
+  local _n_pass=0 _n_fail=0 _n_gated=0
+  for _row in "${_rows[@]}"; do
+    case "$_row" in
+      *$'\t'PASS$'\t'*)  _n_pass=$((_n_pass+1)) ;;
+      *$'\t'FAIL$'\t'*)  _n_fail=$((_n_fail+1)) ;;
+      *$'\t'GATED$'\t'*) _n_gated=$((_n_gated+1)) ;;
+    esac
+  done
+  cma_log "sync-all-llmctl: done -- $_n_pass PASS, $_n_fail FAIL, $_n_gated GATED (of ${#_profiles[@]})"
+}
+
 # --- subcommand: list family ------------------------------------------------
 # The three list subcommands share one row emitter, filtered by status:
 #   list         -> only VERIFIED aliases (safe to launch; the default view).
@@ -3815,6 +3956,7 @@ case "$SUBCMD" in
   list-faulty) cmd_list_faulty ;;
   show)        cmd_show "${POSITIONAL[@]:-}" ;;
   verify)      cmd_verify "${POSITIONAL[@]:-}" ;;
+  sync-all-llmctl) cmd_sync_all_llmctl ;;
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
   prune)       cmd_prune ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
