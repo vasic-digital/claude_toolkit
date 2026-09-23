@@ -1,6 +1,13 @@
-Kimi/llmctl live integration: Wed Sep 23 01:05:22 AM CEST 2026
+Kimi/llmctl live integration: Wed Sep 23 06:28:00 PM CEST 2026
 server reachable: http://127.0.0.1:8085/v1/models -> {"models":[{"name":"/home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf","model":"/home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf","
 --- exit=1 ---
-kimi version 0.42.0
-error: failed to run prompt: provider.api_error: 400 request (92624 tokens) exceeds the available context size (8192 tokens), try increasing it
-See log: /home/milosvasic/.kimi-prov-llmctl-small/logs/kimi-code.log
+claude-providers: switching llmctl to profile small (currently: vision)...
+claude-providers: llmctl switch to small FAILED (exit 1) -- refusing to launch against a possibly-wrong or absent backend.
+stopped small
+stopped vision
+ERROR: cannot start 'small': needs 2949 MiB RAM + 0 MiB VRAM, but only 595 MiB RAM + 10444 MiB VRAM remain
+ERROR: no other llmctl profile is running to free up - this host's own available RAM/VRAM is currently too low (see: llmctl hw). Free host memory (close other applications) and retry, or choose a smaller profile.
+ERROR: switch to 'small' failed - restoring the previously-running set: small vision
+ERROR: cannot start 'small': needs 2949 MiB RAM + 0 MiB VRAM, but only 0 MiB RAM + 10444 MiB VRAM remain
+ERROR: no other llmctl profile is running to free up - this host's own available RAM/VRAM is currently too low (see: llmctl hw). Free host memory (close other applications) and retry, or choose a smaller profile.
+ERROR: ROLLBACK ALSO FAILED - the host may have fewer services running than before this switch attempt. Check: llmctl status
