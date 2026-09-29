@@ -3883,6 +3883,37 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 # refreshes then exits without printing the (verified-only) list.
 if (( REFRESH_ALIASES )); then
   _rpdir="$(cma_providers_dir)"
+  # Steady-state skip: re-deriving every alias line costs one whole-file
+  # render per provider (per Kimi/Pi twin), on a path documented above as
+  # "run on each interactive shell start". Measured with 63 providers: 4316
+  # forked processes, ~20-27s wall-clock, almost entirely `sys` time — on
+  # every single new shell, even when nothing on disk has moved since the
+  # last one. A bare TTL is the wrong guard here — it would let a genuinely
+  # emptied cache or an externally-edited $ALIAS_FILE sit unrepaired for the
+  # whole window, defeating exactly the self-heal property
+  # test_alias_file_concurrency.sh section 4 ("stale cache: an emptied
+  # provider cache never costs the file its accounts") exists to prove. So
+  # the guard is a CONTENT fingerprint, not a clock: the mtime+size of
+  # $ALIAS_FILE plus the name+mtime+size of every cached *.env file (one
+  # `stat` call each, not one per provider). Any real change — a provider
+  # added/removed, the cache emptied, the alias file edited or lost —
+  # changes the fingerprint and forces the full loop below, unabbreviated;
+  # only a byte-for-byte-unchanged world is skipped. Best-effort, unlocked,
+  # like the sibling status.json TTL check in aliases.sh: a lost or
+  # corrupted fingerprint can only ever cost an extra (safe) full run, never
+  # a wrong skip, since a corrupted stamp cannot coincidentally equal a
+  # freshly-computed fingerprint of real disk state.
+  _refresh_fp_file="$_rpdir/.refresh-aliases-fingerprint"
+  _refresh_fp="$(
+    { [[ -f "$ALIAS_FILE" ]] && { stat -c '%Y %s' "$ALIAS_FILE" 2>/dev/null || stat -f '%m %z' "$ALIAS_FILE" 2>/dev/null; }; } || true
+    if [[ -d "$_rpdir" ]] && compgen -G "$_rpdir"/*.env >/dev/null 2>&1; then
+      stat -c '%n %Y %s' "$_rpdir"/*.env 2>/dev/null || stat -f '%N %m %z' "$_rpdir"/*.env 2>/dev/null || true
+    fi
+  )"
+  if [[ -n "$_refresh_fp" && -f "$_refresh_fp_file" ]] && [[ "$_refresh_fp" == "$(cat "$_refresh_fp_file" 2>/dev/null)" ]]; then
+    (( QUIET )) || cma_log "refreshed provider aliases from cache (no network)"
+    exit 0
+  fi
   if [[ -d "$_rpdir" ]] && compgen -G "$_rpdir/*.env" >/dev/null; then
     for _rf in "$_rpdir"/*.env; do
       # shellcheck disable=SC1090
@@ -3950,6 +3981,7 @@ if (( REFRESH_ALIASES )); then
       fi
     done
   fi
+  [[ -n "$_refresh_fp" ]] && { printf '%s' "$_refresh_fp" > "$_refresh_fp_file" 2>/dev/null || true; }
   (( QUIET )) || cma_log "refreshed provider aliases from cache (no network)"
   exit 0
 fi
