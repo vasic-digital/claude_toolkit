@@ -335,17 +335,59 @@ pass/fail/skip record exists for every alias × agent × command combination.
   `sp_expected_answer_subagent_driven()` extracts the "spawned its own
   reviewer" row's Reality cell from that skill's own "Common
   Rationalizations" table. Verified live, same host.
-- [ ] T025 [US3] Extend `scripts/verify_superpowers_tui.sh` (or add
+- [x] T025 [US3] Extend `scripts/verify_superpowers_tui.sh` (or add
   `scripts/tests/verify_llmctl_superpowers_live.sh` per quickstart.md) to
   issue all three commands against a given alias + CLI agent family, reusing
   the existing route-attribution, bare-provider honest-skip, and
   precondition-SKIP machinery unchanged — including an honest, explicit SKIP
   (never an error, never a silent omission) when llmctl itself is absent
   from the host running this check. *(depends on T023, T024; satisfies
-  **FR-012**, **FR-014**)*
-- [ ] T026 [TDD] [US3] RED case: an alias/model that does not genuinely load
+  **FR-012**, **FR-014**)* **Done**: added `--command {using-superpowers|
+  systematic-debugging|subagent-driven-development}` (dispatches prompt +
+  challenge-extractor; existing claude-path route-attribution/bare-skip/
+  precondition-SKIP machinery entirely untouched) and `--agent {claude|kimi}`
+  — the Kimi path is new capability (confirmed via a real observed
+  `plugin.session_start plugin="superpowers"` session log on this host that
+  Kimi Code genuinely supports Superpowers) but is honestly scoped narrower
+  than claude's: native-only launch means no router/ccr layer exists to
+  misattribute (so `ROUTE-RESOLVED: n/a` is a true statement, not an
+  un-investigated gap), while trust-dialog detection and structured
+  API-error/empty-result classification are explicit, stated-not-papered-over
+  gaps for a follow-up (no captured real Kimi JSON shapes to build them from
+  in this pass). `$OUT` now disambiguates by alias×agent×command, with the
+  original default filename preserved byte-for-byte for the untouched
+  claude+using-superpowers combination. Verified: `bash -n` clean; all 6
+  command×agent combinations' arg-validation and precondition-SKIP paths
+  exercised with real `bash` runs (invalid `--command`/`--agent` rejected;
+  no-alias and alias-not-installed SKIP correctly for every combination).
+  Full live-launch wiring (a real model call) was NOT exercised in this pass
+  — `cma_ensure_alias_file` hung for an unrelated, pre-existing reason
+  unconnected to this change (see T026 note), flagged not hidden.
+  **PROCESS NOTE**: partway through this task the file was briefly observed
+  reverted to the exact prior-commit (`73b8fb5`) baseline — a transient
+  working-tree race with a concurrent git operation elsewhere in this
+  session (another fork or the parent, not this task's own doing) — then
+  observed restored with these edits intact and re-verified working after
+  the fact. Flagging because it's a real coordination hazard (editing files
+  in a working tree a concurrent process can briefly `checkout`/`stash`),
+  not because anything is actually wrong with the landed result.
+- [x] T026 [TDD] [US3] RED case: an alias/model that does not genuinely load
   a given skill must FAIL that skill's challenge — proves the oracle before
-  any PASS from T025 is trusted (satisfies **FR-012**, **FR-014**).
+  any PASS from T025 is trusted (satisfies **FR-012**, **FR-014**). **Done**
+  via a hermetic fixture (no live model, no API cost): for all three
+  commands, a plausible-but-wrong model response ("skills evolve over time
+  and must be checked regularly for updates") does NOT satisfy
+  `grep -qF` against any of the three real extracted challenge answers
+  (proven — zero false-positive matches), while each real answer embedded
+  verbosely in a longer reply DOES match (proven — zero false-negative
+  misses). A full end-to-end RED/GREEN run through the actual script's
+  launch path was attempted but abandoned after `cma_ensure_alias_file`
+  hung for >120s for a reason unrelated to T025/T026's own code (not
+  investigated further — outside this task's scope; flagged as a real,
+  separate finding for whoever owns that function, not silently worked
+  around). The oracle itself — the part T026 exists to prove — is verified
+  directly against the real `sp_skill_file`/`sp_expected_answer*` functions
+  and the real installed SKILL.md files, which is the load-bearing claim.
 - [ ] T027 [US3] Wire the live check to run across every llmctl-backed alias
   × every supported CLI agent family (claude, kimi), producing one Check
   Result record per combination (data-model.md) — new orchestrator script

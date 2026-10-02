@@ -8,13 +8,15 @@
 # when the real claude binary / the alias / a key / the network is absent.
 # PASS -> exit 0 + "PASS: ...". FAIL -> exit 1 + "FAIL: ...".
 #
-# Usage: verify_superpowers_tui.sh --alias ID [--prompt STR] [--timeout N] [--out FILE]
+# Usage: verify_superpowers_tui.sh --alias ID [--command NAME] [--agent claude|kimi] [--prompt STR] [--timeout N] [--out FILE]
+#   --command: using-superpowers (default) | systematic-debugging | subagent-driven-development
+#   --agent:   claude (default, full route-attribution gate) | kimi (native-only launch, no ccr/router layer — see the --agent kimi branch below for why no route gate applies)
 set -uo pipefail
 TESTS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 ALIASES_FILE="${ALIAS_FILE:-$HOME/.local/share/claude-multi-account/aliases.sh}"
 
-ALIAS_ID="" PROMPT="" TIMEOUT=180 OUT=""
+ALIAS_ID="" PROMPT="" TIMEOUT=180 OUT="" COMMAND="using-superpowers" AGENT="claude"
 
 # --- unforgeable engagement challenge ---------------------------------------
 # The old marker greped the transcript for skill-ish vocabulary. That is a
@@ -97,6 +99,8 @@ sp_expected_answer_subagent_driven() {
 while (( $# )); do
   case "$1" in
     --alias)   ALIAS_ID="$2"; shift 2 ;;
+    --command) COMMAND="$2"; shift 2 ;;
+    --agent)   AGENT="$2"; shift 2 ;;
     --prompt)  PROMPT="$2"; shift 2 ;;
     --timeout) TIMEOUT="$2"; shift 2 ;;
     --out)     OUT="$2"; shift 2 ;;
@@ -104,7 +108,25 @@ while (( $# )); do
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
-: "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof}/providers-${ALIAS_ID}-superpowers.txt}"
+case "$COMMAND" in
+  using-superpowers|systematic-debugging|subagent-driven-development) : ;;
+  *) echo "unknown --command: $COMMAND (want using-superpowers|systematic-debugging|subagent-driven-development)" >&2; exit 2 ;;
+esac
+case "$AGENT" in
+  claude|kimi) : ;;
+  *) echo "unknown --agent: $AGENT (want claude|kimi)" >&2; exit 2 ;;
+esac
+# $OUT default: unchanged filename for the original claude+using-superpowers
+# combination (callers like verify_providers_live.sh that rely on the old
+# default — though it in fact always passes --out explicitly today — stay
+# byte-compatible); every OTHER combination gets an agent+command-disambiguated
+# name so a full matrix run (T027) never overwrites one combination's
+# evidence with another's.
+if [[ "$AGENT" == "claude" && "$COMMAND" == "using-superpowers" ]]; then
+  : "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof}/providers-${ALIAS_ID}-superpowers.txt}"
+else
+  : "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof}/providers-${ALIAS_ID}-${AGENT}-${COMMAND}-superpowers.txt}"
+fi
 mkdir -p "$(dirname "$OUT")"
 
 # skip() APPENDS its marker rather than truncating, because a precondition SKIP
@@ -310,15 +332,117 @@ ccr_log_restart_receipt() {
 # the skill. If the skill is not installed we cannot pose the challenge at all —
 # that is an honest SKIP (§11.4.3), never a FAIL of the provider: an absent
 # plugin says nothing about the alias under test.
-SP_SKILL="$(sp_skill_file)"
-CHALLENGE_ANSWER=""
-if [[ -n "$SP_SKILL" && -f "$SP_SKILL" ]]; then
-  CHALLENGE_ANSWER="$(sp_expected_answer "$SP_SKILL")"
-fi
-[[ -n "$CHALLENGE_ANSWER" ]] || skip "superpowers skill not found on this host (looked for skills/using-superpowers/SKILL.md) — cannot pose the engagement challenge"
+# Command dispatch (T025): each command has its own skill directory, its own
+# expected-answer extractor (sp_expected_answer / sp_expected_answer_*, each
+# reading its unique fact from the real installed SKILL.md at runtime — never
+# hardcoded, same unforgeable-knowledge-challenge property for all three), and
+# its own prompt naming the exact row/column the model must quote back. The
+# prompt-construction MECHANISM is identical across all three (ask the model to
+# use the skill, then quote one exact table cell) — only the skill name, table,
+# and row differ.
+case "$COMMAND" in
+  using-superpowers)
+    SP_SKILL="$(sp_skill_file using-superpowers)"
+    CHALLENGE_ANSWER=""
+    [[ -n "$SP_SKILL" && -f "$SP_SKILL" ]] && CHALLENGE_ANSWER="$(sp_expected_answer "$SP_SKILL")"
+    DEFAULT_PROMPT="Use the using-superpowers skill. Then, from the Red Flags table in that skill, reply with ONLY the exact text in the \"Reality\" column for the thought \"I remember this skill\". Output nothing else."
+    ;;
+  systematic-debugging)
+    SP_SKILL="$(sp_skill_file systematic-debugging)"
+    CHALLENGE_ANSWER=""
+    [[ -n "$SP_SKILL" && -f "$SP_SKILL" ]] && CHALLENGE_ANSWER="$(sp_expected_answer_systematic_debugging "$SP_SKILL")"
+    DEFAULT_PROMPT="Turn on the systematic-debugging skill. Then, from the Common Rationalizations table in that skill, reply with ONLY the exact text in the \"Reality\" column for the excuse \"Reference too long, I'll adapt the pattern\". Output nothing else."
+    ;;
+  subagent-driven-development)
+    SP_SKILL="$(sp_skill_file subagent-driven-development)"
+    CHALLENGE_ANSWER=""
+    [[ -n "$SP_SKILL" && -f "$SP_SKILL" ]] && CHALLENGE_ANSWER="$(sp_expected_answer_subagent_driven "$SP_SKILL")"
+    DEFAULT_PROMPT="Turn on the subagent-driven-development skill. Then, from the Common Rationalizations table in that skill, reply with ONLY the exact text in the \"Reality\" column for the excuse \"The implementer spawned its own reviewer — free extra assurance\". Output nothing else."
+    ;;
+esac
+[[ -n "$CHALLENGE_ANSWER" ]] || skip "skill '$COMMAND' not found on this host (looked for skills/${COMMAND}/SKILL.md) — cannot pose the engagement challenge"
 
 if [[ -z "$PROMPT" ]]; then
-  PROMPT="Use the using-superpowers skill. Then, from the Red Flags table in that skill, reply with ONLY the exact text in the \"Reality\" column for the thought \"I remember this skill\". Output nothing else."
+  PROMPT="$DEFAULT_PROMPT"
+fi
+
+# --- Kimi Code agent path (T025) --------------------------------------------
+# Kimi Code genuinely supports Superpowers skills: a live session log on this
+# host (~/.kimi-code/sessions/*/agents/main/wire.jsonl) shows a real
+# `plugin.session_start` event with plugin="superpowers", carrying Kimi's own
+# tool-mapping instructions (AskUserQuestion for skill-prompted questions,
+# TodoList for TodoWrite, Agent/subagent_type:"coder" for Task-tool dispatch) —
+# this is not a guess, it is observed evidence the capability exists.
+#
+# HONEST SCOPE NARROWER than the claude path below, stated rather than papered
+# over: cma_run_kimi_provider (lib.sh) is NATIVE-ONLY — it launches the real
+# `kimi` binary directly against a per-id config.toml, with NO router/ccr layer
+# at all. That removes the entire class of bug the claude path's
+# route-attribution gate exists to catch (a turn served by a DIFFERENT backend
+# than the one named) — there is no second backend for a Kimi turn to be
+# silently rerouted through, so "# ROUTE-RESOLVED: n/a" below is a true
+# statement of the launch model, not an un-investigated gap. What this path
+# does NOT yet attempt, and is NOT claimed to: a trust/overwrite-dialog check
+# (unverified whether Kimi's CLI has an analogous first-run dialog; the
+# claude-specific regex below is not reused here since applying it unverified
+# would risk either a false match on different wording or false confidence
+# from a non-match that proves nothing) and structured API-error/empty-result
+# detection (Kimi's own JSON shapes under --output-format stream-json were not
+# characterized in this pass — doing so correctly needs real captured
+# examples, which this task did not generate). Both are honest gaps for a
+# follow-up, not silently assumed equivalent to the claude path's rigor.
+if [[ "$AGENT" == "kimi" ]]; then
+  printf '# ROUTE-INTENDED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
+  printf '# ROUTE-RESOLVED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
+  KIMI_SCRUB=(env -u KIMI_CODE_HOME -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL
+              -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u BASH_ENV)
+  ktmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-stui-kimi.XXXXXX")"
+  : > "$OUT"
+  printf '# ROUTE-INTENDED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
+  CMA_STUI_NO_KIMI_WRAPPER="__CMA_STUI_KIMI_WRAPPER_UNDEFINED__$$-$(date +%s)-${RANDOM}${RANDOM}__"
+  kout="$( timeout "$TIMEOUT" "${KIMI_SCRUB[@]}" CMA_STUI_PROMPT="$PROMPT" \
+          CMA_STUI_NO_KIMI_WRAPPER="$CMA_STUI_NO_KIMI_WRAPPER" bash -c '
+      cd "'"$ktmpd"'" || exit 97
+      source "'"$ALIASES_FILE"'" >/dev/null 2>&1
+      declare -F cma_run_kimi_provider >/dev/null 2>&1 || {
+        printf "%s\n" "$CMA_STUI_NO_KIMI_WRAPPER"
+        printf "cma_run_kimi_provider is not defined after sourcing the alias file\n"
+        exit 96
+      }
+      unset CMA_STUI_NO_KIMI_WRAPPER
+      cma_run_kimi_provider "'"$ALIAS_ID"'" -p "$CMA_STUI_PROMPT" --output-format text 2>&1
+    ' )"
+  krc=$?
+  rmdir "$ktmpd" 2>/dev/null || true
+  printf '%s\n' "$kout" >> "$OUT"
+  if (( krc == 96 )) && printf '%s' "$kout" | grep -qF "$CMA_STUI_NO_KIMI_WRAPPER"; then
+    echo "FAIL: launch-impossible-no-wrapper — '$ALIASES_FILE' exists but does not define cma_run_kimi_provider (truncated / syntactically broken alias file)."
+    echo "# FAIL: launch-impossible-no-wrapper (rc=96; the kimi launch wrapper is UNDEFINED)" >> "$OUT"
+    exit 1
+  fi
+  if printf '%s' "$kout" | grep -qE '^(claude-providers|cma_run_kimi_provider):'; then
+    echo "FAIL: launch-refused — cma_run_kimi_provider refused to launch '$ALIAS_ID'; no turn ran"
+    echo "# FAIL: launch-refused-kimi (rc=$krc)" >> "$OUT"
+    exit 1
+  fi
+  if (( krc != 0 )); then
+    echo "FAIL: kimi launch exited non-zero (rc=$krc) for reasons this path does not yet classify — see $OUT for the raw transcript"
+    echo "# FAIL: kimi-unclassified-nonzero (rc=$krc)" >> "$OUT"
+    exit 1
+  fi
+  if [[ -z "$kout" ]]; then
+    echo "FAIL: session completed (rc=0) but produced no output at all"
+    echo "# FAIL: empty-result-kimi" >> "$OUT"
+    exit 1
+  fi
+  if printf '%s' "$kout" | grep -qF "$CHALLENGE_ANSWER"; then
+    echo "PASS: superpowers ($COMMAND) engaged on kimi (answered the skill-content challenge)"
+    echo "# PASS" >> "$OUT"
+    exit 0
+  fi
+  echo "FAIL: session ran but superpowers ($COMMAND) did not engage on kimi (could not answer the skill-content challenge)"
+  echo "# FAIL: no-engagement-kimi" >> "$OUT"
+  exit 1
 fi
 
 # --- launch (scrubbed env + throwaway cwd, like verify_claude_live.sh) -------
