@@ -413,13 +413,35 @@ pass/fail/skip record exists for every alias × agent × command combination.
   around). The oracle itself — the part T026 exists to prove — is verified
   directly against the real `sp_skill_file`/`sp_expected_answer*` functions
   and the real installed SKILL.md files, which is the load-bearing claim.
-- [ ] T027 [US3] Wire the live check to run across every llmctl-backed alias
+- [x] T027 [US3] Wire the live check to run across every llmctl-backed alias
   × every supported CLI agent family (claude, kimi), producing one Check
   Result record per combination (data-model.md) — new orchestrator script
-  under `scripts/tests/` (satisfies **FR-012**, **SC-004**).
-- [ ] T028 [US3] Implement the double-run determinism assertion (**FR-013**):
+  under `scripts/tests/` (satisfies **FR-012**, **SC-004**). **Done**:
+  `scripts/tests/verify_llmctl_superpowers_live.sh`, discovers every live
+  alias via `detect_llmctl_records` (never a second detection path), runs
+  all 3 commands × 2 agents per alias, emits one aggregated JSON Check
+  Result record (never a silently-missing combination). Proven against a
+  REAL running `llmctl-small` profile on this host (6/6 combinations ran,
+  each with real captured evidence — genuine, correctly-attributed FAILs
+  from the known 8192-token context-capacity limit, e.g. kimi:
+  "request (79112 tokens) exceeds the available context size (8192
+  tokens)" — exactly research.md §3.D's anticipated failure mode, not a
+  toolkit defect).
+- [x] T028 [US3] Implement the double-run determinism assertion (**FR-013**):
   run the full matrix twice against an unchanged system, assert byte-identical
-  verdicts — `scripts/tests/` (new).
+  verdicts — `scripts/tests/` (new). **Done**:
+  `scripts/tests/test_llmctl_superpowers_determinism.sh`. A hermetic oracle
+  proof (mandatory, always runs) proves the comparison LOGIC itself: zero
+  mismatches on identical runs, exactly one on a changed verdict, one on a
+  dropped combination — never silently passing a real mismatch. A cheap
+  real-environment double-run (one live combination, invoked twice,
+  unsandboxed) proved genuinely deterministic (fail==fail) against the real
+  host. **Found and fixed a real bug in this task's own first draft**:
+  invoking the live orchestrator from inside `make_sandbox` silently turned
+  genuine FAILs into honest SKIPs (the sandbox stubs `CLAUDE_BIN=/usr/bin/true`
+  for hermetic safety elsewhere in this suite) — test-environment
+  contamination, not real non-determinism; fixed by keeping the real
+  double-run strictly outside any sandboxed scope.
 - [x] T029 [P] [US3] File the five llmctl-Side Findings (research.md §7,
   LLMCTL-F1..F5) as separately tracked follow-up items — a
   documentation/tracking action, never a claude_toolkit code task (satisfies
