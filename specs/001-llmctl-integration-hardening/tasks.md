@@ -310,14 +310,22 @@ pass/fail/skip record exists for every alias × agent × command combination.
 
 ### Tests/implementation for User Story 3 (interleaved — this story builds the test layer itself)
 
-- [ ] T023 [P] [SUBAGENT] [US3] Extract the unforgeable-challenge fact from
+- [x] T023 [P] [SUBAGENT] [US3] Extract the unforgeable-challenge fact from
   `systematic-debugging/SKILL.md` at runtime (mirrors the existing
   Red-Flags-table extraction for "Use Superpowers") — new helper in
   `scripts/verify_superpowers_tui.sh` (or a shared lib it sources; satisfies
-  **FR-012**).
-- [ ] T024 [P] [SUBAGENT] [US3] Extract the unforgeable-challenge fact from
+  **FR-012**). **Done**: `sp_skill_file()` generalized to take an optional
+  skill-name arg (default `using-superpowers`, zero-arg call site
+  unchanged); new `sp_expected_answer_systematic_debugging()` extracts the
+  "Reference too long" row's Reality cell from that skill's own "Common
+  Rationalizations" table. Verified live against the real installed
+  `claude-plugins-official/superpowers/6.4.1` skill file.
+- [x] T024 [P] [SUBAGENT] [US3] Extract the unforgeable-challenge fact from
   `subagent-driven-development/SKILL.md` at runtime — same pattern as T023,
-  independent target file (satisfies **FR-012**).
+  independent target file (satisfies **FR-012**). **Done**: new
+  `sp_expected_answer_subagent_driven()` extracts the "spawned its own
+  reviewer" row's Reality cell from that skill's own "Common
+  Rationalizations" table. Verified live, same host.
 - [ ] T025 [US3] Extend `scripts/verify_superpowers_tui.sh` (or add
   `scripts/tests/verify_llmctl_superpowers_live.sh` per quickstart.md) to
   issue all three commands against a given alias + CLI agent family, reusing

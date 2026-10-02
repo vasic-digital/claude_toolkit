@@ -46,11 +46,12 @@ ALIAS_ID="" PROMPT="" TIMEOUT=180 OUT=""
 # the model is capable of tool use; that is layer-1's tool-calling probe
 # (providers-verify.sh), which every 'verified' provider has already passed.
 sp_skill_file() {
+  local skill_name="${1:-using-superpowers}"
   local root all
   all=""
   for root in "$HOME/.claude-shared/plugins/cache" "$HOME/.claude/plugins/cache"; do
     [[ -d "$root" ]] || continue
-    all+="$(find "$root" -path '*/skills/using-superpowers/SKILL.md' 2>/dev/null)"$'\n'
+    all+="$(find "$root" -path "*/skills/${skill_name}/SKILL.md" 2>/dev/null)"$'\n'
   done
   # Prefer the stable marketplace install over transient `temp_git_*` checkouts,
   # which come and go; newest version wins within each class. Note `tail` exits 0
@@ -67,6 +68,31 @@ sp_skill_file() {
 sp_expected_answer() {
   local f="$1"
   awk -F'|' '/I remember this skill/ {gsub(/^[ \t]+|[ \t]+$/,"",$3); print $3; exit}' "$f"
+}
+
+# sp_expected_answer_systematic_debugging — same unforgeable-knowledge-challenge
+# pattern as sp_expected_answer above (T023), applied to the
+# superpowers:systematic-debugging skill's own "Common Rationalizations" table.
+# Match anchor is the EXCUSE column ($2), chosen for uniqueness within the file
+# (confirmed: "Reference too long" appears nowhere else in SKILL.md, so this
+# cannot accidentally match a non-table line the way a looser anchor could) —
+# extracts the REALITY column ($3): | "Reference too long, I'll adapt the
+# pattern" | Partial understanding guarantees bugs. Read it completely. |
+sp_expected_answer_systematic_debugging() {
+  local f="$1"
+  awk -F'|' '/Reference too long/ {gsub(/^[ \t]+|[ \t]+$/,"",$3); print $3; exit}' "$f"
+}
+
+# sp_expected_answer_subagent_driven — same pattern (T024), applied to the
+# superpowers:subagent-driven-development skill's own "Common Rationalizations"
+# table. Match anchor "spawned its own reviewer" is unique within the file —
+# extracts the REALITY column: | "The implementer spawned its own reviewer —
+# free extra assurance" | It's a duplicate seat reviewing the same diff; the
+# task review is the gate. A worker-spawned reviewer is a defect to flag, not
+# rigor. |
+sp_expected_answer_subagent_driven() {
+  local f="$1"
+  awk -F'|' '/spawned its own reviewer/ {gsub(/^[ \t]+|[ \t]+$/,"",$3); print $3; exit}' "$f"
 }
 while (( $# )); do
   case "$1" in
