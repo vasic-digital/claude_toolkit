@@ -457,13 +457,17 @@ repository knowledge; confirm every link resolves.
   **Done**: 6 sections (prerequisites, quick start, appearance/disappearance,
   switching, the two honest warnings, pointers to user-guide/FAQ), matching
   the existing doc's numbered-`##`/table/code-block house style.
-- [ ] T032 [P] [US4] Write `docs/llmctl/user-guide.md` (detection, naming,
+- [x] T032 [P] [US4] Write `docs/llmctl/user-guide.md` (detection, naming,
   switching, LAN-exposure and context-fit warnings, troubleshooting;
   satisfies **FR-015**).
-- [ ] T033 [P] [US4] Write `docs/llmctl/FAQ.md` (common how-to/troubleshooting
+- [x] T033 [P] [US4] Write `docs/llmctl/FAQ.md` (common how-to/troubleshooting
   questions, explicitly including the honest "a profile's model may not
   support tool-calling or may be too slow" note from research.md §3.D;
-  satisfies **FR-015**).
+  satisfies **FR-015**). **Done**: 14 Q&A entries across General/Detection
+  and naming/The two warnings/Troubleshooting, mirroring `docs/Provider_FAQ.md`'s
+  house style. The context-size answer quotes the real captured evidence
+  from `scripts/tests/proof/kimi-llmctl-integration-evidence.txt` verbatim
+  (92629 vs 8192 tokens) rather than an invented number.
 - [ ] T034 [P] [US4] Author `docs/diagrams/llmctl-detection-flow.mmd` and
   `docs/diagrams/llmctl-switch-flow.mmd` (scaffolded in T003), render to
   `.svg` via the existing `mmdc` pipeline documented in
