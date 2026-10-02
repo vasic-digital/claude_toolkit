@@ -451,9 +451,12 @@ every project-supported export format.
 the llmctl quick-start, user guide, FAQ, and diagrams without prior
 repository knowledge; confirm every link resolves.
 
-- [ ] T031 [P] [US4] Write `docs/llmctl/quickstart.md` (install llmctl, get
+- [x] T031 [P] [US4] Write `docs/llmctl/quickstart.md` (install llmctl, get
   recognized, launch a model) — mirrors the existing
   `docs/Provider_Aliases_User_Guide.md` pattern (satisfies **FR-015**).
+  **Done**: 6 sections (prerequisites, quick start, appearance/disappearance,
+  switching, the two honest warnings, pointers to user-guide/FAQ), matching
+  the existing doc's numbered-`##`/table/code-block house style.
 - [ ] T032 [P] [US4] Write `docs/llmctl/user-guide.md` (detection, naming,
   switching, LAN-exposure and context-fit warnings, troubleshooting;
   satisfies **FR-015**).
