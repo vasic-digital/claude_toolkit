@@ -1,2 +1,18 @@
 flowchart TB
-  %% placeholder — content authored in Phase 6 (US4, T034)
+  A["llmctl plan --json<br/>(profiles + ports + ctx)"] --> B["For each catalog profile<br/>(bounded concurrency,<br/>CMA_LLMCTL_MAX_PARALLEL_PROBES)"]
+  B --> C["Probe profile's own<br/>/v1/models endpoint"]
+  C --> D{Valid OpenAI-shaped<br/>JSON response?}
+  D -- no --> X["Profile excluded<br/>(open port ≠ running —<br/>never trusted alone)"]
+  D -- yes --> E["Resolve real context:<br/>meta.n_ctx, else plan's ctx,<br/>else configured default"]
+  E --> F{Real ctx below<br/>~168192-token floor?}
+  F -- yes --> G["context_warning set<br/>(honest, alias still usable)"]
+  F -- no --> H["context_warning absent"]
+  G --> I
+  H --> I["Check real bind address<br/>via ss -ltn"]
+  I --> J{Bound to<br/>0.0.0.0 / wildcard?}
+  J -- yes --> K["lan_exposed = true<br/>(plain warning surfaced)"]
+  J -- no --> L["lan_exposed = false"]
+  K --> M
+  L --> M["Emit alias<br/>llmctl-&lt;profile&gt; /<br/>kimi-llmctl-&lt;profile&gt;"]
+  M --> N["Alias usable this sync"]
+  N -. profile stops answering<br/>next sync .-> X

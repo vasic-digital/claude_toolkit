@@ -10,12 +10,14 @@ display without a renderer.
 | Sync data flow | [dataflow.mmd](dataflow.mmd) | [dataflow.svg](dataflow.svg) |
 | MCP enable policy | [enable-policy.mmd](enable-policy.mmd) | [enable-policy.svg](enable-policy.svg) |
 | Kimi + Claude family dispatch | [kimi-family.mmd](kimi-family.mmd) | [kimi-family.svg](kimi-family.svg) |
+| llmctl detection flow | [llmctl-detection-flow.mmd](llmctl-detection-flow.mmd) | [llmctl-detection-flow.svg](llmctl-detection-flow.svg) |
+| llmctl switch flow | [llmctl-switch-flow.mmd](llmctl-switch-flow.mmd) | [llmctl-switch-flow.svg](llmctl-switch-flow.svg) |
 
 Regenerate after editing a source:
 
 ```bash
 echo '{"args":["--no-sandbox"]}' > /tmp/pptr.json
-for d in architecture dataflow enable-policy kimi-family; do
+for d in architecture dataflow enable-policy kimi-family llmctl-detection-flow llmctl-switch-flow; do
   mmdc -i docs/diagrams/$d.mmd -o docs/diagrams/$d.svg -p /tmp/pptr.json
 done
 ```

@@ -468,10 +468,16 @@ repository knowledge; confirm every link resolves.
   house style. The context-size answer quotes the real captured evidence
   from `scripts/tests/proof/kimi-llmctl-integration-evidence.txt` verbatim
   (92629 vs 8192 tokens) rather than an invented number.
-- [ ] T034 [P] [US4] Author `docs/diagrams/llmctl-detection-flow.mmd` and
+- [x] T034 [P] [US4] Author `docs/diagrams/llmctl-detection-flow.mmd` and
   `docs/diagrams/llmctl-switch-flow.mmd` (scaffolded in T003), render to
   `.svg` via the existing `mmdc` pipeline documented in
-  `docs/diagrams/README.md` (satisfies **FR-015**).
+  `docs/diagrams/README.md` (satisfies **FR-015**). **Done**: both authored
+  matching the existing diagram style (decision-diamond branching,
+  `<br/>`-wrapped labels), rendered via the documented `mmdc` command,
+  verified non-blank (exact diagram label text — `context_warning`,
+  `lan_exposed`, `CRITICAL`, `rollback` — found inside the rendered SVG
+  XML, 35KB/29KB file sizes), and both rows added to
+  `docs/diagrams/README.md`'s index + regeneration command.
 - [ ] T035 [US4] Export `quickstart.md`/`user-guide.md`/`FAQ.md` to every
   project-supported format (`.html`/`.pdf`), mirroring
   `claude-export-docs.sh` / the `docs/Provider_Aliases_User_Guide.*` pattern.

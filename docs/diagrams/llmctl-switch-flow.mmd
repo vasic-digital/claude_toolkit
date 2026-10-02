@@ -1,2 +1,14 @@
 flowchart TB
-  %% placeholder — content authored in Phase 6 (US4, T034)
+  A["Operator launches a different<br/>llmctl-&lt;profile&gt; alias"] --> B["_cma_llmctl_ensure_active<br/>checks llmctl status first"]
+  B --> C{Target profile already<br/>the sole running one?}
+  C -- yes --> D["No-op — launch proceeds<br/>immediately"]
+  C -- no --> E["llmctl switch &lt;profile&gt;"]
+  E --> F{Switch exit code?}
+  F -- success --> D
+  F -- failure --> G["Re-probe llmctl status<br/>a SECOND time<br/>(never trust exit code alone)"]
+  G --> H{Previous profile<br/>still running?}
+  H -- yes --> I["Ordinary refusal:<br/>previous profile confirmed<br/>unchanged, launch aborted"]
+  H -- no --> J["CRITICAL: llmctl rollback<br/>also failed — host has fewer<br/>services running than before"]
+  I --> K["Underlying CLI<br/>never exec'd"]
+  J --> K
+  D --> L["claude / kimi launches<br/>against the now-active profile"]
