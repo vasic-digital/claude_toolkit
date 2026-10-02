@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Claude Multi-Account Fine Tuning</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Claude Multi-Account Fine Tuning</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#llmctl-integration--user-guide" id="toc-llmctl-integration--user-guide">llmctl Integration — User
+Guide</a>
+<ul>
+<li><a href="#1-detection" id="toc-1-detection">1. Detection</a></li>
+<li><a href="#2-switching" id="toc-2-switching">2. Switching</a></li>
+<li><a href="#3-lan-exposure-warning" id="toc-3-lan-exposure-warning">3.
+LAN-exposure warning</a></li>
+<li><a href="#4-context-size-warning" id="toc-4-context-size-warning">4.
+Context-size warning</a></li>
+<li><a href="#5-troubleshooting" id="toc-5-troubleshooting">5.
+Troubleshooting</a></li>
+<li><a href="#6-what-this-integration-does-not-do" id="toc-6-what-this-integration-does-not-do">6. What this integration
+does not do</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="llmctl-integration--user-guide">llmctl Integration — User
+Guide</h1>
+<p><a href="https://github.com/anthropics/llmctl">llmctl</a> is a
+separate, sibling project that runs local LLM models — each as its own
+independent server process on a fixed, catalog-assigned port — with an
+OpenAI-compatible <code>/v1/models</code> /
+<code>/v1/chat/completions</code> API. <code>claude-providers</code>
+automatically recognizes whichever llmctl profiles you currently have
+<strong>running</strong>, exposes each as a launchable Claude Code and
+Kimi Code alias, and keeps that recognition current on every sync. This
+is the deep-dive reference; see <a href="./quickstart.md"><code>./quickstart.md</code></a> for the short
+version and <a href="./FAQ.md"><code>./FAQ.md</code></a> for common
+questions.</p>
+<p>Nothing here modifies llmctl itself — see §6.</p>
+<hr />
+<h2 id="1-detection">1. Detection</h2>
+<p><code>detect_llmctl_records()</code> (in
+<code>scripts/claude-providers.sh</code>) runs on every
+<code>claude-providers sync</code> and is the single source of truth for
+which llmctl profiles currently exist as aliases:</p>
+<ul>
+<li>It asks llmctl itself for its current catalog
+(<code>llmctl plan --json</code>) to learn each profile&#39;s name and
+<strong>resolved port</strong> — never a hardcoded port table, since a
+profile&#39;s port can be overridden per-host.</li>
+<li>For every catalog profile, it independently probes that profile&#39;s
+own <code>/v1/models</code> endpoint. <strong>A listening port is never
+trusted on its own</strong> — a real, previously-measured failure mode
+is an unrelated service occupying the same port and answering something
+that merely looks like a 200; only a genuine, parseable OpenAI-shaped
+model listing counts as &quot;running.&quot;</li>
+<li>Only profiles that pass that live probe become aliases. A profile
+that stops answering disappears from the alias set on the very next sync
+— there is no stale/cached state.</li>
+</ul>
+<p><strong>Naming is always namespaced</strong>:
+<code>llmctl-&lt;profile&gt;</code> for Claude Code,
+<code>kimi-llmctl-&lt;profile&gt;</code> for Kimi Code — never a bare
+profile name, so an llmctl-backed alias is always visually distinct from
+a native account or any other provider alias.</p>
+<h2 id="2-switching">2. Switching</h2>
+<p>Launching an <code>llmctl-&lt;profile&gt;</code> alias that is
+<strong>not</strong> the currently-active llmctl profile triggers an
+automatic, on-demand switch (<code>_cma_llmctl_ensure_active()</code> in
+<code>scripts/lib.sh</code>, shared by the Claude, Kimi, and Pi launch
+wrappers):</p>
+<ol type="1">
+<li>It checks <code>llmctl status</code> first — if the requested
+profile is <em>already</em> the sole running one, nothing else happens
+(no needless switch latency on repeated use of the same alias).</li>
+<li>Otherwise it runs <code>llmctl switch &lt;profile&gt;</code>, which
+<strong>stops every other running profile and starts exactly the
+requested one</strong> — exclusive by design, mirroring llmctl&#39;s own
+<code>switch</code> semantics. Only one llmctl-backed alias is ever
+considered active at a time.</li>
+<li>If the target profile doesn&#39;t fit the host&#39;s current resources,
+llmctl refuses the switch and the launch aborts with that reason — the
+previously-active profile is independently <strong>re-verified</strong>
+as still live afterward, rather than assumed so merely because the
+switch command&#39;s exit code said so.</li>
+<li>llmctl&#39;s own switch has a documented, real failure mode: its
+automatic rollback-to-the-previous-state is <em>best-effort</em>, and
+can itself fail. When that happens, claude_toolkit surfaces it as a
+<strong>distinct, higher-severity
+<code>CRITICAL: llmctl rollback also failed</code></strong> message —
+never silently conflated with an ordinary refusal — so you know the host
+may now have fewer services running than before, not just that one
+switch didn&#39;t happen.</li>
+</ol>
+<p>Switching, or an llmctl-backed alias disappearing, never affects any
+native account alias or any other provider alias — they are completely
+independent.</p>
+<h2 id="3-lan-exposure-warning">3. LAN-exposure warning</h2>
+<p>By default, llmctl binds its profiles to <code>0.0.0.0</code> —
+reachable from other machines on your local network, not just this one
+(llmctl&#39;s own documented trade-off: its OpenAI-compatible API has no
+built-in authentication). llmctl itself reports no bind-address field in
+any of its own output, so claude_toolkit determines this independently:
+it reads the <strong>real kernel listening-socket state</strong> for the
+profile&#39;s resolved port (via <code>ss</code>) the moment the alias
+becomes available, and surfaces a plain warning naming the exposure if
+the bind address isn&#39;t loopback-only. The alias remains fully usable
+either way — this is information, not a block.</p>
+<p>If you want a profile to be loopback-only, that&#39;s an llmctl-side
+setting, not a claude_toolkit one: set
+<code>LLMCTL_BIND_HOST=127.0.0.1</code> globally, or
+<code>LLMCTL_BIND_HOST_&lt;PROFILE&gt;=127.0.0.1</code> for just one
+profile, before starting it with llmctl.</p>
+<h2 id="4-context-size-warning">4. Context-size warning</h2>
+<p>An llmctl-backed alias&#39;s advertised context is read from the
+profile&#39;s own real, currently-configured value (its
+<code>/v1/models</code> response&#39;s <code>meta.n_ctx</code> field, or
+failing that llmctl&#39;s own catalog <code>ctx</code> field) — never a
+flat, one-size-fits-all number. A CLI agent&#39;s own turn carries real
+overhead before your prompt ever gets added (system prompt + tool
+schemas), and some llmctl profiles are deliberately configured with a
+small context window that cannot hold that overhead. When a profile&#39;s
+real context can&#39;t clear that floor, you&#39;ll see an explicit warning at
+the point the alias appears, naming the real context and the shortfall —
+the alias is still created and usable, but a real agentic turn against
+it may fail with a context-exceeded error from the model itself.</p>
+<p>This is a property of how <em>that specific llmctl profile</em> was
+configured, not a claude_toolkit defect — the fix, if you want one, is
+either using a differently-configured (larger-context) profile for
+agentic work, or using the small-context profile directly via its own
+API for simpler, non-agentic use where the smaller window is fine.</p>
+<h2 id="5-troubleshooting">5. Troubleshooting</h2>
+<ul>
+<li><strong>A profile I started doesn&#39;t show up as an alias.</strong>
+Confirm it&#39;s actually answering: <code>llmctl status</code> should list
+it as running. Then re-sync: <code>claude-providers sync</code>.
+Detection only ever reflects profiles that genuinely answer their own
+<code>/v1/models</code> endpoint right now — a profile that is merely
+<em>listed</em> in llmctl&#39;s catalog but not currently serving will never
+produce an alias.</li>
+<li><strong>Switching seems to hang or fail.</strong> The underlying
+<code>llmctl switch</code> call can take real time (stopping one model,
+starting another) — this is expected, not a toolkit bug. If it genuinely
+fails, the launch aborts with llmctl&#39;s own reason printed; that reason
+(resource fit, a crashed engine, etc.) is the thing to address, not
+claude_toolkit&#39;s wrapper around it.</li>
+<li><strong>llmctl isn&#39;t installed on this host at all.</strong>
+Everything behaves exactly as if llmctl were simply absent — zero
+llmctl-related aliases, no error, no dependency introduced. You can use
+every other part of claude_toolkit normally.</li>
+</ul>
+<h2 id="6-what-this-integration-does-not-do">6. What this integration
+does not do</h2>
+<p>claude_toolkit does not install, configure, or manage llmctl itself,
+and does not modify llmctl&#39;s own configuration or behavior. Where
+analyzing llmctl&#39;s own codebase surfaced genuine defects in that
+separate project, they are documented — not fixed here, since
+claude_toolkit does not own that repository — in <a href="../research/2026-10-02-llmctl-upstream-findings.md"><code>../research/2026-10-02-llmctl-upstream-findings.md</code></a>.</p>
+</body>
+</html>

@@ -130,3 +130,10 @@ llmctl's own codebase surfaced genuine defects in that separate project, they
 are documented — not fixed here, since claude_toolkit does not own that
 repository — in
 [`../research/2026-10-02-llmctl-upstream-findings.md`](../research/2026-10-02-llmctl-upstream-findings.md).
+
+## 7. Diagrams
+
+Visual walkthroughs of the two flows described above:
+
+- [Detection flow](../diagrams/llmctl-detection-flow.svg) ([source](../diagrams/llmctl-detection-flow.mmd)) — catalog → per-profile probe → context/LAN honesty checks → alias.
+- [Switch flow](../diagrams/llmctl-switch-flow.svg) ([source](../diagrams/llmctl-switch-flow.mmd)) — on-demand switch, the post-failure re-probe, and the `CRITICAL: rollback also failed` path.

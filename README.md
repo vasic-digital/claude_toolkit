@@ -146,6 +146,7 @@ config dir. Both installers are **idempotent**.
 | Guide | What it covers |
 | ----- | -------------- |
 | [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) | Turning LLM keys into aliases; transports, overrides, verification. |
+| [llmctl Integration Quickstart](docs/llmctl/quickstart.md) → [User Guide](docs/llmctl/user-guide.md) → [FAQ](docs/llmctl/FAQ.md) | Auto-recognizing local llmctl models as aliases; on-demand switching; honest context/LAN warnings; [flow diagrams](docs/diagrams/llmctl-detection-flow.svg). |
 | [Kimi Accounts User Guide](Kimi_Accounts_User_Guide.md) | Kimi Code accounts, `kimi-<id>` aliases, the one-time `kimi-*` → `kc-*` rename. |
 | [OpenCode Integration](OpenCode_Integration.md) | Sharing Skills + MCP + `CLAUDE.md` with OpenCode. |
 | [Session & Color](docs/SESSION_COLOR.md) | Per-project auto-session naming + the per-alias color hint reality. |

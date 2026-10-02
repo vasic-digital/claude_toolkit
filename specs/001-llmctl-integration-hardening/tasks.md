@@ -515,21 +515,47 @@ repository knowledge; confirm every link resolves.
   `lan_exposed`, `CRITICAL`, `rollback` — found inside the rendered SVG
   XML, 35KB/29KB file sizes), and both rows added to
   `docs/diagrams/README.md`'s index + regeneration command.
-- [ ] T035 [US4] Export `quickstart.md`/`user-guide.md`/`FAQ.md` to every
+- [x] T035 [US4] Export `quickstart.md`/`user-guide.md`/`FAQ.md` to every
   project-supported format (`.html`/`.pdf`), mirroring
   `claude-export-docs.sh` / the `docs/Provider_Aliases_User_Guide.*` pattern.
-  *(depends on T031, T032, T033; satisfies **FR-015**)*
-- [ ] T036 [US4] Add a linked section in the repository root `README.md`
+  *(depends on T031, T032, T033; satisfies **FR-015**)* **Done**: ran
+  `MD_FILE=docs/llmctl/<doc>.md bash scripts/claude-export-docs.sh` per file
+  (the script's `MD_FILE` override is already generic, proven by
+  `test_export.sh`'s own fixture-md pattern — no script change needed);
+  produced `.html`/`.pdf`/`.docx` for all three docs, every PDF verified
+  `%PDF-` at byte 0.
+- [x] T036 [US4] Add a linked section in the repository root `README.md`
   pointing to `docs/llmctl/quickstart.md`, and link quickstart → user-guide →
   FAQ → diagrams so every new page is README-reachable. *(depends on
-  T031–T035; satisfies **FR-016**)*
-- [ ] T037 [P] [TDD] [US4] Link-check test asserting zero dead links and
+  T031–T035; satisfies **FR-016**)* **Done**: README's Documentation table
+  gained a quickstart → user-guide → FAQ row (+ a direct diagram link);
+  `user-guide.md` gained a new §7 "Diagrams" pointing at both rendered SVGs
+  and their `.mmd` sources, closing the only previously-unlinked hop.
+- [x] T037 [P] [TDD] [US4] Link-check test asserting zero dead links and
   zero orphaned pages in the new llmctl doc set — `scripts/tests/` (new,
   extends any existing doc-link-check tooling; satisfies **FR-016**,
-  **SC-005**).
-- [ ] T038 [REVIEW] [US4] Review the full llmctl doc set for accuracy
+  **SC-005**). **Done**: `scripts/tests/test_llmctl_doc_links.sh` (8 cases) —
+  extracts every markdown link from README.md + the 3 llmctl docs, resolves
+  each canonically (collapsing `..`, which an earlier draft got wrong and a
+  real planted-fixture run proved: see test header), asserts zero dead links,
+  BFS-reachability from README.md for zero orphans, and that both diagram
+  SVGs are linked from somewhere in the set. Proven non-vacuous both ways: a
+  manually planted dead link was caught live (then reverted, zero diff) before
+  this was marked done, and the real "switch-flow.svg not reachable" bug this
+  test itself found (a `..`-relative-path string-compare bug in the test, not
+  in the docs) was fixed and re-verified green.
+- [x] T038 [REVIEW] [US4] Review the full llmctl doc set for accuracy
   against the actual shipped behavior (US1–US3) before proceeding to
-  release.
+  release. **Done**: cross-checked every concrete claim in quickstart/
+  user-guide/FAQ against the real source and evidence: the `kimi-llmctl-<profile>`
+  naming matches `data-model.md`'s documented family-pairing; the captured
+  "92629 tokens ... 8192" context-exceeded quote matches
+  `scripts/tests/proof/kimi-llmctl-integration-evidence.txt` verbatim; the
+  `LLMCTL_BIND_HOST` / `LLMCTL_BIND_HOST_<PROFILE>` env vars and the
+  `0.0.0.0` default bind claim match the upstream `llmctl` repo's own
+  README/CHANGELOG and this feature's own
+  `docs/research/2026-10-02-llmctl-upstream-findings.md` (LLMCTL-F3). No
+  inaccuracies found; no edits needed.
 
 **Checkpoint**: A new reader can go from the README to a working
 understanding of install/recognition/switching/troubleshooting with zero

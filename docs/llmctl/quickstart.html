@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Claude Multi-Account Fine Tuning</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ background-color: #f8f8f8; }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ef2929; } 
+code span.an { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.at { color: #204a87; } 
+code span.bn { color: #0000cf; } 
+code span.cf { color: #204a87; font-weight: bold; } 
+code span.ch { color: #4e9a06; } 
+code span.cn { color: #8f5902; } 
+code span.co { color: #8f5902; font-style: italic; } 
+code span.cv { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.do { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.dt { color: #204a87; } 
+code span.dv { color: #0000cf; } 
+code span.er { color: #a40000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #0000cf; } 
+code span.fu { color: #204a87; font-weight: bold; } 
+code span.im { } 
+code span.in { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.kw { color: #204a87; font-weight: bold; } 
+code span.op { color: #ce5c00; font-weight: bold; } 
+code span.ot { color: #8f5902; } 
+code span.pp { color: #8f5902; font-style: italic; } 
+code span.sc { color: #ce5c00; font-weight: bold; } 
+code span.ss { color: #4e9a06; } 
+code span.st { color: #4e9a06; } 
+code span.va { color: #000000; } 
+code span.vs { color: #4e9a06; } 
+code span.wa { color: #8f5902; font-weight: bold; font-style: italic; } 
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Claude Multi-Account Fine Tuning</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#llmctl-integration--quick-start" id="toc-llmctl-integration--quick-start">llmctl Integration — Quick
+Start</a>
+<ul>
+<li><a href="#1-prerequisites" id="toc-1-prerequisites">1.
+Prerequisites</a></li>
+<li><a href="#2-quick-start" id="toc-2-quick-start">2. Quick
+start</a></li>
+<li><a href="#3-the-alias-only-exists-while-the-model-is-actually-running" id="toc-3-the-alias-only-exists-while-the-model-is-actually-running">3.
+The alias only exists while the model is actually running</a></li>
+<li><a href="#4-switching-models" id="toc-4-switching-models">4.
+Switching models</a></li>
+<li><a href="#5-two-honest-warnings-you-may-see" id="toc-5-two-honest-warnings-you-may-see">5. Two honest warnings you
+may see</a></li>
+<li><a href="#6-something-not-working" id="toc-6-something-not-working">6. Something not working?</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="llmctl-integration--quick-start">llmctl Integration — Quick
+Start</h1>
+<p><a href="https://github.com/vasic-digital/llmctl">llmctl</a> is a
+separate, sibling project that runs local LLMs on your own machine —
+each model profile as its own independent server, serving an
+OpenAI-compatible API on a fixed port. <code>claude-providers</code>
+automatically recognizes every llmctl profile you have <strong>running
+right now</strong> and exposes it as a normal, launchable Claude Code
+(and Kimi Code) alias — no manual provider-file editing, no separate
+registration step.</p>
+<hr />
+<h2 id="1-prerequisites">1. Prerequisites</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>llmctl installed, with at least one model profile downloaded</td>
+<td>this integration discovers and uses llmctl — it does not install,
+configure, or manage llmctl itself (see llmctl&#39;s own docs for
+<code>llmctl setup</code> / <code>llmctl models download</code>)</td>
+</tr>
+<tr>
+<td>The toolkit installed</td>
+<td>provides <code>claude-providers</code>, the alias file, the launch
+wrappers</td>
+</tr>
+<tr>
+<td><code>jq</code>, <code>curl</code>, <code>ss</code></td>
+<td>catalog parse + liveness probe + bind-address check</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-quick-start">2. Quick start</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">llmctl</span> start fast              <span class="co"># start a profile directly via llmctl</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync          <span class="co"># re-sync claude_toolkit</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> ~/.local/share/claude-multi-account/aliases.sh   <span class="co"># or open a new shell</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list <span class="kw">|</span> <span class="fu">grep</span> llmctl-   <span class="co"># confirm llmctl-fast appears</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude</span> llmctl-fast <span class="at">-p</span> <span class="st">&quot;hi&quot;</span>      <span class="co"># launch Claude Code against it</span></span></code></pre></div>
+<p>The alias is always named <code>llmctl-&lt;profile&gt;</code> — never
+a bare profile name — so it is immediately distinguishable from a native
+account or any other provider alias. The same profile is also reachable
+through Kimi Code as <code>kimi-llmctl-&lt;profile&gt;</code> (e.g.
+<code>kimi-llmctl-fast</code>), using the exact same underlying
+detection.</p>
+<h2 id="3-the-alias-only-exists-while-the-model-is-actually-running">3.
+The alias only exists while the model is actually running</h2>
+<p><code>claude-providers sync</code> re-detects every llmctl profile on
+every run. If you stop the profile (<code>llmctl stop fast</code>), the
+next sync removes the alias — there is never a stale alias pointing at a
+model that is no longer there. If llmctl is not installed, or installed
+but serving nothing, <code>claude-providers sync</code> behaves exactly
+as if llmctl were absent: no error, no broken alias.</p>
+<h2 id="4-switching-models">4. Switching models</h2>
+<p>Launching a <strong>different</strong>
+<code>llmctl-&lt;profile&gt;</code> alias than the one currently active
+switches the model automatically — the toolkit hands this off to
+llmctl&#39;s own exclusive switch (stop the previous profile, start exactly
+the one you asked for). You do not need a separate switch command on the
+claude_toolkit side; just launch the alias you want:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude</span> llmctl-fast <span class="at">-p</span> <span class="st">&quot;hi&quot;</span>      <span class="co"># fast is now active</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude</span> llmctl-coder <span class="at">-p</span> <span class="st">&quot;hi&quot;</span>     <span class="co"># automatically switches: fast stops, coder starts</span></span></code></pre></div>
+<p>If the target profile does not fit your host&#39;s currently available
+resources, the switch is refused with a clear reason, and whatever was
+previously active is left exactly as it was.</p>
+<h2 id="5-two-honest-warnings-you-may-see">5. Two honest warnings you
+may see</h2>
+<ul>
+<li><strong>LAN-exposure warning</strong> — the model is reachable from
+your local network, not only from this machine. llmctl binds to all
+network interfaces by default; the alias still works, this is just
+telling you who else can reach it.</li>
+<li><strong>Context-size warning</strong> — this profile&#39;s real context
+window is smaller than what a CLI agent&#39;s own prompt + tool-schema
+overhead typically needs, so a real turn may fail with a
+context-exceeded error. The alias still works for lighter use; this is
+an honest heads-up about a specific profile&#39;s capacity, not a toolkit
+defect.</li>
+</ul>
+<h2 id="6-something-not-working">6. Something not working?</h2>
+<p>See the full <a href="./user-guide.md">user guide</a> for switching
+details, both warnings in depth, and troubleshooting — and the <a href="./FAQ.md">FAQ</a> for quick answers to the most common &quot;why
+isn&#39;t...&quot; questions.</p>
+</body>
+</html>
