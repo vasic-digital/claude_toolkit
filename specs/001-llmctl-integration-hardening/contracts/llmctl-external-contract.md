@@ -41,12 +41,16 @@ feature does not modify `../llmctl` itself (clarified scope).
 
 ## Contract test obligations (feeds tasks.md)
 
-- A new test asserts `detect_llmctl_records` fails closed (an honest SKIP/
-  error, never a silent `[]`) when `llmctl plan --json` returns a `profiles`
-  object whose entries are missing `port` or `ctx` — detecting an upstream
-  schema drift the moment it would otherwise silently produce a broken or
-  undersized alias.
-- A new test asserts the context-limit carve (`research.md §2`) is applied
-  using `ctx` from `plan --json` when `/v1/models` `meta.n_ctx` is absent,
-  and that the carve's floor-violation warning fires on a fixture profile
-  whose `ctx` is deliberately set below the CLI-agent-overhead floor.
+- **Confirmed during execution (T004, scripts/tests/test_llmctl_detect.sh
+  Cases F3/F4/F4b)**: a `profiles` entry missing `port` is already safely
+  skipped per-profile by construction (the `^[0-9]+$` port gate), never
+  treated as a whole-detector failure. A `profiles` entry missing `ctx`
+  was found to resolve to the literal digit-string `"0"` (a jq `// 0`
+  quirk winning the regex gate before the configured default is ever
+  consulted) rather than the documented `8192`-default fallback — fixed as
+  part of T011 (falls through to the configured default, never to `0`).
+- A test asserts the honest `context_warning` field (`research.md §2`,
+  `alias-behavior-contract.md`) fires on a fixture profile whose real
+  context — from `/v1/models` `meta.n_ctx`, else `plan --json`'s `ctx` —
+  is below the 168192-token CLI-agent-overhead floor, and is absent for a
+  profile at or above it (T007/T011).

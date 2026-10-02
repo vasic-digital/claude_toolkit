@@ -2126,6 +2126,17 @@ detect_llmctl_records() {
   # operator override), so those two fields are irrelevant to "is it running
   # right now" and are deliberately not consulted here.
   local _t="${CMA_LLMCTL_HTTP_TIMEOUT:-3}"
+  # The minimum real context a CLI agent's own baseline overhead (system
+  # prompt + tool schemas) needs to clear before any turn can succeed --
+  # derived the SAME way scripts/lib.sh's launch-time carve derives its own
+  # input floor (CMA_INPUT_FLOOR, default 160000) plus a minimum output
+  # reservation (8192), rather than a second, independently-invented number.
+  # A profile whose real context lands below this is not a detection bug --
+  # it is a real, usable-for-other-purposes endpoint that simply cannot hold
+  # a CLI agent's own overhead, and the operator is warned rather than
+  # handed a silently-broken alias (closes the captured kimi-llmctl
+  # production failure: 92436 tokens needed vs. a resolved 8192-token cap).
+  local _lc_min_usable=$(( ${CMA_INPUT_FLOOR:-160000} + 8192 ))
   local _name _port _pctx _served_json="[]"
   while IFS=$'\t' read -r _name _port _pctx; do
     [[ -n "$_name" && "$_port" =~ ^[0-9]+$ ]] || continue
@@ -2146,12 +2157,38 @@ detect_llmctl_records() {
       <<<"$_body" 2>/dev/null)" || _mctx=""
     [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_pctx"
     [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_lc_ctx"
+    # A context of literal "0" is a hole, not data (mirrors
+    # providers_resolve.py:derive_limits()'s context==0-is-unknown rule) --
+    # without this it would otherwise win the regex gate above (it IS all
+    # digits) and silently skip the _lc_ctx default entirely.
+    [[ "$_mctx" =~ ^[0-9]+$ && "$_mctx" -gt 0 ]] || _mctx="$_lc_ctx"
+    local _warn=""
+    if [[ "$_mctx" -lt "$_lc_min_usable" ]]; then
+      _warn="profile '${_name}' context (${_mctx} tokens) is below the ${_lc_min_usable} tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"
+    fi
+    # LAN-exposure: llmctl reports no bind-address field in any JSON output
+    # (confirmed against the upstream source -- plan --json's per-profile
+    # schema carries no such key), so the only authoritative signal is the
+    # REAL kernel listening-socket state for this profile's own resolved
+    # port, read directly rather than trusted from any config/env default.
+    # A missing `ss` binary degrades this ONE check honestly (never crashes
+    # profile detection itself) -- `lan_exposed` then stays the conservative
+    # default `false` rather than blocking the whole detector on a tool this
+    # function did not previously require.
+    local _lan="false"
+    if command -v ss >/dev/null 2>&1; then
+      local _sockline=""
+      _sockline="$(ss -ltn "sport = :${_port}" 2>/dev/null | awk 'NR>1{print $4; exit}')" || _sockline=""
+      case "$_sockline" in
+        0.0.0.0:*|\*:*|\[::\]:*) _lan="true" ;;
+      esac
+    fi
     _served_json="$(jq -c --arg name "$_name" --arg port "$_port" --arg base "$_base" \
-                       --arg model "$_mid" --arg ctx "$_mctx" \
-      '. + [{name:$name, port:($port|tonumber), base_url:$base, model:$model, context_limit:($ctx|tonumber)}]' \
+                       --arg model "$_mid" --arg ctx "$_mctx" --arg warn "$_warn" --argjson lan "$_lan" \
+      '. + [{name:$name, port:($port|tonumber), base_url:$base, model:$model, context_limit:($ctx|tonumber), context_warning:$warn, lan_exposed:$lan}]' \
       <<<"$_served_json" 2>/dev/null)" || _served_json=""
     [[ -n "$_served_json" ]] || _served_json="[]"
-  done < <(jq -r '.profiles | to_entries[] | [.key, (.value.port|tostring), ((.value.ctx // 0)|tostring)] | @tsv' \
+  done < <(jq -r '.profiles | to_entries[] | [.key, (.value.port|tostring), ((.value.ctx // "")|tostring)] | @tsv' \
              <<<"$_plan" 2>/dev/null)
 
   if [[ "$_served_json" == "[]" || -z "$_served_json" ]]; then
@@ -2166,8 +2203,10 @@ detect_llmctl_records() {
        base_url: .base_url, transport: $transport,
        strong_model: .model, fast_model: .model,
        context_limit: .context_limit, max_output: $out,
+       lan_exposed: .lan_exposed,
        status: "resolved",
        reason: ("llmctl profile " + .name + " live at " + .base_url + " serving " + .model)}
+      + (if .context_warning != "" then {context_warning: .context_warning} else {} end)
     ]
   '
 }

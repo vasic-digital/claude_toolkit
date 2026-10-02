@@ -68,11 +68,18 @@ numbering.
   documented dev/test prerequisites (extend `scripts/tests/README.md` or
   equivalent if a prerequisite list exists); `ss` is new for this feature
   (FR-009's bind-address read).
-- [ ] T002 [P] Create `scripts/tests/fixtures/llmctl/` with a parameterized
-  fake `llmctl` stub (extends the existing fake-binary pattern already used
-  by `test_llmctl_detect.sh`) that can be configured per-test for: a
-  profile's `ctx` value, a profile's real bind address, and a
-  switch-failed/rollback-also-failed response shape.
+- [x] T002 [P] ~~Create `scripts/tests/fixtures/llmctl/`~~ **Course-corrected
+  during execution (2026-10-02) after reading `test_llmctl_detect.sh` in
+  full**: this suite's real, established convention is a *self-contained
+  inline stub per test file* (`write_llmctl_stub()` + `sandbox_stub` heredocs,
+  with dynamic values like ports interpolated per-test) — every existing
+  llmctl test file defines its own, there is no shared fixtures directory
+  anywhere in this suite, and introducing one here would be a mismatched
+  abstraction (constitution §11.4.74 extend-don't-reinvent). No shared
+  fixtures directory is created; each new test file (T007, T008, T016–T019,
+  T021) follows the same inline-stub pattern `test_llmctl_detect.sh` already
+  uses, parameterizing `ctx`, bind address, or switch-failure shape directly
+  in its own heredoc.
 - [ ] T003 [P] Create `docs/llmctl/` directory and placeholder
   `docs/diagrams/llmctl-detection-flow.mmd` / `docs/diagrams/llmctl-switch-flow.mmd`
   files (empty scaffolds; content lands in Phase 6).
@@ -87,20 +94,42 @@ on being true before they can be trusted.
 **⚠️ CRITICAL**: No User Story 1–3 fix lands until this phase's contract
 tests exist and pass against current behavior.
 
-- [ ] T004 [TDD] Contract test: `detect_llmctl_records` fails closed (an
+- [x] T004 [TDD] Contract test: `detect_llmctl_records` fails closed (an
   honest error, never a silent `[]`) when `llmctl plan --json` returns a
   profile object missing `port` or `ctx` — `scripts/tests/test_llmctl_detect.sh`
   (new case; per `contracts/llmctl-external-contract.md` obligation #1;
   underwrites **FR-001**'s "always reflects what llmctl is actually
-  running" guarantee against a malformed upstream response).
-- [ ] T005 [P] [TDD] Confirm (regression) the existing wrong-service
+  running" guarantee against a malformed upstream response). **Done
+  2026-10-02**: added Cases F3 (missing `port` — confirmed silently skipped
+  by construction) and F4/F4b (missing `ctx`). **Genuine finding surfaced**
+  (Case F4b): when BOTH the catalog's `ctx` and the live probe's own
+  `meta.n_ctx` are absent, `context_limit` resolves to the string `"0"` —
+  not the documented `8192` fallback — because the jq extraction's
+  `.value.ctx // 0` turns an absent catalog field into the valid digit-string
+  `"0"`, which wins the `^[0-9]+$` gate before the `CMA_LLMCTL_CONTEXT_LIMIT`
+  default is ever consulted. This is not a crash/fabrication risk (no record
+  is wrongly fabricated), but it feeds directly into **T011**'s
+  context-floor-warning scope — a `context_limit` of `0` is even further
+  below any usable floor than the already-known 8192 case, and T011's floor
+  check must treat it accordingly. All 38 assertions in the file pass, exit 0.
+- [x] T005 [P] [TDD] Confirm (regression) the existing wrong-service
   port-squatting case still holds — liveness is never derived from a merely
   open port — `scripts/tests/test_llmctl_detect.sh` (existing Case, add an
   explicit regression-lock comment citing research.md §1; underwrites
-  **FR-001**/**FR-003**).
-- [ ] T006 [REVIEW] Review `contracts/llmctl-external-contract.md` and
+  **FR-001**/**FR-003**). **Done 2026-10-02**: added an explicit
+  regression-lock comment after Case E citing research.md §1 (no new
+  assertions needed — Cases C2/E already prove this).
+- [x] T006 [REVIEW] Review `contracts/llmctl-external-contract.md` and
   `contracts/alias-behavior-contract.md` against the actual current code
-  (sanity pass) before any Phase 3+ fix work begins.
+  (sanity pass) before any Phase 3+ fix work begins. **Done**: reviewed
+  against T004's real findings and amended both contracts — the "fails
+  closed" wording was imprecise (missing `port` is already safely
+  per-profile-skipped, not a detector-wide failure; missing `ctx` surfaced
+  the genuine `"0"`-string bug, not a crash) and `alias-behavior-contract.md`'s
+  context-fit section was corrected from "carved the same way every other
+  provider's limits already are" (inaccurate — that refers to an unrelated
+  catalog-correction mechanism) to the actual implemented shape: an honest
+  `context_warning` field alongside the real value.
 
 **Checkpoint**: Contract tests exist, assert the real upstream schema shape,
 and pass against current code. Fix work can now safely begin.
@@ -122,27 +151,35 @@ documentation (US4).
 
 ### Tests for User Story 1 (write first, confirm RED)
 
-- [ ] T007 [P] [TDD] [US1] RED test reproducing the captured context-limit
+- [x] T007 [P] [TDD] [US1] RED test reproducing the captured context-limit
   failure shape: a fixture profile whose `ctx` is below the CLI-agent-overhead
   floor must not be exported with an unusable `context_limit`/`max_output` —
   `scripts/tests/test_llmctl_context_carve.sh` (new file; satisfies **FR-010**
-  — the claude_toolkit-side gap fix — and **SC-003**).
-- [ ] T008 [P] [TDD] [US1] RED test: a fixture profile bound to `0.0.0.0`
+  — the claude_toolkit-side gap fix — and **SC-003**). **RED-confirmed
+  2026-10-02**: 1 failed / 3 passed, exit 1 — the TINY-profile
+  `context_warning` assertion fails exactly as expected (field currently
+  ABSENT), the LARGE-profile negative control passes. GREEN is a separate
+  task (T011).
+- [x] T008 [P] [TDD] [US1] RED test: a fixture profile bound to `0.0.0.0`
   must set the new `lan_exposed` field true and surface a warning; one bound
   to `127.0.0.1` must not — `scripts/tests/test_llmctl_lan_exposure.sh` (new
-  file; satisfies **FR-009**).
-- [ ] T009 [P] [TDD] [US1] Regression-confirm the existing alias-naming
+  file; satisfies **FR-009**). **RED-confirmed (2026-10-02)**: exposed case
+  FAILs (`want=true got=false`), local negative-control PASSes — implementation
+  is T012. Real `ss -ltn "sport = :<port>"` empirically verified on this host:
+  the `Local Address:Port` column reads `0.0.0.0:<port>` for a wildcard bind,
+  `127.0.0.1:<port>` for loopback-only — T012 should parse exactly that field.
+- [x] T009 [P] [TDD] [US1] Regression-confirm the existing alias-naming
   assertion (`llmctl-<profile>`, never bare) is unchanged —
   `scripts/tests/test_llmctl_detect.sh` (existing; research.md §1
   regression-lock; satisfies **FR-002**).
-- [ ] T010 [P] [TDD] [US1] Regression-confirm existing Cases A–H4 (zero/one/
+- [x] T010 [P] [TDD] [US1] Regression-confirm existing Cases A–H4 (zero/one/
   many running profiles, llmctl absent, garbage JSON, env-var precedence)
   still pass unmodified — `scripts/tests/test_llmctl_detect.sh` (existing;
   satisfies **FR-001**, **FR-003**, **FR-004**, **SC-001**).
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Implement the context-limit carve in `detect_llmctl_records()`
+- [x] T011 [US1] Implement the context-limit carve in `detect_llmctl_records()`
   (`scripts/claude-providers.sh`): derive `context_limit`/`max_output` from
   the real `n_ctx` (`/v1/models` `meta.n_ctx`, else `plan --json`'s own `ctx`
   field), apply the same carve `providers_resolve.py:derive_limits()`
@@ -154,7 +191,7 @@ documentation (US4).
   `CMA_LLMCTL_CONTEXT_LIMIT` env var for it (resolves analysis finding L1;
   plan.md's Project Structure note is updated to match). *(depends on T007,
   T004; satisfies **FR-010**, **SC-003**)*
-- [ ] T012 [P] [US1] Implement LAN-exposure detection in
+- [x] T012 [P] [US1] Implement LAN-exposure detection in
   `detect_llmctl_records()` (`scripts/claude-providers.sh`): read the real
   listening-socket bind address for the profile's resolved port (`ss -ltnp`
   or equivalent — never an llmctl JSON field, none exists per research.md

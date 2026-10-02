@@ -241,8 +241,13 @@ DET_B="$(CMA_LLMCTL_BIN="$HOME/.local/bin/llmctl-onlyfast" \
 echo "--- detect_llmctl_records output (CASE B, one running profile) ---" >> "$PROOF"
 echo "$DET_B" >> "$PROOF"
 assert_eq "1" "$(jq 'length' <<<"$DET_B")" "exactly one record for exactly one running profile"
-assert_eq "llmctl-fast" "$(jq -r '.[0].provider_id' <<<"$DET_B")" "provider_id = llmctl-fast"
-assert_eq "llmctl-fast" "$(jq -r '.[0].alias' <<<"$DET_B")" "alias = llmctl-fast"
+# REGRESSION-LOCK (FR-002 / specs/001-llmctl-integration-hardening/research.md
+# §1): the "llmctl-<profile>" namespaced form (never a bare profile name) was
+# already correct and already covered when this feature's audit ran -- the
+# two assertions below are that lock, not new coverage. A future change that
+# makes either one fail is a regression of FR-002, not a new requirement.
+assert_eq "llmctl-fast" "$(jq -r '.[0].provider_id' <<<"$DET_B")" "provider_id = llmctl-fast (FR-002 regression-lock)"
+assert_eq "llmctl-fast" "$(jq -r '.[0].alias' <<<"$DET_B")" "alias = llmctl-fast (FR-002 regression-lock)"
 assert_eq "router" "$(jq -r '.[0].transport' <<<"$DET_B")" "transport = router (OpenAI-compatible -> ccr)"
 assert_eq "http://127.0.0.1:$FAST_PORT/v1" "$(jq -r '.[0].base_url' <<<"$DET_B")" "base_url = the REAL probed port"
 assert_eq "qwen2.5-coder-7b-instruct-q4_k_m" "$(jq -r '.[0].strong_model' <<<"$DET_B")" \
@@ -299,6 +304,14 @@ _wrong_is_json=1
 printf '%s' "$_wrong_body" | jq -e . >/dev/null 2>&1 || _wrong_is_json=0
 assert_eq 0 "$_wrong_is_json" "wrong-service response is genuinely NOT valid JSON (the real-host defect this mirrors)"
 
+# REGRESSION-LOCK (feature 001-llmctl-integration-hardening, T005, 2026-10-02):
+# CASE C2 (above) and this CASE E together are the existing proof that
+# liveness is NEVER derived from a merely-open port -- a port answering with
+# a non-JSON/non-OpenAI-shaped body is treated as "not running", exactly as
+# research.md §1 documents as already-correct, already-tested behavior this
+# feature must preserve rather than rebuild. This comment makes that
+# regression-lock explicit and traceable for future readers/diffs.
+
 # ===========================================================================
 # CASE F — invalid/absent `plan --json` catalog -> honest [], never a crash
 # ===========================================================================
@@ -331,6 +344,104 @@ chmod +x "$HOME/.local/bin/llmctl-noprofiles"
 DET_F2="$(CMA_LLMCTL_BIN="$HOME/.local/bin/llmctl-noprofiles" \
     bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
 assert_eq "[]" "$(echo "$DET_F2" | tr -d '[:space:]')" "catalog with no .profiles object -> honest empty record"
+
+# ===========================================================================
+# CASE F3/F4 (feature 001-llmctl-integration-hardening, T004): a profile
+# object missing `port` or `ctx` must not be fabricated into a bad/false
+# record -- contracts/llmctl-external-contract.md obligation #1.
+# ===========================================================================
+it "CASE F3: a catalog profile missing 'port' entirely is silently skipped, never fabricated"
+sandbox_stub "$HOME/.local/bin/llmctl-noport" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "plan" && "${2:-}" == "--json" ]]; then
+  echo '{"profiles": {"broken": {"ctx": 8192}}}'
+  exit 0
+fi
+exit 2
+EOF
+chmod +x "$HOME/.local/bin/llmctl-noport"
+DET_F3="$(CMA_LLMCTL_BIN="$HOME/.local/bin/llmctl-noport" \
+    bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records' 2>>"$PROOF")"
+f3_rc=$?
+echo "--- detect_llmctl_records output (CASE F3, profile missing port) ---" >> "$PROOF"
+echo "$DET_F3" >> "$PROOF"
+assert_eq 0 "$f3_rc" "detector exits cleanly when a profile object has no port field at all"
+assert_eq "[]" "$(echo "$DET_F3" | tr -d '[:space:]')" "a profile with no port is never fabricated into a record (jq's .port -> null -> tostring -> \"null\", fails the ^[0-9]+\$ gate by construction)"
+
+it "CASE F4: a catalog profile missing 'ctx' but whose live endpoint reports meta.n_ctx -> the live value wins (the ctx-absent-defaults-to-0 bug, fixed by T011, only bites when meta.n_ctx is ALSO absent — see CASE F4b)"
+sandbox_stub "$HOME/.local/bin/llmctl-noctx" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
+  cat <<JSON
+{"profiles": {"noctx": {"port": $FAST_PORT}}}
+JSON
+  exit 0
+fi
+exit 2
+EOF
+chmod +x "$HOME/.local/bin/llmctl-noctx"
+DET_F4="$(CMA_LLMCTL_BIN="$HOME/.local/bin/llmctl-noctx" \
+    bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
+echo "--- detect_llmctl_records output (CASE F4, profile missing ctx; mock DOES report its own meta.n_ctx=8192) ---" >> "$PROOF"
+echo "$DET_F4" >> "$PROOF"
+# The 'fast' mock DOES report meta.n_ctx=8192 on every /v1/models response
+# (start_mock's fixed behavior), so the live-probed value wins here and masks
+# the missing-catalog-ctx path entirely -- this sub-case documents that the
+# live probe is authoritative when present, which is correct and desired.
+assert_eq "8192" "$(jq -r '.[0].context_limit' <<<"$DET_F4")" "live meta.n_ctx still wins when the catalog omits ctx and the endpoint reports one"
+
+it "CASE F4b: catalog missing 'ctx' AND the endpoint's own /v1/models omits meta.n_ctx -> context_limit correctly falls through to the 8192 default (T011 fix), never the literal \"0\" the pre-fix jq extraction produced"
+NOMETA_PORT_FILE="$HOME/.llmctl_nometa_port"
+python3 - "$NOMETA_PORT_FILE" >/dev/null 2>&1 <<'PY' &
+import http.server, socketserver, sys, json
+port_file = sys.argv[1]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.rstrip('/').endswith('/models'):
+            body = json.dumps({"object": "list", "data": [
+                {"id": "no-meta-model", "object": "model"}
+            ]}).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404); self.end_headers()
+    def log_message(self, *a):
+        pass
+srv = socketserver.TCPServer(('127.0.0.1', 0), H)
+open(port_file, 'w').write(str(srv.server_address[1]))
+srv.serve_forever()
+PY
+NOMETA_PID=$!
+NOMETA_PORT="$(wait_port_file "$NOMETA_PORT_FILE")"
+sandbox_stub "$HOME/.local/bin/llmctl-nometa" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
+  cat <<JSON
+{"profiles": {"nometa": {"port": $NOMETA_PORT}}}
+JSON
+  exit 0
+fi
+exit 2
+EOF
+chmod +x "$HOME/.local/bin/llmctl-nometa"
+DET_F4B="$(CMA_LLMCTL_BIN="$HOME/.local/bin/llmctl-nometa" \
+    bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
+kill "$NOMETA_PID" 2>/dev/null
+echo "--- detect_llmctl_records output (CASE F4b, catalog ctx AND meta.n_ctx both absent) ---" >> "$PROOF"
+echo "$DET_F4B" >> "$PROOF"
+# FIXED by T011: the jq extraction used to be `.value.ctx // 0`, which turned
+# an ABSENT catalog ctx into the STRING "0" (matches ^[0-9]+$, so it was NOT
+# treated the same as "unset" -- it won over the documented
+# CMA_LLMCTL_CONTEXT_LIMIT=8192 fallback). The extraction now defaults to
+# `// ""` (empty, genuinely unset) and detect_llmctl_records additionally
+# treats a resolved "0" as a hole (mirrors providers_resolve.py's
+# context==0-is-unknown rule), so both the catalog ctx and the live
+# meta.n_ctx being absent correctly falls through to the 8192 default.
+assert_eq "8192" "$(jq -r '.[0].context_limit' <<<"$DET_F4B")" "catalog-ctx-absent + meta.n_ctx-absent correctly falls through to the 8192 default, never the literal \"0\" hole"
+assert_eq "true" "$(jq -r '.[0].context_warning != null' <<<"$DET_F4B")" "8192 is still below the 168192 CLI-agent-overhead floor, so an honest context_warning is still set"
 
 # ===========================================================================
 # CASE G — pins-file present (key_var/context overrides), binary ABSENT.

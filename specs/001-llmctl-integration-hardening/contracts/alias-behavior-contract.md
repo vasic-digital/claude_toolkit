@@ -57,13 +57,19 @@ less.
 
 ## Context-fit honesty (new)
 
-- An llmctl-backed alias's advertised context/output limits are derived from
-  the profile's real, currently-configured context size, carved the same
-  way every other provider's limits already are — never a flat, unconditional
-  default. When the real context cannot clear the minimum a CLI agent's own
-  overhead needs, the operator sees an explicit warning naming the shortfall
-  at the point the alias becomes available. *(New — closes the captured,
-  already-reproduced failure in research.md §2.)*
+- An llmctl-backed alias's advertised `context_limit` is the real,
+  currently-configured context size the profile itself reports (`/v1/models`
+  `meta.n_ctx`, else `plan --json`'s own `ctx` field, else the configured
+  default — never the literal digit-string `"0"` a missing `ctx` field used
+  to silently produce). When that real context cannot clear the minimum a
+  CLI agent's own overhead needs (168192 tokens — this project's own
+  `CMA_INPUT_FLOOR` carve floor, `research.md §2`), the operator sees an
+  explicit `context_warning` field naming the real context and the
+  shortfall at the point the alias becomes available — the alias remains
+  usable. *(New — closes the captured, already-reproduced failure in
+  research.md §2; implemented as an honest warning field alongside the
+  real value, never a silent substitution or a borrowed carve from an
+  unrelated catalog-correction mechanism.)*
 
 ## Live command proof (new)
 
