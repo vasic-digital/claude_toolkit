@@ -269,9 +269,14 @@ distinctly rather than silently misreported as an ordinary refusal.
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] Implement the post-switch-failure liveness re-probe and the
+- [x] T020 [US2] Implement the post-switch-failure liveness re-probe and the
   distinct rollback-also-failed warning in `_cma_llmctl_ensure_active()`
   (`scripts/lib.sh`). *(depends on T016, T017; satisfies **FR-007**)*
+  **Done**: landed together with T016/T017's RED→GREEN work (same fork,
+  same commit `0a3bc0c`) — `_cma_llmctl_active_profile()` shared parse
+  helper + the second `llmctl status` call in the failure branch + the
+  `CRITICAL: llmctl rollback also failed` marker. Not a separate action,
+  recorded here for accurate task-by-task traceability.
 - [ ] T021 [US1] [US2] **(new — resolves analysis finding E1)** Stress/chaos
   test of the combined detection+switching stack (the FR-011 minimum test
   type this feature was missing entirely): (a) fire concurrent
