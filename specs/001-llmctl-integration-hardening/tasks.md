@@ -450,10 +450,25 @@ pass/fail/skip record exists for every alias × agent × command combination.
   upstream since the original audit) and documented in
   `docs/research/2026-10-02-llmctl-upstream-findings.md`, linked from
   research.md §7. Zero edits made inside `/home/milosvasic/Projects/llmctl`.
-- [ ] T030 [REVIEW] [US3] Review the live-test extension to
+- [x] T030 [REVIEW] [US3] Review the live-test extension to
   `verify_superpowers_tui.sh` before merging — this is shared,
   anti-bluff-sensitive infrastructure used by every other provider's
-  layer-4 verification, not llmctl-specific code.
+  layer-4 verification, not llmctl-specific code. **Done**: confirmed the
+  `--command`/`--agent` extension itself leaves the existing route-
+  attribution/bare-skip/precondition-SKIP machinery untouched (the
+  anti-bluff-sensitive part this review exists to protect). **Found a real
+  bug in `verify_llmctl_superpowers_live.sh` (T027), the new orchestrator,
+  NOT in `verify_superpowers_tui.sh` itself**: `verify_superpowers_tui.sh`'s
+  own PASS and SKIP paths both exit 0, distinguished only by a stdout text
+  prefix (`PASS:`/`SKIP:`) — the orchestrator's first draft classified
+  purely on exit code, so every genuine SKIP would have been silently
+  recorded as a PASS (did not manifest in the T027 live run only because
+  nothing happened to hit a SKIP path that time — a latent defect, not a
+  coincidence). Fixed: classification now checks the text prefix first and
+  always, independent of exit code, with an explicit `fail (unrecognized
+  output shape)` fallback rather than ever defaulting to pass. Verified
+  synthetically (all 4 shapes: PASS/SKIP/FAIL/garbage) and against a fresh
+  real re-run on the live host (unchanged, correct FAIL results).
 
 **Checkpoint**: Every llmctl-backed alias × CLI-agent × command combination
 produces a durable, reproducible, honest Check Result. A genuine

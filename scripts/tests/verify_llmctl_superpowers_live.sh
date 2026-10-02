@@ -52,20 +52,28 @@ run_one() {
   local alias="$1" agent="$2" command="$3"
   local combo_id="${alias}__${agent}__${command}"
   local evidence="$PROOF_DIR/providers-${alias}-${agent}-${command}-superpowers.txt"
-  local verdict="skip" reason="" route_resolved=""
+  local verdict="skip" reason="" route_resolved="" rc=0
 
-  if VERBOSE_OUT="$(bash "$TESTS_DIR/../verify_superpowers_tui.sh" \
+  # verify_superpowers_tui.sh's own convention: PASS and SKIP both exit 0 --
+  # they are distinguished ONLY by the stdout text prefix ("PASS: "/"SKIP: "),
+  # never by exit code alone. Classifying purely on exit code (as an earlier
+  # draft of this function did) silently records every genuine SKIP as a
+  # PASS -- a real, confirmed bug caught during the T030 review, fixed here:
+  # the text prefix is checked FIRST and always, independent of exit code.
+  VERBOSE_OUT="$(bash "$TESTS_DIR/../verify_superpowers_tui.sh" \
         --alias "$alias" --command "$command" --agent "$agent" \
-        --out "$evidence" 2>&1)"; then
-    verdict="pass"
-  else
-    local rc=$?
-    if [[ "$VERBOSE_OUT" == SKIP:* ]]; then
-      verdict="skip"; reason="${VERBOSE_OUT#SKIP: }"
-    else
-      verdict="fail"; reason="exit $rc"
-    fi
-  fi
+        --out "$evidence" 2>&1)"; rc=$?
+  case "$VERBOSE_OUT" in
+    PASS:*) verdict="pass" ;;
+    SKIP:*) verdict="skip"; reason="${VERBOSE_OUT#SKIP: }" ;;
+    FAIL:*) verdict="fail"; reason="${VERBOSE_OUT#FAIL: }" ;;
+    *)
+      # Neither prefix matched (unexpected output shape) -- never silently
+      # call this a pass; record it as a fail naming the real exit code and
+      # a truncated excerpt of what was actually printed, per this feature's
+      # own anti-bluff discipline (an unrecognized result is not a success).
+      verdict="fail"; reason="unrecognized output shape (exit $rc): ${VERBOSE_OUT:0:120}" ;;
+  esac
   route_resolved="$(grep -m1 '^# ROUTE-RESOLVED:' "$evidence" 2>/dev/null | sed 's/^# ROUTE-RESOLVED: //')"
 
   jq -cn --arg id "$combo_id" --arg alias "$alias" --arg agent "$agent" --arg command "$command" \

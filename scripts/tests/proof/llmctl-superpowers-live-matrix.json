@@ -5,10 +5,10 @@
     "agent": "claude",
     "command": "subagent-driven-development",
     "verdict": "fail",
-    "reason": "exit 1",
+    "reason": "Claude Code reported an API error through the alias",
     "evidence": "/home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-claude-subagent-driven-development-superpowers.txt",
     "route_resolved": "llmctl-small//home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    "run_index": 1
+    "run_index": 3
   },
   {
     "combination_id": "llmctl-small__claude__systematic-debugging",
@@ -16,10 +16,10 @@
     "agent": "claude",
     "command": "systematic-debugging",
     "verdict": "fail",
-    "reason": "exit 1",
+    "reason": "Claude Code reported an API error through the alias",
     "evidence": "/home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-claude-systematic-debugging-superpowers.txt",
     "route_resolved": "llmctl-small//home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    "run_index": 1
+    "run_index": 3
   },
   {
     "combination_id": "llmctl-small__claude__using-superpowers",
@@ -27,10 +27,10 @@
     "agent": "claude",
     "command": "using-superpowers",
     "verdict": "fail",
-    "reason": "exit 1",
+    "reason": "Claude Code reported an API error through the alias",
     "evidence": "/home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-claude-using-superpowers-superpowers.txt",
     "route_resolved": "llmctl-small//home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    "run_index": 1
+    "run_index": 3
   },
   {
     "combination_id": "llmctl-small__kimi__subagent-driven-development",
@@ -38,10 +38,10 @@
     "agent": "kimi",
     "command": "subagent-driven-development",
     "verdict": "fail",
-    "reason": "exit 1",
+    "reason": "kimi launch exited non-zero (rc=1) for reasons this path does not yet classify — see /home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-kimi-subagent-driven-development-superpowers.txt for the raw transcript",
     "evidence": "/home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-kimi-subagent-driven-development-superpowers.txt",
     "route_resolved": "",
-    "run_index": 1
+    "run_index": 3
   },
   {
     "combination_id": "llmctl-small__kimi__systematic-debugging",
@@ -49,10 +49,10 @@
     "agent": "kimi",
     "command": "systematic-debugging",
     "verdict": "fail",
-    "reason": "exit 1",
+    "reason": "kimi launch exited non-zero (rc=1) for reasons this path does not yet classify — see /home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-kimi-systematic-debugging-superpowers.txt for the raw transcript",
     "evidence": "/home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-kimi-systematic-debugging-superpowers.txt",
     "route_resolved": "",
-    "run_index": 1
+    "run_index": 3
   },
   {
     "combination_id": "llmctl-small__kimi__using-superpowers",
@@ -60,9 +60,9 @@
     "agent": "kimi",
     "command": "using-superpowers",
     "verdict": "fail",
-    "reason": "exit 1",
+    "reason": "kimi launch exited non-zero (rc=1) for reasons this path does not yet classify — see /home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-kimi-using-superpowers-superpowers.txt for the raw transcript",
     "evidence": "/home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-llmctl-small-kimi-using-superpowers-superpowers.txt",
     "route_resolved": "",
-    "run_index": 1
+    "run_index": 3
   }
 ]

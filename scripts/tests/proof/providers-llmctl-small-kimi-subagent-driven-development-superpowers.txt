@@ -1,6 +1,5 @@
 # ROUTE-INTENDED: n/a (Kimi Code — native-only launch, no router/ccr layer)
 kimi version 0.42.0
-error: failed to run prompt: provider.api_error: 400 request (79121 tokens) exceeds the available context size (8192 tokens), try increasing it
+error: failed to run prompt: provider.api_error: 400 request (79120 tokens) exceeds the available context size (8192 tokens), try increasing it
 See log: /home/milosvasic/.kimi-prov-llmctl-small/logs/kimi-code.log
 # FAIL: kimi-unclassified-nonzero (rc=1)
-# SKIP Fri Oct  2 11:52:13 PM CEST 2026: no real claude binary (CLAUDE_BIN=/usr/bin/true)
