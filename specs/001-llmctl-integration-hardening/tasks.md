@@ -236,18 +236,18 @@ distinctly rather than silently misreported as an ordinary refusal.
 
 ### Tests for User Story 2 (write first, confirm RED)
 
-- [ ] T016 [P] [TDD] [US2] RED test: a fixture `llmctl` stub simulating
+- [x] T016 [P] [TDD] [US2] RED test: a fixture `llmctl` stub simulating
   "switch failed, rollback also failed" (research.md §3.B / LLMCTL-F2) must
   produce a distinctly worded, higher-severity warning from
   `_cma_llmctl_ensure_active`, never conflated with an ordinary refusal —
   `scripts/tests/test_llmctl_ondemand_switch.sh` (new case; satisfies
   **FR-007**).
-- [ ] T017 [P] [TDD] [US2] RED test: after any switch failure (ordinary or
+- [x] T017 [P] [TDD] [US2] RED test: after any switch failure (ordinary or
   rollback-also-failed), the previously-active profile's liveness is
   independently re-probed, never assumed live purely from the switch
   command's exit code — `scripts/tests/test_llmctl_ondemand_switch.sh` (new
   case; satisfies **FR-007**).
-- [ ] T018 [P] [TDD] [US2] Regression-confirm existing switch cases:
+- [x] T018 [P] [TDD] [US2] Regression-confirm existing switch cases:
   already-active no-op (**FR-005**), different-profile triggers switch
   (**FR-005**), **switch-FAILS-aborts-launch for all three account families
   (provider/kimi/pi)** (**FR-007**'s "refused with a clear reason" half —
@@ -257,7 +257,7 @@ distinctly rather than silently misreported as an ordinary refusal.
   binary refuses cleanly (**FR-004**) — all still pass unmodified —
   `scripts/tests/test_llmctl_ondemand_switch.sh` (existing; satisfies
   **SC-002**).
-- [ ] T019 [P] [TDD] [US2] **(new — resolves analysis finding E2)** RED/
+- [x] T019 [P] [TDD] [US2] **(new — resolves analysis finding E2)** RED/
   regression test locking FR-006's structural guarantee against future
   drift: `_cma_llmctl_ensure_active` (and therefore any llmctl profile
   start) is reachable **only** from the three launch wrappers

@@ -91,6 +91,16 @@ case "${1:-}" in
   switch)
     profile="${2:-}"
     printf 'switch %s\n' "$profile" >> "$DIR/calls"
+    if [[ -f "$DIR/fail_rollback" ]]; then
+      # Mirrors the real upstream llmctl's own disclosed degraded case
+      # (lib/scheduler.sh ROLLBACK ALSO FAILED, research.md LLMCTL-F2): the
+      # switch fails AND the best-effort restore of the previously-running
+      # set also fails, so "active" is cleared rather than left pointing at
+      # the prior profile.
+      echo "switch to '$profile' failed - ROLLBACK ALSO FAILED - the host may have fewer services running than before" >&2
+      rm -f "$DIR/active"
+      exit "$(cat "$DIR/fail_rc" 2>/dev/null || echo 1)"
+    fi
     if [[ -f "$DIR/fail_switch" ]]; then
       echo "switch to '$profile' failed - restoring the previously-running set: (simulated)" >&2
       exit "$(cat "$DIR/fail_rc" 2>/dev/null || echo 1)"
@@ -109,7 +119,7 @@ export CMA_LLMCTL_BIN="$LC_BIN"
 export LLMCTL_TEST_DIR="$LC_DIR"
 
 reset_lc() {
-  rm -f "$LC_DIR/calls" "$LC_DIR/active" "$LC_DIR/fail_switch" "$LC_DIR/fail_rc"
+  rm -f "$LC_DIR/calls" "$LC_DIR/active" "$LC_DIR/fail_switch" "$LC_DIR/fail_rc" "$LC_DIR/fail_rollback"
 }
 lc_calls() { cat "$LC_DIR/calls" 2>/dev/null || true; }
 lc_switch_count() { lc_calls | grep -c '^switch '; }
@@ -323,5 +333,98 @@ _cma_llmctl_ensure_active "acme"; rc=$?
 assert_eq 0 "$rc" "non-llmctl id returns 0"
 assert_eq 0 "$(lc_status_count)" "non-llmctl id never calls llmctl status"
 assert_eq 0 "$(lc_switch_count)" "non-llmctl id never calls llmctl switch"
+
+# ---------------------------------------------------------------------------
+# T016/T017 — llmctl's own disclosed degraded case (research.md §3.B,
+# LLMCTL-F2): a switch failure's rollback is best-effort and can itself
+# fail, leaving the host with fewer services than before. The ordinary
+# failure path (rollback held) and the rollback-also-failed path must be
+# distinguishable, and EITHER path must re-probe the previously-active
+# profile's real liveness afterward rather than trusting the switch
+# command's exit code alone to mean "previous state preserved."
+# ---------------------------------------------------------------------------
+it "_cma_llmctl_ensure_active: ordinary switch failure -> no ROLLBACK-ALSO-FAILED marker, previous profile confirmed still running"
+reset_lc
+printf 'vision' > "$LC_DIR/active"
+: > "$LC_DIR/fail_switch"; printf '7' > "$LC_DIR/fail_rc"
+out="$( set +eu; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 7 "$rc" "ordinary switch failure exit code propagated verbatim"
+[[ "$out" == *"ROLLBACK ALSO FAILED"* ]] && ok=1 || ok=0
+assert_eq 0 "$ok" "ordinary failure must NOT raise the rollback-also-failed marker"
+assert_eq 2 "$(lc_status_count)" "status re-probed after the failure (first check + post-failure re-probe)"
+[[ "$out" == *"vision"*"still running"* ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "output confirms the previous profile (vision) is still running after the ordinary failure"
+
+it "_cma_llmctl_ensure_active: rollback-also-failed -> distinct marker + honest 'no longer running' re-probe"
+reset_lc
+printf 'vision' > "$LC_DIR/active"
+: > "$LC_DIR/fail_rollback"; printf '7' > "$LC_DIR/fail_rc"
+out="$( set +eu; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 7 "$rc" "rollback-also-failed exit code still propagated verbatim"
+# NOT a check for llmctl's own raw "ROLLBACK ALSO FAILED" passthrough text --
+# that string already appears today via the existing verbatim stderr
+# passthrough even with ZERO new handling, so asserting on it alone would
+# trivially pass before any fix and prove nothing. This asserts on a marker
+# this feature's OWN code must add, distinct from llmctl's raw text, so a
+# caller/log-scraper can tell "ordinary refusal" and "rollback also failed"
+# apart programmatically without parsing llmctl's own wording.
+[[ "$out" == *"CRITICAL: llmctl rollback also failed"* ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "a distinct CRITICAL marker (added by claude_toolkit, not llmctl's own text) is present"
+assert_eq 2 "$(lc_status_count)" "status re-probed after the rollback-also-failed case too"
+[[ "$out" == *"vision"*"NO LONGER running"* ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "output honestly reports the previous profile is no longer running either"
+
+# ---------------------------------------------------------------------------
+# T019 — FR-006 structural regression lock: llmctl profile START is
+# reachable ONLY from the three launch wrappers, never from a plain
+# sync/detect code path.
+# ---------------------------------------------------------------------------
+it "T019 STATIC: _cma_llmctl_ensure_active is called ONLY from the three launch wrappers in lib.sh"
+_t019_callsites="$(grep -n '_cma_llmctl_ensure_active "' "$SCRIPTS_DIR/lib.sh" | grep -v '^[0-9]*:_cma_llmctl_ensure_active() {' | grep -v 'CMA_LLMCTL_ENSURE_ACTIVE_EOF')"
+_t019_bad=0
+while IFS= read -r _t019_line; do
+  [[ -n "$_t019_line" ]] || continue
+  _t019_ln="${_t019_line%%:*}"
+  # Each call site must fall within one of the three wrapper function bodies.
+  # Resolve the nearest preceding function-definition line and confirm it is
+  # one of the three launch wrappers (cma_run_provider / cma_run_kimi_provider
+  # / cma_run_pi_provider), not detect_llmctl_records or any sync/detect path.
+  _t019_fn="$(awk -v ln="$_t019_ln" 'NR<=ln && /^(cma_run_provider|cma_run_kimi_provider|cma_run_pi_provider|_cma_emit_llmctl_ensure_active)\(\)/ {f=$0} END{print f}' "$SCRIPTS_DIR/lib.sh")"
+  case "$_t019_fn" in
+    cma_run_provider\(\)*|cma_run_kimi_provider\(\)*|cma_run_pi_provider\(\)*) : ;;
+    *) _t019_bad=1 ;;
+  esac
+done <<<"$_t019_callsites"
+assert_eq 0 "$_t019_bad" "every _cma_llmctl_ensure_active call site in lib.sh is inside one of the three launch wrappers"
+
+it "T019 STATIC: detect_llmctl_records's OWN function body (claude-providers.sh) never calls _cma_llmctl_ensure_active, llmctl switch, or llmctl start"
+# Scoped to the function body itself (detect_llmctl_records .. the next
+# top-level function, resolve_records) -- NOT the whole file, which
+# legitimately contains a SEPARATE, explicitly operator-invoked sweep
+# command (cmd_sync_all_llmctl) that does call `llmctl switch` through
+# every catalog profile one at a time; that is a different, intentional
+# feature, not the implicit detection path FR-006 constrains. An
+# unscoped whole-file grep is a carrier-match false positive here
+# (confirmed live: it also matches this function's own header COMMENT
+# naming _cma_llmctl_ensure_active, and cmd_sync_all_llmctl's real calls).
+_t019_body="$(awk '/^detect_llmctl_records\(\) \{/,/^resolve_records\(\) \{/' "$SCRIPTS_DIR/claude-providers.sh")"
+printf '%s' "$_t019_body" | grep -qE '_cma_llmctl_ensure_active|"\$_lc_bin"[[:space:]]+(switch|start)\b'
+assert_eq 1 $? "detect_llmctl_records's own body never references _cma_llmctl_ensure_active or invokes llmctl switch/start -- only plan --json and per-profile probes"
+
+it "T019 DYNAMIC: a plain detect_llmctl_records sync never records a switch/start call against the fake llmctl"
+reset_lc
+printf '%s' "$PROFILE" > "$LC_DIR/active"
+CMA_LLMCTL_BIN="$LC_BIN" bash -c 'source "'"$SCRIPTS_DIR/claude-providers.sh"'" >/dev/null 2>&1; detect_llmctl_records' >/dev/null 2>&1
+# The fake stub's unhandled-args branch (which `plan --json` hits -- it only
+# implements status/switch) never appends to $DIR/calls at all, so a clean
+# run leaves the file genuinely ABSENT, not merely empty; grep on a missing
+# file exits 2 (error), not 1 (no match) -- treat absent-file the same as
+# no-match rather than mis-reading grep's own error code as a real failure.
+if [[ -f "$LC_DIR/calls" ]]; then
+  grep -qE '^(switch|start) ' "$LC_DIR/calls"; _t019_dyn_rc=$?
+else
+  _t019_dyn_rc=1
+fi
+assert_eq 1 "$_t019_dyn_rc" "no switch/start line appears in the fake llmctl's call log after a plain detect_llmctl_records run"
 
 summary

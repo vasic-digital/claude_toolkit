@@ -1254,6 +1254,24 @@ CMA_RUN_BODY_EOF
 # exactly like every other CLI this toolkit's aliases resolve bare).
 _cma_emit_llmctl_ensure_active() {
   cat <<'CMA_LLMCTL_ENSURE_ACTIVE_EOF'
+# _cma_llmctl_active_profile <bin> — shared status-parse helper so the
+# pre-switch check and the post-failure re-probe (T017) read llmctl's
+# `status` output through the EXACT same parsing logic rather than two
+# copies that could drift apart. Echoes "<row-count>\t<profile-name>".
+_cma_llmctl_active_profile() {
+  local _cma_lap_bin="$1" _cma_lap_status="" _cma_lap_rows=0 _cma_lap_row=""
+  _cma_lap_status="$("$_cma_lap_bin" status 2>/dev/null)" || _cma_lap_status=""
+  if [[ -n "$_cma_lap_status" && "$_cma_lap_status" != "no llmctl services running" ]]; then
+    local _cma_lap_line
+    while IFS= read -r _cma_lap_line; do
+      [[ -n "$_cma_lap_line" ]] || continue
+      [[ "${_cma_lap_line%%[[:space:]]*}" == "profile" ]] && continue
+      _cma_lap_rows=$(( _cma_lap_rows + 1 ))
+      _cma_lap_row="${_cma_lap_line%%[[:space:]]*}"
+    done <<<"$_cma_lap_status"
+  fi
+  printf '%s\t%s\n' "$_cma_lap_rows" "$_cma_lap_row"
+}
 _cma_llmctl_ensure_active() {
   local _cma_lc_id="${1:-}"
   case "$_cma_lc_id" in
@@ -1285,17 +1303,8 @@ _cma_llmctl_ensure_active() {
   # when none are). This is exactly the set `_sched_switch_impl` itself
   # compares against for its own no-op decision -- never re-derived from a
   # different source of truth.
-  local _cma_lc_status="" _cma_lc_rows=0 _cma_lc_row=""
-  _cma_lc_status="$("$_cma_lc_bin" status 2>/dev/null)" || _cma_lc_status=""
-  if [[ -n "$_cma_lc_status" && "$_cma_lc_status" != "no llmctl services running" ]]; then
-    local _cma_lc_line
-    while IFS= read -r _cma_lc_line; do
-      [[ -n "$_cma_lc_line" ]] || continue
-      [[ "${_cma_lc_line%%[[:space:]]*}" == "profile" ]] && continue
-      _cma_lc_rows=$(( _cma_lc_rows + 1 ))
-      _cma_lc_row="${_cma_lc_line%%[[:space:]]*}"
-    done <<<"$_cma_lc_status"
-  fi
+  local _cma_lc_rows=0 _cma_lc_row=""
+  IFS=$'\t' read -r _cma_lc_rows _cma_lc_row < <(_cma_llmctl_active_profile "$_cma_lc_bin")
   if [[ "$_cma_lc_rows" -eq 1 && "$_cma_lc_row" == "$_cma_lc_profile" ]]; then
     return 0
   fi
@@ -1304,9 +1313,31 @@ _cma_llmctl_ensure_active() {
   local _cma_lc_switch_out="" _cma_lc_switch_rc=0
   _cma_lc_switch_out="$("$_cma_lc_bin" switch "$_cma_lc_profile" 2>&1)" || _cma_lc_switch_rc=$?
   if (( _cma_lc_switch_rc != 0 )); then
-    printf 'claude-providers: llmctl switch to %s FAILED (exit %d) -- refusing to launch against a possibly-wrong or absent backend.\n' \
-      "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2
+    # llmctl's own switch is best-effort-atomic (research.md LLMCTL-F2): on
+    # failure it restores the previously-running set, but that restore can
+    # ITSELF fail, leaving the host with FEWER services than before. llmctl
+    # discloses this in its own stderr ("ROLLBACK ALSO FAILED"), but that raw
+    # text alone is not a reliable machine-readable signal -- it is just
+    # passed through either way below. Detect it explicitly and raise a
+    # DISTINCT, higher-severity marker this feature owns, then independently
+    # RE-PROBE (never assume from the exit code alone) whether the previously
+    # active profile actually survived the failed switch.
+    if [[ "$_cma_lc_switch_out" == *"ROLLBACK ALSO FAILED"* ]]; then
+      printf 'claude-providers: CRITICAL: llmctl rollback also failed while switching to %s (exit %d) -- the host may now be running FEWER models than before.\n' \
+        "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2
+    else
+      printf 'claude-providers: llmctl switch to %s FAILED (exit %d) -- refusing to launch against a possibly-wrong or absent backend.\n' \
+        "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2
+    fi
     [[ -n "$_cma_lc_switch_out" ]] && printf '%s\n' "$_cma_lc_switch_out" >&2
+    local _cma_lc_rows2=0 _cma_lc_row2=""
+    IFS=$'\t' read -r _cma_lc_rows2 _cma_lc_row2 < <(_cma_llmctl_active_profile "$_cma_lc_bin")
+    if [[ "$_cma_lc_rows2" -eq 1 && "$_cma_lc_row2" == "$_cma_lc_row" ]]; then
+      printf 'claude-providers: previous profile %s confirmed still running.\n' "$_cma_lc_row" >&2
+    else
+      printf 'claude-providers: previous profile %s is NO LONGER running either -- %s now active.\n' \
+        "${_cma_lc_row:-<none>}" "${_cma_lc_row2:-no profile}" >&2
+    fi
     return "$_cma_lc_switch_rc"
   fi
   return 0
