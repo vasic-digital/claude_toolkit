@@ -2137,59 +2137,127 @@ detect_llmctl_records() {
   # handed a silently-broken alias (closes the captured kimi-llmctl
   # production failure: 92436 tokens needed vs. a resolved 8192-token cap).
   local _lc_min_usable=$(( ${CMA_INPUT_FLOOR:-160000} + 8192 ))
-  local _name _port _pctx _served_json="[]"
+
+  # Per-profile liveness probes run in BOUNDED-CONCURRENCY BATCHES, never
+  # sequentially and never unbounded (research.md S5 + the /speckit-analyze
+  # L2 finding it closes). A host with many catalog profiles but few
+  # actually running previously paid up to N_profiles x CMA_LLMCTL_HTTP_TIMEOUT
+  # seconds sequentially (measured live: 5 profiles x 2s-slow = ~10.5s) --
+  # this bounds the worst case to roughly
+  # ceil(N_profiles / CMA_LLMCTL_MAX_PARALLEL_PROBES) x timeout instead
+  # (measured: the SAME 5-profile fixture at cap=8, one batch, ~2.1s).
+  # Batch-wait (plain `wait`, no args) rather than `wait -n` is DELIBERATE:
+  # `wait -n` needs bash >=4.3, and this project targets macOS's stock bash
+  # 3.2 as a real platform (see this repo's CLAUDE.md portability notes) --
+  # a plain `wait` works on every bash this toolkit supports.
+  local _lc_max_parallel="${CMA_LLMCTL_MAX_PARALLEL_PROBES:-8}"
+  [[ "$_lc_max_parallel" =~ ^[0-9]+$ && "$_lc_max_parallel" -gt 0 ]] || _lc_max_parallel=8
+
+  local -a _lc_profiles=()
+  local _name _port _pctx
   while IFS=$'\t' read -r _name _port _pctx; do
     [[ -n "$_name" && "$_port" =~ ^[0-9]+$ ]] || continue
-    local _base="http://127.0.0.1:${_port}/v1"
-    local _body=""
-    _body="$(curl -sf --max-time "$_t" "${_base}/models" 2>/dev/null)" || _body=""
-    [[ -n "$_body" ]] || continue
-    local _mid="" _mctx=""
-    # A non-JSON / non-OpenAI-shaped body (the real "another service already
-    # owns this port" case, measured live: HTTP 200 plain-text "404 page not
-    # found") makes jq fail to parse -- `|| _mid=""` is what keeps that
-    # failure LOCAL to this one profile instead of aborting every other
-    # profile's detection in the same pass (see the set -e note above).
-    _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
-    [[ -n "$_mid" ]] || continue
-    _mctx="$(jq -r --arg m "$_mid" \
-      '[.data[]? | select(.id==$m) | (.meta.n_ctx // empty)] | .[0] // empty' \
-      <<<"$_body" 2>/dev/null)" || _mctx=""
-    [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_pctx"
-    [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_lc_ctx"
-    # A context of literal "0" is a hole, not data (mirrors
-    # providers_resolve.py:derive_limits()'s context==0-is-unknown rule) --
-    # without this it would otherwise win the regex gate above (it IS all
-    # digits) and silently skip the _lc_ctx default entirely.
-    [[ "$_mctx" =~ ^[0-9]+$ && "$_mctx" -gt 0 ]] || _mctx="$_lc_ctx"
-    local _warn=""
-    if [[ "$_mctx" -lt "$_lc_min_usable" ]]; then
-      _warn="profile '${_name}' context (${_mctx} tokens) is below the ${_lc_min_usable} tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"
-    fi
-    # LAN-exposure: llmctl reports no bind-address field in any JSON output
-    # (confirmed against the upstream source -- plan --json's per-profile
-    # schema carries no such key), so the only authoritative signal is the
-    # REAL kernel listening-socket state for this profile's own resolved
-    # port, read directly rather than trusted from any config/env default.
-    # A missing `ss` binary degrades this ONE check honestly (never crashes
-    # profile detection itself) -- `lan_exposed` then stays the conservative
-    # default `false` rather than blocking the whole detector on a tool this
-    # function did not previously require.
-    local _lan="false"
-    if command -v ss >/dev/null 2>&1; then
-      local _sockline=""
-      _sockline="$(ss -ltn "sport = :${_port}" 2>/dev/null | awk 'NR>1{print $4; exit}')" || _sockline=""
-      case "$_sockline" in
-        0.0.0.0:*|\*:*|\[::\]:*) _lan="true" ;;
-      esac
-    fi
-    _served_json="$(jq -c --arg name "$_name" --arg port "$_port" --arg base "$_base" \
-                       --arg model "$_mid" --arg ctx "$_mctx" --arg warn "$_warn" --argjson lan "$_lan" \
-      '. + [{name:$name, port:($port|tonumber), base_url:$base, model:$model, context_limit:($ctx|tonumber), context_warning:$warn, lan_exposed:$lan}]' \
-      <<<"$_served_json" 2>/dev/null)" || _served_json=""
-    [[ -n "$_served_json" ]] || _served_json="[]"
+    _lc_profiles+=("${_name}"$'\t'"${_port}"$'\t'"${_pctx}")
   done < <(jq -r '.profiles | to_entries[] | [.key, (.value.port|tostring), ((.value.ctx // "")|tostring)] | @tsv' \
              <<<"$_plan" 2>/dev/null)
+
+  local _served_json="[]"
+  if (( ${#_lc_profiles[@]} > 0 )); then
+    local _lc_tmpdir=""
+    _lc_tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma-llmctl-probe.XXXXXX" 2>/dev/null)" || _lc_tmpdir=""
+    if [[ -n "$_lc_tmpdir" ]]; then
+      trap 'rm -rf "'"$_lc_tmpdir"'" 2>/dev/null' RETURN
+      local _lc_idx=0 _lc_in_batch=0 _entry
+      for _entry in "${_lc_profiles[@]}"; do
+        IFS=$'\t' read -r _name _port _pctx <<<"$_entry"
+        local _lc_outfile="$_lc_tmpdir/$(printf '%06d' "$_lc_idx").json"
+        (
+          set +e
+          _base="http://127.0.0.1:${_port}/v1"
+          _body=""
+          _body="$(curl -sf --max-time "$_t" "${_base}/models" 2>/dev/null)" || _body=""
+          [[ -n "$_body" ]] || exit 0
+          # A non-JSON / non-OpenAI-shaped body (the real "another service
+          # already owns this port" case, measured live: HTTP 200
+          # plain-text "404 page not found") makes jq fail to parse --
+          # `|| _mid=""` keeps that failure LOCAL to this one backgrounded
+          # profile's exit code, never the whole detector (see the set -e
+          # note above the catalog-fetch block).
+          _mid="" _mctx=""
+          _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
+          [[ -n "$_mid" ]] || exit 0
+          _mctx="$(jq -r --arg m "$_mid" \
+            '[.data[]? | select(.id==$m) | (.meta.n_ctx // empty)] | .[0] // empty' \
+            <<<"$_body" 2>/dev/null)" || _mctx=""
+          [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_pctx"
+          [[ "$_mctx" =~ ^[0-9]+$ ]] || _mctx="$_lc_ctx"
+          # A context of literal "0" is a hole, not data (mirrors
+          # providers_resolve.py:derive_limits()'s context==0-is-unknown
+          # rule) -- without this it would otherwise win the regex gate
+          # above (it IS all digits) and silently skip the _lc_ctx default.
+          [[ "$_mctx" =~ ^[0-9]+$ && "$_mctx" -gt 0 ]] || _mctx="$_lc_ctx"
+          _warn=""
+          if [[ "$_mctx" -lt "$_lc_min_usable" ]]; then
+            _warn="profile '${_name}' context (${_mctx} tokens) is below the ${_lc_min_usable} tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"
+          fi
+          # LAN-exposure: llmctl reports no bind-address field in any JSON
+          # output (confirmed against the upstream source -- plan --json's
+          # per-profile schema carries no such key), so the only
+          # authoritative signal is the REAL kernel listening-socket state
+          # for this profile's own resolved port, read directly rather than
+          # trusted from any config/env default. A missing `ss` binary
+          # degrades this ONE check honestly (never crashes profile
+          # detection itself) -- `lan_exposed` then stays the conservative
+          # default `false`.
+          _lan="false"
+          if command -v ss >/dev/null 2>&1; then
+            _sockline=""
+            _sockline="$(ss -ltn "sport = :${_port}" 2>/dev/null | awk 'NR>1{print $4; exit}')" || _sockline=""
+            case "$_sockline" in
+              0.0.0.0:*|\*:*|\[::\]:*) _lan="true" ;;
+            esac
+          fi
+          jq -cn --arg name "$_name" --arg port "$_port" --arg base "$_base" \
+                 --arg model "$_mid" --arg ctx "$_mctx" --arg warn "$_warn" --argjson lan "$_lan" \
+            '{name:$name, port:($port|tonumber), base_url:$base, model:$model, context_limit:($ctx|tonumber), context_warning:$warn, lan_exposed:$lan}' \
+            > "$_lc_outfile" 2>/dev/null
+        # LOAD-BEARING: </dev/null >/dev/null 2>&1 on the SUBSHELL GROUP
+        # itself, not merely inside it. A background job forked from a
+        # shell whose own stdout (fd 1) is the write-end of resolve_records'
+        # `extra_lc="$(detect_llmctl_records)"` pipe INHERITS that fd --
+        # explicitly redirecting jq's OWN output to $_lc_outfile does not
+        # close the subshell PROCESS's inherited copy of fd 1. The command
+        # substitution's `read` blocks for EOF, which needs every holder of
+        # the pipe's write end to close it; a backgrounded probe that never
+        # explicitly detaches its inherited fd 1 keeps it open until the
+        # probe itself exits, so if the probe runs any slower than the
+        # outer sync flow finishes, bash hangs waiting on background jobs
+        # at script exit. Reproduced live (bash "$PROVIDERS_SH" sync hung
+        # past its own "sync done" message, exit via SIGTERM/timeout only)
+        # and fixed by this redirect -- the symptom never showed up in the
+        # isolated `bash -c 'source ...; detect_llmctl_records'` test cases
+        # because those have no enclosing command-substitution pipe to hang.
+        ) </dev/null >/dev/null 2>&1 &
+        _lc_idx=$(( _lc_idx + 1 ))
+        _lc_in_batch=$(( _lc_in_batch + 1 ))
+        if (( _lc_in_batch >= _lc_max_parallel )); then
+          wait
+          _lc_in_batch=0
+        fi
+      done
+      wait
+      # Fragment files are named by zero-padded CATALOG-ORDER index, so glob
+      # expansion (lexicographically sorted on every shell this toolkit
+      # targets) reassembles them in the SAME order the sequential version
+      # produced -- completion order of the background jobs never leaks
+      # into the result, keeping existing by-name and by-position
+      # assertions in the test suite valid unchanged.
+      if compgen -G "$_lc_tmpdir/*.json" >/dev/null 2>&1; then
+        _served_json="$(jq -cs '.' "$_lc_tmpdir"/*.json 2>/dev/null)" || _served_json="[]"
+        [[ -n "$_served_json" ]] || _served_json="[]"
+      fi
+    fi
+  fi
 
   if [[ "$_served_json" == "[]" || -z "$_served_json" ]]; then
     printf '[]\n'; return 0

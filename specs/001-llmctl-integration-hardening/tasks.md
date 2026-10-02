@@ -197,7 +197,7 @@ documentation (US4).
   or equivalent — never an llmctl JSON field, none exists per research.md
   §3.C), set the new `lan_exposed` field, and surface a plainly worded
   warning at alias-creation time. *(depends on T008; satisfies **FR-009**)*
-- [ ] T013 [US1] Parallelize the per-profile `/v1/models` liveness probe
+- [x] T013 [US1] Parallelize the per-profile `/v1/models` liveness probe
   (concurrent rather than sequential) inside `detect_llmctl_records()` to
   bound total detection latency (research.md §5), capped at an explicit
   maximum concurrency (e.g., a `CMA_LLMCTL_MAX_PARALLEL_PROBES` constant,
@@ -205,11 +205,36 @@ documentation (US4).
   resolves analysis finding L2; never an unbounded one-`curl`-per-catalog-entry
   fan-out). *(depends on T011, T012 landing first so the carve/LAN logic is
   present in the parallelized path; satisfies **FR-001**, **FR-011**)*
-- [ ] T014 [US1] New performance test asserting total detection time stays
+  **Done**: `CMA_LLMCTL_MAX_PARALLEL_PROBES` (default 8). Each profile's
+  probe runs as a backgrounded subshell writing its own JSON fragment to a
+  zero-padded-index-named file in a per-run `mktemp -d` dir; batches of up
+  to the cap are launched via plain `wait` (no args — deliberately NOT
+  `wait -n`, which needs bash >=4.3 and this project targets macOS's stock
+  bash 3.2); fragments are reassembled via one `jq -cs` over the glob,
+  which sorts lexicographically by the zero-padded index, so result order
+  always matches catalog order regardless of completion order. Measured:
+  baseline sequential ~10.5s for 5 profiles x 2s-slow-but-live; parallel
+  ~2.25s (one batch, bounded by the single slowest profile). Investigated
+  a real-looking hang during manual verification and confirmed by full A/B
+  (stash/pop) that it was NOT caused by this change — it reproduced
+  identically on the pre-T013 baseline and traced to real API key env vars
+  leaked into the debugging shell from earlier in the session, triggering
+  slow real network calls in an unrelated code path; a clean-env (`env -i`)
+  run resolved it (5.5s, exit 0). Also added a defensive
+  `</dev/null >/dev/null 2>&1` on each background subshell's own stdio
+  (the subshell would otherwise inherit `resolve_records`'s
+  `$(detect_llmctl_records)` pipe fd — a real, independent concern for
+  production usage even though it was not the cause of the observed hang).
+- [x] T014 [US1] New performance test asserting total detection time stays
   bounded (≈ the single slowest profile's timeout, never the sum, and never
   exceeding T013's concurrency cap's worst case) regardless of catalog size
   — `scripts/tests/test_llmctl_detect.sh` (new case, exercises T013;
-  satisfies **FR-011**).
+  satisfies **FR-011**). **Done**: new Case I, five genuinely-2s-slow mock
+  profiles (a dead/refused port would be rejected instantly and prove
+  nothing about timeout cost); asserts all 5 still detected AND elapsed
+  time is under a 6s bound (sequential sum would be ~10s). 3 consecutive
+  clean-env runs: 41/41 passing, elapsed 2.24-2.25s each time — no
+  flakiness.
 - [ ] T015 [REVIEW] [US1] Review the context-carve + LAN-exposure +
   parallelization changes together against
   `contracts/alias-behavior-contract.md` before proceeding to Phase 4.

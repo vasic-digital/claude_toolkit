@@ -528,4 +528,71 @@ it "CASE H4: NOT running profile ('vision' not reachable in this sync) gets no a
   cat "$PDIR/llmctl-fast.env"
 } >> "$PROOF" 2>&1
 
+# ===========================================================================
+# CASE I — PERFORMANCE (T013): per-profile liveness probes run in bounded
+# concurrency batches, never sequentially. Five profiles, each answering only
+# after a genuine 2-second delay (a mock that actually sleeps before
+# responding -- a dead/refused port returns instantly and would NOT exercise
+# the timeout path at all, so it proves nothing about sequential-vs-parallel
+# cost). Sequential cost would be ~10s (5 x 2s); with the default
+# CMA_LLMCTL_MAX_PARALLEL_PROBES (8, i.e. all 5 fit in one batch), bounded
+# cost is ~2s (the single slowest profile), plus small overhead. The
+# threshold below (6s) sits well above realistic overhead and well below the
+# ~10s sequential sum, so it fails loudly if a future change silently
+# reintroduces the sequential path without being so tight it flakes on a
+# loaded CI host.
+# ===========================================================================
+it "CASE I: five 2s-slow profiles resolve in well under their sequential sum (bounded-parallel probe, T013)"
+start_slow_mock() {  # $1=port_file  $2=delay_seconds
+  python3 - "$1" "$2" >/dev/null 2>&1 <<'PY' &
+import http.server, socketserver, sys, time
+port_file, delay = sys.argv[1], float(sys.argv[2])
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        time.sleep(delay)
+        body = b'{"object":"list","data":[{"id":"slow","object":"model","meta":{"n_ctx":8192}}]}'
+        self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
+    def log_message(self,*a): pass
+srv = socketserver.TCPServer(('127.0.0.1', 0), H)
+open(port_file, 'w').write(str(srv.server_address[1]))
+srv.serve_forever()
+PY
+  echo $!
+}
+_perf_pids=()
+_perf_ports=()
+for _i in 1 2 3 4 5; do
+  _pf="$HOME/.perf_p$_i"
+  _pid="$(start_slow_mock "$_pf" 2)"
+  _perf_pids+=("$_pid")
+  _perf_ports+=("$(wait_port_file "$_pf")")
+done
+_perf_catalog="{"
+for _i in 0 1 2 3 4; do
+  [[ $_i -gt 0 ]] && _perf_catalog+=","
+  _perf_catalog+="\"slow$((_i+1))\": {\"port\": ${_perf_ports[$_i]}, \"ctx\": 8192}"
+done
+_perf_catalog+="}"
+sandbox_stub "$HOME/.local/bin/llmctl-perf" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
+  echo '{"profiles": $_perf_catalog}'
+  exit 0
+fi
+exit 2
+EOF
+chmod +x "$HOME/.local/bin/llmctl-perf"
+_perf_t0=$(date +%s.%N)
+DET_I="$(CMA_LLMCTL_BIN="$HOME/.local/bin/llmctl-perf" CMA_LLMCTL_HTTP_TIMEOUT=5 \
+    bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
+_perf_t1=$(date +%s.%N)
+_perf_elapsed="$(echo "$_perf_t1 - $_perf_t0" | bc)"
+echo "--- CASE I: detect_llmctl_records elapsed=${_perf_elapsed}s (sequential sum would be ~10s) ---" >> "$PROOF"
+echo "$DET_I" >> "$PROOF"
+assert_eq "5" "$(jq 'length' <<<"$DET_I")" "all five slow-but-live profiles still correctly detected"
+_perf_under_threshold=1
+(( $(echo "$_perf_elapsed < 6.0" | bc -l) )) && _perf_under_threshold=0
+assert_eq 0 "$_perf_under_threshold" "elapsed (${_perf_elapsed}s) is well under the 6s bound (sequential sum ~10s) -- probes ran in parallel, not sequentially"
+for _pid in "${_perf_pids[@]}"; do kill "$_pid" 2>/dev/null; done
+
 summary
