@@ -1160,20 +1160,34 @@ assert_eq 0 $? "the digit-bearing marker survives the SWEEP-side extraction inta
 #     launch runs in a SCRUBBED env" FALSE for TUI mode.
 #
 # So assert both properties over ALL launch shapes, mechanically:
-#   1. all three files declare the SAME scrub set (widens the two-file mirror);
+#   1. all three files' CLAUDE-launch scrub set is identical (widens the
+#      two-file mirror);
 #   2. every `bash -c` launch site in them APPLIES a scrub array.
 # Continuations are joined first (the STUI launch spreads its scrub and its
 # `bash -c` across two physical lines) and BOTH full-line and inline comments
 # stripped (several of these files' comments legitimately discuss `bash -c`, and
 # a trailing ` # … bash -c …` remark on a code line must not read as a site).
-it "every launch shape in every verifier scrubs its environment (all four sites, not just the mirrored pair)"
+#
+# UPDATE (llmctl-integration-hardening, T025-T026): verify_superpowers_tui.sh
+# gained a SECOND, Kimi-specific launch shape (`KIMI_SCRUB` + its own `bash -c`)
+# when `--agent kimi` support was added. Comparing the WHOLE FILE's `-u VAR`
+# set (the original, simpler form of this check) across all three files broke
+# the instant that landed: STUI's file-wide set now legitimately includes
+# `KIMI_CODE_HOME` (from KIMI_SCRUB), which verify_claude_live.sh and
+# verify_providers_live.sh correctly do NOT have — neither of those two ever
+# execs `kimi`, so scrubbing a Kimi-only var there would assert nothing real.
+# The fix scopes the cross-file mirror to each file's CLAUDE-launch array by
+# NAME (STUI's `SCRUB`, not the whole file) and checks KIMI_SCRUB separately,
+# on its own, narrower terms — never by loosening the original two-file mirror
+# this check exists to widen.
+it "every launch shape in every verifier scrubs its environment (all five sites, not just the mirrored pair)"
 # Same override rationale as CMA_STUI_BIN / CMA_LIVE_BIN: each file must be
 # replaceable by a mutated scratchpad copy so this lint can be shown to have
 # teeth without editing the shared checkout. $STUI and $LIVE already carry that
 # for two of the three; CMA_CLIVE_BIN adds it for the third.
 CLIVE="${CMA_CLIVE_BIN:-$TESTS_DIR/verify_claude_live.sh}"
 SCRUB_FILES=("$STUI" "$CLIVE" "$LIVE")
-# 1. identical declared sets across all three files.
+# 1. identical declared CLAUDE-launch scrub set across all three files.
 #
 # Full-line comments are STRIPPED before extracting. This is not tidiness, it is
 # required for the assertion to have teeth: these files' comments legitimately
@@ -1181,15 +1195,49 @@ SCRUB_FILES=("$STUI" "$CLIVE" "$LIVE")
 # raw grep happily reads a var out of PROSE that the CODE no longer scrubs.
 # Verified: without this strip, deleting `-u BASH_ENV` from NEG_SCRUB left this
 # leg green — the neighbouring comment supplied the token.
-_scrub_set() { grep -vE '^[[:space:]]*#' "$1" | grep -oE -- '-u [A-Z_]+' | awk '{print $2}' | sort -u; }
+#
+# _scrub_set_named FILE ARRAY_NAME -> the `-u VAR` set declared strictly
+# INSIDE that one array literal (from its `ARRAY_NAME=(` line to the first
+# subsequent `)` — true for every array in these three files: none nests a
+# paren inside its own var list), never the whole file. This is what lets
+# STUI legitimately carry a second, differently-named array (KIMI_SCRUB)
+# without that array's vars leaking into the CLAUDE-side comparison below.
+_scrub_set_named() {
+  # Anchored to "only leading whitespace, then the exact array name" so that
+  # extracting "SCRUB" never matches "KIMI_SCRUB=(" instead — a real bug
+  # caught writing this fix: STUI's KIMI_SCRUB is declared earlier in the
+  # file AND an unanchored `/SCRUB=(/` matches it first, silently extracting
+  # the wrong array's vars. NEG_SCRUB (verify_providers_live.sh) is declared
+  # inside a function body with leading indentation, so the anchor allows
+  # leading whitespace rather than requiring column 0.
+  sed -n "/^[[:space:]]*$2=(/,/)/p" "$1" | grep -vE '^[[:space:]]*#' | grep -oE -- '-u [A-Z_]+' | awk '{print $2}' | sort -u
+}
 _ref_scrub=""
 for _f in "${SCRUB_FILES[@]}"; do
-  _s="$(_scrub_set "$_f")"
+  case "$_f" in
+    *verify_providers_live*) _arr="NEG_SCRUB" ;;
+    *) _arr="SCRUB" ;;
+  esac
+  _s="$(_scrub_set_named "$_f" "$_arr")"
   if [[ -z "$_ref_scrub" ]]; then _ref_scrub="$_s"; continue; fi
-  assert_eq "$_ref_scrub" "$_s" "$(basename "$_f") declares the same scrub set as the others"
+  assert_eq "$_ref_scrub" "$_s" "$(basename "$_f") declares the same claude-launch scrub set as the others"
 done
 grep -q 'BASH_ENV' <<<"$_ref_scrub"
-assert_eq 0 $? "BASH_ENV is in the scrub set (without it a broken alias file is undetectable — the launch gets a wrapper from ~/.bashrc)"
+assert_eq 0 $? "BASH_ENV is in the claude-launch scrub set (without it a broken alias file is undetectable — the launch gets a wrapper from ~/.bashrc)"
+
+# 1b. KIMI_SCRUB (STUI only) is its own, narrower, Kimi-specific set — never
+# required to equal the claude-launch set above (it covers what could affect
+# a `kimi` launch, not Claude-specific vars like CLAUDE_CONFIG_DIR that a
+# `kimi` process never reads), but BASH_ENV is still load-bearing there too:
+# an adversarial/broken alias file is exactly as undetectable on the kimi
+# launch path as on the claude one if this is ever dropped.
+_kimi_scrub="$(_scrub_set_named "$STUI" "KIMI_SCRUB")"
+if [[ -n "$_kimi_scrub" ]]; then _pass "KIMI_SCRUB is declared and non-empty"
+else _fail "KIMI_SCRUB is declared and non-empty" "got an empty set"; fi
+grep -q 'BASH_ENV' <<<"$_kimi_scrub"
+assert_eq 0 $? "BASH_ENV is in KIMI_SCRUB too (same undetectable-broken-alias-file risk on the kimi launch path)"
+grep -q 'KIMI_CODE_HOME' <<<"$_kimi_scrub"
+assert_eq 0 $? "KIMI_CODE_HOME is in KIMI_SCRUB (the kimi-specific var the claude-launch scrub set has no reason to carry)"
 
 # 2. every launch site applies a scrub array.
 #
@@ -1213,8 +1261,10 @@ for _f in "${SCRUB_FILES[@]}"; do
 done
 assert_eq "" "$_unscrubbed" "every 'bash -c' launch site applies a SCRUB array (an unscrubbed one names its file here)"
 # The anti-vacuity control: if the extraction found no launch sites at all, the
-# assertion above would pass trivially. All four known shapes must be seen.
-assert_eq 4 "$_launch_sites" "all four launch shapes were actually inspected (STUI, run_cli, run_tui, NEG_SCRUB)"
+# assertion above would pass trivially. All five known shapes must be seen —
+# STUI now contributes TWO (its claude SCRUB launch + its kimi KIMI_SCRUB
+# launch, since --agent kimi support landed) where it used to contribute one.
+assert_eq 5 "$_launch_sites" "all five launch shapes were actually inspected (STUI-claude, STUI-kimi, run_cli, run_tui, NEG_SCRUB)"
 # The inline-comment pin, via the SAME _launch_lines helper: a synthetic file
 # with one genuine launch line plus one inline `# … bash -c …` remark must yield
 # exactly ONE site. If the inline strip is ever dropped from _launch_lines, this
