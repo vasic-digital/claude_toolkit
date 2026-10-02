@@ -353,10 +353,14 @@ pass/fail/skip record exists for every alias × agent × command combination.
 - [ ] T028 [US3] Implement the double-run determinism assertion (**FR-013**):
   run the full matrix twice against an unchanged system, assert byte-identical
   verdicts — `scripts/tests/` (new).
-- [ ] T029 [P] [US3] File the five llmctl-Side Findings (research.md §7,
+- [x] T029 [P] [US3] File the five llmctl-Side Findings (research.md §7,
   LLMCTL-F1..F5) as separately tracked follow-up items — a
   documentation/tracking action, never a claude_toolkit code task (satisfies
-  **FR-010a**).
+  **FR-010a**). **Done**: all five re-verified fresh against the real
+  `../llmctl` repository (citations confirmed still accurate, none fixed
+  upstream since the original audit) and documented in
+  `docs/research/2026-10-02-llmctl-upstream-findings.md`, linked from
+  research.md §7. Zero edits made inside `/home/milosvasic/Projects/llmctl`.
 - [ ] T030 [REVIEW] [US3] Review the live-test extension to
   `verify_superpowers_tui.sh` before merging — this is shared,
   anti-bluff-sensitive infrastructure used by every other provider's

@@ -437,3 +437,8 @@ both.
 | LLMCTL-F3 | Colibri profiles crash-loop under the LAN-exposed bind default unless `COLI_ALLOW_INSECURE_BIND=1` | Confirmed (code read) | `lib/scheduler.sh:295-313` |
 | LLMCTL-F4 | `vision` profile fails tool-calling outright (model-capability limit); `small`/`moe-fast` CPU-timeout fix not re-verified live | Confirmed (dated project history); needs fresh live re-verification | `docs/CONTINUATION.md:983-1065,1304+` |
 | LLMCTL-F5 | llmctl's own memory/overcommit accounting only covers processes launched through its scheduler | Confirmed (documented incident) | `docs/CONTINUATION.md:1018-1029` |
+
+**Filed (T029, 2026-10-02)**: all five re-verified fresh against the real
+repository (citations confirmed still accurate, none fixed upstream since
+this audit) and documented in full, per-finding, with suggested remediation
+directions, in [`docs/research/2026-10-02-llmctl-upstream-findings.md`](../../docs/research/2026-10-02-llmctl-upstream-findings.md).
