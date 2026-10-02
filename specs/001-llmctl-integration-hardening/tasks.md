@@ -277,7 +277,7 @@ distinctly rather than silently misreported as an ordinary refusal.
   helper + the second `llmctl status` call in the failure branch + the
   `CRITICAL: llmctl rollback also failed` marker. Not a separate action,
   recorded here for accurate task-by-task traceability.
-- [ ] T021 [US1] [US2] **(new — resolves analysis finding E1)** Stress/chaos
+- [x] T021 [US1] [US2] **(new — resolves analysis finding E1)** Stress/chaos
   test of the combined detection+switching stack (the FR-011 minimum test
   type this feature was missing entirely): (a) fire concurrent
   `detect_llmctl_records` syncs against the fixture `llmctl` stub while a
@@ -288,7 +288,11 @@ distinctly rather than silently misreported as an ordinary refusal.
   switch is still settling and assert llmctl's own lock-serialization
   (research.md §3.B) is respected, never bypassed by claude_toolkit's own
   wrapper issuing a second concurrent switch — `scripts/tests/test_llmctl_stress_chaos.sh`
-  (new file; satisfies **FR-011**).
+  (new file; satisfies **FR-011**). **Done**: 3 scenarios implemented
+  exactly as specified, each preceded by an "investigate" case proving the
+  race/kill/lock window is genuinely reachable before asserting on it (not
+  assumed); 14 assertions, 5 consecutive full-file runs, 14/14 passing
+  every run — zero flakiness.
 - [ ] T022 [REVIEW] [US2] Review the switch-hardening change (T020), the
   FR-006 structural lock (T019), and the stress/chaos suite (T021) together
   against `contracts/alias-behavior-contract.md`'s FR-007 refinement before
