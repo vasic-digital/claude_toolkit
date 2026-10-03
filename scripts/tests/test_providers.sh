@@ -1846,7 +1846,14 @@ STUI="$SCRIPTS_DIR/verify_superpowers_tui.sh"
 STUI_PROOF="$HOME/proof"
 
 it "verify_superpowers_tui SCRUB list mirrors verify_claude_live.sh exactly (session-continuity vars included)"
-_stui_scrub="$(grep -oE -- '-u [A-Z_]+' "$STUI" | awk '{print $2}' | sort -u)"
+# Scoped to the SCRUB=( array literal only — never the whole file. STUI also
+# declares a second, Kimi-specific KIMI_SCRUB=( array (carrying KIMI_CODE_HOME,
+# which verify_claude_live.sh has no reason to know about since Kimi Code is
+# not a Claude Code launch path); a whole-file grep conflates the two arrays
+# and falsely flags a drift that was never in the CLAUDE-launch scrub set
+# this assertion actually governs. See test_layer4_route_attribution.sh's
+# _scrub_set_named() for the identical fix applied to the same root cause.
+_stui_scrub="$(sed -n '/^[[:space:]]*SCRUB=(/,/)/p' "$STUI" | grep -vE '^[[:space:]]*#' | grep -oE -- '-u [A-Z_]+' | awk '{print $2}' | sort -u)"
 _live_scrub="$(grep -oE -- '-u [A-Z_]+' "$TESTS_DIR/verify_claude_live.sh" | awk '{print $2}' | sort -u)"
 assert_eq "$_live_scrub" "$_stui_scrub" "SCRUB var set identical to verify_claude_live.sh (incl. CLAUDE_CODE_CHILD_SESSION/SESSION_ID govern resume safety)"
 
