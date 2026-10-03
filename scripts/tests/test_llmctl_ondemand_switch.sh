@@ -107,6 +107,17 @@ case "${1:-}" in
       rm -f "$DIR/active"
       exit "$(cat "$DIR/fail_rc" 2>/dev/null || echo 1)"
     fi
+    if [[ -f "$DIR/fail_rollback_rc75_no_text" ]]; then
+      # A NEWER llmctl (upstream commit ab4f4db, closing LLMCTL-F2): the
+      # rollback-also-failed case now returns the documented exit code 75
+      # (EX_TEMPFAIL) as its real contract -- simulated here WITHOUT the
+      # "ROLLBACK ALSO FAILED" string at all, to prove this feature's own
+      # detection no longer depends solely on string-matching freeform
+      # stderr once the upstream contract exists.
+      echo "switch to '$profile' failed (simulated newer-llmctl rc=75 contract)" >&2
+      rm -f "$DIR/active"
+      exit 75
+    fi
     if [[ -f "$DIR/fail_switch" ]]; then
       echo "switch to '$profile' failed - restoring the previously-running set: (simulated)" >&2
       # fail_switch_drop (independent-review finding 4 follow-up): names a
@@ -136,7 +147,7 @@ export CMA_LLMCTL_BIN="$LC_BIN"
 export LLMCTL_TEST_DIR="$LC_DIR"
 
 reset_lc() {
-  rm -f "$LC_DIR/calls" "$LC_DIR/active" "$LC_DIR/fail_switch" "$LC_DIR/fail_rc" "$LC_DIR/fail_rollback" "$LC_DIR/fail_switch_drop"
+  rm -f "$LC_DIR/calls" "$LC_DIR/active" "$LC_DIR/fail_switch" "$LC_DIR/fail_rc" "$LC_DIR/fail_rollback" "$LC_DIR/fail_switch_drop" "$LC_DIR/fail_rollback_rc75_no_text"
 }
 lc_calls() { cat "$LC_DIR/calls" 2>/dev/null || true; }
 lc_switch_count() { lc_calls | grep -c '^switch '; }
@@ -390,6 +401,25 @@ assert_eq 0 "$ok" "a distinct CRITICAL marker (added by claude_toolkit, not llmc
 assert_eq 2 "$(lc_status_count)" "status re-probed after the rollback-also-failed case too"
 [[ "$out" == *"vision"*"NO LONGER running"* ]] && ok=0 || ok=1
 assert_eq 0 "$ok" "output honestly reports the previous profile is no longer running either"
+
+# ---------------------------------------------------------------------------
+# llmctl upstream closed LLMCTL-F2 (commit ab4f4db): rollback-also-failed is
+# now a documented exit code 75 (EX_TEMPFAIL), not just freeform stderr text.
+# This proves claude_toolkit's own detection now recognizes a NEWER llmctl
+# that returns rc=75 WITHOUT the "ROLLBACK ALSO FAILED" string at all -- the
+# string-match above still covers an OLDER llmctl binary, this covers the
+# new, real, documented upstream contract.
+# ---------------------------------------------------------------------------
+it "_cma_llmctl_ensure_active: upstream's documented rc=75 alone (no 'ROLLBACK ALSO FAILED' text) still raises the CRITICAL marker"
+reset_lc
+printf 'vision' > "$LC_DIR/active"
+: > "$LC_DIR/fail_rollback_rc75_no_text"
+out="$( set +eu; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 75 "$rc" "rc=75 propagated verbatim"
+[[ "$out" == *"CRITICAL: llmctl rollback also failed"* ]] && ok=0 || ok=1
+assert_eq 0 "$ok" "the CRITICAL marker fires from rc=75 alone, with zero 'ROLLBACK ALSO FAILED' text anywhere in the output"
+[[ "$out" == *"ROLLBACK ALSO FAILED"* ]] && ok=1 || ok=0
+assert_eq 0 "$ok" "sanity: this fixture genuinely contains no 'ROLLBACK ALSO FAILED' text (proves the marker came from the rc check, not a leftover string match)"
 
 # ---------------------------------------------------------------------------
 # Independent-review finding 4 (NO-GO blocker): the pre-fix re-probe tracked

@@ -1319,14 +1319,18 @@ _cma_llmctl_ensure_active() {
   if (( _cma_lc_switch_rc != 0 )); then
     # llmctl's own switch is best-effort-atomic (research.md LLMCTL-F2): on
     # failure it restores the previously-running set, but that restore can
-    # ITSELF fail, leaving the host with FEWER services than before. llmctl
-    # discloses this in its own stderr ("ROLLBACK ALSO FAILED"), but that raw
-    # text alone is not a reliable machine-readable signal -- it is just
-    # passed through either way below. Detect it explicitly and raise a
-    # DISTINCT, higher-severity marker this feature owns, then independently
-    # RE-PROBE (never assume from the exit code alone) whether the previously
-    # active profile actually survived the failed switch.
-    if [[ "$_cma_lc_switch_out" == *"ROLLBACK ALSO FAILED"* ]]; then
+    # ITSELF fail, leaving the host with FEWER services than before. Upstream
+    # now exposes this as a distinct exit code (75, EX_TEMPFAIL -- llmctl
+    # commit ab4f4db, closing LLMCTL-F2) rather than only freeform stderr
+    # text; check that FIRST (a real, documented contract) and keep the
+    # original "ROLLBACK ALSO FAILED" string-match as a fallback for any
+    # llmctl version predating that fix, so this still works against an
+    # older binary rather than silently losing the marker. Detect it
+    # explicitly and raise a DISTINCT, higher-severity marker this feature
+    # owns, then independently RE-PROBE (never assume from the exit code
+    # alone) whether the previously active profile actually survived the
+    # failed switch.
+    if (( _cma_lc_switch_rc == 75 )) || [[ "$_cma_lc_switch_out" == *"ROLLBACK ALSO FAILED"* ]]; then
       printf 'claude-providers: CRITICAL: llmctl rollback also failed while switching to %s (exit %d) -- the host may now be running FEWER models than before.\n' \
         "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2
     else
