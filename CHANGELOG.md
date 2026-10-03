@@ -71,6 +71,47 @@ from the README. Driven by the spec-kit workflow under
 - **`scripts/tests/test_llmctl_doc_links.sh`**: proves zero dead links and
   zero orphaned pages across the whole new doc set.
 
+### Added — upstream `llmctl` fixes (operator-directed scope expansion)
+
+The US3 live-testing work above surfaced genuine bugs in the separate
+`../llmctl` project itself. The original scope (US3's note above, and
+`specs/001-llmctl-integration-hardening/spec.md`'s Clarifications) was
+investigate-and-document-only, never fix — that boundary was explicitly
+overridden by the operator mid-session as a deliberate, one-off exception,
+not a general precedent for sibling-project ownership. Three real fixes
+landed upstream as a direct result:
+
+- **VRAM budget now uses real free VRAM, not static total capacity**
+  (`../llmctl` commit `3926468`, LLMCTL-F7): `llmctl plan --json` reported
+  a profile as `fits: true` from 85% of the card's *total* capacity, with
+  no accounting for VRAM already held by other processes — the profile
+  then genuinely OOM'd (`cudaMalloc failed: out of memory`) when switched
+  to. The GPU probe now reads real free VRAM (nvidia-smi `memory.free`,
+  amdgpu sysfs, or Apple's unified-memory heuristic applied to real
+  available RAM) and the budget calculation uses it when measured, falling
+  back to the original total-based formula only for older/unverified GPU
+  paths.
+- **A pre-flight warning for the known colibri bind-security interaction**
+  (`../llmctl` commit `b2fbfec`, LLMCTL-F3): a colibri-engine profile under
+  the LAN-exposed default crash-loops on its own independent security
+  guard refusing a non-loopback bind without an explicit operator opt-in.
+  That guard is untouched (correctly left as the operator's own call, not
+  llmctl's) — this adds only the missing advance warning, naming both
+  resolution paths, before the crash-loop happens instead of after.
+- **Port-conflict diagnosis** (`../llmctl` commit `007fc00`, LLMCTL-F8): a
+  `wait_ready` timeout caused by an external, unrelated process already
+  holding the target port previously reported only a generic "never
+  answered" message. The scheduler now reads the engine's own log for the
+  bind-failure signature and names the real port and owning process.
+
+Each fix was independently verified (not trusted from a self-report):
+`b2fbfec` — `tests/test_scheduler_bind_host.sh` RESULT: PASS; `3926468` —
+`tests/test_hardware_probe.sh` and `tests/test_planner.sh` RESULT: PASS
+each; `007fc00` — `tests/test_scheduler_wait_ready.sh` RESULT: PASS, plus a
+live end-to-end reproduction against a real port conflict on this host.
+See `docs/research/2026-10-02-llmctl-upstream-findings.md` for the full
+finding history (LLMCTL-F1…F8) and status table.
+
 ### Testing & Validation
 
 - Full sandbox suite (`scripts/tests/run-all.sh`): **84 test files, 84
