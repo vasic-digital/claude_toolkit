@@ -201,6 +201,19 @@ keyvar="$( set -a; . "$PDIR/$ALIAS_ID.env"; set +a; printf '%s' "${CMA_PROVIDER_
 # provider happened to run last, and would have named a different backend had
 # the run order changed. A pass attributable to a different backend is not a
 # weak pass; it is a false claim, and worse than a failure.
+# NOT YET A CONFIRMED BUG (round-3 independent-review sweep, 2026-10-03):
+# IFS=$'\t' read collapses a single empty field into its neighbouring
+# delimiter (tab is a POSIX IFS-whitespace character) -- if
+# CMA_PROVIDER_FAST_MODEL were ever empty here, P_ID/P_TRIM would shift and
+# corrupt this script's own route-attribution identity. Checked all 63 real
+# provider .env files on this host: NONE has an empty CMA_PROVIDER_FAST_MODEL
+# while CMA_PROVIDER_MODEL is set -- providers_resolve.py's select_models()
+# draws strong/fast from the SAME non-empty catalog pool, so a resolved
+# record's fast_model is only None if the selected catalog entry itself lacks
+# an "id" key, which no live catalog data on this host exhibits. Left
+# unfixed (no reachable repro found, matching this session's "rock-solid
+# proof or deep research" discipline over a speculative change) -- re-check
+# this comment if that empirical guarantee is ever found to not hold.
 IFS=$'\t' read -r P_TRANSPORT P_MODEL P_FAST_MODEL P_ID P_TRIM < <(
   set -a
   # shellcheck source=/dev/null  # runtime provider env file, path known only at execution

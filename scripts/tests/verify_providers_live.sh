@@ -225,9 +225,21 @@ RUN_TUI_EV=()   # layer-4 evidence files written by THIS run — scopes the swee
 ALL_TUI_EV=()
 for f in "$PDIR"/*.env; do
   # shellcheck source=/dev/null  # runtime provider env file, path only known at execution
+  #
+  # id/model/keyvar default to the literal "null" (never a bare empty string)
+  # -- round-3 independent-review bug class (tab is a POSIX IFS-whitespace
+  # character, so `IFS=$'\t' read` COLLAPSES a single empty field into its
+  # neighbouring delimiter, shifting every later field left by one slot;
+  # already fixed three times this session in claude-providers.sh/lib.sh for
+  # the exact same mechanism). This loop iterates EVERY *.env on disk,
+  # unconditionally, including a degenerate one the provider-rename path
+  # explicitly documents it can produce (claude-providers.sh ~2596: "fields
+  # that were absent come out empty rather than blocking the move"). baseurl
+  # is the last field, so it can never corrupt anything after it and keeps
+  # its plain empty default.
   IFS=$'\t' read -r id model keyvar baseurl < <(
     set -a; . "$f"; set +a
-    printf '%s\t%s\t%s\t%s' "$CMA_PROVIDER_ID" "$CMA_PROVIDER_MODEL" "$CMA_PROVIDER_KEYVAR" "$CMA_PROVIDER_BASE_URL"
+    printf '%s\t%s\t%s\t%s' "${CMA_PROVIDER_ID:-null}" "${CMA_PROVIDER_MODEL:-null}" "${CMA_PROVIDER_KEYVAR:-null}" "${CMA_PROVIDER_BASE_URL:-}"
   )
   [[ -n "$first_id" ]] || first_id="$id"
   status="$( source "$SCRIPTS_DIR/lib.sh" 2>/dev/null; cma_status_read "$id" )"
