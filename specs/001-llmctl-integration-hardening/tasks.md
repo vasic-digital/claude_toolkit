@@ -64,10 +64,12 @@ numbering.
 
 **Purpose**: Shared scaffolding every later phase needs — no behavior change.
 
-- [ ] T001 [P] Confirm `jq`, `curl`, `ss` are available in the toolkit's
+- [x] T001 [P] Confirm `jq`, `curl`, `ss` are available in the toolkit's
   documented dev/test prerequisites (extend `scripts/tests/README.md` or
   equivalent if a prerequisite list exists); `ss` is new for this feature
-  (FR-009's bind-address read).
+  (FR-009's bind-address read). **Done**: no prerequisite list existed
+  anywhere in the repo (checked `scripts/tests/`, root `README.md`); created
+  `scripts/tests/README.md` naming all three tools and what each is used for.
 - [x] T002 [P] ~~Create `scripts/tests/fixtures/llmctl/`~~ **Course-corrected
   during execution (2026-10-02) after reading `test_llmctl_detect.sh` in
   full**: this suite's real, established convention is a *self-contained
@@ -80,9 +82,12 @@ numbering.
   T021) follows the same inline-stub pattern `test_llmctl_detect.sh` already
   uses, parameterizing `ctx`, bind address, or switch-failure shape directly
   in its own heredoc.
-- [ ] T003 [P] Create `docs/llmctl/` directory and placeholder
+- [x] T003 [P] Create `docs/llmctl/` directory and placeholder
   `docs/diagrams/llmctl-detection-flow.mmd` / `docs/diagrams/llmctl-switch-flow.mmd`
-  files (empty scaffolds; content lands in Phase 6).
+  files (empty scaffolds; content lands in Phase 6). **Superseded in
+  practice**: `docs/llmctl/` and both `.mmd` files were created directly
+  with their real, final content in T031-T034 rather than as empty
+  scaffolds first — same end state, no separate placeholder commit needed.
 
 ---
 
@@ -235,9 +240,15 @@ documentation (US4).
   time is under a 6s bound (sequential sum would be ~10s). 3 consecutive
   clean-env runs: 41/41 passing, elapsed 2.24-2.25s each time — no
   flakiness.
-- [ ] T015 [REVIEW] [US1] Review the context-carve + LAN-exposure +
+- [x] T015 [REVIEW] [US1] Review the context-carve + LAN-exposure +
   parallelization changes together against
   `contracts/alias-behavior-contract.md` before proceeding to Phase 4.
+  **Done**: verified directly against `scripts/claude-providers.sh`'s
+  `detect_llmctl_records()` — `context_warning` derives from the real
+  per-profile context vs. `CMA_INPUT_FLOOR + 8192`, omitted (not
+  empty-stringed) when not applicable, matching the contract's "alongside
+  the real value, never a silent substitution" wording; `lan_exposed`
+  defaults conservatively `false` when `ss` is unavailable, matching FR-009.
 
 **Checkpoint**: User Story 1 fully functional and independently
 demonstrable — every running llmctl profile is a correctly labeled,
@@ -318,10 +329,15 @@ distinctly rather than silently misreported as an ordinary refusal.
   race/kill/lock window is genuinely reachable before asserting on it (not
   assumed); 14 assertions, 5 consecutive full-file runs, 14/14 passing
   every run — zero flakiness.
-- [ ] T022 [REVIEW] [US2] Review the switch-hardening change (T020), the
+- [x] T022 [REVIEW] [US2] Review the switch-hardening change (T020), the
   FR-006 structural lock (T019), and the stress/chaos suite (T021) together
   against `contracts/alias-behavior-contract.md`'s FR-007 refinement before
-  proceeding to Phase 5.
+  proceeding to Phase 5. **Done**: verified `_cma_llmctl_ensure_active()` in
+  `scripts/lib.sh` — on switch failure it never trusts the exit code alone,
+  re-probing via the shared `_cma_llmctl_active_profile()` parse helper, and
+  raises the distinct `CRITICAL: llmctl rollback also failed` marker only
+  when llmctl's own stderr names that exact condition, matching FR-007
+  exactly.
 
 **Checkpoint**: User Stories 1 AND 2 both independently functional —
 switching stays exclusive, is now honest about llmctl's own disclosed
@@ -426,7 +442,18 @@ pass/fail/skip record exists for every alias × agent × command combination.
   from the known 8192-token context-capacity limit, e.g. kimi:
   "request (79112 tokens) exceeds the available context size (8192
   tokens)" — exactly research.md §3.D's anticipated failure mode, not a
-  toolkit defect).
+  toolkit defect). **Correction (independent review, 2026-10-03)**: a
+  LATER re-run of one cell (kimi/subagent-driven-development) failed
+  instead with a Node.js `ENOSPC` from inotify-watcher exhaustion
+  (`/proc/sys/fs/inotify/max_user_instances` = 128 on this host) — unrelated
+  host resource contention, most likely from this session's own heavy
+  concurrent subagent fan-out, not the context limit and not a repo defect
+  either. The verdict-level claim (6/6 genuinely FAIL, none bluffed as
+  PASS) holds across both runs; the SPECIFIC per-cell root cause is NOT
+  uniform across runs and must not be stated as if it were.
+  `kimi-unclassified-nonzero` is deliberately honest about this — it does
+  not claim a single cause for every non-zero Kimi exit, because there
+  isn't one.
 - [x] T028 [US3] Implement the double-run determinism assertion (**FR-013**):
   run the full matrix twice against an unchanged system, assert byte-identical
   verdicts — `scripts/tests/` (new). **Done**:
@@ -573,14 +600,42 @@ scenarios.
 changelog entries each match a real, verified change, and confirm it is
 visible and correctly tagged on both services.
 
-- [ ] T039 [US5] Confirm every prior checkpoint (Phases 3–6) is green — gate,
-  not a file change (satisfies **FR-017**).
-- [ ] T040 [US5] Run `scripts/claude-release-gate.sh` and confirm exit 0.
-  *(depends on T039; satisfies **FR-017**)*
-- [ ] T041 [US5] Write the `CHANGELOG.md` `## v1.29.0` entry (Added/Changed/
+- [x] T039 [US5] Confirm every prior checkpoint (Phases 3–6) is green — gate,
+  not a file change (satisfies **FR-017**). **Done**: independently
+  re-verified (not trusted from a subagent self-report) T027/T028's
+  orchestrator + determinism oracle, T030's classification fix (RED-before/
+  GREEN-after confirmed by temporarily reverting it), T035-T038's doc
+  export/linking/link-check (re-ran `test_llmctl_doc_links.sh`: 8/8), and
+  closed out T001/T003/T015/T022 which had been left unchecked. Full
+  sandbox suite: `scripts/tests/run-all.sh` — **84 test files, 84 passed, 0
+  failed, ALL GREEN**.
+- [x] T040 [US5] Run `scripts/claude-release-gate.sh` and confirm exit 0.
+  *(depends on T039; satisfies **FR-017**)* **Done**: `--provider nvidia
+  --skip-suite` (suite had just run green under T039) — layer 2 live smoke
+  GREEN (GATE-OK served end-to-end, sink-side route confirmed), layer 2.5
+  kimi smoke honest-SKIP (`kimi-deepseek` alias exists but its provider
+  status is `failed` — the verification gate refuses to force-launch an
+  unverified alias, so the gate SKIPs rather than FAILs; corrected here
+  from an earlier, less precise "alias does not exist" wording — never a
+  gate FAIL per the script's own design), **ALL LAYERS
+  GREEN — release may proceed.** Note: the gate's *default* provider
+  (`helixagent`) is `unverified` on this host (HelixLLM is in coder mode,
+  the documented common case) and `helixagent-native` (32768 ctx) genuinely
+  FAILed with "Prompt is too long" — investigated and confirmed as the
+  project's own already-documented host-state condition (this host's
+  enabled-plugin tool-prefix exceeds a 32K-context provider's window,
+  `CLAUDE.md`'s "Router selector semantics" section), not a regression from
+  this feature's work. `nvidia` (1,000,000 ctx) was picked per that same
+  doc's explicit guidance and is unaffected.
+- [x] T041 [US5] Write the `CHANGELOG.md` `## v1.29.0` entry (Added/Changed/
   Testing & Validation sections, matching the existing convention), listing
   only real, verified changes from Phases 3–6. *(depends on T040; satisfies
-  **FR-017**)*
+  **FR-017**)* **Done**: an earlier draft of this entry (written before T040
+  actually ran) claimed the release gate was already green — struck as a
+  bluff per the anti-bluff mandate once caught during T039's review; the
+  Testing & Validation section now cites only the real T039/T040 results
+  (84/84 suite, nvidia-gated release-gate ALL GREEN) captured in this
+  session.
 - [ ] T042 [US5] Tag `v1.29.0` (and the constitution `§11.4.151`
   project-prefixed `claude_toolkit-1.29.0` tag) and push fast-forward-only to
   every configured upstream remote. *(depends on T041; satisfies **FR-017**)*
@@ -600,13 +655,31 @@ published.
 
 - [ ] T045 [P] Full sandbox suite run (`scripts/tests/run-all.sh`) — zero
   regressions across the whole toolkit, not only the llmctl-related tests.
-- [ ] T046 [P] Re-check the plan.md Constitution Check table against the
+- [x] T046 [P] Re-check the plan.md Constitution Check table against the
   final, as-built state — confirm every PASS still holds, including
   Principle V's revised justification now that T021 (stress/chaos) closes
-  the gap `/speckit-analyze` found (resolves analysis finding I1).
-- [ ] T047 Append this feature's entry to the project's operator-request-history
+  the gap `/speckit-analyze` found (resolves analysis finding I1). **Done**:
+  cross-checked all 15 principles against final implementation. 13 of 15
+  unchanged and still accurate. Two corrections made in plan.md: (1)
+  Principle V's note upgraded from "is covered by tasks.md T021" to cite
+  the real, independently re-verified evidence (14/14 assertions, 5
+  consecutive clean runs, zero flakiness; 84/84 full-suite as-built). (2)
+  Principle VI's note now honestly states this branch has **not yet**
+  undergone its required independent code review (no `/code-review`
+  Fable/xhigh pass found in commit history or spec artifacts as of this
+  check) — that gate stays OPEN and must run before T042 (tag), not
+  satisfied by the T039/T040 test-suite/release-gate checks alone.
+- [x] T047 Append this feature's entry to the project's operator-request-history
   ledger (constitution `§11.4.208`), if one is maintained — honest `UNKNOWN`
-  for any field not recoverable.
+  for any field not recoverable. **N/A, honestly**: checked this project for
+  an existing ledger at any conventional path (`docs/requests/`, repo root,
+  `.specify/`) — none exists. `§11.4.208` mandates a full append-only,
+  newest-first, 4-format-exported document with its own keep-applying
+  capture hook; standing one up from scratch is a separate, project-wide
+  governance initiative out of scope for this llmctl-integration feature,
+  not a one-line addition this task could honestly claim to satisfy. Task
+  was itself written conditionally ("if one is maintained") — condition is
+  false, so there is nothing to append to.
 
 ---
 

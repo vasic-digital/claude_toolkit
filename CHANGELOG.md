@@ -2,6 +2,91 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.29.0 — 2026-10-03 — llmctl integration hardening: honest limits, safe switching, live Superpowers verification
+
+Feature release hardening the existing llmctl detection/provider-alias
+integration end-to-end: two honesty fields on every llmctl-backed alias,
+crash-proof on-demand model switching, a live Superpowers-command matrix
+proof across both CLI agent families, and a full documentation set linked
+from the README. Driven by the spec-kit workflow under
+`specs/001-llmctl-integration-hardening/`.
+
+### Added — detection honesty (US1)
+
+- **`context_warning` field** on `detect_llmctl_records()`'s output: fires
+  when a profile's real, live context window (read from its own
+  `/v1/models` response) falls below `CMA_INPUT_FLOOR` (default 160000) +
+  8192 = 168192 tokens — the floor a CLI agent's own system prompt + tool
+  schemas typically need before a turn can even begin. Closes a captured
+  production failure (a real Kimi Code turn needing 92,629 tokens against an
+  `llmctl-small` profile's real 8,192-token window).
+- **`lan_exposed` field**: reads the real kernel listening-socket state for
+  each profile's resolved port via `ss -ltn`, since llmctl's own JSON
+  carries no bind-address field. Conservative default `false` when `ss` is
+  unavailable.
+- **Bounded-concurrency parallel liveness probes** (`CMA_LLMCTL_MAX_PARALLEL_PROBES`,
+  default 8): a host with several catalog profiles but few actually running
+  previously paid up to N × `CMA_LLMCTL_HTTP_TIMEOUT` seconds sequentially;
+  now bounded to roughly `ceil(N / cap) × timeout`.
+- Fixed a `"0"`-string bug where an absent catalog `ctx` silently became the
+  literal digit-string `"0"`, winning the numeric-gate check before the
+  intended default was ever consulted.
+
+### Added — on-demand switching hardening (US2)
+
+- **Post-switch-failure liveness re-probe**: a failed `llmctl switch` no
+  longer assumes the previously-active profile survived from the exit code
+  alone — it re-probes `llmctl status` a second time and reports exactly
+  what's running now.
+- **Distinct `CRITICAL: llmctl rollback also failed` marker** when llmctl's
+  own stderr names that exact failure mode, surfaced separately from an
+  ordinary refusal so an operator knows the host may now have fewer
+  services running than before.
+- **Stress/chaos test coverage**: concurrent syncs during a switch, a
+  mid-probe kill, and concurrent-switch lock serialization (3 scenarios, 14
+  assertions, re-verified across 5 consecutive runs).
+
+### Added — live Superpowers-command verification (US3)
+
+- **`scripts/tests/verify_llmctl_superpowers_live.sh`**: runs all
+  `{llmctl-backed alias} × {claude, kimi} × {Use Superpowers, Turn on
+  Systematic Debugging, Turn on Sub-Agent-Driven Development}` combinations
+  through `verify_superpowers_tui.sh`'s unforgeable-knowledge-challenge
+  oracle (extended with two new skill challenges) and emits one aggregated,
+  durable Check Result matrix.
+- **Double-run determinism proof** (`test_llmctl_superpowers_determinism.sh`):
+  a hermetic oracle proof that the live-matrix comparison logic itself
+  correctly catches a real verdict change, plus an informational real
+  double-run of one combination.
+- Five genuine, pre-existing defects found in the separate upstream `llmctl`
+  project during this verification work are tracked, not patched here (out
+  of this repo's ownership) — see
+  `docs/research/2026-10-02-llmctl-upstream-findings.md` (LLMCTL-F1…F5).
+
+### Added — documentation (US4)
+
+- **`docs/llmctl/{quickstart,user-guide,FAQ}.md`** (+ `.html`/`.pdf`/`.docx`
+  siblings), and **`docs/diagrams/llmctl-{detection,switch}-flow.{mmd,svg}`**,
+  all linked from the root `README.md`.
+- **`scripts/tests/test_llmctl_doc_links.sh`**: proves zero dead links and
+  zero orphaned pages across the whole new doc set.
+
+### Testing & Validation
+
+- Full sandbox suite (`scripts/tests/run-all.sh`): **84 test files, 84
+  passed, 0 failed, ALL GREEN** — including 8 llmctl-specific test files
+  (context-carve, detection, doc-links, LAN-exposure, on-demand switch,
+  stress/chaos, superpowers determinism, sync-all).
+- Live Superpowers matrix run against the host's real running `llmctl-small`
+  profile: results honestly reflect that small model's real capability
+  limits (captured evidence in `scripts/tests/proof/`), never bluffed as a
+  pass.
+- `scripts/claude-release-gate.sh --provider nvidia --skip-suite`: live
+  smoke GREEN end-to-end (GATE-OK served, sink-side route confirmed), kimi
+  smoke honest-SKIP (`kimi-deepseek`'s provider status is `failed`; the
+  gate refuses to force-launch an unverified alias) — **ALL LAYERS
+  GREEN**.
+
 ## v1.28.0 — 2026-09-11 — Token Router (138+ models) + Pi CLI agent + Helix family for Pi
 
 Feature release adding **comprehensive Token Router support** (5 provider aliases spanning flagship, coding, reasoning, fast/cheap, and long-context profiles), **first-class Pi CLI agent integration** with symmetric provider twin aliases (`pi-<id>`), and **Helix family availability in Pi** — all fully validated by the live-proof suite.
