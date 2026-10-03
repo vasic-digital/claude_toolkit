@@ -212,6 +212,34 @@ _mkmodelsjson() {
     > "$dest"
 }
 
+# Hermetic llmctl stub for the cma_run_pi_provider tests below, which use
+# provider id "llmctl-small" and so exercise _cma_llmctl_ensure_active's
+# `llmctl-*` branch. Without this, that branch resolves CMA_LLMCTL_BIN's
+# default ("llmctl") via `command -v`, which falls through to whatever
+# REAL llmctl binary happens to be on the operator's PATH (present on a
+# dev box that has llmctl installed, absent on a clean host) -- the exact
+# ambient-PATH leak sandbox_stub exists to prevent for other binaries.
+# `status` prints one row for "small" (profile derived from the id by
+# stripping the "llmctl-" prefix) in sched_status's own row shape, so
+# _cma_llmctl_active_profile parses it as the sole running profile and
+# _cma_llmctl_ensure_active's no-op fast path returns 0 without ever
+# needing a `switch` subcommand.
+LC_BIN="$HOME/fakebin/llmctl-fake"
+sandbox_stub "$LC_BIN" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  status)
+    printf '%-16s %s\n' "profile" "status"
+    printf '%-16s %s\n' "small" "running"
+    ;;
+  *)
+    echo "llmctl-fake: unhandled args: $*" >&2
+    exit 64
+    ;;
+esac
+EOF
+export CMA_LLMCTL_BIN="$LC_BIN"
+
 it "cma_run_pi_provider refuses non-verified without --force"
 printf '{"llmctl-small":{"status":"unverified","model":"x"}}\n' > "$PDIR/status.json"
 mkdir -p "$HOME/.pi-prov-llmctl-small"
