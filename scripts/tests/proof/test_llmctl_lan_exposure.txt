@@ -1,28 +1,28 @@
 === test_llmctl_lan_exposure.sh evidence ===
-date: 2026-10-03T09:42:14Z
-exposed (0.0.0.0) mock port=40477 pid=1984332
-local (127.0.0.1) mock port=36839 pid=1984334
+date: 2026-10-03T16:16:02Z
+exposed (0.0.0.0) mock port=34663 pid=2226429
+local (127.0.0.1) mock port=48767 pid=2226431
 --- ss -ltn for exposed port (sanity check on this host) ---
 State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
-LISTEN 0      5            0.0.0.0:40477      0.0.0.0:*   
+LISTEN 0      5            0.0.0.0:34663      0.0.0.0:*   
 --- ss -ltn for local port (sanity check on this host) ---
 State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
-LISTEN 0      5          127.0.0.1:36839      0.0.0.0:*   
+LISTEN 0      5          127.0.0.1:48767      0.0.0.0:*   
 --- detect_llmctl_records output ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:40477/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:40477/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:36839/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:36839/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:34663/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:34663/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:48767/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:48767/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
 --- ss -ltn for LAN-IP (192.168.1.115) port (sanity check) ---
 State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
-LISTEN 0      1      192.168.1.115:52467      0.0.0.0:*   
-LISTEN 0      5          127.0.0.1:52467      0.0.0.0:*   
+LISTEN 0      1      192.168.1.115:37195      0.0.0.0:*   
+LISTEN 0      5          127.0.0.1:37195      0.0.0.0:*   
 --- detect_llmctl_records output (lanip case) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:40477/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:40477/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:36839/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:36839/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-lanip","alias":"llmctl-lanip","base_url":"http://127.0.0.1:52467/v1","transport":"router","strong_model":"lanip-model","fast_model":"lanip-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile lanip live at http://127.0.0.1:52467/v1 serving lanip-model","context_warning":"profile 'lanip' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:34663/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:34663/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:48767/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:48767/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-lanip","alias":"llmctl-lanip","base_url":"http://127.0.0.1:37195/v1","transport":"router","strong_model":"lanip-model","fast_model":"lanip-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile lanip live at http://127.0.0.1:37195/v1 serving lanip-model","context_warning":"profile 'lanip' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
 --- ss -ltn for dual-socket (0.0.0.0 + 127.0.0.1, same port) (sanity check) ---
 State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
-LISTEN 0      1            0.0.0.0:38475      0.0.0.0:*   
-LISTEN 0      1          127.0.0.1:38475      0.0.0.0:*   
+LISTEN 0      1          127.0.0.1:44679      0.0.0.0:*   
+LISTEN 0      1            0.0.0.0:44679      0.0.0.0:*   
 --- dual-socket parsed rows ---
-0.0.0.0:38475
-127.0.0.1:38475
+127.0.0.1:44679
+0.0.0.0:44679
 --- sync stderr (finding-1 warning-surfacing case) ---
 [36m[cma][0m discovered 31 key vars; 31 resolve to a provider
 [36m[cma][0m provider 'chutes1' -> alias 'chutes1' [router] model=deepseek-ai/DeepSeek-V3.2-TEE (unverified/unknown)
@@ -61,7 +61,7 @@ LISTEN 0      1          127.0.0.1:38475      0.0.0.0:*
 [36m[cma][0m provider 'tokenrouter-long' -> alias 'tokenrouter-long' [router] model=z-ai/glm-5.3 (unverified/unknown)
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [36m[cma][0m sync done: 31 active, 0 disabled (failed verify), 0 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k3Rgwi/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.yOpEQE/.local/share/claude-multi-account/aliases.sh
 [36m[cma][0m multi-sync: discovered 31 key vars; 31 resolve to a provider
 [36m[cma][0m multi-sync: verifying models for 'chutes1' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
 [33m[cma warn][0m verification failed for 'chutes1'
@@ -92,10 +92,10 @@ LISTEN 0      1          127.0.0.1:38475      0.0.0.0:*
 [33m[cma warn][0m verification failed for 'hyper5'
 [33m[cma warn][0m provider 'llmctl-exposed': this model is reachable from the LAN/other hosts, not just this machine (bind address is not loopback-only)
 [33m[cma warn][0m provider 'llmctl-exposed': profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error
-[36m[cma][0m multi-sync: verifying models for 'llmctl-exposed' at http://127.0.0.1:40477/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'llmctl-exposed' at http://127.0.0.1:34663/v1/chat/completions (free-tier only)...
 [33m[cma warn][0m verification failed for 'llmctl-exposed'
 [33m[cma warn][0m provider 'llmctl-local': profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error
-[36m[cma][0m multi-sync: verifying models for 'llmctl-local' at http://127.0.0.1:36839/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'llmctl-local' at http://127.0.0.1:48767/v1/chat/completions (free-tier only)...
 [33m[cma warn][0m verification failed for 'llmctl-local'
 [36m[cma][0m multi-sync: verifying models for 'opencode-go1' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
 [33m[cma warn][0m verification failed for 'opencode-go1'
@@ -128,4 +128,4 @@ LISTEN 0      1          127.0.0.1:38475      0.0.0.0:*
 [36m[cma][0m multi-sync: verifying models for 'tokenrouter-reasoning' at https://api.tokenrouter.com/v1/chat/completions (free-tier only)...
 [33m[cma warn][0m verification failed for 'tokenrouter-reasoning'
 [36m[cma][0m multi-sync done: 0 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.k3Rgwi/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.yOpEQE/.local/share/claude-multi-account/aliases.sh

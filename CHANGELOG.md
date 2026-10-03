@@ -135,10 +135,13 @@ full finding history (LLMCTL-F1…F8) and status table.
 
 ### Testing & Validation
 
-- Full sandbox suite (`scripts/tests/run-all.sh`): **84 test files, 84
-  passed, 0 failed, ALL GREEN** — including 8 llmctl-specific test files
-  (context-carve, detection, doc-links, LAN-exposure, on-demand switch,
-  stress/chaos, superpowers determinism, sync-all).
+- Full sandbox suite (`scripts/tests/run-all.sh`): **87 test files, 87
+  passed, 0 failed, ALL GREEN** (confirmed fresh after every review round,
+  not just once) — including the llmctl-specific test files (context-carve,
+  detection, doc-links, LAN-exposure, on-demand switch, stress/chaos,
+  superpowers determinism, sync-all) plus the new regression tests added by
+  the four independent-review rounds above (render-config base-null,
+  verify_providers_live TSV, Kimi refusal classification).
 - Live Superpowers matrix run against the host's real running `llmctl-small`
   profile: results honestly reflect that small model's real capability
   limits (captured evidence in `scripts/tests/proof/`), never bluffed as a
