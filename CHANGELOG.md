@@ -78,39 +78,60 @@ The US3 live-testing work above surfaced genuine bugs in the separate
 `specs/001-llmctl-integration-hardening/spec.md`'s Clarifications) was
 investigate-and-document-only, never fix — that boundary was explicitly
 overridden by the operator mid-session as a deliberate, one-off exception,
-not a general precedent for sibling-project ownership. Three real fixes
-landed upstream as a direct result:
+not a general precedent for sibling-project ownership. Eleven real fixes
+landed upstream (`../llmctl`, commits `b2fbfec`..`6fae6de`, pushed to all
+five of that project's own remotes) as a direct result, through **five
+independent Opus-`xhigh` review rounds** (each round finding a real issue
+in the prior round's fix, until a clean GO):
 
 - **VRAM budget now uses real free VRAM, not static total capacity**
-  (`../llmctl` commit `3926468`, LLMCTL-F7): `llmctl plan --json` reported
-  a profile as `fits: true` from 85% of the card's *total* capacity, with
-  no accounting for VRAM already held by other processes — the profile
-  then genuinely OOM'd (`cudaMalloc failed: out of memory`) when switched
-  to. The GPU probe now reads real free VRAM (nvidia-smi `memory.free`,
-  amdgpu sysfs, or Apple's unified-memory heuristic applied to real
-  available RAM) and the budget calculation uses it when measured, falling
-  back to the original total-based formula only for older/unverified GPU
-  paths.
+  (`3926468`, LLMCTL-F7): `llmctl plan --json` reported a profile as
+  `fits: true` from 85% of the card's *total* capacity, with no accounting
+  for VRAM already held by other processes — the profile then genuinely
+  OOM'd (`cudaMalloc failed: out of memory`) when switched to. The GPU
+  probe now reads real free VRAM (nvidia-smi `memory.free`, amdgpu sysfs,
+  or Apple's unified-memory heuristic) and the budget uses it when
+  measured, falling back to the original total-based formula otherwise.
 - **A pre-flight warning for the known colibri bind-security interaction**
-  (`../llmctl` commit `b2fbfec`, LLMCTL-F3): a colibri-engine profile under
-  the LAN-exposed default crash-loops on its own independent security
-  guard refusing a non-loopback bind without an explicit operator opt-in.
-  That guard is untouched (correctly left as the operator's own call, not
-  llmctl's) — this adds only the missing advance warning, naming both
-  resolution paths, before the crash-loop happens instead of after.
-- **Port-conflict diagnosis** (`../llmctl` commit `007fc00`, LLMCTL-F8): a
-  `wait_ready` timeout caused by an external, unrelated process already
-  holding the target port previously reported only a generic "never
-  answered" message. The scheduler now reads the engine's own log for the
+  (`b2fbfec`, LLMCTL-F3): a colibri-engine profile under the LAN-exposed
+  default crash-loops on its own independent security guard refusing a
+  non-loopback bind without an explicit operator opt-in. That guard is
+  untouched (correctly left as the operator's own call) — this adds only
+  the missing advance warning, before the crash-loop happens instead of
+  after.
+- **Port-conflict diagnosis** (`007fc00`, LLMCTL-F8): a `wait_ready`
+  timeout caused by an external, unrelated process already holding the
+  target port previously reported only a generic "never answered"
+  message. The scheduler now reads the engine's own log for the
   bind-failure signature and names the real port and owning process.
+- **`llmctl status --json`** (`2874db7`, LLMCTL-F1): a machine-readable
+  running-state command, sharing one source of truth with the existing
+  human table via a new `_sched_status_rows()` helper (a self-caught
+  regression during development — the refactor's own `return 0` was
+  missing, breaking every `set -e` caller — fixed before landing).
+- **Distinct `rollback-also-failed` exit code 75** (`ab4f4db`, LLMCTL-F2):
+  previously only disclosed via freeform stderr text; claude_toolkit's own
+  `_cma_llmctl_ensure_active` now checks this real exit code as its
+  primary signal (`025d3ed`), keeping the old string-match as a fallback
+  for older llmctl binaries.
+- **Admission-control double-counting, found and fixed across four
+  further rounds** (`451d983`, `f6febd8`, `39a1f0e`, `aa38ebb`): the
+  VRAM-budget fix above was itself found, on review, to double-subtract
+  currently-running profiles against an already-live budget (`451d983`
+  fixed this for both VRAM and a pre-existing, identical RAM issue) — which
+  then broke the `auto` command's eviction loop's ability to ever converge
+  against a live budget (`f6febd8`, via a bash-dynamic-scoping credit
+  mechanism) — which then was found to wrongly credit a *failed* eviction
+  as freed memory (`39a1f0e`) — which then was found to fall through to
+  the final admission check unverified whenever the eviction loop merely
+  *exhausted* its attempts rather than converging (`aa38ebb`, the fix that
+  finally reached a clean, unconditional GO).
 
-Each fix was independently verified (not trusted from a self-report):
-`b2fbfec` — `tests/test_scheduler_bind_host.sh` RESULT: PASS; `3926468` —
-`tests/test_hardware_probe.sh` and `tests/test_planner.sh` RESULT: PASS
-each; `007fc00` — `tests/test_scheduler_wait_ready.sh` RESULT: PASS, plus a
-live end-to-end reproduction against a real port conflict on this host.
-See `docs/research/2026-10-02-llmctl-upstream-findings.md` for the full
-finding history (LLMCTL-F1…F8) and status table.
+Each fix was independently reviewed and verified (never trusted from a
+self-report) — `tests/run_tests.sh`: **37/37 PASS** after every single one
+of the eleven commits, confirmed fresh each time, not just once at the
+end. See `docs/research/2026-10-02-llmctl-upstream-findings.md` for the
+full finding history (LLMCTL-F1…F8) and status table.
 
 ### Testing & Validation
 

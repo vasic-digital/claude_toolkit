@@ -660,23 +660,21 @@ visible and correctly tagged on both services.
   session.
 **llmctl scope-expansion status (2026-10-03, recorded here per T039's
 checkpoint-gate role — see `spec.md`'s Clarifications and `CHANGELOG.md`
-for the authorization itself)**: the operator explicitly directed real
-fixes in the separate `../llmctl` project, overriding this feature's
-original investigate-only boundary. Landed and independently re-verified
-as of this entry: `b2fbfec` (colibri bind pre-flight warning), `3926468`
-(VRAM budget uses real free VRAM), `007fc00` (port-conflict diagnosis),
-`2874db7` (`status --json`), `ab4f4db` (rollback-also-failed exit code
-75), `54a9ca0` (constitution fast-forward). **Still IN PROGRESS, NOT
-done, as of this entry**: a second independent-review round on
-`3926468`'s admission-control fix found a genuine blocking regression
-(the eviction loop in `_sched_auto_impl` never credits back memory freed
-by an eviction when the budget is live-measurement-based, so it evicts
-every eligible service and still fails) — a fix is actively being written
-(`llmctl` working tree currently carries uncommitted changes to
-`lib/scheduler.sh` plus a new `tests/fixtures/hw-vram-contended-auto-eviction.json`
-fixture) and has not yet landed or been re-reviewed. This task-list entry
-must not be read as claiming that work complete; check `cd ../llmctl &&
-git log --oneline -3` for the real current state before relying on it.
+for the authorization itself and the full fix-by-fix breakdown)**: the
+operator explicitly directed real fixes in the separate `../llmctl`
+project, overriding this feature's original investigate-only boundary.
+**COMPLETE as of this entry** — 11 commits (`b2fbfec`..`6fae6de`), through
+five independent Opus-`xhigh` review rounds (each round finding a real
+issue in the prior round's fix, until round 5 returned a clean,
+unconditional GO with zero blocking/Important findings), independently
+re-verified by this session at every step (`tests/run_tests.sh`: 37/37
+PASS confirmed fresh after each of the 11 commits), and pushed
+fast-forward to all five of llmctl's own remotes (github/gitlab/codeberg/
+gitflic/gitverse), verified by `git ls-remote` matching local `HEAD`
+(`6fae6de`) on every one. The admission-control/eviction-loop chain
+(`451d983`→`f6febd8`→`39a1f0e`→`aa38ebb`) that round 2-4 surfaced is fully
+closed; see `CHANGELOG.md`'s `## v1.29.0` entry for the complete
+commit-by-commit narrative.
 - [ ] T042 [US5] Tag `v1.29.0` (and the constitution `§11.4.151`
   project-prefixed `claude_toolkit-1.29.0` tag) and push fast-forward-only to
   every configured upstream remote. *(depends on T041; satisfies **FR-017**)*
