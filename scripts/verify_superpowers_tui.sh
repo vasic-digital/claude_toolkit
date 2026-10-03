@@ -392,13 +392,18 @@ fi
 # examples, which this task did not generate). Both are honest gaps for a
 # follow-up, not silently assumed equivalent to the claude path's rigor.
 if [[ "$AGENT" == "kimi" ]]; then
-  printf '# ROUTE-INTENDED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
-  printf '# ROUTE-RESOLVED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
   KIMI_SCRUB=(env -u KIMI_CODE_HOME -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL
               -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u BASH_ENV)
   ktmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-stui-kimi.XXXXXX")"
+  # Truncate FIRST, then write both ROUTE-* lines once. Independent review
+  # (Opus/xhigh, feature 001-llmctl-integration-hardening, finding 6) caught
+  # that an earlier draft wrote BOTH lines before this truncation, which wiped
+  # them, then rewrote only ROUTE-INTENDED afterward — so every committed
+  # Kimi evidence file was missing ROUTE-RESOLVED, and the live-matrix JSON
+  # recorded route_resolved:"" instead of the intended explicit "n/a".
   : > "$OUT"
   printf '# ROUTE-INTENDED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
+  printf '# ROUTE-RESOLVED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
   CMA_STUI_NO_KIMI_WRAPPER="__CMA_STUI_KIMI_WRAPPER_UNDEFINED__$$-$(date +%s)-${RANDOM}${RANDOM}__"
   kout="$( timeout "$TIMEOUT" "${KIMI_SCRUB[@]}" CMA_STUI_PROMPT="$PROMPT" \
           CMA_STUI_NO_KIMI_WRAPPER="$CMA_STUI_NO_KIMI_WRAPPER" bash -c '
@@ -420,7 +425,19 @@ if [[ "$AGENT" == "kimi" ]]; then
     echo "# FAIL: launch-impossible-no-wrapper (rc=96; the kimi launch wrapper is UNDEFINED)" >> "$OUT"
     exit 1
   fi
-  if printf '%s' "$kout" | grep -qE '^(claude-providers|cma_run_kimi_provider):'; then
+  # Gated on krc!=0, mirroring the claude path's launch_refused keying below
+  # (which only treats `^(claude-providers|cma_run):` prose as corroboration
+  # for an ALREADY rc-suspicious launch, never as an unconditional signal on
+  # its own). Independent review (Opus/xhigh, feature
+  # 001-llmctl-integration-hardening, finding 2) caught that this check ran
+  # UNCONDITIONALLY before krc was ever consulted: _cma_llmctl_ensure_active
+  # (lib.sh) prints "claude-providers: switching llmctl to profile %s
+  # (currently: %s)..." on every SUCCESSFUL switch — purely informational —
+  # so any Kimi launch that triggered a real llmctl switch and then genuinely
+  # succeeded (krc=0) was misclassified launch-refused-kimi, a false FAIL
+  # claiming no turn ran when one demonstrably did. Hermetic regression test:
+  # scripts/tests/test_stui_kimi_refusal_classification.sh.
+  if (( krc != 0 )) && printf '%s' "$kout" | grep -qE '^(claude-providers|cma_run_kimi_provider):'; then
     echo "FAIL: launch-refused — cma_run_kimi_provider refused to launch '$ALIAS_ID'; no turn ran"
     echo "# FAIL: launch-refused-kimi (rc=$krc)" >> "$OUT"
     exit 1
