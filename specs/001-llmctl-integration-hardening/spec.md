@@ -12,6 +12,10 @@
 - Q: Does "fix any issues... Current llmctl codebase for any fixes (if needed)" mean this feature also makes code changes inside the separate `../llmctl` repository itself, or is this feature's scope strictly the integration code living in `claude_toolkit`? → A: Investigate-first — this feature analyzes llmctl's codebase for defects and documents every finding precisely, but any actual llmctl-side code change is filed as an explicit, separately tracked follow-up item (not performed under this feature's task list).
 - Q: Should an llmctl-backed alias use the bare llmctl profile name (e.g. `fast`, `coder`) or a clearly namespaced form (e.g. `llmctl-fast`, `llmctl-coder`)? → A: Always namespaced `llmctl-<profile>` — consistent with this project's existing prefix contract for other backends (`kimi-<id>`, `kc-<id>`), never a bare profile name.
 
+### Session 2026-10-03 — scope override
+
+- The investigate-first "never fix llmctl" boundary set above (2026-10-02 entry) was explicitly overridden by the operator mid-session, in direct instructions to this effect: real fixes to the separate `../llmctl` project, found while live-testing this feature's integration work, "MUST BE done" via "full in depth systematic debugging and properly fixing," covering "all mandatory work on llmctl project." This is a deliberate, operator-directed, one-time exception to this repo's standing "submodules/sibling-projects are independently owned" convention (root `CLAUDE.md`) — scoped only to this specific instruction, not a general precedent for future features to assume the same license. Fixes made under this override land as ordinary commits in `../llmctl`'s own history, reviewed and tested by that project's own conventions, not folded into this repo's task list or commit history.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Every Running llmctl Model Becomes a Ready-to-Use Alias (Priority: P1)
