@@ -615,6 +615,22 @@ visible and correctly tagged on both services.
   closed out T001/T003/T015/T022 which had been left unchecked. Full
   sandbox suite: `scripts/tests/run-all.sh` — **84 test files, 84 passed, 0
   failed, ALL GREEN**.
+  **Addendum (2026-10-03) — four independent-review rounds (§11.4.209 Opus-`xhigh`, iterated to GO per §11.4.134), run AFTER the above and before T042**:
+  Round 1 — NO-GO, 6 findings (FR-009 warnings never surfaced; Kimi
+  launch-refused false-FAIL on successful switch; `lan_exposed` missed
+  LAN-IP/dual-socket binds; post-switch re-probe made false multi-profile
+  claims; a doc over-generalization; Kimi path lost its own
+  `ROUTE-RESOLVED` line) — all fixed (`e836cfc`, `6e22dc8`, `1d919a1`).
+  Round 2 — NO-GO, the zsh-word-splitting fix for finding 4 only worked
+  under bash, plus a new TSV null-field-corruption bug in the sync loops —
+  both fixed (`be979c0`, `c65d8ec`). Round 3 — NO-GO, the same TSV bug
+  recurring through `.base_url` (cascading every subsequent field), plus a
+  sibling instance in the provider-rename path and in
+  `verify_providers_live.sh` — fixed (`fa979ca`, `b4991bb`, `f8e38d2`).
+  Round 4 — covered the Pi-wrapper silent-failure fix (`eadf6f6`) and
+  documentation commits (`4e078cf`, `ca4f39e`) — clean **GO**, no
+  blockers. Full suite re-ran green after each round (final confirmed
+  count: 87 test files, 87 passed).
 - [x] T040 [US5] Run `scripts/claude-release-gate.sh` and confirm exit 0.
   *(depends on T039; satisfies **FR-017**)* **Done**: `--provider nvidia
   --skip-suite` (suite had just run green under T039) — layer 2 live smoke
@@ -642,6 +658,25 @@ visible and correctly tagged on both services.
   Testing & Validation section now cites only the real T039/T040 results
   (84/84 suite, nvidia-gated release-gate ALL GREEN) captured in this
   session.
+**llmctl scope-expansion status (2026-10-03, recorded here per T039's
+checkpoint-gate role — see `spec.md`'s Clarifications and `CHANGELOG.md`
+for the authorization itself)**: the operator explicitly directed real
+fixes in the separate `../llmctl` project, overriding this feature's
+original investigate-only boundary. Landed and independently re-verified
+as of this entry: `b2fbfec` (colibri bind pre-flight warning), `3926468`
+(VRAM budget uses real free VRAM), `007fc00` (port-conflict diagnosis),
+`2874db7` (`status --json`), `ab4f4db` (rollback-also-failed exit code
+75), `54a9ca0` (constitution fast-forward). **Still IN PROGRESS, NOT
+done, as of this entry**: a second independent-review round on
+`3926468`'s admission-control fix found a genuine blocking regression
+(the eviction loop in `_sched_auto_impl` never credits back memory freed
+by an eviction when the budget is live-measurement-based, so it evicts
+every eligible service and still fails) — a fix is actively being written
+(`llmctl` working tree currently carries uncommitted changes to
+`lib/scheduler.sh` plus a new `tests/fixtures/hw-vram-contended-auto-eviction.json`
+fixture) and has not yet landed or been re-reviewed. This task-list entry
+must not be read as claiming that work complete; check `cd ../llmctl &&
+git log --oneline -3` for the real current state before relying on it.
 - [ ] T042 [US5] Tag `v1.29.0` (and the constitution `§11.4.151`
   project-prefixed `claude_toolkit-1.29.0` tag) and push fast-forward-only to
   every configured upstream remote. *(depends on T041; satisfies **FR-017**)*
