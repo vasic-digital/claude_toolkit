@@ -595,4 +595,32 @@ _perf_under_threshold=1
 assert_eq 0 "$_perf_under_threshold" "elapsed (${_perf_elapsed}s) is well under the 6s bound (sequential sum ~10s) -- probes ran in parallel, not sequentially"
 for _pid in "${_perf_pids[@]}"; do kill "$_pid" 2>/dev/null; done
 
+# ---------------------------------------------------------------------------
+# Follow-up independent review (NO-GO blocker, "TSV null-field corruption"):
+# cmd_sync/cmd_sync_multi's record loop reads @tsv output with
+# `IFS=$'\t' read`. Tab is a POSIX IFS-WHITESPACE character, so bash
+# COLLAPSES two consecutive empty fields into a single delimiter rather than
+# preserving them -- a resolved record with BOTH context_limit AND
+# max_output null (jq emits the bare empty string for a JSON null in @tsv)
+# shifts lan_exposed/context_warning left into the ctx_limit/max_out
+# variable slots. The fix defaults both to the literal string "null"
+# (`cma_provider_write_env` and providers_generate.py's `_parse_limit()`
+# already normalize that string back to empty/None, so this is a pure fix).
+# This test extracts the REAL jq expression from claude-providers.sh rather
+# than re-implementing it, so it can never silently drift from the live code.
+# ---------------------------------------------------------------------------
+echo "--- CASE J: TSV null-field corruption (independent review follow-up) ---" >> "$PROOF"
+_tsv_jq_expr="$(grep -oE "jq -r '\.\[\] \| \[\.status,\.provider_id.*@tsv'" "$PROVIDERS_SH" | head -1 | sed -E "s/^jq -r '//; s/'\$//")"
+[[ -n "$_tsv_jq_expr" ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "the real TSV jq expression was found and extracted from claude-providers.sh (test would otherwise silently test nothing)"
+_tsv_fixture='[{"status":"resolved","provider_id":"p1","alias":"p1","key_var":"K","transport":"native","base_url":"http://x","strong_model":"m","fast_model":"m","context_limit":null,"max_output":null,"lan_exposed":true,"context_warning":"too small"}]'
+_tsv_line="$(jq -r "$_tsv_jq_expr" <<<"$_tsv_fixture")"
+echo "raw tsv line: $(printf '%s' "$_tsv_line" | cat -A | head -1)" >> "$PROOF"
+IFS=$'\t' read -r _t_status _t_pid _t_alias _t_keyvar _t_transport _t_base _t_model _t_fast _t_ctx _t_out _t_lan _t_warn <<<"$_tsv_line"
+echo "parsed: ctx=[$_t_ctx] out=[$_t_out] lan=[$_t_lan] warn=[$_t_warn]" >> "$PROOF"
+assert_eq "null" "$_t_ctx" "context_limit field reads back as the literal string 'null', never corrupted/shifted"
+assert_eq "null" "$_t_out" "max_output field reads back as the literal string 'null', never corrupted/shifted"
+assert_eq "true" "$_t_lan" "lan_exposed is NOT shifted left into max_output's slot"
+assert_eq "too small" "$_t_warn" "context_warning is NOT lost/shifted when both numeric limits are null"
+
 summary

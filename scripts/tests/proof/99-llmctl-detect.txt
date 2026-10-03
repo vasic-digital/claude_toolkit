@@ -1,24 +1,24 @@
 === test_llmctl_detect.sh evidence ===
-date: 2026-10-03T08:56:07Z
-fast mock port=47601 pid=1434166
-vision mock port=58101 pid=1434168
-wrong-service mock port=48781 pid=1434170
+date: 2026-10-03T09:27:16Z
+fast mock port=50459 pid=1776602
+vision mock port=44073 pid=1776604
+wrong-service mock port=46379 pid=1776606
 dead port (never bound)=1
 --- detect_llmctl_records output (CASE A, catalog names only dead ports) ---
 []
 --- detect_llmctl_records output (CASE B, one running profile) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:47601/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:47601/v1 serving qwen2.5-coder-7b-instruct-q4_k_m","context_warning":"profile 'fast' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:50459/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:50459/v1 serving qwen2.5-coder-7b-instruct-q4_k_m","context_warning":"profile 'fast' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
 --- detect_llmctl_records output (CASE C, multiple running profiles) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:47601/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:47601/v1 serving qwen2.5-coder-7b-instruct-q4_k_m","context_warning":"profile 'fast' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-vision","alias":"llmctl-vision","base_url":"http://127.0.0.1:58101/v1","transport":"router","strong_model":"llava-1.6-mistral-7b-q4_k_m","fast_model":"llava-1.6-mistral-7b-q4_k_m","context_limit":4096,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile vision live at http://127.0.0.1:58101/v1 serving llava-1.6-mistral-7b-q4_k_m","context_warning":"profile 'vision' context (4096 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-fast","alias":"llmctl-fast","base_url":"http://127.0.0.1:50459/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile fast live at http://127.0.0.1:50459/v1 serving qwen2.5-coder-7b-instruct-q4_k_m","context_warning":"profile 'fast' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-vision","alias":"llmctl-vision","base_url":"http://127.0.0.1:44073/v1","transport":"router","strong_model":"llava-1.6-mistral-7b-q4_k_m","fast_model":"llava-1.6-mistral-7b-q4_k_m","context_limit":4096,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile vision live at http://127.0.0.1:44073/v1 serving llava-1.6-mistral-7b-q4_k_m","context_warning":"profile 'vision' context (4096 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
 --- raw response from the wrong-service mock ---
 404 page not found
-[33m[cma warn][0m llmctl: '/tmp/cma-test.NfXV5F/.local/bin/llmctl-broken plan --json' produced no/invalid catalog -- treating as no running profiles
+[33m[cma warn][0m llmctl: '/tmp/cma-test.rFGPaz/.local/bin/llmctl-broken plan --json' produced no/invalid catalog -- treating as no running profiles
 --- detect_llmctl_records output (CASE F3, profile missing port) ---
 []
 --- detect_llmctl_records output (CASE F4, profile missing ctx; mock DOES report its own meta.n_ctx=8192) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-noctx","alias":"llmctl-noctx","base_url":"http://127.0.0.1:47601/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile noctx live at http://127.0.0.1:47601/v1 serving qwen2.5-coder-7b-instruct-q4_k_m","context_warning":"profile 'noctx' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-noctx","alias":"llmctl-noctx","base_url":"http://127.0.0.1:50459/v1","transport":"router","strong_model":"qwen2.5-coder-7b-instruct-q4_k_m","fast_model":"qwen2.5-coder-7b-instruct-q4_k_m","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile noctx live at http://127.0.0.1:50459/v1 serving qwen2.5-coder-7b-instruct-q4_k_m","context_warning":"profile 'noctx' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
 --- detect_llmctl_records output (CASE F4b, catalog ctx AND meta.n_ctx both absent) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-nometa","alias":"llmctl-nometa","base_url":"http://127.0.0.1:59991/v1","transport":"router","strong_model":"no-meta-model","fast_model":"no-meta-model","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile nometa live at http://127.0.0.1:59991/v1 serving no-meta-model","context_warning":"profile 'nometa' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-nometa","alias":"llmctl-nometa","base_url":"http://127.0.0.1:45563/v1","transport":"router","strong_model":"no-meta-model","fast_model":"no-meta-model","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile nometa live at http://127.0.0.1:45563/v1 serving no-meta-model","context_warning":"profile 'nometa' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
 --- detect_llmctl_records output (CASE G, pins-only, no binary) ---
 []
 [36m[cma][0m discovered 30 key vars; 30 resolve to a provider
@@ -55,7 +55,7 @@ dead port (never bound)=1
 [36m[cma][0m provider 'tokenrouter-long' -> alias 'tokenrouter-long' [router] model=z-ai/glm-5.3 (unverified/unknown)
 [36m[cma][0m provider 'tokenrouter-reasoning' -> alias 'tokenrouter-reasoning' [router] model=anthropic/claude-sonnet-5 (unverified/unknown)
 [36m[cma][0m sync done: 30 active, 0 disabled (failed verify), 0 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/cma-test.NfXV5F/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.rFGPaz/.local/share/claude-multi-account/aliases.sh
 [36m[cma][0m multi-sync: discovered 30 key vars; 30 resolve to a provider
 [36m[cma][0m multi-sync: verifying models for 'chutes1' at https://llm.chutes.ai/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
@@ -98,7 +98,7 @@ Error: no models specified and no catalog available
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'hyper5'
 [33m[cma warn][0m provider 'llmctl-fast': profile 'fast' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error
-[36m[cma][0m multi-sync: verifying models for 'llmctl-fast' at http://127.0.0.1:47601/v1/chat/completions (free-tier only)...
+[36m[cma][0m multi-sync: verifying models for 'llmctl-fast' at http://127.0.0.1:50459/v1/chat/completions (free-tier only)...
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'llmctl-fast'
 [36m[cma][0m multi-sync: verifying models for 'opencode-go1' at https://opencode.ai/zen/go/v1/chat/completions (free-tier only)...
@@ -147,7 +147,7 @@ Error: no models specified and no catalog available
 Error: no models specified and no catalog available
 [33m[cma warn][0m verification failed for 'tokenrouter-reasoning'
 [36m[cma][0m multi-sync done: 0 aliases created across all providers
-[36m[cma][0m reload your shell or: source /tmp/cma-test.NfXV5F/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/cma-test.rFGPaz/.local/share/claude-multi-account/aliases.sh
 
 === llmctl-fast.env (final) ===
 # generated by claude-providers — non-secret. Do not edit by hand.
@@ -155,10 +155,10 @@ Error: no models specified and no catalog available
 CMA_PROVIDER_ID='llmctl-fast'
 CMA_PROVIDER_KEYVAR='LLMCTL_API_KEY'
 CMA_PROVIDER_TRANSPORT='router'
-CMA_PROVIDER_BASE_URL='http://127.0.0.1:47601/v1'
+CMA_PROVIDER_BASE_URL='http://127.0.0.1:50459/v1'
 CMA_PROVIDER_MODEL='qwen2.5-coder-7b-instruct-q4_k_m'
 CMA_PROVIDER_FAST_MODEL='qwen2.5-coder-7b-instruct-q4_k_m'
-CMA_PROVIDER_CONFIG_DIR='/tmp/cma-test.NfXV5F/.claude-prov-llmctl-fast'
+CMA_PROVIDER_CONFIG_DIR='/tmp/cma-test.rFGPaz/.claude-prov-llmctl-fast'
 # Context-window limits from the models.dev catalog for the selected strong model.
 # CMA_PROVIDER_CONTEXT_LIMIT: input context window (tokens); empty = unknown.
 #   -> exported as CLAUDE_CODE_AUTO_COMPACT_WINDOW (input-side guard).
@@ -170,5 +170,8 @@ CMA_PROVIDER_MAX_OUTPUT='4096'
 # alias shell line with NO network — the session hook's fast path). Empty is OK;
 # refresh falls back to the provider id as the alias name.
 CMA_PROVIDER_ALIAS='llmctl-fast'
---- CASE I: detect_llmctl_records elapsed=2.293185141s (sequential sum would be ~10s) ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow1","alias":"llmctl-slow1","base_url":"http://127.0.0.1:39097/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow1 live at http://127.0.0.1:39097/v1 serving slow","context_warning":"profile 'slow1' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow2","alias":"llmctl-slow2","base_url":"http://127.0.0.1:40567/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow2 live at http://127.0.0.1:40567/v1 serving slow","context_warning":"profile 'slow2' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow3","alias":"llmctl-slow3","base_url":"http://127.0.0.1:57851/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow3 live at http://127.0.0.1:57851/v1 serving slow","context_warning":"profile 'slow3' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow4","alias":"llmctl-slow4","base_url":"http://127.0.0.1:33905/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow4 live at http://127.0.0.1:33905/v1 serving slow","context_warning":"profile 'slow4' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow5","alias":"llmctl-slow5","base_url":"http://127.0.0.1:54491/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow5 live at http://127.0.0.1:54491/v1 serving slow","context_warning":"profile 'slow5' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+--- CASE I: detect_llmctl_records elapsed=2.306717263s (sequential sum would be ~10s) ---
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow1","alias":"llmctl-slow1","base_url":"http://127.0.0.1:35597/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow1 live at http://127.0.0.1:35597/v1 serving slow","context_warning":"profile 'slow1' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow2","alias":"llmctl-slow2","base_url":"http://127.0.0.1:35793/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow2 live at http://127.0.0.1:35793/v1 serving slow","context_warning":"profile 'slow2' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow3","alias":"llmctl-slow3","base_url":"http://127.0.0.1:39313/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow3 live at http://127.0.0.1:39313/v1 serving slow","context_warning":"profile 'slow3' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow4","alias":"llmctl-slow4","base_url":"http://127.0.0.1:54081/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow4 live at http://127.0.0.1:54081/v1 serving slow","context_warning":"profile 'slow4' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-slow5","alias":"llmctl-slow5","base_url":"http://127.0.0.1:35721/v1","transport":"router","strong_model":"slow","fast_model":"slow","context_limit":8192,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile slow5 live at http://127.0.0.1:35721/v1 serving slow","context_warning":"profile 'slow5' context (8192 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+--- CASE J: TSV null-field corruption (independent review follow-up) ---
+raw tsv line: resolved^Ip1^Ip1^IK^Inative^Ihttp://x^Im^Im^Inull^Inull^Itrue^Itoo small
+parsed: ctx=[null] out=[null] lan=[true] warn=[too small]

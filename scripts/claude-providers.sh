@@ -2945,6 +2945,16 @@ cmd_sync() {
 
   # Dedupe by provider_id: one alias per provider even if multiple key vars map
   # to it (e.g. CODESTRAL_API_KEY + MISTRAL_API_KEY both -> mistral).
+  #
+  # The jq feed below explicitly defaults context_limit/max_output to the
+  # literal string "null" (follow-up independent review, finding
+  # "TSV null-field corruption"): tab is an IFS-whitespace character, so
+  # `IFS=$'\t' read` COLLAPSES two consecutive empty (null->"") fields into
+  # one delimiter rather than preserving them -- a record with BOTH limits
+  # null shifted lan_exposed/context_warning left into ctx_limit/max_out's
+  # variable slots. cma_provider_write_env and providers_generate.py's
+  # _parse_limit() already normalize the literal "null" string back to
+  # empty/None, so this is a pure fix with no downstream change needed.
   local seen=" "
   local n_created=0 n_skipped=0 n_disabled=0
   while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out lan_exp ctx_warn; do
@@ -3087,7 +3097,7 @@ cmd_sync() {
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output,(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   # Orphan detection: any status.json/*.env record whose provider id is NOT in
   # the CURRENT resolved set (catalog/key/override dropped it) is demoted +
@@ -3961,7 +3971,7 @@ cmd_sync_multi() {
       i=$((i+1))
     done
 
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output,(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   cma_log "multi-sync done: $n_created aliases created across all providers"
   cma_log "reload your shell or: source $ALIAS_FILE"
