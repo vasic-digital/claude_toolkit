@@ -1568,6 +1568,23 @@ grep -qi 'usage' <<<"$out"; assert_eq 0 $? "-h prints a usage line with no built
 # so the adapter's stdout/exit mapping is asserted with no go/network/keys.
 # ---------------------------------------------------------------------------
 SEMSH="$SCRIPTS_DIR/providers-semantic.sh"
+# providers-semantic.sh resolves the model-under-test key via indirect
+# expansion of --key-var's name (`mkey="${!KEYVAR:-}"`), reading the REAL
+# process environment -- make_sandbox rebinds SHARED_DIR/ALIAS_FILE/etc but
+# never touches real provider key vars, so a test using the real name
+# DEEPSEEK_API_KEY as its --key-var silently inherited whatever ambient
+# value the operator's own shell happened to have: present (a dev box with
+# ~/api_keys.sh sourced) -> passes by coincidence; absent (a clean host,
+# e.g. a fresh CI/factory checkout) -> every one of these assertions hit
+# the adapter's "no key" skip path instead of the stub-driven verdict it's
+# actually testing, exactly the ambient-PATH leak class sandbox_stub exists
+# to prevent for binaries. Pin it to a deterministic dummy value so the
+# precondition this section's tests actually mean to exercise (stub driver
+# output, not key presence) holds the same on every host. The one test that
+# deliberately exercises the ABSENT-key path already avoids this by using
+# a key-var name no real provider would ever export (CMA_TEST_NO_SUCH_KEY_VAR,
+# further below) rather than unsetting this one.
+export DEEPSEEK_API_KEY=x
 _mk_stub_driver() {  # $1 = exit code, $2 = overall_pass json bool
   cat > "$HOME/fakebin/scv-stub" <<EOF
 #!/usr/bin/env bash
