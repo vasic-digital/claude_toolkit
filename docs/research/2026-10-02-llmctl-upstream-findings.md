@@ -105,6 +105,118 @@ check) when a colibri profile is about to be started under the LAN-exposed
 default without `COLI_ALLOW_INSECURE_BIND=1` set, naming the exact
 interaction before the crash-loop happens rather than after.
 
+**Status update (2026-10-03)**: fixed upstream, landed as `../llmctl` commit
+`b2fbfec` ("fix: warn before a colibri profile crash-loops on the LAN-bind
+security guard"), per the operator's explicit scope-expansion override (see
+`specs/001-llmctl-integration-hardening/spec.md`'s 2026-10-03 Clarifications
+entry). `sched_build_launch`'s colibri branch now warns up front, naming both
+resolution paths, exactly matching the remediation direction above — the
+guard itself is unchanged, never auto-bypassed. 9 new assertions in
+`tests/test_scheduler_bind_host.sh`; RED (3 failures) confirmed against the
+pre-fix code, GREEN after, with no regression across
+`test_scheduler.sh`/`test_scheduler_switch_safety.sh`/`test_scheduler_lock.sh`/
+`test_port_override.sh` (verified directly from the commit, not from a
+self-report).
+
+## LLMCTL-F6 — `vision` profile crash-loops after a successful start (investigated; most likely a symptom of F7, not an independent defect)
+
+**Confidence**: confirmed by live reproduction this session; root cause
+investigated and the crash-loop itself could not be reproduced in isolation
+post-fix.
+
+Reproduced three separate times on this host (during the SAME live-testing
+window as F7's `vision-pro` OOM below): `llmctl switch vision` reports
+success, the service genuinely loads the model and begins listening on its
+port, then self-terminates within single-digit seconds. `llmctl logs
+vision` shows a clean `"cleaning up before exit"` each time — no OOM, no
+obvious crash signature. Not linked to LLMCTL-F4's ("vision" profile fails
+tool-calling outright) finding — that finding is about a model making no
+tool call once a turn actually runs; this one is about the service not
+staying up long enough for any turn to be attempted at all.
+
+**Status (2026-10-03) — investigated, not independently fixed**: a fresh,
+isolated `llmctl switch vision` (commit `007fc00`'s own investigation, run
+AFTER F7's fix landed and with no concurrent GPU activity) ran stably for
+26+ seconds with `/v1/models` answering `200` throughout — the crash-loop
+did not reproduce. The most likely explanation, stated directly in
+`007fc00`'s own commit message: the original crash-loop observations
+happened during GPU contention with a CONCURRENT, unrelated `vision-pro`
+OOM-retry-loop running in the same time window (F7's root cause, now
+fixed) — not a genuine, independent defect in `vision`'s own engine path.
+**Honest residual uncertainty**: it was not possible to re-reproduce the
+ORIGINAL crash-loop under contention to definitively prove this is the
+WHOLE explanation, only that the symptom does not reproduce in isolation
+once F7 is fixed. No speculative fix was applied to `vision` itself — if
+this profile crash-loops again under conditions where `vision-pro` (or
+another profile) is NOT concurrently contending for GPU memory, that would
+indicate a genuinely separate defect still open.
+
+## LLMCTL-F7 — VRAM budget check uses static total capacity, not real free VRAM (Fixed)
+
+**Confidence**: confirmed by reading code and live reproduction.
+
+`lib/catalog.sh`'s `footprint()`: `vram_budget = int(vram_total * 0.85)`,
+where `vram_total = hw.get("gpu_total_vram_mb", 0)` comes from
+`lib/hardware.sh`'s GPU probe, which queries only
+`nvidia-smi --query-gpu=name,memory.total,...` — the card's static total
+capacity, never how much is actually free at measurement time. Contrast with
+`ram_budget = max(0, ram_avail - 4096)`, which correctly uses real available
+RAM — the VRAM side of this same budget calculation has no equivalent
+real-availability accounting. Reproduced live: `llmctl plan --json` reported
+`vision-pro` (ctx=16384) as `fits: true` on this host, but
+`llmctl switch vision-pro` genuinely OOM'd —
+`cudaMalloc failed: out of memory` in `llmctl logs vision-pro` — because the
+GPU had other VRAM usage at the time (12288 MiB total, ~8089 MiB actually
+free) that the static-total-based budget check never saw. llmctl's own
+scheduler then retried the failing load repeatedly rather than giving up and
+reporting a clean failure.
+
+**Status (2026-10-03) — Fixed, commit `3926468`**: `lib/hardware.sh`'s GPU
+probe now queries real free VRAM (nvidia-smi `memory.free`, amdgpu sysfs
+`mem_info_vram_used`, Apple's unified-memory heuristic applied to real
+available RAM; rocm-smi's own free/used column layout was honestly left
+`unknown` rather than guessed, since no ROCm host was available to verify
+it). New hw-doc field `gpu_free_vram_mb` (`null` when unmeasurable, never a
+fabricated value). `lib/catalog.sh`'s `vram_budget` now uses 85% of real
+free VRAM when measured, falling back to the original total-based formula
+only for old fixtures/unverified GPU paths. Verified directly from the
+commit diff and its new `hw-vram-contended.json` fixture test (RED: budget
+10444, gpu mode, would OOM; GREEN: budget 2550, correctly falls through to
+cpu mode) — not a self-report. No regression: `test_hardware_probe.sh`,
+`test_planner.sh`, `test_scheduler_switch_safety.sh` all pass, independently
+re-run.
+
+## LLMCTL-F8 — a port already held by an unrelated external process produces a generic timeout, not a clear conflict message (Fixed)
+
+**Confidence**: confirmed by live reproduction.
+
+Reproduced live: `llmctl switch fast` timed out after 60s with no
+model-related error at all. Independently confirmed via `ss -ltnp` that
+port 8080 (fast's resolved port) was already held by a completely unrelated,
+long-running host service (a different project's `helixcode` binary) — not
+an llmctl profile, not an llmctl bug in the sense of a defect in the
+scheduler's own logic, but a real resilience/error-reporting gap: the
+scheduler's readiness-wait path does not appear to distinguish "bind failed
+because something else already owns this port" from "still starting,
+genuinely slow" — both currently present identically as a plain timeout to
+the operator, who must independently run `ss`/`lsof` to discover the real
+cause.
+
+**Status (2026-10-03) — Fixed, commit `007fc00`**: new
+`_sched_diagnose_bind_failure()` reads the profile's own log after
+`_sched_wait_ready` times out, and when it finds llama-server's own
+`"couldn't bind HTTP server socket ... port: <N>"` signature, surfaces a
+specific message naming the real port, the owning process (via `ss`), and
+the `LLMCTL_PORT_<NAME>` override — a deliberate positive-pattern match
+(two negative controls: no log at all, and an unrelated failure like OOM)
+so a merely-slow-to-free port is never misreported as someone else's
+process. Live-reproduced against the real conflict on this host (port 8080
+held by an unrelated project's `helixcode` service) — the new message
+correctly named the real owning process by name, verified directly, not
+from a self-report. No regression: `test_scheduler_wait_ready.sh` (12/12),
+`test_services_crashloop.sh`, `test_port_override.sh`, `test_scheduler.sh`
+all pass.
+
 ## LLMCTL-F4 — `vision` profile fails tool-calling outright (genuine model-capability limit); CPU-timeout fix for `small`/`moe-fast` never re-verified live
 
 **Confidence**: confirmed by reading dated project history (re-verified);
@@ -170,10 +282,24 @@ complexity, possible false positives from unrelated host load) is worth it.
 |---|---|---|
 | LLMCTL-F1 | Still open | Yes — citation accurate, no `--json` status flag added |
 | LLMCTL-F2 | Still open | Yes — citation accurate (line numbers shifted ~657-667 vs. 661-665, same content) |
-| LLMCTL-F3 | Still open | Yes — citation accurate |
+| LLMCTL-F3 | **Fixed** (commit `b2fbfec`) | Yes — verified directly from the commit diff + its 9 new test assertions, not a self-report |
 | LLMCTL-F4 | Still open (live re-verification itself is the open item) | Yes — citation accurate, line shifted to ~1048 for the table row, §10p at line 1304 matches exactly |
 | LLMCTL-F5 | Still open | Yes — citation accurate |
+| LLMCTL-F6 | Investigated, not independently fixed — most likely a symptom of F7, not a separate defect | New finding, 2026-10-03 — crash-loop did not reproduce in isolation post-F7-fix; honest residual uncertainty noted |
+| LLMCTL-F7 | **Fixed** (commit `3926468`) | New finding, 2026-10-03 — verified directly from the commit diff + its new fixture test, not a self-report |
+| LLMCTL-F8 | **Fixed** (commit `007fc00`) | New finding, 2026-10-03 — verified directly from the commit diff + live re-reproduction against the real conflict, not a self-report |
 
-No finding has been fixed upstream since the original research-phase audit.
-No code in `/home/milosvasic/Projects/llmctl` was modified while writing
-this document.
+**2026-10-03 update**: the operator explicitly overrode this feature's
+original "investigate-and-document-only" scope (see
+`specs/001-llmctl-integration-hardening/spec.md`'s 2026-10-03 Clarifications
+entry) and authorized real fixes in `../llmctl`. Three of the four new/
+newly-actionable findings from that work have landed and are independently
+verified above: F3 (`b2fbfec`), F7 (`3926468`), F8 (`007fc00`). F6 was
+investigated but is most likely a downstream symptom of F7 rather than an
+independent defect — no speculative fix was applied to it. F1/F2/F4/F5
+remain untouched, separate findings from the original 2026-10-02 audit,
+outside this fix wave's scope. The original audit's own finding (no
+finding had been fixed upstream, and no code in `/home/milosvasic/Projects/llmctl`
+was modified while performing THAT audit) remains true as a historical
+statement about the 2026-10-02 research phase — it no longer describes the
+project's current state as of 2026-10-03.
