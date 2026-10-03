@@ -214,4 +214,37 @@ for pair in "kimi-for-coding2 kc-for-coding2" "kimi-for-coding-highspeed kc-for-
   assert_eq "0" "$([[ -e "$PDIR/$old.env" ]] && echo 1 || echo 0)" "old env $old gone"
 done
 
+# ===========================================================================
+# Section 4 — independent-review follow-up: a genuinely-empty middle field in
+# the SOURCE env (CMA_PROVIDER_FAST_MODEL here) must never shift every
+# subsequent field left. Tab is a POSIX IFS-whitespace character, so
+# `IFS=$'\t' read` collapses a single empty field into its neighboring
+# delimiter -- this function's own comment already anticipates "fields that
+# were absent come out empty" for a degenerate env, but the un-fixed code
+# instead silently corrupted CONTEXT_LIMIT/MAX_OUTPUT/TRIM in that case.
+# Re-uses the kimi-k3 -> kc-k3 pair (already exhausted by Section 3; a fresh
+# old-form env file re-triggers the migration on this run regardless).
+# ===========================================================================
+it "migrate-names: a genuinely-empty CMA_PROVIDER_FAST_MODEL does not shift context_limit/max_output/trim (independent review follow-up)"
+cat > "$PDIR/kimi-k3.env" <<'ENV'
+CMA_PROVIDER_ID='kimi-k3'
+CMA_PROVIDER_KEYVAR='_CMA_KIMICODE_OAUTH_'
+CMA_PROVIDER_TRANSPORT='router'
+CMA_PROVIDER_BASE_URL='https://api.kimi.com/coding/v1'
+CMA_PROVIDER_MODEL='kimi-k3'
+CMA_PROVIDER_FAST_MODEL=
+CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-kimi-k3'
+CMA_PROVIDER_CONTEXT_LIMIT='262144'
+CMA_PROVIDER_MAX_OUTPUT='65536'
+CMA_PROVIDER_ALIAS='kimi-k3'
+CMA_PROVIDER_TRIM='bare'
+ENV
+cmd_migrate_names >/dev/null 2>&1
+assert_file "$PDIR/kc-k3.env" "degenerate-fast-model env still migrates to kc-k3.env"
+assert_eq "" "$(grep -oP "(?<=CMA_PROVIDER_FAST_MODEL=').*(?=')" "$PDIR/kc-k3.env" 2>/dev/null || true)" "fast_model stays genuinely empty, never silently populated from a shifted field"
+assert_eq "262144" "$(grep -oP "(?<=CMA_PROVIDER_CONTEXT_LIMIT=').*(?=')" "$PDIR/kc-k3.env")" "context_limit is NOT corrupted by the empty fast_model (would read '65536' or 'bare' if shifted)"
+assert_eq "65536" "$(grep -oP "(?<=CMA_PROVIDER_MAX_OUTPUT=').*(?=')" "$PDIR/kc-k3.env")" "max_output is NOT corrupted (would read 'bare' or empty if shifted)"
+assert_eq "_CMA_KIMICODE_OAUTH_" "$(grep -oP "(?<=CMA_PROVIDER_KEYVAR=').*(?=')" "$PDIR/kc-k3.env")" "keyvar is unaffected and never ships as the literal string 'null'"
+assert_eq "bare" "$(grep -oP "(?<=CMA_PROVIDER_TRIM=').*(?=')" "$PDIR/kc-k3.env" 2>/dev/null || true)" "trim (the LAST field) survives the migration untouched"
+
 summary

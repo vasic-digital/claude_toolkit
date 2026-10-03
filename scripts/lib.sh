@@ -3692,6 +3692,15 @@ cma_provider_write_env() {
   # never leaks into the wrapper as a bogus value. transport+model were missed
   # originally — a null strong_model/transport wrote CMA_PROVIDER_MODEL='null'
   # (provider launches with a bogus model). Normalize every field for symmetry.
+  #
+  # keyvar was ALSO missed (independent-review follow-up, rename-path
+  # TSV-null-field-corruption fix): cmd_migrate_names now defaults a
+  # genuinely-empty CMA_PROVIDER_KEYVAR to the literal "null" (to survive the
+  # same tab-collapse this comment block already describes), and without
+  # this line that literal string would ship verbatim as
+  # CMA_PROVIDER_KEYVAR='null' in the migrated env file -- a real but
+  # distinct brokenness from the silent shift it was meant to prevent.
+  [[ "$keyvar" == "null" ]] && keyvar=""
   [[ "$transport" == "null" ]] && transport=""
   [[ "$base" == "null" ]] && base=""
   [[ "$model" == "null" ]] && model=""
