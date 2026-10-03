@@ -1,13 +1,44 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-07-28
-**Last commit:** `main @ 5474545` — *feat: auto-start HelixLLM for helixagent alias (v1.26.6)*
-**Working tree:** **DIRTY** — the whole `v1.26.7` payload is uncommitted (see §1.2)
-**Active branch:** `main`
-**Declared version:** `1.26.7` (`package.json`, `CHANGELOG.md` entry dated 2026-07-27) — **not tagged, not released**
-**Next action:** commit + tag + push the `v1.26.7` payload (§2). Everything in it is written and the hermetic suite is green; nothing is half-implemented.
+**Last updated:** 2026-10-03
+**Last commit:** `feat/llmctl-integration-hardening @ e1804cc` — *docs(tasks): record 4 independent-review rounds + llmctl scope-expansion status*
+**Working tree:** dirty only with regenerated proof-evidence churn (`scripts/tests/proof/*.txt`), no real pending payload
+**Active branch:** `feat/llmctl-integration-hardening` (not yet merged to `main`)
+**Declared version:** next release is `v1.29.0` (draft `CHANGELOG.md` entry exists) — **not tagged, not released**
+**Next action:** see §0.1 below — this supersedes the rest of this file, which describes the OLD `v1.26.7` cycle (shipped long ago; this file was simply never updated after).
 
-> **How to read this file.** §1 is the *current* state — trust it. §2 is what remains. §3 is the honest evidence snapshot. §4 collects known gaps. §5 is a dated archive of superseded programme history, kept only so a reader can date a claim they find elsewhere; **nothing in §5 describes the tree as it is today.**
+> **§0.1 is the CURRENT state as of 2026-10-03 — trust it over everything below.** Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §6 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
+
+---
+
+## 0.1 Current state (2026-10-03) — feature `001-llmctl-integration-hardening`
+
+**What this feature is**: hardens claude_toolkit's existing llmctl-model auto-detection/provider-alias integration — honest context/LAN warnings, safe on-demand model switching, a live Superpowers-command verification matrix across CLI agent families, and a full linked documentation set. Spec/plan/tasks live under `specs/001-llmctl-integration-hardening/`.
+
+**Status: code-complete and independently reviewed GO on `claude_toolkit`'s own side.** Four Opus/xhigh independent-review rounds ran on this branch:
+- Round 1: NO-GO, 6 findings — all fixed (`e836cfc`, `6e22dc8`, `1d919a1`).
+- Round 2: NO-GO, zsh word-splitting + TSV null-field bug — fixed (`be979c0`, `c65d8ec`).
+- Round 3: NO-GO, base_url cascading-null bug — fixed across `fa979ca`, `b4991bb`, `f8e38d2`.
+- Round 4: clean **GO** (Pi-wrapper silent-failure fix `eadf6f6` + doc commits).
+
+**Scope-expansion override, still ACTIVE and IN PROGRESS**: live-testing this feature's work surfaced genuine upstream bugs in the separate `/home/milosvasic/Projects/llmctl` project. The operator explicitly overrode this feature's original "investigate-and-document-only, never fix llmctl" boundary (recorded in `specs/001-llmctl-integration-hardening/spec.md`'s Clarifications, commit `cab6d7b`) and directed real fixes there. As of this writing, llmctl has **10 commits** on this effort (`b2fbfec`, `3926468`, `007fc00`, `2874db7`, `ab4f4db`, `54a9ca0`, `451d983`, `f6febd8`, plus one more actively being written right now — `lib/scheduler.sh`/`lib/service_linux.sh`/`tests/test_scheduler.sh` show as uncommitted in `llmctl`'s working tree at this exact moment, fixing a non-blocking "Important" finding from that project's own 3rd review round: crediting a *failed* eviction's freed memory in `_sched_auto_impl`). **Do not assume this is finished — re-check `cd ../llmctl && git log --oneline -5 && git status --short` before acting on this section.**
+
+**Before any tag/release of claude_toolkit `v1.29.0`:**
+1. Confirm the llmctl in-progress fix above has landed and committed.
+2. One more independent-review round on llmctl's side confirming GO on the full batch (10+ commits).
+3. A final, clean `scripts/tests/run-all.sh` run on claude_toolkit (last confirmed: 87/87, but re-run after any further commits).
+4. Finalize `CHANGELOG.md`'s `v1.29.0` entry (draft exists, already covers the llmctl work via `4e078cf`'s addition — review before trusting fully).
+5. Tag `v1.29.0` / `claude_toolkit-1.29.0`, push fast-forward to all 4 remotes, publish via `gh release create` + `glab release create` (T042-T044 in `specs/001-llmctl-integration-hardening/tasks.md`).
+
+**Do not commit the `scripts/tests/proof/*.txt` churn currently in the working tree** until the llmctl fix chain fully lands and one final full-suite run completes — those files legitimately regenerate with fresh benchmark numbers on every run under this session's heavy concurrent-fork load; commit the LAST refresh once, cleanly, not every intermediate one.
+
+Full detail on the review rounds and llmctl findings: `specs/001-llmctl-integration-hardening/tasks.md` (T039 area), `docs/research/2026-10-02-llmctl-upstream-findings.md`, `docs/research/2026-10-03-codegraph-reachability-audit.md`.
+
+---
+
+## Historical sections below (§1-§5) — SUPERSEDED, describe the old v1.26.7 cycle only
+
+> **How to read what follows.** §1 WAS the *current* state as of 2026-07-28 — no longer true today, see §0.1 above. §2 is what remained for v1.26.7 (long since done). §3 is that cycle's evidence snapshot. §4 collects gaps AS OF THAT CYCLE. §5 is a dated archive of even-older superseded programme history.
 
 ---
 
