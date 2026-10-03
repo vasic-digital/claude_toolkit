@@ -2599,13 +2599,29 @@ cmd_migrate_names() {
     if [[ -f "$pdir/$old.env" ]]; then
       if (( do_write )); then
         local e_key e_trans e_base e_model e_fast e_ctx e_out e_trim
+        # Every field except the LAST (e_trim) defaults to the literal string
+        # "null" rather than a bare empty string (independent-review follow-up,
+        # same TSV-null-field-corruption class already fixed in cmd_sync/
+        # cmd_sync_multi and the Pi/Kimi render configs): tab is a POSIX
+        # IFS-whitespace character, so `IFS=$'\t' read` COLLAPSES a single
+        # empty field into its neighboring delimiter -- reproduced here too,
+        # a degenerate source .env with ANY of these 7 fields genuinely empty
+        # (the comment above already anticipates "fields that were absent
+        # come out empty") shifts every subsequent field left by one slot,
+        # silently corrupting the migrated provider's config. A leading empty
+        # field collapses identically to a middle one, so e_key needs the
+        # same guard as the rest. cma_provider_write_env already normalizes
+        # the literal "null" back to empty for transport/base/model/fast/
+        # context_limit/max_output; it did NOT normalize keyvar, which is a
+        # gap in that function's own "normalize every field for symmetry"
+        # comment -- fixed alongside this, in lib.sh.
         IFS=$'\t' read -r e_key e_trans e_base e_model e_fast e_ctx e_out e_trim \
           < <( set +e +u; set -a; . "$pdir/$old.env" 2>/dev/null; set +a; \
                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-                 "${CMA_PROVIDER_KEYVAR:-}" "${CMA_PROVIDER_TRANSPORT:-}" \
-                 "${CMA_PROVIDER_BASE_URL:-}" "${CMA_PROVIDER_MODEL:-}" \
-                 "${CMA_PROVIDER_FAST_MODEL:-}" "${CMA_PROVIDER_CONTEXT_LIMIT:-}" \
-                 "${CMA_PROVIDER_MAX_OUTPUT:-}" "${CMA_PROVIDER_TRIM:-}" )
+                 "${CMA_PROVIDER_KEYVAR:-null}" "${CMA_PROVIDER_TRANSPORT:-null}" \
+                 "${CMA_PROVIDER_BASE_URL:-null}" "${CMA_PROVIDER_MODEL:-null}" \
+                 "${CMA_PROVIDER_FAST_MODEL:-null}" "${CMA_PROVIDER_CONTEXT_LIMIT:-null}" \
+                 "${CMA_PROVIDER_MAX_OUTPUT:-null}" "${CMA_PROVIDER_TRIM:-}" )
         # cma_provider_write_env preserves the opt-in CMA_PROVIDER_TRIM knob only
         # by reading the TARGET env before truncating it. On a rename the target
         # does not exist yet, so the source's trim would be silently dropped —
@@ -2776,6 +2792,13 @@ _cma_pi_render_config() {
     # shellcheck source=/dev/null
     api_key="$( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; eval "printf '%s' \"\${$keyvar:-}\"" )" || true
   fi
+  # Normalize a literal-"null" base (round-3 independent review, same class
+  # as the context-limit normalization below: a catalog miss on a
+  # NATIVE-transport provider's `api` field surfaces as the literal string
+  # "null" from the upstream TSV feed, never a real empty value) BEFORE
+  # computing base_clean, or this writes a syntactically-valid but
+  # semantically-broken baseUrl:"null" into models.json.
+  [[ "$base" != "null" ]] || base=""
   local base_clean="${base%/}"
   # Normalize a missing/literal-"null" context limit the same way the Kimi
   # renderer does (a catalog miss surfaces as the literal string "null" from
@@ -2847,6 +2870,13 @@ _cma_kimi_render_config() {
   # record would give the Claude side /v1/v1/messages. transport is the honest
   # discriminator — providers_resolve.transport_for defines it as exactly this:
   # "native iff the provider speaks the Anthropic API natively".
+  # Normalize a literal-"null" base (round-3 independent review): a catalog
+  # miss on a NATIVE-transport provider's `api` field surfaces as the
+  # literal string "null" from the upstream TSV feed, never a real empty
+  # value — this function writes $base verbatim into config.toml with no
+  # other normalization layer in between, so an unguarded "null" ships as a
+  # literal, broken `base_url = "null"`.
+  [[ "$base" != "null" ]] || base=""
   local api_key="" typ="openai"
   [[ "$transport" == "native" ]] && typ="anthropic"
   # Kept for the router-transport provider that has been PROMOTED to an
@@ -2946,15 +2976,24 @@ cmd_sync() {
   # Dedupe by provider_id: one alias per provider even if multiple key vars map
   # to it (e.g. CODESTRAL_API_KEY + MISTRAL_API_KEY both -> mistral).
   #
-  # The jq feed below explicitly defaults context_limit/max_output to the
+  # The jq feed below explicitly defaults EVERY nullable field (transport,
+  # base_url, strong_model, fast_model, context_limit, max_output) to the
   # literal string "null" (follow-up independent review, finding
-  # "TSV null-field corruption"): tab is an IFS-whitespace character, so
-  # `IFS=$'\t' read` COLLAPSES two consecutive empty (null->"") fields into
-  # one delimiter rather than preserving them -- a record with BOTH limits
-  # null shifted lan_exposed/context_warning left into ctx_limit/max_out's
-  # variable slots. cma_provider_write_env and providers_generate.py's
-  # _parse_limit() already normalize the literal "null" string back to
-  # empty/None, so this is a pure fix with no downstream change needed.
+  # "TSV null-field corruption", round 3: the SAME bug through .base_url):
+  # tab is an IFS-whitespace character, so `IFS=$'\t' read` COLLAPSES a
+  # SINGLE empty (null->"") field into the delimiter rather than preserving
+  # it -- a NATIVE-transport provider with a catalog miss on its `api` field
+  # (providers_resolve.py only marks ROUTER providers unmapped for a missing
+  # base_url; a native one stays "resolved" with base_url=null) shifted
+  # EVERY subsequent field left by one slot (reproduced live against the
+  # real resolver with ANTHROPIC_API_KEY: base_url absorbed strong_model's
+  # value, model absorbed fast_model's, and so on down the line).
+  # cma_provider_write_env (transport/base/model/fast/context_limit/
+  # max_output/alias) and providers_generate.py's _parse_limit() already
+  # normalize the literal "null" string back to empty/None;
+  # _cma_pi_render_config/_cma_kimi_render_config needed their OWN new guard
+  # for `base` specifically (they write it verbatim into a config file, with
+  # no normalization layer between the TSV read and the write).
   local seen=" "
   local n_created=0 n_skipped=0 n_disabled=0
   while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out lan_exp ctx_warn; do
@@ -3097,7 +3136,7 @@ cmd_sync() {
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   # Orphan detection: any status.json/*.env record whose provider id is NOT in
   # the CURRENT resolved set (catalog/key/override dropped it) is demoted +
@@ -3971,7 +4010,7 @@ cmd_sync_multi() {
       i=$((i+1))
     done
 
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   cma_log "multi-sync done: $n_created aliases created across all providers"
   cma_log "reload your shell or: source $ALIAS_FILE"

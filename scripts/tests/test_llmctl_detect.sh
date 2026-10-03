@@ -623,4 +623,32 @@ assert_eq "null" "$_t_out" "max_output field reads back as the literal string 'n
 assert_eq "true" "$_t_lan" "lan_exposed is NOT shifted left into max_output's slot"
 assert_eq "too small" "$_t_warn" "context_warning is NOT lost/shifted when both numeric limits are null"
 
+# ---------------------------------------------------------------------------
+# Round-3 independent review (NO-GO blocker): the SAME tab-collapse bug
+# through `.base_url` specifically. providers_resolve.py only marks a
+# ROUTER-transport provider "unmapped" when its catalog `api` field is
+# missing; a NATIVE-transport provider (e.g. the real "anthropic" catalog
+# entry) with no `api` field stays "resolved" with base_url=null. A single
+# null field is enough -- tab is an IFS-whitespace character, so bash's
+# `IFS=$'\t' read` collapses even ONE empty field into the delimiter,
+# cascading every subsequent field one slot to the left (reproduced live:
+# base absorbed strong_model's value, model absorbed fast_model's, etc.).
+# Same discipline as CASE J: extracts the REAL jq expression, never a
+# hand-copied duplicate.
+# ---------------------------------------------------------------------------
+echo "--- CASE K: base_url-null cascade (round-3 independent review) ---" >> "$PROOF"
+_tsv_k_fixture='[{"status":"resolved","provider_id":"anthropic","alias":"anthropic","key_var":"ANTHROPIC_API_KEY","transport":"native","base_url":null,"strong_model":"claude-sonnet-5-5","fast_model":"claude-haiku-4-5","context_limit":1000000,"max_output":128000,"lan_exposed":false,"context_warning":""}]'
+_tsv_k_line="$(jq -r "$_tsv_jq_expr" <<<"$_tsv_k_fixture")"
+echo "raw tsv line: $(printf '%s' "$_tsv_k_line" | cat -A)" >> "$PROOF"
+IFS=$'\t' read -r _k_status _k_pid _k_alias _k_keyvar _k_transport _k_base _k_model _k_fast _k_ctx _k_out _k_lan _k_warn <<<"$_tsv_k_line"
+echo "parsed: transport=[$_k_transport] base=[$_k_base] model=[$_k_model] fast=[$_k_fast] ctx=[$_k_ctx] out=[$_k_out] lan=[$_k_lan] warn=[$_k_warn]" >> "$PROOF"
+assert_eq "native" "$_k_transport" "transport reads back correctly, never shifted"
+assert_eq "null" "$_k_base" "base_url reads back as the literal string 'null', NEVER as strong_model's value (the cascade this finding is named for)"
+assert_eq "claude-sonnet-5-5" "$_k_model" "strong_model reads back correctly in its own slot, not shifted into base's"
+assert_eq "claude-haiku-4-5" "$_k_fast" "fast_model reads back correctly in its own slot"
+assert_eq "1000000" "$_k_ctx" "context_limit reads back correctly, not absorbed by the cascade"
+assert_eq "128000" "$_k_out" "max_output reads back correctly, not absorbed by the cascade"
+assert_eq "false" "$_k_lan" "lan_exposed reads back correctly, not absorbed by the cascade"
+assert_eq "" "$_k_warn" "context_warning (empty in this fixture) reads back as empty, not corrupted"
+
 summary
