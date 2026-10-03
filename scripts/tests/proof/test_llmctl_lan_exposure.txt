@@ -1,12 +1,25 @@
 === test_llmctl_lan_exposure.sh evidence ===
-date: 2026-10-02T22:11:56Z
-exposed (0.0.0.0) mock port=60591 pid=1785982
-local (127.0.0.1) mock port=57649 pid=1785984
+date: 2026-10-03T09:16:14Z
+exposed (0.0.0.0) mock port=57309 pid=1686806
+local (127.0.0.1) mock port=59497 pid=1686808
 --- ss -ltn for exposed port (sanity check on this host) ---
 State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
-LISTEN 0      5            0.0.0.0:60591      0.0.0.0:*   
+LISTEN 0      5            0.0.0.0:57309      0.0.0.0:*   
 --- ss -ltn for local port (sanity check on this host) ---
 State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
-LISTEN 0      5          127.0.0.1:57649      0.0.0.0:*   
+LISTEN 0      5          127.0.0.1:59497      0.0.0.0:*   
 --- detect_llmctl_records output ---
-[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:60591/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:60591/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:57649/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:57649/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:57309/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:57309/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:59497/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:59497/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+--- ss -ltn for LAN-IP (192.168.1.115) port (sanity check) ---
+State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
+LISTEN 0      1      192.168.1.115:51319      0.0.0.0:*   
+LISTEN 0      5          127.0.0.1:51319      0.0.0.0:*   
+--- detect_llmctl_records output (lanip case) ---
+[{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-exposed","alias":"llmctl-exposed","base_url":"http://127.0.0.1:57309/v1","transport":"router","strong_model":"lan-model","fast_model":"lan-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile exposed live at http://127.0.0.1:57309/v1 serving lan-model","context_warning":"profile 'exposed' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-local","alias":"llmctl-local","base_url":"http://127.0.0.1:59497/v1","transport":"router","strong_model":"local-model","fast_model":"local-model","context_limit":131072,"max_output":4096,"lan_exposed":false,"status":"resolved","reason":"llmctl profile local live at http://127.0.0.1:59497/v1 serving local-model","context_warning":"profile 'local' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"},{"key_var":"LLMCTL_API_KEY","classification":"llm","provider_id":"llmctl-lanip","alias":"llmctl-lanip","base_url":"http://127.0.0.1:51319/v1","transport":"router","strong_model":"lanip-model","fast_model":"lanip-model","context_limit":131072,"max_output":4096,"lan_exposed":true,"status":"resolved","reason":"llmctl profile lanip live at http://127.0.0.1:51319/v1 serving lanip-model","context_warning":"profile 'lanip' context (131072 tokens) is below the 168192 tokens a CLI agent's own overhead typically needs -- turns may fail with a context-exceeded error"}]
+--- ss -ltn for dual-socket (0.0.0.0 + 127.0.0.1, same port) (sanity check) ---
+State  Recv-Q Send-Q Local Address:Port  Peer Address:Port
+LISTEN 0      1            0.0.0.0:39495      0.0.0.0:*   
+LISTEN 0      1          127.0.0.1:39495      0.0.0.0:*   
+--- dual-socket parsed rows ---
+0.0.0.0:39495
+127.0.0.1:39495

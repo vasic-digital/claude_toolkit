@@ -453,7 +453,13 @@ pass/fail/skip record exists for every alias × agent × command combination.
   uniform across runs and must not be stated as if it were.
   `kimi-unclassified-nonzero` is deliberately honest about this — it does
   not claim a single cause for every non-zero Kimi exit, because there
-  isn't one.
+  isn't one. **Clean re-confirmation (2026-10-03, post review-fixes)**: a
+  final re-run, after the inotify-contention episode cleared and findings
+  2/6's fixes landed (commits `e836cfc`/`6e22dc8`/`1d919a1`), shows all 6
+  cells uniformly attributing the genuine 8192-token context-capacity
+  cause again (kimi transcripts: 79111/79118/79121 tokens vs 8192), and
+  every Kimi evidence file now correctly carries `# ROUTE-RESOLVED: n/a`
+  (finding 6's fix verified live, not just by its own unit test).
 - [x] T028 [US3] Implement the double-run determinism assertion (**FR-013**):
   run the full matrix twice against an unchanged system, assert byte-identical
   verdicts — `scripts/tests/` (new). **Done**:
