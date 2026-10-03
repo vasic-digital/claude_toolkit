@@ -147,4 +147,188 @@ it "CASE LOCAL (negative control — passes today by field absence, must keep pa
 LOCAL_FLAG="$(jq -r '.lan_exposed // false' <<<"$LOCAL_REC")"
 assert_eq "false" "$LOCAL_FLAG" "llmctl-local does not carry lan_exposed=true"
 
+# --- CASE LAN-IP: review finding 3(a) — a real, non-wildcard LAN address ----
+# docs/llmctl/user-guide.md tells operators to set LLMCTL_BIND_HOST to a real
+# LAN IP (not just 0.0.0.0); the pre-fix detector only matched the three
+# wildcard literals (0.0.0.0:*, *:*, [::]:*), so a genuine LAN-IP bind read as
+# NOT exposed. The mock HTTP server itself binds 127.0.0.1 (detect_llmctl_
+# records' liveness probe ALWAYS goes via loopback regardless of declared
+# bind address — contracts/llmctl-external-contract.md assumption #5 — so a
+# server bound ONLY to a LAN IP is a separate, pre-existing probe-reachability
+# limitation, not what this case tests). A second, independent SO_REUSEPORT
+# socket is bound to the SAME port on this host's real LAN IP purely so `ss`
+# reports a genuine, non-loopback row for that port — isolating the
+# ss-parsing logic this finding is actually about. SKIPs honestly if no
+# global-scope IPv4 address is discoverable on this host.
+HOST_LAN_IP="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
+if [[ -n "$HOST_LAN_IP" ]]; then
+  LANIP_PORT_FILE="$HOME/.llmctl_lanip_port"
+  LANIP_PID="$(start_mock "127.0.0.1" "lanip-model" 131072 "$LANIP_PORT_FILE")"
+  LANIP_PORT="$(wait_port_file "$LANIP_PORT_FILE")"
+  python3 - "$HOST_LAN_IP" "$LANIP_PORT" >/dev/null 2>&1 <<'PY' &
+import socket, sys, time
+lan_ip, port = sys.argv[1], int(sys.argv[2])
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+s.bind((lan_ip, port))
+s.listen(1)
+time.sleep(60)
+PY
+  LANIP_DECOY_PID=$!
+  sleep 0.3
+  {
+    echo "--- ss -ltn for LAN-IP ($HOST_LAN_IP) port (sanity check) ---"
+    ss -ltn "sport = :$LANIP_PORT" 2>&1
+  } >> "$PROOF" 2>&1
+  sandbox_stub "$HOME/.local/bin/llmctl" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
+  cat <<'JSON'
+{
+  "profiles": {
+    "exposed": {"port": $EXPOSED_PORT, "ctx": 131072, "fits": true, "engine": "llama"},
+    "local":   {"port": $LOCAL_PORT,   "ctx": 131072, "fits": true, "engine": "llama"},
+    "lanip":   {"port": $LANIP_PORT,   "ctx": 131072, "fits": true, "engine": "llama"}
+  }
+}
+JSON
+  exit 0
+fi
+echo "llmctl (test stub): unhandled args: \$*" >&2
+exit 2
+EOF
+  chmod +x "$HOME/.local/bin/llmctl"
+  LANIP_DET="$(CMA_LLMCTL_BIN=llmctl \
+      bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
+  echo "--- detect_llmctl_records output (lanip case) ---" >> "$PROOF"
+  echo "$LANIP_DET" >> "$PROOF"
+  LANIP_REC="$(jq -c '[.[] | select(.provider_id=="llmctl-lanip")] | .[0]' <<<"$LANIP_DET")"
+  kill "$LANIP_PID" "$LANIP_DECOY_PID" 2>/dev/null
+
+  it "CASE LAN-IP (review finding 3a): a profile bound to this host's real, non-wildcard LAN IP is flagged lan_exposed=true"
+  LANIP_FLAG="$(jq -r '.lan_exposed // false' <<<"$LANIP_REC")"
+  assert_eq "true" "$LANIP_FLAG" "llmctl-lanip (bound to $HOST_LAN_IP) carries lan_exposed=true (exposure is 'any non-loopback local address', not an enumerated wildcard-literal list)"
+else
+  echo "SKIP: CASE LAN-IP — no global-scope IPv4 address discoverable on this host (ip -4 -o addr show scope global returned nothing)" >> "$PROOF"
+fi
+
+# --- CASE DUAL-SOCKET: review finding 3(b) — loopback + wildcard same port -
+# SO_REUSEPORT lets two independent sockets (one 127.0.0.1, one 0.0.0.0) bind
+# the IDENTICAL port. The pre-fix detector read only `ss`'s FIRST row
+# (`awk 'NR>1{print $4; exit}'`), so whichever socket's row sorted first
+# decided the whole profile's exposure — if that happened to be the loopback
+# row, the co-resident wildcard exposure on the exact same port was silently
+# missed entirely.
+DUAL_PORT_FILE="$HOME/.llmctl_dual_port"
+python3 - "$DUAL_PORT_FILE" >/dev/null 2>&1 <<'PY' &
+import socket, sys, time
+port_file = sys.argv[1]
+s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+s1.bind(("0.0.0.0", 0))
+port = s1.getsockname()[1]
+s1.listen(1)
+s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+s2.bind(("127.0.0.1", port))
+s2.listen(1)
+open(port_file, 'w').write(str(port))
+time.sleep(60)
+PY
+DUAL_PID=$!
+DUAL_PORT="$(wait_port_file "$DUAL_PORT_FILE")"
+if [[ -n "$DUAL_PORT" ]]; then
+  {
+    echo "--- ss -ltn for dual-socket (0.0.0.0 + 127.0.0.1, same port) (sanity check) ---"
+    ss -ltn "sport = :$DUAL_PORT" 2>&1
+  } >> "$PROOF" 2>&1
+  sandbox_stub "$HOME/.local/bin/llmctl" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
+  cat <<'JSON'
+{
+  "profiles": {
+    "dual": {"port": $DUAL_PORT, "ctx": 131072, "fits": true, "engine": "llama"}
+  }
+}
+JSON
+  exit 0
+fi
+echo "llmctl (test stub): unhandled args: \$*" >&2
+exit 2
+EOF
+  chmod +x "$HOME/.local/bin/llmctl"
+  # The dual-socket listener above answers raw TCP only (no HTTP /v1/models
+  # body) -- detect_llmctl_records' own liveness probe would therefore find
+  # it "not running" and emit no record at all, which cannot exercise the
+  # lan_exposed logic (that code path is only reached for a record that DID
+  # produce one). This case tests the ss-parsing logic in isolation instead,
+  # the same unit test_llmctl_lan_exposure.sh already treats as its subject.
+  DUAL_SOCKLINES="$(ss -ltn "sport = :$DUAL_PORT" 2>/dev/null | awk 'NR>1{print $4}')"
+  DUAL_EXPOSED="false"
+  while IFS= read -r _sockaddr; do
+    [[ -n "$_sockaddr" ]] || continue
+    case "$_sockaddr" in
+      127.*|\[::1\]:*|localhost:*) ;;
+      *) DUAL_EXPOSED="true"; break ;;
+    esac
+  done <<<"$DUAL_SOCKLINES"
+  echo "--- dual-socket parsed rows ---" >> "$PROOF"
+  echo "$DUAL_SOCKLINES" >> "$PROOF"
+  kill "$DUAL_PID" 2>/dev/null
+
+  it "CASE DUAL-SOCKET (review finding 3b): a port with BOTH a loopback and a wildcard listener is flagged exposed (every row checked, not just the first)"
+  assert_eq "true" "$DUAL_EXPOSED" "the wildcard row on port $DUAL_PORT is detected even when a loopback row for the same port also exists and could sort first"
+else
+  echo "SKIP: CASE DUAL-SOCKET — SO_REUSEPORT dual-bind did not come up on this host/kernel" >> "$PROOF"
+  kill "$DUAL_PID" 2>/dev/null
+fi
+
+# --- CASE WARN-SURFACED: review finding 1 — the operator must actually SEE
+# the warning, not just have it sit as an unread JSON field. Prior to this
+# fix, `lan_exposed`/`context_warning` were computed by detect_llmctl_records
+# and merged by resolve_records() but consumed by NOTHING — a full `sync`
+# printed neither warning, directly contradicting docs/llmctl/user-guide.md
+# §3/§4, quickstart.md §5, FAQ, and CHANGELOG.md, all of which explicitly
+# promise the operator sees one. Re-establish the original exposed+local
+# stub (the dual-socket case above overwrote it) and run a REAL `sync`.
+sandbox_stub "$HOME/.local/bin/llmctl" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
+  cat <<'JSON'
+{
+  "profiles": {
+    "exposed": {"port": $EXPOSED_PORT, "ctx": 131072, "fits": true, "engine": "llama"},
+    "local":   {"port": $LOCAL_PORT,   "ctx": 131072, "fits": true, "engine": "llama"}
+  }
+}
+JSON
+  exit 0
+fi
+echo "llmctl (test stub): unhandled args: \$*" >&2
+exit 2
+EOF
+chmod +x "$HOME/.local/bin/llmctl"
+
+WARN_KEYS="$HOME/.llmctl_warn_keys.sh"
+: > "$WARN_KEYS"
+SYNC_STDERR="$(CMA_LLMCTL_BIN=llmctl bash "$PROVIDERS_SH" sync --no-verify --keys-file "$WARN_KEYS" 2>&1 >/dev/null)"
+echo "--- sync stderr (finding-1 warning-surfacing case) ---" >> "$PROOF"
+echo "$SYNC_STDERR" >> "$PROOF"
+
+it "CASE WARN-SURFACED (review finding 1): sync prints an operator-visible warning for the LAN-exposed llmctl profile"
+grep -qi "llmctl-exposed.*reachable from the LAN" <<<"$SYNC_STDERR"
+assert_eq 0 $? "a plain-worded LAN-exposure warning for llmctl-exposed appears on sync's own stderr (not just a JSON field nobody reads)"
+
+it "CASE WARN-SURFACED (review finding 1): sync prints the operator-visible undersized-context warning for an llmctl profile below the usable floor"
+grep -qi "llmctl-exposed.*below the 168192 tokens" <<<"$SYNC_STDERR"
+assert_eq 0 $? "the context_warning text itself (not just its presence as a field) reaches sync's stderr for llmctl-exposed"
+
+it "CASE WARN-SURFACED (review finding 1): the loopback-only profile does NOT get a false LAN-exposure warning"
+! grep -qi "llmctl-local.*reachable from the LAN" <<<"$SYNC_STDERR"
+assert_eq 0 $? "llmctl-local (bound 127.0.0.1) is not falsely warned as LAN-exposed"
+
 summary

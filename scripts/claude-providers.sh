@@ -2209,13 +2209,27 @@ detect_llmctl_records() {
           # degrades this ONE check honestly (never crashes profile
           # detection itself) -- `lan_exposed` then stays the conservative
           # default `false`.
+          # Every listening row for this port is checked (not just the
+          # first): a port can have BOTH a loopback and a wildcard socket
+          # bound at once (e.g. 127.0.0.1 + [::]), and reading only the
+          # first row (lexicographically/kernel-order, not "most exposed
+          # first") silently missed the wildcard row entirely. Exposure is
+          # "any local address that is not loopback" rather than an
+          # enumerated literal list -- the prior `0.0.0.0:*|\*:*|\[::\]:*`
+          # match missed a real LAN-IP bind (e.g. 192.168.x.x:<port>, which
+          # docs/llmctl/user-guide.md explicitly documents as a supported
+          # LLMCTL_BIND_HOST value) because that address matches none of
+          # the three wildcard literals.
           _lan="false"
           if command -v ss >/dev/null 2>&1; then
-            _sockline=""
-            _sockline="$(ss -ltn "sport = :${_port}" 2>/dev/null | awk 'NR>1{print $4; exit}')" || _sockline=""
-            case "$_sockline" in
-              0.0.0.0:*|\*:*|\[::\]:*) _lan="true" ;;
-            esac
+            local _sockaddr
+            while IFS= read -r _sockaddr; do
+              [[ -n "$_sockaddr" ]] || continue
+              case "$_sockaddr" in
+                127.*|\[::1\]:*|localhost:*) ;;
+                *) _lan="true"; break ;;
+              esac
+            done < <(ss -ltn "sport = :${_port}" 2>/dev/null | awk 'NR>1{print $4}')
           fi
           jq -cn --arg name "$_name" --arg port "$_port" --arg base "$_base" \
                  --arg model "$_mid" --arg ctx "$_mctx" --arg warn "$_warn" --argjson lan "$_lan" \
@@ -2933,10 +2947,18 @@ cmd_sync() {
   # to it (e.g. CODESTRAL_API_KEY + MISTRAL_API_KEY both -> mistral).
   local seen=" "
   local n_created=0 n_skipped=0 n_disabled=0
-  while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out; do
+  while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out lan_exp ctx_warn; do
     [[ "$status" == "resolved" ]] || { n_skipped=$((n_skipped+1)); continue; }
     case "$seen" in *" $pid "*) cma_warn "provider '$pid' already handled; skipping duplicate key $keyvar"; continue ;; esac
     seen="$seen$pid "
+    # FR-009: the honest per-record fields llmctl-backed records carry
+    # (research.md S2/S3.C) are worthless unless the operator actually sees
+    # them "at the point the alias becomes available" -- they were
+    # previously computed and transformed as far as resolve_records()'s own
+    # output and then read by nobody (confirmed: zero consumers outside
+    # detect_llmctl_records/resolve_records before this fix).
+    [[ "$lan_exp" == "true" ]] && cma_warn "provider '$pid': this model is reachable from the LAN/other hosts, not just this machine (bind address is not loopback-only)"
+    [[ -n "$ctx_warn" ]] && cma_warn "provider '$pid': $ctx_warn"
 
     local cdir="$HOME/${CMA_PROVIDER_DIR_PREFIX}${pid}"
     if (( DRY_RUN )); then
@@ -3065,7 +3087,7 @@ cmd_sync() {
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output,(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   # Orphan detection: any status.json/*.env record whose provider id is NOT in
   # the CURRENT resolved set (catalog/key/override dropped it) is demoted +
@@ -3794,10 +3816,15 @@ cmd_sync_multi() {
   local seen=" "
   local n_created=0 n_skipped=0
 
-  while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out; do
+  while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out lan_exp ctx_warn; do
     [[ "$status" == "resolved" ]] || { n_skipped=$((n_skipped+1)); continue; }
     case "$seen" in *" $pid "*) continue ;; esac
     seen="$seen$pid "
+    # FR-009, same as cmd_sync (see its own comment) -- the --multi path
+    # must warn identically, since it is the other live route to an
+    # llmctl-backed alias becoming available.
+    [[ "$lan_exp" == "true" ]] && cma_warn "provider '$pid': this model is reachable from the LAN/other hosts, not just this machine (bind address is not loopback-only)"
+    [[ -n "$ctx_warn" ]] && cma_warn "provider '$pid': $ctx_warn"
 
     # Get the API key for verification — source keys file in a subshell,
     # then use indirect expansion to read the specific key variable.
@@ -3934,7 +3961,7 @@ cmd_sync_multi() {
       i=$((i+1))
     done
 
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output,(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   cma_log "multi-sync done: $n_created aliases created across all providers"
   cma_log "reload your shell or: source $ALIAS_FILE"
