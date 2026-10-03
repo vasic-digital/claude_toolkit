@@ -4410,7 +4410,39 @@ cma_run_pi_provider() {
   # the full rationale. A failed switch aborts HERE, before pi is ever exec'd
   # against $_cpbase's fixed port.
   _cma_llmctl_ensure_active "$_cppid" || return $?
+  # Pi's own CLI can exit 0 and print NOTHING to stdout/stderr even when the
+  # backend returned a real error (confirmed live: a context-exceeded 400
+  # from an undersized llmctl profile) -- the only trace is its own session
+  # JSONL's `stopReason: "error"` entry. Unlike the Kimi/Claude twins, whose
+  # own binaries DO print their errors directly, this wrapper cannot rely on
+  # exit-code/stderr alone, or a real launch failure looks like a silent
+  # no-op success to the operator. Snapshot the newest session file BEFORE
+  # the launch so the post-launch check only inspects a file THIS invocation
+  # could plausibly have written (never an unrelated earlier session).
+  # Portable newest-jsonl lookup (no `xargs -r`, a GNU-only flag that BSD/macOS
+  # xargs lacks -- `ls -t` on zero args would otherwise list the CWD instead
+  # of nothing): gate the xargs call on find's output being non-empty.
+  local _cp_sessdir="$_cphome/sessions" _cp_pre="" _cp_files
+  if [[ -d "$_cp_sessdir" ]]; then
+    _cp_files="$(find "$_cp_sessdir" -name '*.jsonl' 2>/dev/null)"
+    [[ -n "$_cp_files" ]] && _cp_pre="$(printf '%s\n' "$_cp_files" | xargs ls -t 2>/dev/null | head -1)"
+  fi
   PI_CODING_AGENT_DIR="$_cphome" "$_cpbin" --model "$_cpdm" "$@"
+  local _cp_rc=$?
+  if command -v jq >/dev/null 2>&1 && [[ -d "$_cp_sessdir" ]]; then
+    local _cp_post=""
+    _cp_files="$(find "$_cp_sessdir" -name '*.jsonl' 2>/dev/null)"
+    [[ -n "$_cp_files" ]] && _cp_post="$(printf '%s\n' "$_cp_files" | xargs ls -t 2>/dev/null | head -1)"
+    if [[ -n "$_cp_post" && "$_cp_post" != "$_cp_pre" ]]; then
+      local _cp_err; _cp_err="$(jq -rs 'map(select(.type=="message" and .message.stopReason=="error")) | last | .message.errorMessage // ""' "$_cp_post" 2>/dev/null)"
+      if [[ -n "$_cp_err" && "$_cp_err" != "null" ]]; then
+        printf 'claude-providers: pi-%s reported a real launch error (pi itself exited %d with no visible output): %s\n' \
+          "$_cppid" "$_cp_rc" "$_cp_err" >&2
+        (( _cp_rc == 0 )) && _cp_rc=1
+      fi
+    fi
+  fi
+  return "$_cp_rc"
 }
 CMA_PI_PROV_EOF
 }

@@ -158,6 +158,19 @@ sandbox_stub "$HOME/.pi/bin/pi" <<EOF
 #!/usr/bin/env bash
 env | grep -E '^(PI_HOME|PI_CODING_AGENT_DIR|CLAUDE_CODE_MAX_OUTPUT_TOKENS|ANTHROPIC_BASE_URL|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|KIMI_CODE_HOME)=' > "$REC_DIR/env"
 printf '%s\n' "\$*" > "$REC_DIR/args"
+# Independent-review follow-up (round 3): simulates the REAL pi CLI's own
+# silent-failure shape -- confirmed live against the real installed pi
+# binary (v0.85.1): on a backend error (e.g. context-exceeded) it exits 0
+# and prints NOTHING to stdout/stderr, recording the failure ONLY in its own
+# session JSONL. \$REC_DIR/simulate_error_session (a control file, same
+# trigger-file convention used elsewhere in this suite) opts a single test
+# case into that shape without disturbing every other case's plain success.
+if [[ -f "$REC_DIR/simulate_error_session" ]]; then
+  _sessdir="\${PI_CODING_AGENT_DIR:?}/sessions/fake"
+  mkdir -p "\$_sessdir"
+  printf '{"type":"message","message":{"stopReason":"error","errorMessage":"400: simulated context-exceeded error"}}\n' \
+    > "\$_sessdir/\$(date +%s%N).jsonl"
+fi
 exit 0
 EOF
 
@@ -274,5 +287,49 @@ _mkmodelsjson "$HOME/.pi-prov-llmctl-small/models.json" "llmctl-small" "x" "http
 ( set +eu; cma_run_pi_provider --force llmctl-small hi </dev/null >/dev/null 2>&1 )
 grep -q "^NODE_EXTRA_CA_CERTS=" "$REC_DIR/env" && leak=0 || leak=1
 assert_eq 1 "$leak" "NODE_EXTRA_CA_CERTS not exported for http (loopback) base"
+
+# ---------------------------------------------------------------------------
+# Section 9 — silent launch-failure visibility (independent review, round 3)
+#
+# Reproduced live against the real installed pi binary (v0.85.1): on a real
+# backend error it exits 0 and prints NOTHING to stdout/stderr -- the only
+# trace is its own session JSONL's `stopReason: "error"` entry. An operator
+# running this interactively would see what looks like a silent hang or a
+# no-op success. cma_run_pi_provider must surface the real error and return
+# non-zero even though pi itself returned 0.
+# ---------------------------------------------------------------------------
+unset CMA_PROVIDER_CA_CERT NODE_EXTRA_CA_CERTS SSL_CERT_FILE
+rm -f "$REC_DIR/simulate_error_session"
+_mkmodelsjson "$HOME/.pi-prov-llmctl-small/models.json" "llmctl-small" "x" "http://127.0.0.1:8085/v1"
+
+it "cma_run_pi_provider: pi exits 0 with a real error buried only in its session JSONL -> still surfaces it and returns non-zero"
+rm -rf "$HOME/.pi-prov-llmctl-small/sessions"
+: > "$REC_DIR/simulate_error_session"
+out="$( set +eu; cma_run_pi_provider --force llmctl-small hi </dev/null 2>&1 )"; rc=$?
+rm -f "$REC_DIR/simulate_error_session"
+[[ "$rc" -ne 0 ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "non-zero exit even though pi itself returned 0"
+[[ "$out" == *"simulated context-exceeded error"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "the real error text is surfaced to the operator, not swallowed"
+[[ "$out" == *"with no visible output"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "the message is honest about pi itself having printed nothing"
+
+it "cma_run_pi_provider: control -- a genuine success (no error session) is NOT flagged as a failure"
+rm -rf "$HOME/.pi-prov-llmctl-small/sessions"
+out="$( set +eu; cma_run_pi_provider --force llmctl-small hi </dev/null 2>&1 )"; rc=$?
+assert_eq 0 "$rc" "plain success still exits 0 (regression control)"
+[[ "$out" == *"real launch error"* ]] && bad=0 || bad=1
+assert_eq 1 "$bad" "no false-positive error surfaced on a genuine success"
+
+it "cma_run_pi_provider: control -- a PRE-EXISTING error session from an earlier, unrelated launch is never re-flagged"
+: > "$REC_DIR/simulate_error_session"
+out1="$( set +eu; cma_run_pi_provider --force llmctl-small hi </dev/null 2>&1 )"; rc1=$?
+rm -f "$REC_DIR/simulate_error_session"
+[[ "$rc1" -ne 0 ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "setup: the first launch's own error is correctly flagged (rc=$rc1)"
+out2="$( set +eu; cma_run_pi_provider --force llmctl-small hi </dev/null 2>&1 )"; rc2=$?
+assert_eq 0 "$rc2" "a SECOND, genuinely successful launch is not re-flagged by the FIRST launch's stale error session"
+[[ "$out2" == *"real launch error"* ]] && bad=0 || bad=1
+assert_eq 1 "$bad" "the stale pre-existing error session is never attributed to this later, unrelated launch"
 
 summary
