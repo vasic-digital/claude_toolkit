@@ -1257,9 +1257,13 @@ _cma_emit_llmctl_ensure_active() {
 # _cma_llmctl_active_profile <bin> — shared status-parse helper so the
 # pre-switch check and the post-failure re-probe (T017) read llmctl's
 # `status` output through the EXACT same parsing logic rather than two
-# copies that could drift apart. Echoes "<row-count>\t<profile-name>".
+# copies that could drift apart. Echoes "<row-count>\t<space-separated
+# profile names, ALL rows>" — not just the last row (independent-review
+# finding 4: a single-row capture made the post-failure re-probe falsely
+# claim every other-still-running profile was "no longer running" on any
+# host with 2+ profiles up, since only the last-seen name survived).
 _cma_llmctl_active_profile() {
-  local _cma_lap_bin="$1" _cma_lap_status="" _cma_lap_rows=0 _cma_lap_row=""
+  local _cma_lap_bin="$1" _cma_lap_status="" _cma_lap_rows=0 _cma_lap_names=""
   _cma_lap_status="$("$_cma_lap_bin" status 2>/dev/null)" || _cma_lap_status=""
   if [[ -n "$_cma_lap_status" && "$_cma_lap_status" != "no llmctl services running" ]]; then
     local _cma_lap_line
@@ -1267,10 +1271,10 @@ _cma_llmctl_active_profile() {
       [[ -n "$_cma_lap_line" ]] || continue
       [[ "${_cma_lap_line%%[[:space:]]*}" == "profile" ]] && continue
       _cma_lap_rows=$(( _cma_lap_rows + 1 ))
-      _cma_lap_row="${_cma_lap_line%%[[:space:]]*}"
+      _cma_lap_names="${_cma_lap_names:+$_cma_lap_names }${_cma_lap_line%%[[:space:]]*}"
     done <<<"$_cma_lap_status"
   fi
-  printf '%s\t%s\n' "$_cma_lap_rows" "$_cma_lap_row"
+  printf '%s\t%s\n' "$_cma_lap_rows" "$_cma_lap_names"
 }
 _cma_llmctl_ensure_active() {
   local _cma_lc_id="${1:-}"
@@ -1332,11 +1336,31 @@ _cma_llmctl_ensure_active() {
     [[ -n "$_cma_lc_switch_out" ]] && printf '%s\n' "$_cma_lc_switch_out" >&2
     local _cma_lc_rows2=0 _cma_lc_row2=""
     IFS=$'\t' read -r _cma_lc_rows2 _cma_lc_row2 < <(_cma_llmctl_active_profile "$_cma_lc_bin")
-    if [[ "$_cma_lc_rows2" -eq 1 && "$_cma_lc_row2" == "$_cma_lc_row" ]]; then
-      printf 'claude-providers: previous profile %s confirmed still running.\n' "$_cma_lc_row" >&2
+    # Report the ACTUAL per-profile difference, never a row-count/last-row
+    # proxy (independent-review finding 4): with 2+ profiles running before
+    # the switch, "rows2 != rows-before" doesn't mean any of them actually
+    # stopped -- membership is checked name-by-name against the post-failure
+    # set. Three genuinely distinct, honestly-worded outcomes:
+    if [[ "$_cma_lc_rows" -eq 0 ]]; then
+      printf 'claude-providers: nothing was running before this switch attempt (now: %s).\n' \
+        "${_cma_lc_row2:-no profile}" >&2
     else
-      printf 'claude-providers: previous profile %s is NO LONGER running either -- %s now active.\n' \
-        "${_cma_lc_row:-<none>}" "${_cma_lc_row2:-no profile}" >&2
+      local _cma_lc_still="" _cma_lc_gone="" _cma_lc_name
+      for _cma_lc_name in $_cma_lc_row; do
+        case " $_cma_lc_row2 " in
+          *" $_cma_lc_name "*) _cma_lc_still="${_cma_lc_still:+$_cma_lc_still }$_cma_lc_name" ;;
+          *) _cma_lc_gone="${_cma_lc_gone:+$_cma_lc_gone }$_cma_lc_name" ;;
+        esac
+      done
+      if [[ -z "$_cma_lc_gone" ]]; then
+        printf 'claude-providers: previous profile %s confirmed still running.\n' "$_cma_lc_still" >&2
+      elif [[ -z "$_cma_lc_still" ]]; then
+        printf 'claude-providers: previous profile %s is NO LONGER running either -- %s now active.\n' \
+          "$_cma_lc_gone" "${_cma_lc_row2:-no profile}" >&2
+      else
+        printf 'claude-providers: previous profile(s) still running: %s -- NO LONGER running: %s (now: %s).\n' \
+          "$_cma_lc_still" "$_cma_lc_gone" "${_cma_lc_row2:-no profile}" >&2
+      fi
     fi
     return "$_cma_lc_switch_rc"
   fi

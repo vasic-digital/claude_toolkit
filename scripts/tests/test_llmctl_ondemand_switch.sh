@@ -85,7 +85,13 @@ case "${1:-}" in
       echo "no llmctl services running"
     else
       printf '%-16s %-6s %-8s %-10s %-10s %-8s %s\n' "profile" "port" "mode" "RAM MiB" "VRAM MiB" "enabled" "state"
-      printf '%-16s %-6s %-8s %-10s %-10s %-8s %s\n' "$active" "8080" "cpu" "100" "0" "no" "running"
+      # $DIR/active may hold more than one name (one per line) to simulate a
+      # real multi-profile-running host (finding 4 regression coverage) --
+      # each gets its own data row, mirroring sched_status's real output.
+      while IFS= read -r _active_row; do
+        [[ -n "$_active_row" ]] || continue
+        printf '%-16s %-6s %-8s %-10s %-10s %-8s %s\n' "$_active_row" "8080" "cpu" "100" "0" "no" "running"
+      done <<<"$active"
     fi
     ;;
   switch)
@@ -373,6 +379,35 @@ assert_eq 0 "$ok" "a distinct CRITICAL marker (added by claude_toolkit, not llmc
 assert_eq 2 "$(lc_status_count)" "status re-probed after the rollback-also-failed case too"
 [[ "$out" == *"vision"*"NO LONGER running"* ]] && ok=0 || ok=1
 assert_eq 0 "$ok" "output honestly reports the previous profile is no longer running either"
+
+# ---------------------------------------------------------------------------
+# Independent-review finding 4 (NO-GO blocker): the pre-fix re-probe tracked
+# only the LAST status row and required rows2==1 for "survived", so a host
+# with 2+ profiles running before a failed switch got a FALSE "no longer
+# running either" claim even when BOTH profiles were still up. Reproduced
+# here with a real multi-row `status` output (not a single-profile fixture)
+# so this genuinely exercises the bug the single-profile cases above cannot.
+# ---------------------------------------------------------------------------
+it "_cma_llmctl_ensure_active: 2 profiles running before an ordinary switch failure -> both honestly reported still running (finding 4)"
+reset_lc
+printf 'small\nmedium\n' > "$LC_DIR/active"
+: > "$LC_DIR/fail_switch"; printf '3' > "$LC_DIR/fail_rc"
+out="$( set +eu; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 3 "$rc" "exit code still propagated verbatim with 2 profiles running"
+[[ "$out" == *"NO LONGER running"* ]] && ok=1 || ok=0
+assert_eq 0 "$ok" "must NEVER claim a profile is no longer running when BOTH survived the failed switch"
+[[ "$out" == *"small"* && "$out" == *"medium"* && "$out" == *"still running"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "output names both small and medium as still running"
+
+it "_cma_llmctl_ensure_active: nothing running before a failed switch -> distinct honest message, never 'no longer running'"
+reset_lc
+: > "$LC_DIR/fail_switch"; printf '3' > "$LC_DIR/fail_rc"
+out="$( set +eu; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 3 "$rc" "exit code propagated when nothing was running beforehand"
+[[ "$out" == *"NO LONGER running"* ]] && ok=1 || ok=0
+assert_eq 0 "$ok" "must never claim something is 'no longer running' when nothing was running to begin with"
+[[ "$out" == *"nothing was running"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "output states plainly that nothing was running before this switch attempt"
 
 # ---------------------------------------------------------------------------
 # T019 — FR-006 structural regression lock: llmctl profile START is
