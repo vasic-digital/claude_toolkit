@@ -1,10 +1,10 @@
 === test_llmctl_stress_chaos.sh evidence ===
-date: 2026-10-03T08:58:55Z
-fast mock port=44649 pid=1474570
-slow mock (5s delay) port=35855 pid=1474572
+date: 2026-10-03T09:42:09Z
+fast mock port=56113 pid=1983715
+slow mock (5s delay) port=43049 pid=1983718
 race-window control observed value: profile-two-bbbb (informational only)
 claude-providers: switching llmctl to profile slow (currently: fast)...
 claude-providers: switching llmctl to profile dead (currently: fast)...
 
-=== final /tmp/cma-test.PHyg7P/lc-state/active ===
+=== final /tmp/cma-test.OmfMFz/lc-state/active ===
 dead

@@ -109,6 +109,17 @@ case "${1:-}" in
     fi
     if [[ -f "$DIR/fail_switch" ]]; then
       echo "switch to '$profile' failed - restoring the previously-running set: (simulated)" >&2
+      # fail_switch_drop (independent-review finding 4 follow-up): names a
+      # profile that, independently of the switch itself, is no longer
+      # running by the time the caller re-probes -- the realistic "partial
+      # survival" case (one of several previously-running profiles happens
+      # to have also died) that an all-survived or all-gone fixture cannot
+      # exercise.
+      if [[ -f "$DIR/fail_switch_drop" ]]; then
+        _drop="$(cat "$DIR/fail_switch_drop")"
+        grep -vxF "$_drop" "$DIR/active" > "$DIR/active.tmp" 2>/dev/null || true
+        mv "$DIR/active.tmp" "$DIR/active"
+      fi
       exit "$(cat "$DIR/fail_rc" 2>/dev/null || echo 1)"
     fi
     printf '%s' "$profile" > "$DIR/active"
@@ -125,7 +136,7 @@ export CMA_LLMCTL_BIN="$LC_BIN"
 export LLMCTL_TEST_DIR="$LC_DIR"
 
 reset_lc() {
-  rm -f "$LC_DIR/calls" "$LC_DIR/active" "$LC_DIR/fail_switch" "$LC_DIR/fail_rc" "$LC_DIR/fail_rollback"
+  rm -f "$LC_DIR/calls" "$LC_DIR/active" "$LC_DIR/fail_switch" "$LC_DIR/fail_rc" "$LC_DIR/fail_rollback" "$LC_DIR/fail_switch_drop"
 }
 lc_calls() { cat "$LC_DIR/calls" 2>/dev/null || true; }
 lc_switch_count() { lc_calls | grep -c '^switch '; }
@@ -408,6 +419,54 @@ assert_eq 3 "$rc" "exit code propagated when nothing was running beforehand"
 assert_eq 0 "$ok" "must never claim something is 'no longer running' when nothing was running to begin with"
 [[ "$out" == *"nothing was running"* ]] && ok=1 || ok=0
 assert_eq 1 "$ok" "output states plainly that nothing was running before this switch attempt"
+
+# ---------------------------------------------------------------------------
+# Follow-up independent review (NO-GO blocker): the "both survived" and
+# "nothing running" cases above never exercised the THIRD, genuinely
+# distinct outcome -- some previously-running profiles survived, others did
+# not. This is the one case the old rows2==1 check and a naive "all-or-
+# nothing" fix could both still get wrong (e.g. a fix that only compares
+# row COUNTS rather than actual names would see 2-before/1-after and could
+# misreport WHICH one survived).
+# ---------------------------------------------------------------------------
+it "_cma_llmctl_ensure_active: 2 profiles before, only ONE survives an ordinary failure -> names the right one on each side (finding 4, partial case)"
+reset_lc
+printf 'alpha\nbeta\n' > "$LC_DIR/active"
+: > "$LC_DIR/fail_switch"; printf '3' > "$LC_DIR/fail_rc"
+printf 'beta' > "$LC_DIR/fail_switch_drop"
+out="$( set +eu; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 3 "$rc" "exit code still propagated verbatim in the partial-survival case"
+[[ "$out" == *"still running: alpha"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "alpha (the survivor) is named in the 'still running' half of the message"
+[[ "$out" == *"NO LONGER running: beta"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "beta (the one that actually died) is named in the 'NO LONGER running' half -- never the survivor"
+[[ "$out" == *"still running: beta"* || "$out" == *"NO LONGER running: alpha"* ]] && ok=1 || ok=0
+assert_eq 0 "$ok" "the two names are never swapped -- alpha must never be reported gone, beta must never be reported surviving"
+
+# ---------------------------------------------------------------------------
+# Follow-up independent review (NO-GO blocker, finding 4 root cause): the
+# pre-fix code used `for _cma_lc_name in $_cma_lc_row` -- bash's own default
+# word-splitting of an UNQUOTED expansion. zsh does not word-split unquoted
+# expansions by default, and this function body is emitted verbatim into the
+# shared alias file sourced into whichever shell the operator runs (zsh on
+# macOS, zsh via .zshrc on Linux per CMA_RC_FILES). zsh itself is not
+# installed on this host (CI-portable hermetic suite), so this test proves
+# the INVARIANT that actually matters instead: the fixed code must not
+# depend on the CALLER's ambient $IFS/word-splitting behavior at all. Setting
+# IFS to empty here reproduces exactly the symptom a zsh run would show
+# (bash's own `for x in $var` stops splitting too when IFS is empty) --
+# correct output under this condition is strong evidence the fix no longer
+# relies on bash-specific unquoted-expansion splitting anywhere in its path.
+# ---------------------------------------------------------------------------
+it "_cma_llmctl_ensure_active: partial-survival case is correct even with the caller's IFS broken (zsh word-splitting-safety proxy, finding 4)"
+reset_lc
+printf 'alpha\nbeta\n' > "$LC_DIR/active"
+: > "$LC_DIR/fail_switch"; printf '3' > "$LC_DIR/fail_rc"
+printf 'beta' > "$LC_DIR/fail_switch_drop"
+out="$( set +eu; IFS=''; _cma_llmctl_ensure_active "$PROVIDER_ID" 2>&1 )"; rc=$?
+assert_eq 3 "$rc" "exit code still correct with IFS broken by the caller"
+[[ "$out" == *"still running: alpha"* && "$out" == *"NO LONGER running: beta"* ]] && ok=1 || ok=0
+assert_eq 1 "$ok" "correct partial-survival attribution survives an empty/broken ambient IFS -- the fix does not depend on bash's own word-splitting of an unquoted expansion"
 
 # ---------------------------------------------------------------------------
 # T019 — FR-006 structural regression lock: llmctl profile START is

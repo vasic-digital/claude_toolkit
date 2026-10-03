@@ -1346,12 +1346,23 @@ _cma_llmctl_ensure_active() {
         "${_cma_lc_row2:-no profile}" >&2
     else
       local _cma_lc_still="" _cma_lc_gone="" _cma_lc_name
-      for _cma_lc_name in $_cma_lc_row; do
+      # Portable split across bash AND zsh (follow-up independent review,
+      # finding 4): `for x in $var` relies on bash's default word-splitting
+      # of an unquoted expansion, which zsh does NOT do by default -- this
+      # function body is emitted verbatim into the shared alias file
+      # (CMA_LLMCTL_ENSURE_ACTIVE_EOF heredoc above) and sourced into
+      # whichever shell the operator runs (zsh on macOS, zsh via .zshrc on
+      # Linux per CMA_RC_FILES -- see the house rule at lib.sh ~1183/1479).
+      # A here-string + `while read` with IFS=newline splits identically in
+      # both shells, matching the established pattern
+      # `_cma_llmctl_active_profile` itself already uses just above.
+      while IFS= read -r _cma_lc_name; do
+        [[ -n "$_cma_lc_name" ]] || continue
         case " $_cma_lc_row2 " in
           *" $_cma_lc_name "*) _cma_lc_still="${_cma_lc_still:+$_cma_lc_still }$_cma_lc_name" ;;
           *) _cma_lc_gone="${_cma_lc_gone:+$_cma_lc_gone }$_cma_lc_name" ;;
         esac
-      done
+      done <<<"$(printf '%s' "$_cma_lc_row" | tr ' ' '\n')"
       if [[ -z "$_cma_lc_gone" ]]; then
         printf 'claude-providers: previous profile %s confirmed still running.\n' "$_cma_lc_still" >&2
       elif [[ -z "$_cma_lc_still" ]]; then
