@@ -165,4 +165,30 @@ assert result2 == {"_cache_version": qp.QUOTA_CACHE_VERSION, "providers": {}}, r
 PY
 assert_eq 0 $? "load_quota_cache returns the empty shape for a missing path and for an expired cache (never partially trusted)"
 
+it "save_quota_cache + load_quota_cache round-trip real data intact, with a fresh (non-expired) timestamp"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+cache_path = home_dir + "/roundtrip-quota-cache.json"
+real_data = {"providers": {"openrouter": {"amount_remaining": 52.68, "limit_total": 100.0}}}
+
+qp.save_quota_cache(cache_path, real_data)
+back = qp.load_quota_cache(cache_path)
+
+assert back["providers"]["openrouter"]["amount_remaining"] == 52.68, back
+assert back["providers"]["openrouter"]["limit_total"] == 100.0, back
+assert back["_cache_version"] == qp.QUOTA_CACHE_VERSION, back
+PY
+assert_eq 0 $? "save_quota_cache + load_quota_cache round-trip real provider data intact"
+
 summary

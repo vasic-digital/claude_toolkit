@@ -7,11 +7,24 @@ is a pure function over `(window_spec, body)`.
 
 Reuses `model_verify.py`'s JSON-path helpers rather than re-implementing
 JSON-path walking (`research.md §3`'s explicit decision).
+
+`QUOTA_CACHE_TTL_SECONDS` (21600 = 6 hours) is `model_verify.CREDIT_CACHE_TTL_SECONDS`
+(86400 = 24 hours, as of this task) divided by 4: quota data is operator-facing
+and should go stale faster than the credit cache's model-selection concern
+(research.md §4).
 """
 
+import json
+import os
+import time
 from datetime import datetime, timezone, timedelta
 
 from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
+
+QUOTA_CACHE_VERSION = 1
+QUOTA_CACHE_TTL_SECONDS = 21600  # 6 hours = CREDIT_CACHE_TTL_SECONDS (86400) / 4 —
+# quota data is operator-facing and should go stale faster than the
+# credit cache's model-selection concern (research.md §4).
 
 
 def _first_signal_value(signals, type_name, body):
@@ -103,3 +116,33 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
         "resets": resets,
         "reset_at": reset_at,
     }
+
+
+def load_quota_cache(path):
+    """Read the quota cache, honouring the same version+TTL gate the
+    credit cache applies. A rejected cache comes back empty, never
+    partially trusted."""
+    if not path or not os.path.exists(path):
+        return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
+    if not isinstance(data, dict) or data.get("_cache_version") != QUOTA_CACHE_VERSION:
+        return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
+    ts = data.get("_cached_at")
+    if not isinstance(ts, (int, float)) or time.time() - ts > QUOTA_CACHE_TTL_SECONDS:
+        return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
+    data.setdefault("providers", {})
+    return data
+
+
+def save_quota_cache(path, data):
+    if not path:
+        return
+    data["_cache_version"] = QUOTA_CACHE_VERSION
+    data["_cached_at"] = time.time()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
