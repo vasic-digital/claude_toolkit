@@ -75,4 +75,51 @@ unset NO_COLOR
 _cma_quota_color_enabled --force-tty --no-color
 assert_eq 1 $? "--no-color flag forces color off even on a real tty with NO_COLOR unset"
 
+# --- _cma_quota_render_text (T018, RED — function does not exist yet; it
+# lands in T019) -------------------------------------------------------
+#
+# Fixed 4-row Reportable Entity JSON fixture (data-model.md §1/§2/§3
+# shapes), one JSON object per line (newline-delimited, as
+# _cma_quota_render_text reads from stdin):
+#   Row 1: deepseek, one window, 52.68% remaining -> green.
+#   Row 2: claude1 (native), no windows, not reported by provider.
+#   Row 3: dualwin, two windows -- session 80% remaining (green) and
+#          weekly 5% remaining (red) -- two different severities in one row.
+#   Row 4: cachedprov, one window, cached data 42 seconds old.
+FIXTURE=(
+  '{"provider_id":"deepseek","alias_names":["deepseek","kimi-deepseek"],"base_url":"https://api.deepseek.com/v1","windows":[{"window":"subscription","amount_used":47.32,"amount_remaining":52.68,"limit_total":100.00,"unit":"USD","percent_remaining":52.68,"resets":false,"reset_at":null}],"account_blocked":false,"absence_reason":null,"data_source":"live","data_age_seconds":null}'
+  '{"account_id":"claude1","family":"claude","plan_tier":"default_claude_max_20x","windows":[],"absence_reason":"not_reported_by_provider","data_source":null,"data_age_seconds":null}'
+  '{"provider_id":"dualwin","alias_names":["dualwin"],"base_url":"https://api.dualwin.example/v1","windows":[{"window":"session","amount_used":20,"amount_remaining":80,"limit_total":100,"unit":"tokens","percent_remaining":80,"resets":false,"reset_at":null},{"window":"weekly","amount_used":95,"amount_remaining":5,"limit_total":100,"unit":"tokens","percent_remaining":5,"resets":false,"reset_at":null}],"account_blocked":false,"absence_reason":null,"data_source":"live","data_age_seconds":null}'
+  '{"provider_id":"cachedprov","alias_names":["cachedprov"],"base_url":"https://api.cachedprov.example/v1","windows":[{"window":"session","amount_used":10,"amount_remaining":90,"limit_total":100,"unit":"tokens","percent_remaining":90,"resets":false,"reset_at":null}],"account_blocked":false,"absence_reason":null,"data_source":"cached","data_age_seconds":42}'
+)
+
+it "_cma_quota_render_text groups by alias header exactly once per provider-account"
+out="$(printf '%s\n' "${FIXTURE[@]}" | _cma_quota_render_text)"
+count="$(grep -c '^deepseek' <<<"$out")"
+assert_eq "1" "$count" "deepseek's header appears exactly once, never once per alias_name"
+
+it "_cma_quota_render_text shows each window on its own line"
+lines="$(grep -c 'session\|weekly\|subscription' <<<"$out")"
+assert_eq "4" "$lines" "4 total window lines across all 4 rows (1+0+2+1)"
+
+it "_cma_quota_render_text states the native row is not reported by provider"
+echo "$out" | grep -q "not reported by provider" || assert_eq "contains" "missing" "native row's absence must be stated in words"
+
+it "_cma_quota_render_text shows both severities for the two-window row on separate lines"
+echo "$out" | grep -qi "green" && echo "$out" | grep -qi "red" \
+  && ok=1 || ok=0
+assert_eq "1" "$ok" "both severity words appear somewhere in the output"
+
+it "_cma_quota_render_text with color forced off: zero ANSI bytes, severity words still present"
+out_noc="$(printf '%s\n' "${FIXTURE[@]}" | _cma_quota_render_text --no-color)"
+ansi_count="$(printf '%s' "$out_noc" | grep -c $'\033' || true)"
+assert_eq "0" "$ansi_count" "no ANSI escape bytes when color is forced off"
+echo "$out_noc" | grep -qi "green" && echo "$out_noc" | grep -qi "red" \
+  && ok2=1 || ok2=0
+assert_eq "1" "$ok2" "severity words still present in plain-text mode (FR-013)"
+
+it "_cma_quota_render_text states the cached row is cached and discloses its age (42)"
+echo "$out" | grep -q "cached" || assert_eq "contains cached" "missing" "cached row must say so"
+echo "$out" | grep -q "42" || assert_eq "contains 42" "missing" "cached row must disclose its numeric age (FR-012)"
+
 summary
