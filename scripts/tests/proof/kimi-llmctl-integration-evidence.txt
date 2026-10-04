@@ -1,2 +1,6 @@
-Kimi/llmctl live integration: Sun Oct  4 07:06:35 PM CEST 2026
-SKIP: llmctl server not reachable at http://127.0.0.1:8085/v1 (is 'llmctl start small' running?)
+Kimi/llmctl live integration: Sun Oct  4 10:21:35 PM CEST 2026
+server reachable: http://127.0.0.1:8085/v1/models -> {"models":[{"name":"/home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf","model":"/home/milosvasic/.local/share/llmctl/models/small/Llama-3.2-3B-Instruct-Q4_K_M.gguf","
+--- exit=1 ---
+kimi version 0.42.0
+error: failed to run prompt: provider.api_error: 400 request (92638 tokens) exceeds the available context size (55040 tokens), try increasing it
+See log: /home/milosvasic/.kimi-prov-llmctl-small/logs/kimi-code.log
