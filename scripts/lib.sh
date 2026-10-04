@@ -164,6 +164,41 @@ _cma_quota_render_one_row() {
   done
 }
 
+# _cma_quota_render_json: reads the SAME newline-delimited Reportable
+# Entity JSON _cma_quota_render_text reads, writes ONE JSON object
+# (data-model.md §5) to stdout. Derives kind/display_name/
+# endpoint_spec_present/absence_detail and per-window severity, none of
+# which the raw T017 stream carries (see task-21-brief.md for why).
+_cma_quota_render_json() {
+  local scoped_to="${1:-null}" unknown_alias="${2:-false}"
+  local now; now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local rows_json; rows_json="$(jq -cs '
+    map(
+      (if has("provider_id") then "provider_account" else "native_account" end) as $kind
+      | (.provider_id // .account_id) as $dname
+      | (if .absence_reason == "not_reported_by_provider" then false else true end) as $esp
+      | . + {
+          kind: $kind,
+          display_name: $dname,
+          endpoint_spec_present: $esp,
+          absence_detail: null,
+          windows: [
+            .windows[]
+            | . + { severity: (
+                if (.percent_remaining <= 0) then "limit_exceeded"
+                elif (.percent_remaining < 10) then "red"
+                elif (.percent_remaining < 30) then "yellow"
+                else "green" end
+              ) }
+          ]
+        }
+    )
+  ')"
+  jq -cn --arg gen "$now" --argjson scoped "$scoped_to" --argjson unk "$unknown_alias" \
+    --argjson rows "$rows_json" \
+    '{generated_at: $gen, scoped_to: $scoped, unknown_alias: $unk, rows: $rows}'
+}
+
 cma_require() {
   command -v "$1" >/dev/null 2>&1 || cma_die "missing required tool: $1"
 }
