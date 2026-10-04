@@ -4016,10 +4016,30 @@ cmd_sync_multi() {
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
 
+# quota/limits: argument parsing only for now (T012). Real probing and
+# rendering land in User Story 1's tasks -- this function currently just
+# echoes what it parsed and returns 0, proving the dispatch wiring works
+# end to end before any data-fetching logic exists.
+cmd_quota() {
+  local alias_arg="" json=0 fresh=0 timeout="" no_color=0
+  while (( $# )); do
+    case "$1" in
+      --json) json=1; shift ;;
+      --fresh) fresh=1; shift ;;
+      --timeout) timeout="$2"; shift 2 ;;
+      --no-color) no_color=1; shift ;;
+      -*) cma_err "unknown flag: $1 (try --help)"; return 1 ;;
+      *) alias_arg="$1"; shift ;;
+    esac
+  done
+  cma_log "quota: alias=${alias_arg:-<all>} json=$json fresh=$fresh timeout=${timeout:-<default>} no_color=$no_color"
+  return 0
+}
+
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|sync-all-llmctl|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names) SUBCMD="$1"; shift ;;
+  sync|sync-all-llmctl|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names|quota|limits) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -4192,6 +4212,8 @@ case "$SUBCMD" in
   prune)       cmd_prune ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
   migrate-names) cmd_migrate_names ;;
+  quota)       cmd_quota "${POSITIONAL[@]:-}" ;;
+  limits)      cmd_quota "${POSITIONAL[@]:-}" ;;
 esac
 
 fi  # end source-guard (BASH_SOURCE == $0)
