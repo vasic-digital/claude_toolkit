@@ -144,7 +144,7 @@
 
 ### Tests for User Story 2
 
-- [ ] **T023 [TDD] [US2]** Write a failing test in `scripts/tests/test_quota_cli.sh`: `cmd_quota openrouter` (an existing alias) produces output with `scoped_to="openrouter"` (via `--json`) and `rows` containing AT MOST one entry; `cmd_quota this-alias-does-not-exist` returns exit code `2`, produces `unknown_alias: true` with an EMPTY `rows` array, and prints a plain-text statement containing the words "does not exist" (or equivalent) to stderr/stdout — never a silent `exit 0` with empty output (FR-003).
+- [x] **T023 [TDD] [US2]** Write a failing test in `scripts/tests/test_quota_cli.sh`: `cmd_quota openrouter` (an existing alias) produces output with `scoped_to="openrouter"` (via `--json`) and `rows` containing AT MOST one entry; `cmd_quota this-alias-does-not-exist` returns exit code `2`, produces `unknown_alias: true` with an EMPTY `rows` array, and prints a plain-text statement containing the words "does not exist" (or equivalent) to stderr/stdout — never a silent `exit 0` with empty output (FR-003).
   - **Files**: Modify `scripts/tests/test_quota_cli.sh`.
 
 - [ ] **T024 [TDD] [US2]** Write a failing test in `scripts/tests/test_quota_probe.sh`: given a `quota-endpoints.json` entry with an `account_signals` list containing an `account_blocked` signal, and a stubbed HTTP body where that signal resolves `true`, calling a not-yet-existing `quota_probe.resolve_account_blocked(provider_spec, body)` returns `True`; given a body where it resolves `false`, returns `False`; given an entry with NO `account_signals` at all, returns `False` (the documented default, never "unknown" — `contracts/quota-endpoint-spec-contract.md`'s "account_blocked" section).
