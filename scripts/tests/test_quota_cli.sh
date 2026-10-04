@@ -590,9 +590,8 @@ assert_eq "0" "$or_live_calls" "the live-probe subprocess (the only one that wou
 # 28's hermetic-testing correction: never a real network call in a unit
 # test). The real, TRACKED scripts/providers/quota-endpoints.json documents
 # only "openrouter" (a genuine external host that must never be dialed from
-# a test), so this fixture lives in an ISOLATED temp copy -- a verbatim copy
-# of the real file's entries plus the one new unreachable entry -- pointed
-# at via CMA_QUOTA_ENDPOINTS_FILE, the override this task adds to
+# a test), so this fixture lives in an ISOLATED temp copy pointed at via
+# CMA_QUOTA_ENDPOINTS_FILE, the override this task adds to
 # _cma_quota_group_accounts (lib.sh) and _cma_quota_probe_all
 # (claude-providers.sh) for exactly this purpose: the same documented
 # rationale as this file's own existing CMA_PROVIDERS_KEY_ALIASES /
@@ -600,22 +599,45 @@ assert_eq "0" "$or_live_calls" "the live-probe subprocess (the only one that wou
 # suite can point them at sandbox copies -- otherwise a sync inside a test
 # would rewrite the TRACKED repo files"). The override is exported only for
 # the single probe call below and unset immediately after.
+#
+# REVIEW ROUND 1 FIX: the first version of this fixture slurped ALL of the
+# real file's entries (including openrouter's genuine
+# https://openrouter.ai/... URL) into the isolated copy, and called
+# _cma_quota_probe_all with fresh=1 and NO alias_filter -- which forced
+# EVERY row in the batch (including the still-live "openrouter" fixture
+# from the T028 block above, sharing this same sandboxed $HOME) past the
+# cache check and into the live-probe branch. strace -f -e trace=network
+# caught a REAL completed TCP handshake to openrouter.ai's Cloudflare IPs --
+# exactly the class of regression a prior review round had just fixed in
+# the sibling Task 28 test, reintroduced here through a different
+# mechanism. Fixed with BOTH of the following (belt and suspenders):
+#   1. The isolated quota-endpoints.json fixture now contains ONLY the new
+#      unreachable entry -- zero real entries copied in, ever (same safe
+#      pattern test_quota_concurrency.sh:11-25 already establishes: an
+#      isolated spec file holding fixture entries only, never real ones).
+#   2. The fresh=1 probe call below now passes a 3rd alias_filter argument
+#      scoping it to ONLY this fixture's alias, so even a real entry
+#      present elsewhere in the batch could never be reached by this call.
+# The not_reported_by_provider comparison below now reuses the EARLIER,
+# already-captured T028 "$probe_out" (the fresh=0, unscoped call, whose
+# cached/not-reported rows were already proven network-free by T028's own
+# assertions) instead of a second unscoped batch call here.
 
-it "T029 setup: isolated quota-endpoints.json fixture (real entries + one unreachable-local-address entry)"
+it "T029 setup: isolated quota-endpoints.json fixture -- ONLY the new unreachable entry, zero real entries"
 quota_fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/cma-quota-fixture.XXXXXX")"
 quota_fixture_file="$quota_fixture_dir/quota-endpoints.json"
-jq --slurpfile real "$SCRIPTS_DIR/providers/quota-endpoints.json" -n '
-  ($real[0] | with_entries(select(.key != "_comment"))) + {
-    "quota-fixture-unreachable": {
-      url: "http://127.0.0.1:1/",
-      auth: "bearer",
-      windows: [
-        { window: "subscription", signals: [ { path: [], type: "unit_literal", value: "credits" } ] }
-      ]
-    }
+jq -n '{
+  "quota-fixture-unreachable": {
+    url: "http://127.0.0.1:1/",
+    auth: "bearer",
+    windows: [
+      { window: "subscription", signals: [ { path: [], type: "unit_literal", value: "credits" } ] }
+    ]
   }
-' > "$quota_fixture_file"
+}' > "$quota_fixture_file"
 assert_file "$quota_fixture_file" "isolated quota-endpoints.json fixture written"
+real_entry_leaked="$(jq 'has("openrouter")' "$quota_fixture_file")"
+assert_eq "false" "$real_entry_leaked" "the isolated fixture must NEVER contain the real openrouter entry"
 
 it "T029 setup: quota-fixture-unreachable provider env + alias"
 pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
@@ -629,7 +651,7 @@ assert_file "$pdir/quota-fixture-unreachable.env" "quota-fixture-unreachable.env
 
 it "a probe_failed result has a non-empty absence_detail distinct from not_reported_by_provider"
 export CMA_QUOTA_ENDPOINTS_FILE="$quota_fixture_file"
-t029_out="$(_cma_quota_probe_all 1 "1")"
+t029_out="$(_cma_quota_probe_all 1 "1" "quota-fixture-unreachable")"
 unset CMA_QUOTA_ENDPOINTS_FILE
 t029_result="$(echo "$t029_out" | jq -c 'select(.provider_id=="quota-fixture-unreachable")')"
 t029_reason="$(echo "$t029_result" | jq -r '.absence_reason')"
@@ -638,12 +660,17 @@ assert_eq "probe_failed" "$t029_reason" "a genuinely-attempted-but-failed probe 
 t029_ok=0; [[ -n "$t029_detail" ]] && t029_ok=1
 assert_eq "1" "$t029_ok" "absence_detail must be a non-empty string naming the real failure"
 
-t029_not_reported_reason="$(echo "$t029_out" | jq -r 'select(.provider_id=="deepseek") | .absence_reason')"
+# Reuse T028's earlier, already-captured unscoped probe_out for the
+# not_reported_by_provider comparison, rather than a second unscoped batch
+# call here (review round 1 fix -- see block comment above).
+t029_not_reported_reason="$(echo "$probe_out" | jq -r 'select(.provider_id=="deepseek") | .absence_reason')"
 t029_neq=1; [[ "$t029_reason" == "$t029_not_reported_reason" ]] && t029_neq=0
 assert_eq "1" "$t029_neq" "probe_failed and not_reported_by_provider must be textually DIFFERENT strings, never confused"
 
 it "T029: every row carries the absence_detail KEY, even when its value is null (key never omitted)"
-t029_all_have="$(echo "$t029_out" | jq -s 'map(has("absence_detail")) | all')"
-assert_eq "true" "$t029_all_have" "absence_detail key must be present on every row -- null is a valid value, a missing key is not"
+t029_fixture_has="$(echo "$t029_out" | jq -s 'map(has("absence_detail")) | all')"
+assert_eq "true" "$t029_fixture_has" "absence_detail key must be present on the scoped probe_failed row"
+t029_batch_has="$(echo "$probe_out" | jq -s 'map(has("absence_detail")) | all')"
+assert_eq "true" "$t029_batch_has" "absence_detail key must be present on every row across the full batch too (not_reported_by_provider, cached, and native-account rows alike)"
 
 summary
