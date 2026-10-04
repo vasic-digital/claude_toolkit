@@ -123,6 +123,25 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
     }
 
 
+def resolve_account_blocked(provider_spec, body):
+    """Resolve the OPTIONAL account_signals list on a provider's
+    quota-endpoints.json entry into a single account_blocked boolean.
+    No account_signals at all -> False (the documented default, never
+    "unknown" -- contracts/quota-endpoint-spec-contract.md's
+    account_blocked section)."""
+    account_blocked = False
+    for sig in (provider_spec.get("account_signals") or []):
+        kind = (sig.get("type") or "").lower()
+        if kind not in ("account_blocked", "account_blocked_negated"):
+            continue
+        flag = _dig_bool(body, sig.get("path") or [])
+        if flag is None:
+            continue
+        account_blocked = flag if kind == "account_blocked" else (not flag)
+        break
+    return account_blocked
+
+
 def probe_provider(provider_id, spec, api_key, timeout):
     """Live-probe one quota-endpoints.json provider entry. Returns a dict:
     {provider_id, windows: [...], account_blocked: bool,
@@ -149,16 +168,7 @@ def probe_provider(provider_id, spec, api_key, timeout):
             "absence_reason": "probe_failed", "http_status": status,
         }
 
-    account_blocked = False
-    for sig in (spec.get("account_signals") or []):
-        kind = (sig.get("type") or "").lower()
-        if kind not in ("account_blocked", "account_blocked_negated"):
-            continue
-        flag = _dig_bool(body, sig.get("path") or [])
-        if flag is None:
-            continue
-        account_blocked = flag if kind == "account_blocked" else (not flag)
-        break
+    account_blocked = resolve_account_blocked(spec, body)
 
     windows = []
     for w in (spec.get("windows") or []):
