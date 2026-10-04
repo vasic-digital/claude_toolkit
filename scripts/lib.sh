@@ -118,7 +118,12 @@ _cma_quota_render_one_row() {
 
   local absence; absence="$(jq -r '.absence_reason // empty' <<<"$line" 2>/dev/null)"
   if [[ -n "$absence" ]]; then
-    printf '  —   not reported by provider\n'
+    if [[ "$absence" == "probe_failed" ]]; then
+      local detail; detail="$(jq -r '.absence_detail // "unknown error"' <<<"$line" 2>/dev/null)"
+      printf '  —   probe failed: %s\n' "$detail"
+    else
+      printf '  —   not reported by provider\n'
+    fi
     return 0
   fi
 

@@ -208,4 +208,47 @@ json_out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_jso
 ab="$(echo "$json_out" | jq -r '.rows[] | select(.display_name=="blockedprov") | .account_blocked')"
 assert_eq "true" "$ab" "account_blocked must survive into the JSON output"
 
+# --- Distinguish not_reported_by_provider from probe_failed (T030) ----
+#
+# `_cma_quota_render_one_row` currently prints the SAME literal phrase
+# "not reported by provider" for BOTH absence_reason values -- exactly
+# the confusion FR-009/this phase exists to prevent. A new row with
+# absence_reason "probe_failed" (and a real absence_detail) must render
+# a DISTINCT phrase that includes its own detail text, and must never
+# say "not reported by provider" in its own block.
+#
+# As with BLOCKED_ROW above, this row is concatenated onto FIXTURE[@]
+# only at the point of use -- FIXTURE's row count is asserted exactly
+# elsewhere, so appending here would turn those earlier assertions into
+# false-FAILs.
+FAILED_ROW='{"provider_id":"failedprov","alias_names":["failedprov"],"base_url":"http://127.0.0.1:1/","windows":[],"account_blocked":false,"absence_reason":"probe_failed","absence_detail":"connection failed or timed out","data_source":"live","data_age_seconds":null}'
+
+it "_cma_quota_render_text: not_reported_by_provider and probe_failed render DIFFERENT, unambiguous phrases"
+out="$(printf '%s\n' "${FIXTURE[@]}" "$FAILED_ROW" | _cma_quota_render_text --force-no-tty)"
+
+# The not_reported row's block (claude1, the native-account row from
+# FIXTURE) must say "not reported by provider" -- scoped to ITS OWN
+# block, not the whole combined stream.
+not_reported_block="$(echo "$out" | sed -n '/^claude1/,/^$/p')"
+echo "$not_reported_block" | grep -q "not reported by provider" || assert_eq "contains 'not reported by provider' in claude1's own block" "missing" "not_reported_by_provider row must still say so"
+
+# The probe_failed row's block (failedprov) must say "probe failed" PLUS
+# its real absence_detail text, and must NEVER say "not reported by
+# provider" anywhere in its own block -- scoped the same way, per the
+# Task 27 review finding: a bare grep against the WHOLE combined $out
+# would trivially pass here regardless of failedprov's own block,
+# since claude1's block already contains that exact phrase.
+failed_block="$(echo "$out" | sed -n '/^failedprov/,/^$/p')"
+echo "$failed_block" | grep -qi "probe failed" || assert_eq "contains 'probe failed' in failedprov's own block" "missing" "probe_failed must render a distinct phrase"
+echo "$failed_block" | grep -q "connection failed or timed out" || assert_eq "contains the real absence_detail in failedprov's own block" "missing" "the real absence_detail text must appear, not a placeholder"
+echo "$failed_block" | grep -q "not reported by provider" && bad=1 || bad=0
+assert_eq "0" "$bad" "probe_failed's own block must NEVER say 'not reported by provider' -- the exact confusion FR-009 forbids"
+
+it "_cma_quota_render_json: probe_failed and not_reported_by_provider are textually distinct in the JSON too"
+json_out="$(printf '%s\n' "${FIXTURE[@]}" "$FAILED_ROW" | _cma_quota_render_json)"
+r1="$(echo "$json_out" | jq -r '.rows[] | select(.display_name=="failedprov") | .absence_reason')"
+r2="$(echo "$json_out" | jq -r '.rows[] | select(.display_name=="claude1") | .absence_reason')"
+neq=1; [[ "$r1" == "$r2" ]] && neq=0
+assert_eq "1" "$neq" "probe_failed and not_reported_by_provider must never be the same string"
+
 summary
