@@ -159,7 +159,7 @@
   - **Files**: Modify `scripts/quota_probe.py`, `scripts/claude-providers.sh` (the T017 orchestration call site now also calls this and merges its result).
   - **Interfaces — Produces**: `resolve_account_blocked(provider_spec: dict, body: dict) -> bool`.
 
-- [ ] **T027 [TDD] [US2]** Write a failing test, then extend `_cma_quota_render_text` (T019) and `_cma_quota_render_json` (T021), so that a row with `account_blocked=true` renders a DISTINCT, unmistakable statement (e.g. "ACCOUNT BLOCKED — the whole subscription is suspended") separately from, and in addition to, any real windows that row still carries (FR-011's "distinct from a single exhausted window" — a blocked account's PRIOR windows are not hidden, just annotated as moot) — confirm the color-stripped output ALSO carries this distinction in words (same Review Focus #5 discipline as T018).
+- [x] **T027 [TDD] [US2]** Write a failing test, then extend `_cma_quota_render_text` (T019) and `_cma_quota_render_json` (T021), so that a row with `account_blocked=true` renders a DISTINCT, unmistakable statement (e.g. "ACCOUNT BLOCKED — the whole subscription is suspended") separately from, and in addition to, any real windows that row still carries (FR-011's "distinct from a single exhausted window" — a blocked account's PRIOR windows are not hidden, just annotated as moot) — confirm the color-stripped output ALSO carries this distinction in words (same Review Focus #5 discipline as T018).
   - **Files**: Modify `scripts/lib.sh`, `scripts/tests/test_quota_rendering.sh`.
 
 **Checkpoint**: Both User Story 1 and User Story 2 fully work, independently and together. Run quickstart.md Scenario 2 against a real sandbox/live install.
