@@ -260,6 +260,40 @@ With the opt-in set, the wrapper looks for `helixllm-mode.sh` in the usual Helix
 
 A per-provider setting (a line in the provider's resolved `.env` file) that makes every conversation launch **minimal and fresh** so it fits a small local context window. It prepends `--bare` (dropping the hook/plugin/MCP/CLAUDE.md surface) and skips **both** automatic history seams — the conversation-args auto-`--resume` and the interactive zero-args stored session-flags — so no synced session history rides along. Your **explicit** `--resume` / `--session-id` / `--continue` selectors are still honored verbatim, non-conversation subcommands (`doctor`, `mcp`, …) are untouched, and providers without the setting behave exactly as before. It is wired today for `helixagent`, whose 229,376-token window would otherwise be overflowed by ~330k tokens of resumed history plus ~110k of tool schemas.
 
+## Quota and limits
+
+### Why does `quota` show the same number for `deepseek` and `kimi-deepseek`?
+
+Because they're the same account. `deepseek` and `kimi-deepseek` (and
+`pi-deepseek`) are three different alias names, but all three
+authenticate through the same real API key against the same real
+provider account (see data-model.md §2 of the feature's spec). `quota`
+probes that one account once and shows it once, listing every alias
+name that maps to it, rather than printing three separate rows with
+three separate (but identical) numbers — which would wrongly suggest
+three independent budgets.
+
+### Why does my native Claude/Kimi account show "not reported by provider"?
+
+Because no genuine live usage API exists for native OAuth accounts yet
+(research.md §7 of the feature's spec — `claude --help` and `kimi
+--help` expose no usage/billing subcommand, and no local artifact of a
+real rate-limit response header was found either). This is an honest
+absence, not a bug: `quota` will not guess a percentage it cannot
+measure. When the account's plan-tier name is cached locally (e.g.
+`default_claude_max_20x`), it's shown alongside the status as context,
+even though it isn't a used/remaining figure.
+
+### Why would `quota` for one alias take longer than the others?
+
+It won't delay the others. Each provider gets its own bounded probe
+timeout (`--timeout`, default `3` seconds) — a slow or unreachable
+provider never blocks the whole command; it simply reports
+`probe_failed` for its own row once its timeout elapses, while every
+other alias's real result still comes back on time (FR-017). Probing
+itself runs with bounded concurrency, so total wall-clock time scales
+with batches of the timeout, not linearly with alias count.
+
 ## Releasing
 
 ### How do I run the pre-release gate?

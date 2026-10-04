@@ -6,6 +6,8 @@ Every provider alias goes through a 4-layer verification pipeline before it can 
 
 **One verdict, two aliases.** Since v1.27.0 each provider id also gets a `kimi-<id>` twin (Kimi Code over the **same** backend, see the Provider Aliases User Guide §4.2). There is no separate Kimi verification — the single `status.json` record that gates the Claude alias `<id>` gates its `kimi-<id>` twin too. Any `kimi-<id>` alias is refused at launch unless its id is `verified` (override with `--force`), exactly like the Claude-side gate.
 
+**Not the same concern as `quota`/`limits`.** Verification answers "can this alias be launched at all" (existence, tool-calling, semantic visibility, and a live-TUI route check). `quota`/`limits` is a separate, read-only reporting command — it answers "how much usage window is left" and never gates activation. See the Provider Aliases User Guide's §14 for its usage.
+
 ## The Four Layers
 
 ### Layer 1: Existence

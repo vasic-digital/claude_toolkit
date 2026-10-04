@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc 3.10" />
+  <meta name="generator" content="pandoc 3.11" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>Claude Multi-Account Fine Tuning</title>
   <style>
@@ -39,7 +39,6 @@ background-color: white;
 body {
 background-color: transparent;
 color: black;
-font-size: 12pt;
 }
 p, h2, h3 {
 orphans: 3;
@@ -169,7 +168,6 @@ width: 0.8em;
 margin: 0 0.8em 0.2em -1.6em;
 vertical-align: middle;
 }
-.display.math{display: block; text-align: center; margin: 0.5rem auto;}
 
 html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
@@ -258,6 +256,11 @@ provider alias is named and what it runs</a>
 <li><a href="#41-model-tier--strongest-paid-if-you-have-credit-strongest-free-if-you-dont" id="toc-41-model-tier--strongest-paid-if-you-have-credit-strongest-free-if-you-dont">4.1
 Model tier — strongest paid if you have credit, strongest free if you
 don&#39;t</a></li>
+<li><a href="#42-kimi-code-twins-kimi-id" id="toc-42-kimi-code-twins-kimi-id">4.2 Kimi Code twins
+(<code>kimi-&lt;id&gt;</code>)</a></li>
+<li><a href="#43-the-kimi---kc--rename-one-time-breaking" id="toc-43-the-kimi---kc--rename-one-time-breaking">4.3 The
+<code>kimi-*</code> → <code>kc-*</code> rename (one-time,
+breaking)</a></li>
 </ul></li>
 <li><a href="#5-config-dirs-plugins-and-shared-state" id="toc-5-config-dirs-plugins-and-shared-state">5. Config dirs, plugins,
 and shared state</a>
@@ -289,9 +292,9 @@ distributed deployment &amp; heavy testing</a></li>
 <li><a href="#11-command-quick-reference" id="toc-11-command-quick-reference">11. Command quick-reference</a></li>
 <li><a href="#12-individual-provider-notes" id="toc-12-individual-provider-notes">12. Individual provider notes</a>
 <ul>
-<li><a href="#kimi-code--oauth-subscription-kimi-for-coding-kimi-k3-kimi-k2p7-kimi-for-coding-highspeed" id="toc-kimi-code--oauth-subscription-kimi-for-coding-kimi-k3-kimi-k2p7-kimi-for-coding-highspeed">Kimi
-Code — OAuth subscription (kimi-for-coding, kimi-k3, kimi-k2p7,
-kimi-for-coding-highspeed)</a></li>
+<li><a href="#kimi-code--oauth-subscription-kc-for-coding-kc-k3-kc-k2p7-kc-for-coding-highspeed" id="toc-kimi-code--oauth-subscription-kc-for-coding-kc-k3-kc-k2p7-kc-for-coding-highspeed">Kimi
+Code — OAuth subscription (kc-for-coding, kc-k3, kc-k2p7,
+kc-for-coding-highspeed)</a></li>
 <li><a href="#zai-coding-plan-zai-coding-plan" id="toc-zai-coding-plan-zai-coding-plan">z.ai Coding Plan
 (zai-coding-plan)</a></li>
 <li><a href="#xiaomi-mimo-xiaomi" id="toc-xiaomi-mimo-xiaomi">Xiaomi
@@ -304,9 +307,52 @@ Zen (provider id <code>opencode</code>, alias
 <li><a href="#poe-poe" id="toc-poe-poe">Poe (poe)</a></li>
 <li><a href="#helixagent-helixagent--local-single-gpu-model" id="toc-helixagent-helixagent--local-single-gpu-model">HelixAgent
 (helixagent) — local single-GPU model</a></li>
+<li><a href="#llmctl-local-multi-profile--one-alias-per-running-model-server" id="toc-llmctl-local-multi-profile--one-alias-per-running-model-server">llmctl
+(local, multi-profile) — one alias per RUNNING model server</a></li>
 </ul></li>
 <li><a href="#13-releasing--the-mandatory-live-pre-release-gate" id="toc-13-releasing--the-mandatory-live-pre-release-gate">13. Releasing
 — the mandatory live pre-release gate</a></li>
+<li><a href="#13-helixcode--helixllm-providers-native-helixcode-integration" id="toc-13-helixcode--helixllm-providers-native-helixcode-integration">13.
+HelixCode / HelixLLM Providers (Native HelixCode Integration)</a>
+<ul>
+<li><a href="#key-differences-from-claude-providers" id="toc-key-differences-from-claude-providers">Key Differences from
+claude-providers</a></li>
+<li><a href="#helixcode-provider-list-15-providers" id="toc-helixcode-provider-list-15-providers">HelixCode Provider List
+(15+ Providers)</a></li>
+<li><a href="#helixcode-model-selection-strategy" id="toc-helixcode-model-selection-strategy">HelixCode Model Selection
+Strategy</a></li>
+<li><a href="#helixcode-verification--llmsverifier-integration" id="toc-helixcode-verification--llmsverifier-integration">HelixCode
+Verification — LLMsVerifier Integration</a></li>
+<li><a href="#helixcode-cli-usage" id="toc-helixcode-cli-usage">HelixCode CLI Usage</a></li>
+<li><a href="#helixcode-server-api" id="toc-helixcode-server-api">HelixCode Server API</a></li>
+<li><a href="#provider-capabilities-matrix" id="toc-provider-capabilities-matrix">Provider Capabilities
+Matrix</a></li>
+<li><a href="#cloud-gate-w2c-1--local-first-default" id="toc-cloud-gate-w2c-1--local-first-default">Cloud Gate (W2c-1) —
+Local-First Default</a></li>
+<li><a href="#llmsverifier-single-source-of-truth-const-036" id="toc-llmsverifier-single-source-of-truth-const-036">LLMsVerifier
+Single Source of Truth (CONST-036)</a></li>
+<li><a href="#anti-bluff-guarantees-const-035-const-037-const-038" id="toc-anti-bluff-guarantees-const-035-const-037-const-038">Anti-Bluff
+Guarantees (CONST-035, CONST-037, CONST-038)</a></li>
+<li><a href="#integration-with-claude-providers" id="toc-integration-with-claude-providers">Integration with
+claude-providers</a></li>
+<li><a href="#configuration-files" id="toc-configuration-files">Configuration Files</a></li>
+<li><a href="#migration-from-hardcoded-lists" id="toc-migration-from-hardcoded-lists">Migration from Hardcoded
+Lists</a></li>
+</ul></li>
+<li><a href="#14-quota-and-limits-reporting-quota--limits" id="toc-14-quota-and-limits-reporting-quota--limits">14. Quota and
+limits reporting (<code>quota</code> / <code>limits</code>)</a>
+<ul>
+<li><a href="#flags" id="toc-flags">Flags</a></li>
+<li><a href="#coloring" id="toc-coloring">Coloring</a></li>
+<li><a href="#honest-absence-vs-probe-failure" id="toc-honest-absence-vs-probe-failure">Honest absence vs. probe
+failure</a></li>
+<li><a href="#account-level-block" id="toc-account-level-block">Account-level block</a></li>
+<li><a href="#de-duplication" id="toc-de-duplication">De-duplication</a></li>
+<li><a href="#example-a-funded-provider" id="toc-example-a-funded-provider">Example: a funded provider</a></li>
+<li><a href="#example-honest-absence--no-documented-endpoint-and-a-native-account" id="toc-example-honest-absence--no-documented-endpoint-and-a-native-account">Example:
+honest absence — no documented endpoint, and a native account</a></li>
+<li><a href="#performance" id="toc-performance">Performance</a></li>
+</ul></li>
 </ul></li>
 </ul>
 </nav>
@@ -522,6 +568,49 @@ section. The table and the rules above are the <strong>behavioural
 contract</strong>; check the source for the current flag and field
 names.</p>
 </blockquote>
+<h3 id="42-kimi-code-twins-kimi-id">4.2 Kimi Code twins
+(<code>kimi-&lt;id&gt;</code>)</h3>
+<p>For every provider id that verifies, <code>sync</code> also emits a
+<strong>Kimi Code twin</strong> that opens the <code>kimi</code> CLI
+against the <strong>same backend</strong> and the same key:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">alias</span> deepseek=<span class="st">&quot;cma_run_provider deepseek&quot;</span>           <span class="co"># Claude Code</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">alias</span> kimi-deepseek=<span class="st">&quot;cma_run_kimi_provider deepseek&quot;</span> <span class="co"># Kimi Code, same backend</span></span></code></pre></div>
+<p>See the family-dispatch diagram
+<code>docs/diagrams/kimi-family.{mmd,svg}</code> for the
+<code>claudeN</code>/<code>kimiN</code>/<code>&lt;id&gt;</code>/<code>kimi-&lt;id&gt;</code>/<code>kc-&lt;id&gt;</code>
+naming contract at a glance.</p>
+<ul>
+<li>The no-prefix alias is <strong>unchanged</strong> and always opens
+Claude Code.</li>
+<li><code>kimi-&lt;id&gt;</code> opens Kimi Code via a per-id
+<code>~/.kimi-prov-&lt;id&gt;/config.toml</code> (provider type by base
+shape, <code>base_url</code>, key from the same env record,
+<code>max_context_size</code> from the same derived limits) and launches
+<code>KIMI_CODE_HOME=… kimi -m &quot;&lt;host&gt;/&lt;strong-model&gt;&quot;</code>.</li>
+<li>Verification is <strong>shared</strong>: the
+<code>status.json</code> verdict gates both twins. A
+<code>kimi-&lt;id&gt;</code> alias is refused unless its id is
+<code>verified</code> (or <code>--force</code>).</li>
+<li>Emit them with <code>--kimi-aliases</code> (default), or suppress
+with <code>--no-kimi-aliases</code>.</li>
+<li><code>kimi-*</code> ids (e.g. <code>kc-*</code> after the rename)
+get no kimi twin — see §4.3.</li>
+</ul>
+<h3 id="43-the-kimi---kc--rename-one-time-breaking">4.3 The
+<code>kimi-*</code> → <code>kc-*</code> rename (one-time, breaking)</h3>
+<p>The legacy aliases that opened <strong>Claude Code</strong> against a
+<strong>Kimi-native backend</strong> are renamed <strong>once</strong>
+(automatically at <code>sync</code>, or via
+<code>kimi-providers migrate-names</code>):
+<code>kimi-for-coding</code>→<code>kc-for-coding</code>,
+<code>kimi-for-coding2</code>→<code>kc-for-coding2</code>,
+<code>kimi-for-coding-highspeed</code>→<code>kc-for-coding-highspeed</code>,
+<code>kimi-k3</code>→<code>kc-k3</code>,
+<code>kimi-k2p7</code>→<code>kc-k2p7</code>. The <code>kimi-</code>
+prefix now means only &quot;Kimi Code CLI agent&quot;. The rename is idempotent
+(second run is a no-op) and reversible via
+<code>backup_and_remove</code> backups. Update any scripts or muscle
+memory that reference the old aliases.</p>
 <h2 id="5-config-dirs-plugins-and-shared-state">5. Config dirs, plugins,
 and shared state</h2>
 <p>Each provider gets <code>~/.claude-prov-&lt;id&gt;</code>, which
@@ -560,13 +649,13 @@ so the session data itself was always shared; the new work ensures
 <code>.claude.json</code> project metadata is also merged.</li>
 </ol>
 <p><strong>Example workflow:</strong></p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Start a project as deepseek</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/my-project</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>          <span class="co"># bare launch: auto-creates the project&#39;s session</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ... work for a while, then exit</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Continue the same project as opencode-zen</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">opencode-zen</span>      <span class="co"># bare launch: AUTO-RESUMES the same project session — no /resume needed</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Start a project as deepseek</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/my-project</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>          <span class="co"># bare launch: auto-creates the project&#39;s session</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ... work for a while, then exit</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Continue the same project as opencode-zen</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">opencode-zen</span>      <span class="co"># bare launch: AUTO-RESUMES the same project session — no /resume needed</span></span></code></pre></div>
 <p>A <strong>bare</strong> alias launch (no arguments) now auto-resumes
 — or first-time creates — the one long-lived session keyed to the
 project root, so switching aliases continues the same conversation
@@ -599,20 +688,20 @@ unprobed (fail-safe on spend), recorded honestly under
 <code>&lt;provider&gt;_verified.json</code>. Paid models are
 <strong>never probed by default</strong> — that costs real money and is
 an explicit opt-in.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard (default): 1 alias per provider + per-model aliases for FREE models</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Opt in to probing paid/unknown-tier models too (spends real money)</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--include-paid</span>          <span class="co"># or CMA_SYNC_INCLUDE_PAID=1</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Only the per-model phase (no single-alias sync); free-tier by default</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Skip the per-model phase entirely (legacy single-alias-only shape)</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="va">CMA_SYNC_MULTI</span><span class="op">=</span>0 <span class="ex">claude-providers</span> sync</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Options</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard (default): 1 alias per provider + per-model aliases for FREE models</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Opt in to probing paid/unknown-tier models too (spends real money)</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--include-paid</span>          <span class="co"># or CMA_SYNC_INCLUDE_PAID=1</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Only the per-model phase (no single-alias sync); free-tier by default</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Skip the per-model phase entirely (legacy single-alias-only shape)</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="va">CMA_SYNC_MULTI</span><span class="op">=</span>0 <span class="ex">claude-providers</span> sync</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Options</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
 <p>Alias generation is idempotent and deterministic: ranking/pairing
 tie-breaks on model id, so re-running sync yields byte-identical alias
 env files and the same <code>provider</code>/<code>provider2</code>/...
@@ -704,11 +793,11 @@ automatically.</p>
 <code>scripts/providers/overrides.json</code></h2>
 <p>Per-provider pins. Empty by default. Any field you set wins over the
 models.dev-derived value:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;deepseek&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;alias&quot;</span><span class="fu">:</span> <span class="st">&quot;dseek&quot;</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;deepseek&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;alias&quot;</span><span class="fu">:</span> <span class="st">&quot;dseek&quot;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p>This is how you (for example) give DeepSeek the short alias
 <code>dseek</code> — without touching any code.</p>
 <p>A <code>strong_model</code> / <code>fast_model</code> pin here also
@@ -725,9 +814,9 @@ OpenAI-compatible endpoint, because both were verified working there and
 a single uniform path is far easier to debug. Every
 <code>transport</code> pin in <code>overrides.json</code> today is
 <code>router</code>: deepseek, xiaomi, opencode, opencode-go, chutes,
-kimi-for-coding, hyper. Two of them:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;deepseek&quot;</span><span class="er">:</span> <span class="fu">{</span> <span class="dt">&quot;transport&quot;</span><span class="fu">:</span> <span class="st">&quot;router&quot;</span><span class="fu">,</span> <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.deepseek.com&quot;</span> <span class="fu">}</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;xiaomi&quot;</span><span class="er">:</span>   <span class="fu">{</span> <span class="dt">&quot;transport&quot;</span><span class="fu">:</span> <span class="st">&quot;router&quot;</span><span class="fu">,</span> <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.xiaomimimo.com/v1&quot;</span> <span class="fu">}</span></span></code></pre></div>
+kc-for-coding, hyper. Two of them:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;deepseek&quot;</span><span class="er">:</span> <span class="fu">{</span> <span class="dt">&quot;transport&quot;</span><span class="fu">:</span> <span class="st">&quot;router&quot;</span><span class="fu">,</span> <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.deepseek.com&quot;</span> <span class="fu">}</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;xiaomi&quot;</span><span class="er">:</span>   <span class="fu">{</span> <span class="dt">&quot;transport&quot;</span><span class="fu">:</span> <span class="st">&quot;router&quot;</span><span class="fu">,</span> <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.xiaomimimo.com/v1&quot;</span> <span class="fu">}</span></span></code></pre></div>
 <p>Pasting an older <code>&quot;transport&quot;: &quot;native&quot;</code> /
 <code>.../anthropic</code> block would revert that fix. Always check the
 live values in <code>scripts/providers/overrides.json</code> before
@@ -780,10 +869,16 @@ not that the model can actually run Claude Code. Both Anthropic-native
 (<code>/v1/messages</code>) and OpenAI-compatible
 (<code>/chat/completions</code>) endpoint shapes are probed in their
 native format.</p>
+<p><strong>The verdict gates both twins.</strong> The same
+<code>status.json</code> record that gates the Claude alias
+(<code>deepseek</code>) also gates its <code>kimi-deepseek</code> Kimi
+Code twin — there is one verification, two aliases sharing its outcome.
+A <code>kimi-&lt;id&gt;</code> alias is refused at launch unless its id
+is <code>verified</code> (override with <code>--force</code>).</p>
 <p>For an additional authoritative layer (&quot;can this model genuinely see
 and describe my code?&quot;) build the LLMsVerifier submodule:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> submodule update <span class="at">--init</span> <span class="at">--depth</span> 1 submodules/LLMsVerifier</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> submodules/LLMsVerifier <span class="kw">&amp;&amp;</span> <span class="ex">go</span> build <span class="at">-o</span> bin/model-verification ./llm-verifier/cmd/model-verification</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> submodule update <span class="at">--init</span> <span class="at">--depth</span> 1 submodules/LLMsVerifier</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> submodules/LLMsVerifier <span class="kw">&amp;&amp;</span> <span class="ex">go</span> build <span class="at">-o</span> bin/model-verification ./llm-verifier/cmd/model-verification</span></code></pre></div>
 <p>Once <code>submodules/LLMsVerifier/bin/model-verification</code>
 exists, <code>sync</code> prefers it as the existence check.
 <code>sync</code> also runs the two-round semantic code-visibility check
@@ -1052,7 +1147,7 @@ e.g.
 enough.&quot;</strong> Read the resolved env file rather than any table in
 this guide, since the value is derived per selected model at sync
 time:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> CMA_PROVIDER_CONTEXT_LIMIT ~/.local/share/claude-multi-account/providers/<span class="op">&lt;</span>alias<span class="op">&gt;</span>.env</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> CMA_PROVIDER_CONTEXT_LIMIT ~/.local/share/claude-multi-account/providers/<span class="op">&lt;</span>alias<span class="op">&gt;</span>.env</span></code></pre></div>
 <p>A context too small to reserve the budget at all yields no window:
 that provider cannot serve Claude Code&#39;s tool prefix regardless, and the
 launch fails loudly rather than being lied to by a guard that cannot
@@ -1075,48 +1170,59 @@ datasource &amp; dashboard + node-exporter).</li>
 <li><strong>Heavy testing:</strong> the bundled
 <code>model-verification</code> tool runs a real &quot;Do you see my code?&quot;
 check against each provider&#39;s live API:
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="op">&lt;</span>user<span class="op">&gt;</span>@<span class="op">&lt;</span>host<span class="op">&gt;</span> <span class="st">&#39;podman run --rm --env-file ~/helix-system/llmsverifier/.env \</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="st">  llm-verifier-mv:nezha --provider deepseek --model deepseek-chat --verbose&#39;</span></span></code></pre></div></li>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="op">&lt;</span>user<span class="op">&gt;</span>@<span class="op">&lt;</span>host<span class="op">&gt;</span> <span class="st">&#39;podman run --rm --env-file ~/helix-system/llmsverifier/.env \</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="st">  llm-verifier-mv:nezha --provider deepseek --model deepseek-chat --verbose&#39;</span></span></code></pre></div></li>
 <li><strong>Evidence:</strong> every verification + deployment claim is
 captured under <code>docs/qa/20260616-infra/</code> (proofs, sweeps,
 security, observability).</li>
 </ul>
 <h2 id="11-command-quick-reference">11. Command quick-reference</h2>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Provider aliases</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync                 <span class="co"># discover keys -&gt; create/refresh aliases</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--no-verify</span>     <span class="co"># skip verification (faster)</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list                 <span class="co"># alias | provider | transport | models</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> show <span class="op">&lt;</span>id<span class="op">&gt;</span>            <span class="co"># one provider&#39;s resolved env</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> remove <span class="op">&lt;</span>id<span class="op">&gt;</span>          <span class="co"># remove alias + env, back up config dir</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> add <span class="at">--from-key</span> VAR <span class="at">--id</span> PROVIDER   <span class="co"># register mapping + sync</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Launch a provider session (after: source the alias file or open a new shell)</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>                              <span class="co"># router provider -&gt; claude via ccr</span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>router-provider<span class="op">&gt;</span>                     <span class="co"># routed provider -&gt; claude via ccr</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span> <span class="at">-p</span> <span class="st">&quot;your prompt&quot;</span>             <span class="co"># non-interactive print mode</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Accounts (unchanged, still works)</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-add-account</span> <span class="at">--alias</span> claudeN    <span class="co"># add a Claude account</span></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span>                  <span class="co"># status of all accounts</span></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span>                          <span class="co"># re-merge shared state</span></span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Docs</span></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-export-docs</span>                    <span class="co"># regenerate HTML/PDF/DOCX</span></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Release gate (run before tagging a release)</span></span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                   <span class="co"># sandbox suite + LIVE real-alias smoke</span></span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>  <span class="co"># also run the full LLMsVerifier scan</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Provider aliases</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync                 <span class="co"># discover keys -&gt; create/refresh aliases</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--no-verify</span>     <span class="co"># skip verification (faster)</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list                 <span class="co"># alias | provider | transport | models</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> show <span class="op">&lt;</span>id<span class="op">&gt;</span>            <span class="co"># one provider&#39;s resolved env</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> remove <span class="op">&lt;</span>id<span class="op">&gt;</span>          <span class="co"># remove alias + env, back up config dir</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> add <span class="at">--from-key</span> VAR <span class="at">--id</span> PROVIDER   <span class="co"># register mapping + sync</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Launch a provider session (after: source the alias file or open a new shell)</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>                              <span class="co"># router provider -&gt; claude via ccr</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>router-provider<span class="op">&gt;</span>                     <span class="co"># routed provider -&gt; claude via ccr</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span> <span class="at">-p</span> <span class="st">&quot;your prompt&quot;</span>             <span class="co"># non-interactive print mode</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Kimi Code CLI (v1.27.0)</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-deepseek</span>                         <span class="co"># Kimi Code on the SAME backend as deepseek</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-deepseek</span> <span class="at">-p</span> <span class="st">&quot;your prompt&quot;</span>        <span class="co"># Kimi Code, non-interactive print mode</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-providers</span> list                   <span class="co"># both alias kinds, agent (claude/kimi) column</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-providers</span> migrate-names          <span class="co"># run the one-time kimi-* -&gt; kc-* rename</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Accounts (unchanged, still works)</span></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-add-account</span> <span class="at">--alias</span> claudeN    <span class="co"># add a Claude account</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span>                  <span class="co"># status of all accounts</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span>                          <span class="co"># re-merge shared state</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Docs</span></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-export-docs</span>                    <span class="co"># regenerate HTML/PDF/DOCX</span></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Release gate (run before tagging a release)</span></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                   <span class="co"># sandbox suite + LIVE real-alias smoke</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>  <span class="co"># also run the full LLMsVerifier scan</span></span></code></pre></div>
 <h2 id="12-individual-provider-notes">12. Individual provider notes</h2>
-<h3 id="kimi-code--oauth-subscription-kimi-for-coding-kimi-k3-kimi-k2p7-kimi-for-coding-highspeed">Kimi
-Code — OAuth subscription (kimi-for-coding, kimi-k3, kimi-k2p7,
-kimi-for-coding-highspeed)</h3>
+<h3 id="kimi-code--oauth-subscription-kc-for-coding-kc-k3-kc-k2p7-kc-for-coding-highspeed">Kimi
+Code — OAuth subscription (kc-for-coding, kc-k3, kc-k2p7,
+kc-for-coding-highspeed)</h3>
 <p>If you are signed into <strong>Kimi Code</strong> (the
 <code>kimi</code> CLI), every model your subscription serves becomes an
-alias automatically — <strong>Kimi 3</strong> (<code>kimi-k3</code>, 1M
-context, reasoning), <strong>Kimi 2.7</strong> (<code>kimi-k2p7</code>),
-<code>kimi-for-coding-highspeed</code>, and the account default
-<code>kimi-for-coding</code>. No API key is required; the OAuth session
-in <code>~/.kimi-code/credentials/kimi-code.json</code> is used.</p>
+alias automatically — <strong>Kimi 3</strong> (<code>kc-k3</code>, 1M
+context, reasoning), <strong>Kimi 2.7</strong> (<code>kc-k2p7</code>),
+<code>kc-for-coding-highspeed</code>, and the account default
+<code>kc-for-coding</code>. These open <strong>Claude Code</strong> on a
+<strong>Kimi-native</strong> backend; the <code>kimi-&lt;id&gt;</code>
+twins open <strong>Kimi Code</strong> (see §4.2). The aliases were
+renamed from the legacy <code>kimi-*</code> names once, at
+<code>sync</code>, by <code>migrate-names</code> (see §4.3). No API key
+is required; the OAuth session in
+<code>~/.kimi-code/credentials/kimi-code.json</code> is used.</p>
 <ul>
 <li><strong>Discovery</strong>: <code>claude-providers sync</code>
 queries <code>GET /coding/v1/models</code> with your OAuth token and
@@ -1131,12 +1237,12 @@ of a stale token.</li>
 <li><strong>kimi_proxy</strong>: k3 enforces a &quot;moonshot-flavored&quot; JSON
 schema for tools (every <code>$ref</code> must start with
 <code>#/$defs/</code>). Claude Code&#39;s tool schemas would 400 without it,
-so all <code>kimi-*</code> launches route through a local normalizing
-proxy (<code>scripts/proxy/kimi_proxy.py</code>, installed by
-<code>install.sh</code>).</li>
+so all <code>*</code>/Claude-Code-on-kimi launches route through a local
+normalizing proxy (<code>scripts/proxy/kimi_proxy.py</code>, installed
+by <code>install.sh</code>).</li>
 <li><strong>Precedence</strong>: an OAuth subscription wins over
 <code>KIMI_API_KEY</code> / <code>ApiKey_Kimi</code> records for
-<code>kimi-for-coding</code>; the API keys remain the fallback on hosts
+<code>kc-for-coding</code>; the API keys remain the fallback on hosts
 without the OAuth session.</li>
 </ul>
 <h3 id="zai-coding-plan-zai-coding-plan">z.ai Coding Plan
@@ -1254,8 +1360,8 @@ glm-5.2.</li>
 <p>No additional manual steps are needed — the key alias, model
 override, and endpoint are all defined in the provider config files.</p>
 <h4 id="usage-example">Usage example</h4>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">zai-coding-plan</span>                    <span class="co"># launch Claude Code on glm-5.2</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">zai-coding-plan</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>   <span class="co"># non-interactive print mode</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">zai-coding-plan</span>                    <span class="co"># launch Claude Code on glm-5.2</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">zai-coding-plan</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>   <span class="co"># non-interactive print mode</span></span></code></pre></div>
 <h3 id="xiaomi-mimo-xiaomi">Xiaomi MiMo (xiaomi)</h3>
 <p><a href="https://mimo.mi.com">Xiaomi MiMo</a> is Xiaomi&#39;s LLM
 platform. MiMo does expose a genuine <strong>Anthropic-native
@@ -1379,8 +1485,8 @@ create the alias.</li>
 <code>mimo-v2.5-pro</code>.</li>
 </ol>
 <h4 id="usage-example-1">Usage example</h4>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xiaomi</span>                             <span class="co"># launch Claude Code on mimo-v2.5-pro</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">xiaomi</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>  <span class="co"># non-interactive print mode</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">xiaomi</span>                             <span class="co"># launch Claude Code on mimo-v2.5-pro</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">xiaomi</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>  <span class="co"># non-interactive print mode</span></span></code></pre></div>
 <h3 id="opencode-zen-provider-id-opencode-alias-opencode-zen">OpenCode
 Zen (provider id <code>opencode</code>, alias
 <code>opencode-zen</code>)</h3>
@@ -1575,9 +1681,9 @@ create the alias.</li>
 <code>big-pickle</code> (via ccr).</li>
 </ol>
 <h4 id="usage-example-2">Usage example</h4>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">opencode-zen</span>                            <span class="co"># launch Claude Code on big-pickle (via ccr)</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">opencode-zen</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span> <span class="co"># non-interactive print mode</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list                   <span class="co"># which opencode-zenN aliases exist here</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">opencode-zen</span>                            <span class="co"># launch Claude Code on big-pickle (via ccr)</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">opencode-zen</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span> <span class="co"># non-interactive print mode</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list                   <span class="co"># which opencode-zenN aliases exist here</span></span></code></pre></div>
 <h4 id="notes">Notes</h4>
 <ul>
 <li>The alias uses <strong>router transport</strong> (ccr) because Zen&#39;s
@@ -1723,8 +1829,8 @@ create the alias.</li>
 <code>zai-org/GLM-5.2-TEE</code>.</li>
 </ol>
 <h4 id="usage-example-3">Usage example</h4>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">chutes</span>                              <span class="co"># launch Claude Code on GLM-5.2-TEE (via ccr)</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">chutes</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>   <span class="co"># non-interactive print mode</span></span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">chutes</span>                              <span class="co"># launch Claude Code on GLM-5.2-TEE (via ccr)</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">chutes</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>   <span class="co"># non-interactive print mode</span></span></code></pre></div>
 <h4 id="verified">Verified</h4>
 <ul>
 <li>API endpoint <code>https://llm.chutes.ai/v1/chat/completions</code>
@@ -1852,9 +1958,9 @@ create the alias.</li>
 <code>claude-sonnet-4.6</code> (via ccr).</li>
 </ol>
 <h4 id="usage-example-4">Usage example</h4>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">poe</span>                                 <span class="co"># launch Claude Code on claude-sonnet-4.6 (via ccr)</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">poe</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>      <span class="co"># non-interactive print mode</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list               <span class="co"># check which poeN aliases exist on this host</span></span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">poe</span>                                 <span class="co"># launch Claude Code on claude-sonnet-4.6 (via ccr)</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="ex">poe</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span>      <span class="co"># non-interactive print mode</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list               <span class="co"># check which poeN aliases exist on this host</span></span></code></pre></div>
 <h4 id="verified-1">Verified</h4>
 <ul>
 <li>API endpoint <code>https://api.poe.com/v1/chat/completions</code>
@@ -1870,7 +1976,9 @@ works</li>
 <p><code>helixagent</code> points Claude Code at a
 <strong>local</strong> HelixLLM backend — a podman container serving
 Qwen3-Coder-30B on one GPU (an RTX 5090) at
-<code>http://127.0.0.1:7061/v1</code> (measured 2026-09-03; the earlier <code>:18434</code> pin named the llama.cpp coder container — a different service, and down when measured) — instead of a hosted API.
+<code>http://127.0.0.1:7061/v1</code> (measured 2026-09-03; the earlier
+<code>:18434</code> pin named the llama.cpp coder container — a
+different service, and down when measured) — instead of a hosted API.
 Transport is <strong>router</strong>: launches go through
 <code>claude-code-router</code> plus the bundled Go
 <code>cma-proxy</code>, which recovers the model&#39;s Hermes/Qwen
@@ -1919,11 +2027,11 @@ every launch against coder mode returns <strong>HTTP 400</strong>.
 (HelixCode is the common case), <code>helixagent</code> is honestly
 demoted to <strong><code>unverified</code></strong> and the launch gate
 refuses it until you flip the backend to claude mode:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The mode-switch script lives in the companion helix_code repo — NOT this toolkit:</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="ex">helix_code/scripts/helixllm-mode.sh</span> claude     <span class="co"># one 229,376-token slot</span></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co"># then re-verify + launch:</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> verify helixagent <span class="at">--deep</span>      <span class="co"># passes once the backend is in claude mode</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="ex">helixagent</span></span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The mode-switch script lives in the companion helix_code repo — NOT this toolkit:</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">helix_code/scripts/helixllm-mode.sh</span> claude     <span class="co"># one 229,376-token slot</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="co"># then re-verify + launch:</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> verify helixagent <span class="at">--deep</span>      <span class="co"># passes once the backend is in claude mode</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="ex">helixagent</span></span></code></pre></div>
 <p>Switch back with <code>helixllm-mode.sh coder</code> when you need
 HelixCode again. The two modes cannot run at once on the shared GPU.</p>
 <h4 id="auto-start-is-opt-in--cma_helix_autostart">Auto-start is opt-in
@@ -1933,7 +2041,7 @@ HelixLLM for you by default. Opt in per launch (or export it) with any
 of the truthy values <code>1</code>, <code>true</code>,
 <code>yes</code>, <code>on</code> — matched case-insensitively; anything
 else, unset included, means off:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="va">CMA_HELIX_AUTOSTART</span><span class="op">=</span>1 <span class="ex">helixagent</span></span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="va">CMA_HELIX_AUTOSTART</span><span class="op">=</span>1 <span class="ex">helixagent</span></span></code></pre></div>
 <p>The default is off because booting HelixLLM is a
 <strong>machine-wide</strong> side effect, not a private one: it claims
 the single GPU, and starting it in claude mode <strong>evicts whatever
@@ -1993,6 +2101,87 @@ Trim is opt-in per provider via the <code>.env</code> line, wired today
 only for <code>helixagent</code> but reusable for any local-model
 provider that needs a fresh minimal session each launch.</li>
 </ul>
+<h3 id="llmctl-local-multi-profile--one-alias-per-running-model-server">llmctl
+(local, multi-profile) — one alias per RUNNING model server</h3>
+<p><a href="https://github.com/vasic-digital/llmctl">llmctl</a> is a
+sibling local-LLM orchestrator — a separate project, not part of this
+toolkit — that probes your hardware, downloads GGUF models with
+cryptographic verification, builds llama.cpp/colibri from pinned source,
+and runs multiple models concurrently as systemd user services (Linux)
+or launchd agents (macOS). Each catalog <strong>profile</strong>
+(<code>fast</code>, <code>small</code>, <code>vision</code>,
+<code>vision-pro</code>, <code>coder</code>, <code>moe-fast</code>,
+<code>colibri-qwen36</code>, …) is its <strong>own independent</strong>
+llama.cpp/colibri server process on a fixed, catalog-assigned port,
+serving an OpenAI-compatible <code>/v1</code>.</p>
+<h4 id="how-the-alias-works-5">How the alias works</h4>
+<p><code>claude-providers sync</code> asks
+<code>llmctl plan --json</code> for the current catalog (profile names +
+ports — never hardcoded here, see the detector&#39;s own header comment in
+<code>scripts/claude-providers.sh</code>) and live-probes
+<code>/v1/models</code> on every profile&#39;s port. A profile that answers
+with a genuine OpenAI-shaped listing right now gets its own alias,
+<code>llmctl-&lt;profile&gt;</code> (e.g. <code>llmctl-fast</code>,
+<code>llmctl-vision</code>); a profile that is not currently running
+gets <strong>no</strong> alias — this is the one local provider in this
+toolkit that can register <strong>zero, one, or many</strong> aliases
+from a single sync, because llmctl supports running several model
+servers side by side (co-residency). Transport is
+<strong>router</strong> (every profile&#39;s endpoint is OpenAI-compatible,
+so launches go through <code>claude-code-router</code>), and no API key
+is required — llmctl&#39;s servers bind to <code>127.0.0.1</code>
+unauthenticated by default.</p>
+<p>Strong/fast model and context window are <strong>never
+pinned</strong> — they are read live from each running profile&#39;s own
+<code>/v1/models</code> response (the model id llama.cpp/colibri
+reports, and <code>meta.n_ctx</code> when the backend publishes one,
+falling back to the catalog&#39;s own planned <code>ctx</code> for that
+profile). A profile answering with a non-JSON or non-OpenAI-shaped body
+— e.g. an unrelated service that happens to already own that port — is
+correctly treated as &quot;not running&quot;, never mis-registered against the
+wrong backend.</p>
+<h4 id="setup-5">Setup</h4>
+<ol type="1">
+<li>Set up llmctl in its own repository and start one or more model
+profiles:
+<div class="sourceCode" id="cb22"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/llmctl</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./bin/llmctl</span> setup                 <span class="co"># doctor + build engines + hardware plan</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./bin/llmctl</span> models download fast  <span class="co"># verified download of a profile</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./bin/llmctl</span> start fast            <span class="co"># serves 127.0.0.1:&lt;fast&#39;s port&gt;/v1</span></span></code></pre></div></li>
+<li>Back in this toolkit, run <code>claude-providers sync</code> — every
+currently-running profile is discovered and registered automatically,
+with zero manual per-model configuration.</li>
+<li><code>source ~/.local/share/claude-multi-account/aliases.sh</code>
+(or open a new shell).</li>
+</ol>
+<h4 id="usage-example-5">Usage example</h4>
+<div class="sourceCode" id="cb23"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">llmctl-fast</span>                         <span class="co"># launch Claude Code on the &#39;fast&#39; profile (via ccr)</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ex">llmctl-fast</span> <span class="at">-p</span> <span class="st">&quot;explain this function&quot;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list                <span class="co"># see exactly which llmctl-&lt;profile&gt; aliases exist right now</span></span></code></pre></div>
+<p>Stop a profile (<code>llmctl stop fast</code>) and re-run
+<code>claude-providers sync</code>; that alias&#39;s <code>.env</code> is
+left in place (the same &quot;installed but not currently answering&quot; honesty
+as <code>helixagent</code>/<code>helixcoder</code>) rather than deleted,
+and <code>claude-providers verify llmctl-fast</code> reports
+<code>unverified</code> until the profile is started again.</p>
+<h4 id="overrides">Overrides</h4>
+<p>Every knob is env-overridable (<code>CMA_LLMCTL_BIN</code>,
+<code>CMA_LLMCTL_PINS_FILE</code>, <code>CMA_LLMCTL_KEYVAR</code>,
+<code>CMA_LLMCTL_TRANSPORT</code>,
+<code>CMA_LLMCTL_CONTEXT_LIMIT</code>,
+<code>CMA_LLMCTL_MAX_OUTPUT</code>,
+<code>CMA_LLMCTL_PLAN_TIMEOUT</code>,
+<code>CMA_LLMCTL_HTTP_TIMEOUT</code>) and the tracked pins file
+<code>scripts/providers/llmctl.json</code> sets the defaults
+(<code>bin</code>, <code>key_var</code>, <code>transport</code>, and the
+<code>context_limit</code>/<code>max_output</code> fallbacks used only
+when a running profile&#39;s own response names none). The pins file
+deliberately carries <strong>no</strong> base URLs or ports — those can
+only be learned by asking the real <code>llmctl plan --json</code>,
+never invented here (the same lesson the
+<code>helixagent</code>/<code>helixllm</code> pins learned the hard way,
+documented above: a stale hardcoded port is worse than no pin at
+all).</p>
 <h2 id="13-releasing--the-mandatory-live-pre-release-gate">13. Releasing
 — the mandatory live pre-release gate</h2>
 <p><code>claude-release-gate</code> is the release gate: <strong>no
@@ -2004,10 +2193,10 @@ alias on the real host was bricked. The sandbox proves wrapper
 PATH-shadowing <code>ccr</code> doppelgänger, a mis-configured local
 backend, resumed history overflowing a small window). So the gate adds a
 <strong>live</strong> layer that drives the real chain end-to-end.</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                      <span class="co"># sandbox suite + live smoke (default provider: helixagent)</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--provider</span> poe       <span class="co"># gate through a different provider</span></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--skip-suite</span>         <span class="co"># reuse a suite run you JUST completed green</span></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>   <span class="co"># also run the full LLMsVerifier provider scan</span></span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                      <span class="co"># sandbox suite + live smoke (default provider: helixagent)</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--provider</span> poe       <span class="co"># gate through a different provider</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--skip-suite</span>         <span class="co"># reuse a suite run you JUST completed green</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>   <span class="co"># also run the full LLMsVerifier provider scan</span></span></code></pre></div>
 <p>The layers, fail-closed — any failure means <strong>DO NOT
 RELEASE</strong>:</p>
 <ol type="1">
@@ -2038,5 +2227,820 @@ provider is a gate <strong>failure</strong> (fix it, or pick another
 with <code>--provider</code>), never a silent skip. For
 <code>helixagent</code> specifically that means the HelixLLM backend
 must be in claude mode first (§12).</p>
+<hr />
+<h2 id="13-helixcode--helixllm-providers-native-helixcode-integration">13.
+HelixCode / HelixLLM Providers (Native HelixCode Integration)</h2>
+<p>HelixCode includes a <strong>native LLM provider system</strong>
+(<code>internal/llm/</code>) that operates independently of the
+<code>claude-providers</code> toolkit. These providers are configured
+via <code>helix_code/config/config.yaml</code> and accessed through the
+HelixCode server API or CLI (<code>helixcode llm ...</code>).</p>
+<h3 id="key-differences-from-claude-providers">Key Differences from
+claude-providers</h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>claude-providers</code></th>
+<th>HelixCode Native</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Target</strong></td>
+<td>Claude Code sessions</td>
+<td>HelixCode server/CLI/TUI</td>
+</tr>
+<tr>
+<td><strong>Configuration</strong></td>
+<td><code>~/api_keys.sh</code> + models.dev</td>
+<td><code>config/config.yaml</code> + env vars</td>
+</tr>
+<tr>
+<td><strong>Verification</strong></td>
+<td>Live sentinel + tool-calling probes</td>
+<td>Health checks + LLMsVerifier</td>
+</tr>
+<tr>
+<td><strong>Model Selection</strong></td>
+<td>Credit-aware tier + scoring</td>
+<td>Performance + capability + fallback</td>
+</tr>
+<tr>
+<td><strong>Cloud Gate</strong></td>
+<td>None (always tries)</td>
+<td>W2c-1 gate (<code>llm.cloud.enabled</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="helixcode-provider-list-15-providers">HelixCode Provider List
+(15+ Providers)</h3>
+<p>All providers implement the <code>Provider</code> interface
+(<code>internal/llm/provider.go</code>) and are registered via
+<code>ModelManager</code>
+(<code>internal/llm/model_manager.go</code>).</p>
+<h4 id="cloud-providers-require-llmcloudenabled-true">Cloud Providers
+(Require <code>llm.cloud.enabled: true</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Type</th>
+<th>Env Var</th>
+<th>Endpoint</th>
+<th>Notable Features</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Anthropic</strong></td>
+<td>Cloud</td>
+<td><code>ANTHROPIC_API_KEY</code></td>
+<td><code>https://api.anthropic.com</code></td>
+<td>Extended thinking, prompt caching, tool caching, vision,
+streaming</td>
+</tr>
+<tr>
+<td><strong>Google Gemini</strong></td>
+<td>Cloud</td>
+<td><code>GEMINI_API_KEY</code> / <code>GOOGLE_API_KEY</code></td>
+<td><code>https://generativelanguage.googleapis.com</code></td>
+<td>2M context, multimodal, function calling, flash models</td>
+</tr>
+<tr>
+<td><strong>OpenAI</strong></td>
+<td>Cloud</td>
+<td><code>OPENAI_API_KEY</code></td>
+<td><code>https://api.openai.com</code></td>
+<td>1M+ context, function calling, vision, reasoning (o1/o3)</td>
+</tr>
+<tr>
+<td><strong>XAI (Grok)</strong></td>
+<td>Cloud</td>
+<td><code>XAI_API_KEY</code></td>
+<td><code>https://api.x.ai</code></td>
+<td>Fast reasoning, free tier</td>
+</tr>
+<tr>
+<td><strong>Groq</strong></td>
+<td>Cloud</td>
+<td><code>GROQ_API_KEY</code></td>
+<td><code>https://api.groq.com</code></td>
+<td>Ultra-fast inference, free tier</td>
+</tr>
+<tr>
+<td><strong>Mistral</strong></td>
+<td>Cloud</td>
+<td><code>MISTRAL_API_KEY</code></td>
+<td><code>https://api.mistral.ai</code></td>
+<td>Code-optimized (Codestral), function calling</td>
+</tr>
+<tr>
+<td><strong>DeepSeek</strong></td>
+<td>Cloud</td>
+<td><code>DEEPSEEK_API_KEY</code></td>
+<td><code>https://api.deepseek.com</code></td>
+<td>Strong reasoning (R1), code generation</td>
+</tr>
+<tr>
+<td><strong>OpenRouter</strong></td>
+<td>Cloud</td>
+<td><code>OPENROUTER_API_KEY</code></td>
+<td><code>https://openrouter.ai/api/v1</code></td>
+<td>300+ models unified, free models</td>
+</tr>
+<tr>
+<td><strong>Cohere</strong></td>
+<td>Cloud</td>
+<td><code>COHERE_API_KEY</code></td>
+<td><code>https://api.cohere.ai</code></td>
+<td>Multilingual, RAG-optimized (Command R+)</td>
+</tr>
+<tr>
+<td><strong>GitHub Copilot</strong></td>
+<td>Cloud</td>
+<td><code>GITHUB_TOKEN</code></td>
+<td><code>https://api.githubcopilot.com</code></td>
+<td>Free with GitHub sub, multiple models</td>
+</tr>
+<tr>
+<td><strong>Azure OpenAI</strong></td>
+<td>Cloud</td>
+<td><code>AZURE_OPENAI_API_KEY</code></td>
+<td>Azure endpoint</td>
+<td>Enterprise, private deployments</td>
+</tr>
+<tr>
+<td><strong>AWS Bedrock</strong></td>
+<td>Cloud</td>
+<td><code>AWS_ACCESS_KEY_ID</code> +
+<code>AWS_SECRET_ACCESS_KEY</code></td>
+<td>AWS regional</td>
+<td>Multiple model families, IAM auth</td>
+</tr>
+<tr>
+<td><strong>GCP Vertex AI</strong></td>
+<td>Cloud</td>
+<td><code>GOOGLE_APPLICATION_CREDENTIALS</code></td>
+<td>GCP regional</td>
+<td>Enterprise, private endpoints</td>
+</tr>
+<tr>
+<td><strong>Qwen</strong></td>
+<td>Cloud</td>
+<td><code>QWEN_API_KEY</code> / OAuth2</td>
+<td><code>https://dashscope.aliyuncs.com</code></td>
+<td>Chinese-optimized, 2K free req/day</td>
+</tr>
+<tr>
+<td><strong>Replicate</strong></td>
+<td>Cloud</td>
+<td><code>REPLICATE_API_TOKEN</code></td>
+<td><code>https://api.replicate.com</code></td>
+<td>1000+ open models, pay-per-second</td>
+</tr>
+</tbody>
+</table>
+<h4 id="local-providers-exempt-from-cloud-gate">Local Providers (Exempt
+from Cloud Gate)</h4>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Type</th>
+<th>Requirements</th>
+<th>Models</th>
+<th>Notable Features</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ollama</strong></td>
+<td>Local</td>
+<td>Ollama service on <code>localhost:11434</code></td>
+<td>Any GGUF</td>
+<td>Easy mgmt, local-only, model library</td>
+</tr>
+<tr>
+<td><strong>Llama.cpp</strong></td>
+<td>Local</td>
+<td>llama.cpp server/binary</td>
+<td>GGUF models</td>
+<td>Direct llama.cpp, HW accel (Metal/CUDA)</td>
+</tr>
+<tr>
+<td><strong>vLLM</strong></td>
+<td>Local</td>
+<td>vLLM OpenAI-compatible server</td>
+<td>Any HF model</td>
+<td>PagedAttention, high throughput</td>
+</tr>
+<tr>
+<td><strong>LocalAI</strong></td>
+<td>Local</td>
+<td>LocalAI server</td>
+<td>OpenAI-compat</td>
+<td>Drop-in OpenAI replacement</td>
+</tr>
+<tr>
+<td><strong>FastChat</strong></td>
+<td>Local</td>
+<td>FastChat controller/worker</td>
+<td>Vicuna, LLaMA</td>
+<td>Conversation templates</td>
+</tr>
+<tr>
+<td><strong>LM Studio</strong></td>
+<td>Local</td>
+<td>LM Studio local server</td>
+<td>GGUF models</td>
+<td>GUI + API server</td>
+</tr>
+<tr>
+<td><strong>Jan</strong></td>
+<td>Local</td>
+<td>Jan app local server</td>
+<td>GGUF models</td>
+<td>Desktop app with API</td>
+</tr>
+<tr>
+<td><strong>GPT4All</strong></td>
+<td>Local</td>
+<td>GPT4All local server</td>
+<td>Quantized models</td>
+<td>Consumer-friendly</td>
+</tr>
+<tr>
+<td><strong>TabbyAPI</strong></td>
+<td>Local</td>
+<td>TabbyAPI server</td>
+<td>exllama models</td>
+<td>ExLLaMAv2 wrapper</td>
+</tr>
+<tr>
+<td><strong>MLX</strong></td>
+<td>Local</td>
+<td>Apple Silicon + MLX</td>
+<td>MLX-format models</td>
+<td>Apple Silicon native</td>
+</tr>
+<tr>
+<td><strong>Mistral.rs</strong></td>
+<td>Local</td>
+<td>mistral.rs binary</td>
+<td>Any HF model</td>
+<td>Rust impl, fast inference</td>
+</tr>
+<tr>
+<td><strong>KoboldAI</strong></td>
+<td>Local</td>
+<td>KoboldAI server</td>
+<td>Story/writing models</td>
+<td>Storytelling-focused</td>
+</tr>
+<tr>
+<td><strong>Xiaomi MiMo</strong></td>
+<td>Local/Cloud</td>
+<td>MiMo API key</td>
+<td>MiMo v2.5 Pro/Omni</td>
+<td>1M context, multimodal, tools</td>
+</tr>
+</tbody>
+</table>
+<h4 id="special-providers">Special Providers</h4>
+<ul>
+<li><strong>HelixAgent</strong> — Embedded multi-agent workflow
+provider</li>
+<li><strong>Cerebras</strong> — Wafer-scale inference for Llama
+models</li>
+<li><strong>Together AI</strong> — Optimized open-model serving</li>
+<li><strong>HuggingFace</strong> — Inference endpoints for HF
+models</li>
+</ul>
+<h3 id="helixcode-model-selection-strategy">HelixCode Model Selection
+Strategy</h3>
+<p>HelixCode uses <code>ModelManager.SelectOptimalModel()</code>
+(<code>internal/llm/model_manager.go</code>) with:</p>
+<ol type="1">
+<li><strong>Capability Matching</strong> — Matches task requirements
+(tools, vision, reasoning) to model capabilities</li>
+<li><strong>Performance Scoring</strong> — Latency, throughput, success
+rate from health checks</li>
+<li><strong>Fallback Chains</strong> — Automatic failover: primary →
+fallback → local</li>
+<li><strong>LLMsVerifier Integration</strong> — Real verification scores
+from <code>internal/verifier/</code></li>
+<li><strong>Health Monitoring</strong> — Background poller checks
+provider health every 30s</li>
+</ol>
+<p><strong>Configuration</strong> (<code>config/config.yaml</code>):</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">llm</span><span class="kw">:</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">selection</span><span class="kw">:</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">strategy</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;performance&quot;</span><span class="co">  # or &quot;capability&quot;, &quot;cost&quot;, &quot;hybrid&quot;</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">fallback_enabled</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">health_check_interval</span><span class="kw">:</span><span class="at"> </span><span class="dv">30</span></span></code></pre></div>
+<h3 id="helixcode-verification--llmsverifier-integration">HelixCode
+Verification — LLMsVerifier Integration</h3>
+<p>HelixCode includes a <strong>built-in verification system</strong>
+(<code>internal/verifier/</code>):</p>
+<ul>
+<li><strong>REST API Client</strong> — Connects to LLMsVerifier
+service</li>
+<li><strong>Two-Tier Cache</strong> — Memory + Redis cache with TTL</li>
+<li><strong>Circuit Breaker</strong> — Prevents cascade failures</li>
+<li><strong>Background Poller</strong> — Refreshes model scores
+periodically</li>
+<li><strong>Score Adapter</strong> — Normalizes verifier scores to
+selection weights</li>
+<li><strong>Event Publisher</strong> — Emits provider status
+changes</li>
+</ul>
+<p><strong>Verification Flow:</strong></p>
+<pre><code>ModelManager.SelectOptimalModel()
+  → VerifierAdapter.GetScores()  // cached or live
+  → ScoreAdapter.Adapt()         // normalize to weights
+  → CapabilityFilter()           // match task requirements
+  → PerformanceRank()            // latency + success rate
+  → Return optimal model</code></pre>
+<h3 id="helixcode-cli-usage">HelixCode CLI Usage</h3>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># List configured providers with status</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm providers list</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># List available models across all providers</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm models list</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Set default provider</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm provider set anthropic</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate with specific model</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm generate <span class="at">--model</span> claude-4-sonnet <span class="st">&quot;design a cache system&quot;</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Chat with history</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm chat <span class="at">--model</span> gemini-2.5-pro</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Run provider health checks</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm health</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify models via LLMsVerifier</span></span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm verify <span class="at">--provider</span> anthropic <span class="at">--model</span> claude-4-sonnet</span></code></pre></div>
+<h3 id="helixcode-server-api">HelixCode Server API</h3>
+<div class="sourceCode" id="cb28"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># List providers with health status</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer </span><span class="va">$TOKEN</span><span class="st">&quot;</span> http://localhost:8080/api/v1/llm/providers</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># List models</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer </span><span class="va">$TOKEN</span><span class="st">&quot;</span> http://localhost:8080/api/v1/llm/models</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate completion</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer </span><span class="va">$TOKEN</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{&quot;model&quot;: &quot;claude-4-sonnet&quot;, &quot;messages&quot;: [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello&quot;}]}&#39;</span> <span class="dt">\</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>  http://localhost:8080/api/v1/llm/generate</span></code></pre></div>
+<h3 id="provider-capabilities-matrix">Provider Capabilities Matrix</h3>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Tools</th>
+<th>Vision</th>
+<th>Reasoning</th>
+<th>Streaming</th>
+<th>Max Context</th>
+<th>Local</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (extended)</td>
+<td>✅</td>
+<td>200K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>2M</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅ (o1/o3)</td>
+<td>✅</td>
+<td>1M+</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>XAI</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+<td>128K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Groq</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>128K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Mistral</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>32K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>DeepSeek</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅ (R1)</td>
+<td>✅</td>
+<td>64K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>OpenRouter</td>
+<td>✅</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>Varies*</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Cohere</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>128K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td>✅</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>128K*</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Azure</td>
+<td>✅</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>128K*</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Bedrock</td>
+<td>✅</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>200K*</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>VertexAI</td>
+<td>✅</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>2M*</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Qwen</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>128K</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Replicate</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>Varies*</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Ollama</strong></td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>128K*</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Llama.cpp</strong></td>
+<td>✅*</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅*</td>
+<td>128K*</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>vLLM</strong></td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>Model*</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>LocalAI</strong></td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>✅*</td>
+<td>Model*</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Xiaomi</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>1M</td>
+<td>Both</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>= Depends on specific model deployed</li>
+</ul>
+<h3 id="cloud-gate-w2c-1--local-first-default">Cloud Gate (W2c-1) —
+Local-First Default</h3>
+<p>HelixCode enforces a <strong>cloud gate</strong>
+(<code>llm.cloud.enabled</code> in config, default
+<code>false</code>):</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">llm</span><span class="kw">:</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">cloud</span><span class="kw">:</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">enabled</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span><span class="co">  # Set true to allow cloud providers</span></span></code></pre></div>
+<p>When <strong>disabled</strong> (default):</p>
+<ul>
+<li>Only local providers work (Ollama, Llama.cpp, vLLM, LocalAI,
+etc.)</li>
+<li>Cloud provider construction returns
+<code>ErrCloudDisabled</code></li>
+<li>Error message guides to local alternatives or enabling the gate</li>
+</ul>
+<p>When <strong>enabled</strong>:</p>
+<ul>
+<li>All 15+ cloud providers available</li>
+<li>Requires valid API keys in environment</li>
+<li>Health checks run automatically</li>
+</ul>
+<p><strong>Rationale</strong>: Prevents accidental cloud usage/costs;
+operators must explicitly opt-in.</p>
+<h3 id="llmsverifier-single-source-of-truth-const-036">LLMsVerifier
+Single Source of Truth (CONST-036)</h3>
+<p>Per CONST-036, HelixCode uses <strong>LLMsVerifier as the sole
+authoritative source</strong> for:</p>
+<ul>
+<li>Model metadata (names, IDs, context windows, capabilities)</li>
+<li>Provider metadata (endpoints, auth types, supported models)</li>
+<li>Verification status (verified, partial, failed, pending)</li>
+<li>Scoring data (overall scores, capability scores, tier rankings)</li>
+</ul>
+<p><strong>No hardcoded model lists</strong> — all model discovery flows
+through LLMsVerifier.</p>
+<p><strong>Fallback Models</strong> (constitutionally permitted,
+<code>internal/verifier/fallback_models.go</code>):</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">var</span> FallbackModels <span class="op">=</span> <span class="op">[]</span>FallbackModel<span class="op">{</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;claude-4-sonnet&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;anthropic&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">95</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;gemini-2.5-pro&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;gemini&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">93</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;gpt-4.1&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;openai&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">92</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;grok-3&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;xai&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">88</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;deepseek-v3&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;deepseek&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">90</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;mistral-large&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;mistral&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">87</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>  <span class="op">{</span>Name<span class="op">:</span> <span class="st">&quot;llama-3.3-70b&quot;</span><span class="op">,</span> Provider<span class="op">:</span> <span class="st">&quot;ollama&quot;</span><span class="op">,</span> Score<span class="op">:</span> <span class="dv">85</span><span class="op">,</span> Verified<span class="op">:</span> <span class="ot">true</span><span class="op">},</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="anti-bluff-guarantees-const-035-const-037-const-038">Anti-Bluff
+Guarantees (CONST-035, CONST-037, CONST-038)</h3>
+<ul>
+<li><strong>CONST-035</strong>: Every model displayed to users verified
+by LLMsVerifier within 24h</li>
+<li><strong>CONST-037</strong>: Models &gt;24h old show &quot;stale&quot;
+indicator, deprioritized</li>
+<li><strong>CONST-038</strong>: Model status (available, rate-limited,
+cooldown, offline) reflects LLMsVerifier within 60s</li>
+<li><strong>CONST-039</strong>: Integrates ALL providers LLMsVerifier
+supports (minimum: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral,
+xAI, OpenRouter, Ollama, Llama.cpp)</li>
+</ul>
+<h3 id="integration-with-claude-providers">Integration with
+claude-providers</h3>
+<p>HelixCode native providers and <code>claude-providers</code> can
+<strong>coexist</strong>:</p>
+<ol type="1">
+<li><strong>HelixCode server</strong> uses native providers for its own
+LLM operations</li>
+<li><strong>claude-providers</strong> creates Claude Code aliases for
+interactive coding</li>
+<li><strong>Shared verification</strong> — both can use LLMsVerifier
+submodule</li>
+<li><strong>Different use cases</strong> — HelixCode for
+automation/workflows, claude-providers for interactive coding</li>
+</ol>
+<p><strong>Example workflow:</strong></p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># HelixCode native for automated tasks</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">helixcode</span> llm generate <span class="at">--model</span> claude-4-sonnet <span class="st">&quot;Create REST API&quot;</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="co"># claude-providers for interactive session</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> ~/.local/share/claude-multi-account/aliases.sh</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>  <span class="co"># Opens Claude Code on DeepSeek backend</span></span></code></pre></div>
+<h3 id="configuration-files">Configuration Files</h3>
+<ul>
+<li><strong>HelixCode native</strong>:
+<code>helix_code/config/config.yaml</code> (or
+<code>production-config.yaml</code>,
+<code>minimal-config.yaml</code>)</li>
+<li><strong>Model aliases</strong>:
+<code>helix_code/config/model-aliases.example.yaml</code> →
+<code>.helix/model-aliases.yaml</code></li>
+<li><strong>claude-providers</strong>: <code>~/api_keys.sh</code> +
+<code>scripts/providers/overrides.json</code> +
+<code>scripts/providers/key-aliases.json</code></li>
+</ul>
+<h3 id="migration-from-hardcoded-lists">Migration from Hardcoded
+Lists</h3>
+<p>Previously (BLUFF-002, BLUFF-004), HelixCode had hardcoded model
+lists in CLI. Now <strong>fixed</strong>:</p>
+<ul>
+<li><code>cmd/cli/main.go</code> → Uses <code>ModelManager</code> +
+<code>VerifierAdapter</code> for dynamic discovery</li>
+<li><code>internal/llm/model_manager.go</code> → Queries LLMsVerifier
+for live model catalog</li>
+<li><code>internal/verifier/</code> → Full verification client with
+caching, circuit breaker, polling</li>
+</ul>
+<hr />
+<h2 id="14-quota-and-limits-reporting-quota--limits">14. Quota and
+limits reporting (<code>quota</code> / <code>limits</code>)</h2>
+<p><code>claude-providers quota</code> (alias: <code>limits</code> — the
+two names are 100% interchangeable: same flags, same output, same exit
+codes) reports usage/limit windows for every configured native account
+and provider alias in a single pass. <code>kimi-providers quota</code> /
+<code>kimi-providers limits</code> report the identical data —
+<code>kimi-providers</code> has no separate implementation; it reaches
+this through its existing catch-all forward into
+<code>claude-providers.sh</code> (see §4.2).</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> quota                  <span class="co"># fleet-wide report</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> quota <span class="op">&lt;</span>alias<span class="op">&gt;</span>          <span class="co"># scope to one alias</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> limits                 <span class="co"># identical to quota</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-providers</span> quota                    <span class="co"># same report, Kimi-side entrypoint</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-providers</span> limits <span class="op">&lt;</span>alias<span class="op">&gt;</span>           <span class="co"># scoped, Kimi-side entrypoint</span></span></code></pre></div>
+<h3 id="flags">Flags</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;alias&gt;</code> (positional, optional)</td>
+<td>none — fleet-wide</td>
+<td>Scope the report to one alias. A name that doesn&#39;t currently exist
+is stated plainly (<code>alias &quot;&lt;name&gt;&quot; does not exist</code>) and
+the command exits <code>2</code> — never a crash, never a silent empty
+success.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>off</td>
+<td>Machine-readable output: one JSON object (<code>generated_at</code>,
+<code>scoped_to</code>, <code>unknown_alias</code>, <code>rows[]</code>)
+instead of colored/plain text. Every field is always present in every
+row; <code>null</code> is a valid value but the key itself is never
+omitted.</td>
+</tr>
+<tr>
+<td><code>--fresh</code></td>
+<td>off (short-lived cache allowed)</td>
+<td>Skip the cache and force a live re-probe for this invocation.</td>
+</tr>
+<tr>
+<td><code>--timeout &lt;seconds&gt;</code></td>
+<td><code>3</code></td>
+<td>Override the per-provider probe timeout for this invocation only —
+never persisted.</td>
+</tr>
+<tr>
+<td><code>--no-color</code></td>
+<td>off (color auto-detected)</td>
+<td>Force plain text even on a color-capable terminal. A non-terminal
+stdout and <code>NO_COLOR</code> (any non-empty value) already disable
+color automatically; this flag is the explicit, scriptable
+override.</td>
+</tr>
+</tbody>
+</table>
+<p>Exit codes: <code>0</code> — the command ran to completion and
+produced a report, true even when every row is
+red/limit-exceeded/not-reported (the exit code reflects whether
+reporting succeeded, not what it found); <code>1</code> — a genuine
+command-level failure (e.g. an unrecognized flag); <code>2</code> —
+<code>&lt;alias&gt;</code> was given and does not exist.</p>
+<h3 id="coloring">Coloring</h3>
+<p>In text mode, each usage window is colored by its percent remaining:
+green at <code>&gt;=30%</code> left, yellow <code>10-30%</code>, red
+<code>&lt;10%</code>, and a distinct <code>limit_exceeded</code> state
+at <code>&lt;=0%</code>. The severity is always spelled out in words too
+(<code>[GREEN]</code>, <code>[YELLOW]</code>, <code>[RED]</code>), so a
+color-stripped read — piped to a file, <code>--no-color</code>, or
+<code>--json</code> — never loses the distinction.</p>
+<h3 id="honest-absence-vs-probe-failure">Honest absence vs. probe
+failure</h3>
+<p>These are two different outcomes and are never confused with each
+other:</p>
+<ul>
+<li><strong>No documented endpoint</strong> — the provider has no known
+usage-window endpoint at all (no entry in
+<code>scripts/providers/quota-endpoints.json</code>), so no network
+probe is even attempted: <code>not reported by provider</code>.</li>
+<li><strong>Probe failed</strong> — an endpoint exists, but
+<em>this</em> probe timed out or errored (network, auth, or a bad
+response): <code>probe failed: &lt;reason&gt;</code>.</li>
+</ul>
+<h3 id="account-level-block">Account-level block</h3>
+<p>A fully-suspended account additionally renders a distinct
+<code>ACCOUNT BLOCKED</code> statement, in addition to (never instead
+of) any windows it still carries from before the suspension.</p>
+<h3 id="de-duplication">De-duplication</h3>
+<p><code>deepseek</code>, <code>kimi-deepseek</code>, and
+<code>pi-deepseek</code> authenticate as the same real account via the
+same real API key (see §4.2) — <code>quota</code> probes that one
+account once and shows it once, listing every alias name that maps to
+it, rather than printing three separate rows with three separate (but
+identical) numbers.</p>
+<h3 id="example-a-funded-provider">Example: a funded provider</h3>
+<p>The exact set of providers with a documented endpoint depends on
+<code>scripts/providers/quota-endpoints.json</code>; the aliases below
+illustrate the output format, not a live snapshot of any one host&#39;s
+configuration.</p>
+<pre class="text"><code>openrouter  (alias: openrouter)
+  subscription  24.00 used / 76.00 left of 100.00 credits   (76.00% left)   [GREEN]
+
+zai-coding-plan  (alias: zai-coding-plan)
+  daily         850 used / 150 left of 1000 requests   (15.00% left)   [YELLOW]
+
+helixagent  (alias: helixagent)
+  session       216204 used / 13172 left of 229376 tokens   (5.74% left)   [RED]</code></pre>
+<h3 id="example-honest-absence--no-documented-endpoint-and-a-native-account">Example:
+honest absence — no documented endpoint, and a native account</h3>
+<pre class="text"><code>groq  (alias: groq)
+  —   not reported by provider
+
+claude1  (native, plan tier: default_claude_max_20x)
+  —   not reported by provider</code></pre>
+<p>Native accounts (<code>claudeN</code>, <code>kimiN</code>) always
+report this way today — no genuine live usage API exists yet for native
+OAuth accounts (per this feature&#39;s own <code>research.md</code> §7) —
+optionally annotated with the account&#39;s own cached plan-tier name when
+one is known, exactly as shown above for <code>claude1</code>.</p>
+<h3 id="performance">Performance</h3>
+<p>Probing is bounded-concurrency, not linear: total wall-clock time
+scales with <code>ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES)</code> batches
+of the per-provider timeout (<code>CMA_QUOTA_MAX_PARALLEL_PROBES</code>
+defaults to <code>8</code>), never with the raw account count. A single
+slow or unreachable provider degrades only its own row to
+<code>probe failed</code> and never delays any other row&#39;s result or the
+command&#39;s own exit. Cached results disclose their own age in seconds
+alongside the data.</p>
+<p>This section, together with the feature&#39;s own
+<code>specs/002-provider-usage-command/quickstart.md</code>, is the
+complete documentation and validation surface for this command — there
+is no separate <code>quickstart/</code>-style tutorial directory for it,
+and none is needed.</p>
+<hr />
 </body>
 </html>

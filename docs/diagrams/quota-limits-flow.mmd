@@ -1,0 +1,13 @@
+flowchart TB
+  A["claude-providers quota / limits<br/>(fleet-wide, or scoped to one alias)"] --> B["For each account<br/>(bounded concurrency,<br/>CMA_QUOTA_MAX_PARALLEL_PROBES, default 8)"]
+  B --> C{quota-endpoints.json<br/>entry present for this provider?}
+  C -- no --> D["absence_reason =<br/>not_reported_by_provider<br/>(no network attempt)"]
+  C -- yes --> E["Probe endpoint<br/>(bounded per-provider timeout,<br/>default 3s -- --timeout overrides)"]
+  E --> F{Probe outcome}
+  F -- timeout, network error,<br/>or auth error --> G["absence_reason =<br/>probe_failed<br/>(reason captured for --json)"]
+  F -- HTTP 200 and<br/>signal present per window --> H["Populate windows;<br/>compute severity per window<br/>(green / yellow / red / limit_exceeded)"]
+  D --> I["Render row<br/>(text: colored + always worded;<br/>--json: structured fields, never omitted)"]
+  G --> I
+  H --> I
+  I --> J["Row complete<br/>(TERMINAL for this invocation --<br/>next invocation is a fresh traversal)"]
+  K["account_blocked = true<br/>(whole subscription suspended)"] -. annotates alongside<br/>any windows still carried .-> I

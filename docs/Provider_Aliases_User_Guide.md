@@ -1507,3 +1507,121 @@ Previously (BLUFF-002, BLUFF-004), HelixCode had hardcoded model lists in CLI. N
 
 ---
 
+## 14. Quota and limits reporting (`quota` / `limits`)
+
+`claude-providers quota` (alias: `limits` — the two names are 100%
+interchangeable: same flags, same output, same exit codes) reports
+usage/limit windows for every configured native account and provider
+alias in a single pass. `kimi-providers quota` / `kimi-providers limits`
+report the identical data — `kimi-providers` has no separate
+implementation; it reaches this through its existing catch-all forward
+into `claude-providers.sh` (see §4.2).
+
+```bash
+claude-providers quota                  # fleet-wide report
+claude-providers quota <alias>          # scope to one alias
+claude-providers limits                 # identical to quota
+kimi-providers quota                    # same report, Kimi-side entrypoint
+kimi-providers limits <alias>           # scoped, Kimi-side entrypoint
+```
+
+### Flags
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `<alias>` (positional, optional) | none — fleet-wide | Scope the report to one alias. A name that doesn't currently exist is stated plainly (`alias "<name>" does not exist`) and the command exits `2` — never a crash, never a silent empty success. |
+| `--json` | off | Machine-readable output: one JSON object (`generated_at`, `scoped_to`, `unknown_alias`, `rows[]`) instead of colored/plain text. Every field is always present in every row; `null` is a valid value but the key itself is never omitted. |
+| `--fresh` | off (short-lived cache allowed) | Skip the cache and force a live re-probe for this invocation. |
+| `--timeout <seconds>` | `3` | Override the per-provider probe timeout for this invocation only — never persisted. |
+| `--no-color` | off (color auto-detected) | Force plain text even on a color-capable terminal. A non-terminal stdout and `NO_COLOR` (any non-empty value) already disable color automatically; this flag is the explicit, scriptable override. |
+
+Exit codes: `0` — the command ran to completion and produced a report,
+true even when every row is red/limit-exceeded/not-reported (the exit
+code reflects whether reporting succeeded, not what it found); `1` — a
+genuine command-level failure (e.g. an unrecognized flag); `2` — `<alias>`
+was given and does not exist.
+
+### Coloring
+
+In text mode, each usage window is colored by its percent remaining:
+green at `>=30%` left, yellow `10-30%`, red `<10%`, and a distinct
+`limit_exceeded` state at `<=0%`. The severity is always spelled out in
+words too (`[GREEN]`, `[YELLOW]`, `[RED]`), so a color-stripped
+read — piped to a file, `--no-color`, or `--json` — never loses the
+distinction.
+
+### Honest absence vs. probe failure
+
+These are two different outcomes and are never confused with each other:
+
+- **No documented endpoint** — the provider has no known usage-window
+  endpoint at all (no entry in `scripts/providers/quota-endpoints.json`),
+  so no network probe is even attempted: `not reported by provider`.
+- **Probe failed** — an endpoint exists, but *this* probe timed out or
+  errored (network, auth, or a bad response): `probe failed: <reason>`.
+
+### Account-level block
+
+A fully-suspended account additionally renders a distinct `ACCOUNT
+BLOCKED` statement, in addition to (never instead of) any windows it
+still carries from before the suspension.
+
+### De-duplication
+
+`deepseek`, `kimi-deepseek`, and `pi-deepseek` authenticate as the same
+real account via the same real API key (see §4.2) — `quota` probes that
+one account once and shows it once, listing every alias name that maps
+to it, rather than printing three separate rows with three separate
+(but identical) numbers.
+
+### Example: a funded provider
+
+The exact set of providers with a documented endpoint depends on
+`scripts/providers/quota-endpoints.json`; the aliases below illustrate
+the output format, not a live snapshot of any one host's configuration.
+
+```text
+openrouter  (alias: openrouter)
+  subscription  24.00 used / 76.00 left of 100.00 credits   (76.00% left)   [GREEN]
+
+zai-coding-plan  (alias: zai-coding-plan)
+  daily         850 used / 150 left of 1000 requests   (15.00% left)   [YELLOW]
+
+helixagent  (alias: helixagent)
+  session       216204 used / 13172 left of 229376 tokens   (5.74% left)   [RED]
+```
+
+### Example: honest absence — no documented endpoint, and a native account
+
+```text
+groq  (alias: groq)
+  —   not reported by provider
+
+claude1  (native, plan tier: default_claude_max_20x)
+  —   not reported by provider
+```
+
+Native accounts (`claudeN`, `kimiN`) always report this way today — no
+genuine live usage API exists yet for native OAuth accounts (per this
+feature's own `research.md` §7) — optionally annotated with the
+account's own cached plan-tier name when one is known, exactly as shown
+above for `claude1`.
+
+### Performance
+
+Probing is bounded-concurrency, not linear: total wall-clock time scales
+with `ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES)` batches of the
+per-provider timeout (`CMA_QUOTA_MAX_PARALLEL_PROBES` defaults to `8`),
+never with the raw account count. A single slow or unreachable
+provider degrades only its own row to `probe failed` and never delays
+any other row's result or the command's own exit. Cached results
+disclose their own age in seconds alongside the data.
+
+This section, together with the feature's own
+`specs/002-provider-usage-command/quickstart.md`, is the complete
+documentation and validation surface for this command — there is no
+separate `quickstart/`-style tutorial directory for it, and none is
+needed.
+
+---
+

@@ -131,12 +131,14 @@ config dir. Both installers are **idempotent**.
 | `claude-session` | Per-project session helper (name/id/color/flags) used by the alias wrappers. See [SESSION_COLOR.md](docs/SESSION_COLOR.md). |
 | `claude-bootstrap` | Clean-slate provisioning on a fresh host. |
 | `claude-providers` | Create/refresh aliases for other LLM providers from your keys file. |
+| `claude-providers quota` / `limits` | Report usage/limit windows for every native account and provider alias. See [Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits](docs/Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits). |
 | `kimi-add-account` | Add a Kimi Code account (`~/.kimi-code-<name>`); `--login` drives the interactive device flow. |
 | `kimi-list-accounts` | Tabular status of detected Kimi accounts. |
 | `kimi-unify` | Re-merge Kimi state into `$SHARED_DIR/kimi/`. |
 | `kimi-remove-account` | Drop a Kimi account; archive (default) or `--delete` its dir. |
 | `kimi-rollback` | Restore `.preunify.*` backups for the Kimi family. |
 | `kimi-providers` | Kimi framing over `claude-providers` (`sync\|list\|show\|verify\|migrate-names`). |
+| `kimi-providers quota` / `limits` | Same usage/limit report, reached via `kimi-providers`' catch-all forward. See [Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits](docs/Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits). |
 | `claude-opencode-sync` | Expose Claude plugin Skills + MCP + `CLAUDE.md` to OpenCode. |
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
