@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # run-proof.sh — one command that produces rock-solid, physical evidence the
 # whole toolkit works: it runs the hermetic sandbox suite AND the live
-# OpenCode verification (plus live provider/alias/e2e legs and, v1.27.0+, the
-# live Kimi leg), then writes a dated PROOF.md tying them together.
+# OpenCode verification (plus live provider/alias/e2e legs, v1.27.0+ the
+# live Kimi leg, and the live quota/limits leg), then writes a dated
+# PROOF.md tying them together.
 #
 # Exit code is 0 only if ALL legs pass. Live legs SKIP (count as pass) when
 # their prerequisite is absent (no opencode binary, no keys, no kimi).
@@ -86,6 +87,26 @@ bash "$TESTS_DIR/verify_kimi_live.sh" 2>&1 | tee "$KIMI_LOG"
 kimi_rc=${PIPESTATUS[0]}
 
 echo
+echo "==> live quota/limits verification (claude-providers quota --json)"
+QUOTA_LOG="$PROOF_DIR/47-quota-live.log"
+if [[ ! -d "$PDIR_LIVE" ]] || ! compgen -G "$PDIR_LIVE/*.env" >/dev/null 2>&1; then
+  echo "SKIP: no provider aliases installed — quota live leg skipped (native accounts alone still exercise the code path, but this leg needs at least one configured alias to be meaningful)" | tee "$QUOTA_LOG"
+  quota_rc=0
+else
+  qout="$(bash "$SCRIPTS_DIR/claude-providers.sh" quota --json 2>&1)"
+  quota_rc=$?
+  printf '%s\n' "$qout" | tee "$QUOTA_LOG" >/dev/null
+  if (( quota_rc == 0 )); then
+    if printf '%s' "$qout" | jq -e . >/dev/null 2>&1; then
+      echo "PASS: claude-providers quota --json produced valid JSON" | tee -a "$QUOTA_LOG"
+    else
+      echo "FAIL: claude-providers quota --json did not produce valid JSON" | tee -a "$QUOTA_LOG"
+      quota_rc=1
+    fi
+  fi
+fi
+
+echo
 echo "==> constitution / conformance static checks (Tier C)"
 CONST_LOG="$PROOF_DIR/45-constitution.log"
 bash "$TESTS_DIR/verify_constitution.sh" 2>&1 | tee "$CONST_LOG"
@@ -100,6 +121,7 @@ prov_line="$(grep -E '[0-9]+ passed|SKIP:' "$PROV_LOG" | tail -1 | strip_ansi)"
 alias_line="$(grep -E '[0-9]+ passed|PASS: [0-9]+|SKIP:' "$ALIAS_LOG" | tail -1 | strip_ansi)"
 e2e_line="$(grep -E '"(total|passed|failed)":|SKIP:' "$E2E_LOG" | strip_ansi | tr '\n' ' ')"
 kimi_line="$(grep -E '[0-9]+ passed|KIMI:|SKIP:' "$KIMI_LOG" | tail -1 | strip_ansi)"
+quota_line="$(grep -E 'PASS:|FAIL:|SKIP:' "$QUOTA_LOG" | tail -1 | strip_ansi)"
 const_line="$(grep -E '[0-9]+ passed|[0-9]+ failed|SKIP:' "$CONST_LOG" | tail -1 | strip_ansi)"
 
 {
@@ -144,6 +166,12 @@ const_line="$(grep -E '[0-9]+ passed|[0-9]+ failed|SKIP:' "$CONST_LOG" | tail -1
   echo '```'
   echo "exit code: \`$kimi_rc\`  ·  full log: [46-kimi-live.log](46-kimi-live.log)  ·  evidence: [kimi-live-evidence.txt](kimi-live-evidence.txt)"
   echo
+  echo "## Live quota/limits verification (claude-providers quota --json)"
+  echo '```'
+  echo "$quota_line"
+  echo '```'
+  echo "exit code: \`$quota_rc\`  ·  full log: [47-quota-live.log](47-quota-live.log)"
+  echo
   echo "## Constitution / conformance static checks (Tier C)"
   echo '```'
   echo "$const_line"
@@ -153,14 +181,15 @@ const_line="$(grep -E '[0-9]+ passed|[0-9]+ failed|SKIP:' "$CONST_LOG" | tail -1
   echo "Artifacts: \`10-debug-config.json\`, \`21-skill-names.txt\`," \
        "\`31-mcp-list.clean.txt\`, \`50-providers-live.txt\`, \`43-live-aliases.log\`," \
        "\`44-alias-e2e.log\`, \`46-kimi-live.log\`, \`kimi-live-evidence.txt\`," \
+       "\`47-quota-live.log\`," \
        "\`45-constitution.log\`, \`45-constitution.txt\`."
 } > "$PROOF_DIR/PROOF.md"
 
 echo
 echo "============================================"
 echo "PROOF written to $PROOF_DIR/PROOF.md"
-echo "sandbox rc=$sand_rc   live rc=$live_rc   providers rc=$prov_rc   aliases rc=$alias_rc   alias-e2e rc=$e2e_rc   kimi rc=$kimi_rc   constitution rc=$const_rc"
-if (( sand_rc == 0 && live_rc == 0 && prov_rc == 0 && alias_rc == 0 && e2e_rc == 0 && kimi_rc == 0 && const_rc == 0 )); then
+echo "sandbox rc=$sand_rc   live rc=$live_rc   providers rc=$prov_rc   aliases rc=$alias_rc   alias-e2e rc=$e2e_rc   kimi rc=$kimi_rc   quota rc=$quota_rc   constitution rc=$const_rc"
+if (( sand_rc == 0 && live_rc == 0 && prov_rc == 0 && alias_rc == 0 && e2e_rc == 0 && kimi_rc == 0 && quota_rc == 0 && const_rc == 0 )); then
   echo "ALL GREEN — evidence is in $PROOF_DIR"
   exit 0
 fi

@@ -33,6 +33,11 @@
 #                       (no sync, not signed in, key absent, quota'd) records
 #                       a SKIP, never a release FAIL — the kimi capability is
 #                       validated to the extent the host can support it.
+#   2.6 quota live    : claude-providers quota --json against this host's
+#                       REAL installed state, asserting rc=0, valid JSON, and
+#                       the correct top-level shape. MANDATORY (fail-closed,
+#                       not opt-in) — claude-providers is always present on
+#                       any host able to run this gate at all.
 #   3. providers scan : claude-verify-providers            (opt-in:
 #                       --verify-providers; slower, exercises every model)
 #
@@ -212,6 +217,28 @@ else
     fi
   fi
 fi
+
+# ── Layer 2.6: quota/limits live leg ────────────────────────────────────────
+log "layer 2.6: LIVE quota/limits leg (claude-providers quota --json) …"
+_qout="$(bash -c '
+  set +eu
+  source "$1"
+  claude-providers quota --json 2>&1
+' _ "$ALIAS_FILE")"
+_qrc=$?
+if [ "$_qrc" -ne 0 ]; then
+  printf '%s\n' "$_qout" | tail -10 >&2
+  fail "claude-providers quota --json exited $_qrc"
+fi
+if ! printf '%s' "$_qout" | jq -e . >/dev/null 2>&1; then
+  printf '%s\n' "$_qout" | tail -10 >&2
+  fail "claude-providers quota --json did not produce valid JSON"
+fi
+_qkeys="$(printf '%s' "$_qout" | jq -Sc 'keys')"
+if [ "$_qkeys" != '["generated_at","rows","scoped_to","unknown_alias"]' ]; then
+  fail "claude-providers quota --json top-level shape mismatch: got keys $_qkeys"
+fi
+log "layer 2.6: quota/limits LIVE leg GREEN (valid JSON, correct top-level shape)"
 
 # ── Layer 3 (opt-in): full provider/model verification ──────────────────────
 if [ "$VERIFY_PROVIDERS" -eq 1 ]; then
