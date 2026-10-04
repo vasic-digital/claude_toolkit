@@ -122,4 +122,51 @@ it "_cma_quota_render_text states the cached row is cached and discloses its age
 echo "$out" | grep -q "cached" || assert_eq "contains cached" "missing" "cached row must say so"
 echo "$out" | grep -q "42" || assert_eq "contains 42" "missing" "cached row must disclose its numeric age (FR-012)"
 
+# --- _cma_quota_render_json (T020, RED — function does not exist yet; it
+# lands in T021). Reuses the SAME FIXTURE array defined above (T018), per
+# the brief's instruction not to redefine it. -------------------------
+
+it "_cma_quota_render_json produces valid, parseable JSON"
+json_out="$(printf '%s\n' "${FIXTURE[@]}" | _cma_quota_render_json)"
+# jq -e (not plain `jq .`) is load-bearing here: plain `jq .` treats an
+# EMPTY input stream as a trivially valid zero-document stream and exits
+# 0, which would make this RED baseline pass vacuously when
+# _cma_quota_render_json doesn't exist yet (json_out="") -- `-e` makes an
+# empty/absent top-level value a real failure (exit 4), while still
+# exiting 0 once the real implementation emits a genuine JSON object.
+echo "$json_out" | jq -e . >/dev/null 2>&1
+assert_eq "0" "$?" "output must be valid, non-empty JSON (jq -e . exits 0)"
+
+it "_cma_quota_render_json top-level shape matches data-model.md §5"
+keys="$(echo "$json_out" | jq -S 'keys' 2>/dev/null)"
+assert_eq '["generated_at","rows","scoped_to","unknown_alias"]' "$keys" "exactly these 4 top-level keys, nothing more/less"
+
+it "_cma_quota_render_json: rows length matches the fixture's row count"
+n="$(echo "$json_out" | jq '.rows | length' 2>/dev/null)"
+assert_eq "4" "$n" "4 rows in, 4 rows out"
+
+it "_cma_quota_render_json and _cma_quota_render_text agree on severity for EVERY window in EVERY row (not spot-checked)"
+text_out="$(printf '%s\n' "${FIXTURE[@]}" | _cma_quota_render_text --force-no-tty)"
+# For each row/window in the JSON output, extract its severity and its
+# identifying info (display-equivalent id + window name), then confirm
+# the SAME severity word (case-insensitively) appears in the text
+# output's corresponding section. Do this for ALL windows across ALL
+# rows -- the fixture has 4 total windows (row1:1, row2:0, row3:2,
+# row4:1) -- iterate, don't hardcode one check.
+#
+# severity_count double-checks that the JSON stream actually produced the
+# expected 4 severity values (RED baseline: it will be 0, since
+# _cma_quota_render_json does not exist and json_out is empty/invalid --
+# an empty stream would otherwise let the mismatch loop below vacuously
+# pass with 0 iterations).
+severities="$(echo "$json_out" | jq -r '.rows[].windows[].severity' 2>/dev/null)"
+severity_count="$(printf '%s\n' "$severities" | grep -c . || true)"
+assert_eq "4" "$severity_count" "JSON stream must carry exactly 4 severity values (1+0+2+1 across the 4 fixture rows)"
+mismatch=0
+while IFS=$'\t' read -r sev; do
+  [[ -n "$sev" ]] || continue
+  echo "$text_out" | grep -qi "$sev" || mismatch=$(( mismatch + 1 ))
+done <<<"$severities"
+assert_eq "0" "$mismatch" "every window's JSON severity value must appear (case-insensitively) somewhere in the text rendering"
+
 summary
