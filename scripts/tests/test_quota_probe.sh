@@ -135,4 +135,34 @@ assert result["resets"] is True, result
 PY
 assert_eq 0 $? "resolve_window converts reset_in_seconds=3600 to the correct absolute reset_at and sets resets=True"
 
+it "load_quota_cache returns the empty shape for a missing path, and for an expired cache"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, time
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# Case 1: path does not exist at all.
+missing_path = home_dir + "/nonexistent-quota-cache.json"
+result = qp.load_quota_cache(missing_path)
+assert result == {"_cache_version": qp.QUOTA_CACHE_VERSION, "providers": {}}, result
+
+# Case 2: path exists but its _cached_at is older than QUOTA_CACHE_TTL_SECONDS.
+expired_path = home_dir + "/expired-quota-cache.json"
+stale_ts = time.time() - qp.QUOTA_CACHE_TTL_SECONDS - 1
+with open(expired_path, "w") as f:
+    json.dump({"_cache_version": qp.QUOTA_CACHE_VERSION, "_cached_at": stale_ts,
+               "providers": {"openrouter": {"fake": "stale data"}}}, f)
+result2 = qp.load_quota_cache(expired_path)
+assert result2 == {"_cache_version": qp.QUOTA_CACHE_VERSION, "providers": {}}, result2
+PY
+assert_eq 0 $? "load_quota_cache returns the empty shape for a missing path and for an expired cache (never partially trusted)"
+
 summary
