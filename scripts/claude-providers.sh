@@ -4024,7 +4024,7 @@ cmd_sync_multi() {
 # </dev/null >/dev/null 2>&1 redirect on the subshell GROUP (prevents the
 # documented fd-1-inheritance hang), batched `wait` every N jobs.
 _cma_quota_probe_all() {
-  local fresh="${1:-0}" timeout_override="${2:-}"
+  local fresh="${1:-0}" timeout_override="${2:-}" alias_filter="${3:-}"
   local lib_dir="${LIB_DIR:-${SCRIPTS_DIR:-}}"
   local spec_file="$lib_dir/providers/quota-endpoints.json"
   local cache_file="$HOME/.local/share/claude-multi-account/quota-cache.json"
@@ -4049,6 +4049,9 @@ _cma_quota_probe_all() {
     [[ -n "$line" ]] || continue
     pid="$(jq -r '.provider_id' <<<"$line" 2>/dev/null)" || continue
     alias_names="$(jq -c '.alias_names' <<<"$line" 2>/dev/null)" || alias_names="[]"
+    if [[ -n "$alias_filter" ]]; then
+      echo "$alias_names" | jq -e --arg a "$alias_filter" 'index($a) != null' >/dev/null 2>&1 || continue
+    fi
     base="$(jq -r '.base_url' <<<"$line" 2>/dev/null)" || base=""
     epresent="$(jq -r '.endpoint_spec_present' <<<"$line" 2>/dev/null)" || epresent="false"
     outfile="$tmpdir/$(printf '%06d' "$idx").json"
@@ -4191,6 +4194,10 @@ qp.save_quota_cache(cache_file, data)
   local nline
   while IFS= read -r nline; do
     [[ -n "$nline" ]] || continue
+    if [[ -n "$alias_filter" ]]; then
+      local this_aid; this_aid="$(jq -r '.account_id // empty' <<<"$nline" 2>/dev/null)"
+      [[ "$this_aid" == "$alias_filter" ]] || continue
+    fi
     outfile="$tmpdir/$(printf '%06d' "$idx").json"
     idx=$(( idx + 1 ))
     jq -c '. + {windows:[], account_blocked:false,
@@ -4213,11 +4220,10 @@ qp.save_quota_cache(cache_file, data)
   fi
 }
 
-# quota/limits: wires the fleet-wide, no-argument case end to end --
-# probes every provider + native account (T017), then renders either
-# as JSON (T021) or human-readable text (T019). Single-alias scoping
-# (alias_arg) is Phase 4 / User Story 2's job (data-model.md §5's
-# scoped_to field) and is deliberately left unused here.
+# quota/limits: probes every provider + native account (T017), then renders
+# either as JSON (T021) or human-readable text (T019). When alias_arg is
+# given, scopes the probe to just that account (T025, Phase 4 / User Story
+# 2's data-model.md §5 scoped_to field) and exits 2 for an unknown alias.
 cmd_quota() {
   local alias_arg="" json=0 fresh=0 timeout="" no_color=0
   while (( $# )); do
@@ -4231,13 +4237,35 @@ cmd_quota() {
     esac
   done
 
-  # alias_arg is intentionally unused here -- single-alias scoping is
-  # Phase 4 / User Story 2's job (data-model.md §5's scoped_to field);
-  # this task wires only the fleet-wide, no-argument case.
-
   local result
-  result="$(_cma_quota_probe_all "$fresh" "$timeout")"
+  result="$(_cma_quota_probe_all "$fresh" "$timeout" "$alias_arg")"
 
+  if [[ -n "$alias_arg" ]]; then
+    local n_rows=0
+    if [[ -n "$result" ]]; then
+      n_rows="$(jq -cs 'length' <<<"$result" 2>/dev/null)" || n_rows=0
+    fi
+    if [[ "$n_rows" -eq 0 ]]; then
+      if (( json )); then
+        _cma_quota_render_json "\"$alias_arg\"" true <<<""
+      elif (( no_color )); then
+        printf 'alias "%s" does not exist\n' "$alias_arg"
+      else
+        printf 'alias "%s" does not exist\n' "$alias_arg"
+      fi
+      return 2
+    fi
+    if (( json )); then
+      _cma_quota_render_json "\"$alias_arg\"" false <<<"$result"
+    elif (( no_color )); then
+      _cma_quota_render_text --no-color <<<"$result"
+    else
+      _cma_quota_render_text <<<"$result"
+    fi
+    return 0
+  fi
+
+  # Fleet-wide (no alias_arg) -- unchanged from T022.
   if (( json )); then
     _cma_quota_render_json <<<"$result"
   elif (( no_color )); then
