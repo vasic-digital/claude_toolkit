@@ -4035,6 +4035,13 @@ _cma_quota_probe_all() {
   local tmpdir
   tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma-quota-probe.XXXXXX" 2>/dev/null)" || return 1
   trap 'rm -rf "'"$tmpdir"'" 2>/dev/null' RETURN
+  # Pending-cache subdirectory (review round 1 fix): a SEPARATE namespace
+  # from the main per-row output files ($tmpdir/*.json), never swept up by
+  # the final reassembly glob below (bash `*` doesn't recurse into
+  # subdirectories). Each successful backgrounded live-probe job writes ITS
+  # OWN result here instead of touching the shared cache file directly --
+  # see the single sequential merge-and-save pass after the main `wait`.
+  mkdir -p "$tmpdir/cache"
 
   local idx=0 in_batch=0 line pid alias_names base epresent outfile
 
@@ -4068,6 +4075,25 @@ rec = data.get('providers', {}).get(sys.argv[3])
 print(json.dumps(rec) if rec else '')
 " "$lib_dir" "$cache_file" "$pid" 2>/dev/null
       )"
+      # Per-record staleness check (review round 1 fix): the FILE-level
+      # load_quota_cache() TTL gate only tells us the whole cache file was
+      # touched recently -- it says nothing about how old THIS record is.
+      # Without this, one provider's fresh write kept every OTHER
+      # provider's genuinely-stale record alive for the full file-level
+      # window. Each record now carries its OWN _cached_at (set by the
+      # sequential merge-and-save pass below), so a record whose own age
+      # exceeds the same TTL quota_probe.py enforces (21600s = 6h) is
+      # rejected here and forces a live re-probe instead.
+      if [[ -n "$cached" ]]; then
+        local _rec_cached_at _rec_age
+        _rec_cached_at="$(jq -r '._cached_at // 0' <<<"$cached" 2>/dev/null)"
+        _rec_cached_at="${_rec_cached_at%.*}"
+        [[ "$_rec_cached_at" =~ ^[0-9]+$ ]] || _rec_cached_at=0
+        _rec_age=$(( $(date +%s) - _rec_cached_at ))
+        if (( _rec_age > 21600 )); then
+          cached=""
+        fi
+      fi
     fi
 
     local keyvar=""
@@ -4106,19 +4132,19 @@ print(json.dumps(rec) if rec else '')
             absence_reason:(if $absence=="" then null else $absence end),
             data_source:"live", data_age_seconds:null}' \
           > "$outfile" 2>/dev/null
-        # Cache write-back: pipe the JSON via STDIN, never interpolate it
-        # into embedded Python source (the result body came from an HTTP
-        # response and could contain quotes/backslashes that would break
-        # or corrupt a string-interpolated python3 -c call).
-        printf '%s' "$result" | python3 -c "
-import sys, json
-sys.path.insert(0, sys.argv[1])
-import quota_probe as qp
-rec = json.load(sys.stdin)
-data = qp.load_quota_cache(sys.argv[2])
-data.setdefault('providers', {})[sys.argv[3]] = rec
-qp.save_quota_cache(sys.argv[2], data)
-" "$lib_dir" "$cache_file" "$pid" 2>/dev/null
+        # Pending-cache write (review round 1 fix, replaces the old
+        # per-job load/merge/save round-trip against the SHARED cache
+        # file): only a SUCCESSFUL probe (no absence_reason) is
+        # cache-worthy -- a probe_failed result must never be persisted
+        # as if it were good data. This job writes its OWN result to its
+        # OWN file under $tmpdir/cache/ and never touches the shared
+        # cache file directly -- that is what let concurrent jobs race
+        # each other's load/save and lose records. The single sequential
+        # merge-and-save pass after the main `wait` (below) is the only
+        # thing that ever reads or writes $cache_file for a live probe.
+        if [[ -z "$absence" ]]; then
+          printf '%s' "$result" > "$tmpdir/cache/$(printf '%06d' "$idx").json" 2>/dev/null
+        fi
       ) </dev/null >/dev/null 2>&1 &
     fi
 
@@ -4129,6 +4155,38 @@ qp.save_quota_cache(sys.argv[2], data)
     fi
   done < <(_cma_quota_group_accounts)
   wait
+
+  # Single sequential merge-and-save pass (review round 1 fix): the ONLY
+  # place $cache_file is ever read or written for a live probe. Single
+  # reader, single writer, no concurrency at all -- this is what replaces
+  # the N-concurrent-read-modify-write round trips that raced each other
+  # and lost records (bug #3), and it is also where each record gets its
+  # own real _cached_at timestamp (bug #1 -- the old code never wrote one
+  # per-record, only a whole-file one, so the bash read side's age
+  # computation always resolved to "now - 0").
+  if compgen -G "$tmpdir/cache"/*.json >/dev/null 2>&1; then
+    python3 -c "
+import sys, json, glob, time
+sys.path.insert(0, sys.argv[1])
+import quota_probe as qp
+cache_file = sys.argv[2]
+data = qp.load_quota_cache(cache_file)
+data.setdefault('providers', {})
+now = time.time()
+for f in sorted(glob.glob(sys.argv[3] + '/*.json')):
+    try:
+        with open(f) as fh:
+            rec = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        continue
+    pid = rec.get('provider_id')
+    if not pid:
+        continue
+    rec['_cached_at'] = now  # per-record timestamp (fixes bug #1)
+    data['providers'][pid] = rec
+qp.save_quota_cache(cache_file, data)
+" "$lib_dir" "$cache_file" "$tmpdir/cache" 2>/dev/null
+  fi
 
   local nline
   while IFS= read -r nline; do
@@ -4141,8 +4199,17 @@ qp.save_quota_cache(sys.argv[2], data)
       <<<"$nline" > "$outfile" 2>/dev/null
   done < <(_cma_quota_list_native_accounts)
 
+  # Per-file reassembly, not `jq -cs ... *.json` (review round 1 fix): a
+  # single malformed/truncated row file used to poison the WHOLE `-cs`
+  # slurp (one bad file -> zero rows out); reading file-by-file means one
+  # bad file only drops its own row. $tmpdir/cache/ is a subdirectory, so
+  # bash's `*` glob here never recurses into it -- this stays scoped to
+  # the main per-row output files only.
   if compgen -G "$tmpdir"/*.json >/dev/null 2>&1; then
-    jq -cs '.[]' "$tmpdir"/*.json 2>/dev/null
+    local _rf
+    for _rf in "$tmpdir"/*.json; do
+      jq -c . "$_rf" 2>/dev/null
+    done
   fi
 }
 
