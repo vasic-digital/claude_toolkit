@@ -2,6 +2,119 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.0 — 2026-10-04 — `quota`/`limits`: universal usage reporting across every provider alias and native account
+
+New top-level subcommand (both names — `quota` and `limits`, deliberately
+non-colliding with the pre-existing `usage()` function on `claude-providers.sh`
+and `kimi-providers.sh`) reporting real usage/limit windows for every
+currently-configured provider alias and every native `claudeN`/`kimiN`
+account, in one bounded-time invocation. Driven by the spec-kit workflow
+under `specs/002-provider-usage-command/`, fully sub-agent-driven per the
+operator's standing instruction — every task implemented by a fresh
+subagent, reviewed by a fresh reviewer before the next task started, with
+a final whole-branch review gate before this release.
+
+### Added
+
+- **`claude-providers quota` / `claude-providers limits`** (identical
+  behavior, two names for operator convenience) and the same via
+  `kimi-providers`: fleet-wide, no-argument reporting, or `quota <alias>`
+  for a single scoped alias.
+- **Flags**: `--json` (structured output), `--fresh` (bypass the cache,
+  force a live re-probe), `--timeout <seconds>` (per-provider probe
+  timeout override, default 3s), `--no-color` (plain text, honors
+  `NO_COLOR` and non-tty auto-detection too).
+- **Severity coloring** on every usage window: green (≥30% remaining),
+  yellow (10–30%), red (<10%), a visually and textually distinct
+  `limit_exceeded` state (≤0%) — the distinction survives color-stripping
+  (plain text still names the severity word).
+- **Account-level de-duplication**: `deepseek`/`kimi-deepseek`/
+  `pi-deepseek` share one real account and one real API key; `quota`
+  reports it once, listing every alias name that maps to it, never three
+  separate rows for one subscription.
+- **Honest absence reporting**, two textually-distinct states, never
+  confused with each other: `not_reported_by_provider` (no documented
+  quota endpoint exists for this provider at all — no probe attempted)
+  vs. `probe_failed` (an endpoint exists, the probe was genuinely
+  attempted, and it failed or returned no interpretable usage signals) —
+  each with its own human-readable phrase and, for the latter, a non-empty
+  `absence_detail` string naming the real cause.
+- **Account-blocked statement**: a fully-suspended account renders a
+  distinct "ACCOUNT BLOCKED" line, in addition to — never instead of —
+  any usage windows it still carries.
+- **Bounded-concurrency probing** (`CMA_QUOTA_MAX_PARALLEL_PROBES`,
+  default 8): total wall-clock scales with `ceil(N/8)` probe batches at
+  the per-provider timeout, never linearly with the number of configured
+  aliases — one slow/unresponsive provider never blocks the rest of the
+  report.
+- **6-hour quota cache** (`QUOTA_CACHE_TTL_SECONDS`), single sequential
+  merge-and-save after each probe batch (never N concurrent read-modify-
+  write round trips against the shared cache file — closes a real,
+  reproduced data-loss race found during review), with a genuine
+  per-record `_cached_at` timestamp so a cache hit discloses its real age
+  in seconds, and a failed probe is never cached as if it were good data.
+- **New declarative provider-endpoint spec**,
+  `scripts/providers/quota-endpoints.json`, extending the existing binary
+  credit-endpoint convention to full numeric usage-window extraction
+  (amount used/remaining/limit, unit, percent remaining, reset time,
+  optional account-blocked signals) — the same declarative-spec,
+  no-hardcoded-provider-logic discipline this toolkit already uses
+  elsewhere.
+- **`quota --json`** output: one structured document per invocation
+  (`generated_at`, `scoped_to`, `unknown_alias`, `rows[]`), every row
+  carrying every documented field with `null` for anything genuinely
+  absent — never an omitted key, so a consumer never has to distinguish
+  "absent" from "present but null".
+- New live leg on the mandatory pre-release gate
+  (`scripts/claude-release-gate.sh` Layer 2.6, `scripts/tests/
+  run-proof.sh`'s `47-quota-live.log`): `claude-providers quota --json`
+  against whatever is genuinely configured on the host running the gate,
+  asserting valid JSON with the correct top-level shape.
+
+### Fixed (found during this feature's own review process)
+
+- A real, reproduced TLS-trust leak: `CMA_PROVIDER_CA_CERT`, set
+  host-wide for an unrelated local self-signed endpoint, was inherited by
+  every quota probe's TLS verification — breaking every real public-
+  HTTPS provider's probe. The quota-probe subprocess now clears that
+  variable before probing; the shared, correctly-scoped-for-its-own-
+  purpose `model_verify.ca_ssl_context()` is untouched.
+- A probe that got a real HTTP 200 but resolved zero interpretable usage
+  windows (e.g. a genuinely uncapped provider key) used to silently fall
+  through every downstream check — rendering as nothing, caching as if it
+  were valid data, and reporting `endpoint_spec_present=true` with no
+  visible reason there was no number. Now correctly reported as
+  `probe_failed` with an honest detail string, and never cached.
+- `reset_at` / "does not reset" is now rendered in the text output too
+  (previously only carried in `--json`).
+
+### Testing & Validation
+
+- 4 dedicated test files (`test_quota_cli.sh`, `test_quota_probe.sh`,
+  `test_quota_rendering.sh`, `test_quota_concurrency.sh`), every task
+  implemented via genuine RED→GREEN TDD, every task independently
+  reviewed, several review rounds catching real bugs before merge: a
+  leading-whitespace extraction bug, a crash-on-missing-file bug, a
+  concurrent cache-write race (reproduced losing 5 of 8 records in one
+  trial), a real network call that had leaked into a hermetic test
+  (confirmed via `strace -f -e trace=network` and closed the same way), a
+  vacuous test assertion caught via deliberate fault injection, and the
+  two release-blocking findings above.
+- Full regression suite (`scripts/tests/run-all.sh`): **91 test files,
+  91 passed, 0 failed, ALL GREEN** — zero regressions in any pre-existing
+  subcommand, function, or flag, confirmed both before and after the
+  release-blocking fix round.
+- Final whole-branch review against all 8 of the feature spec's Success
+  Criteria (`specs/002-provider-usage-command/spec.md`), run on this
+  project's constitution-mandated review model: an initial NO-GO
+  (2 critical findings, both reproduced live, not inferred from reading
+  code), one fix round, then an independent re-verification (a second,
+  fresh review pass redoing the same live reproductions from scratch)
+  returning GO.
+- Live leg genuinely exercised against this host's real, currently-
+  installed provider aliases and native accounts (`claude-release-gate.sh`
+  Layer 2.6, `run-proof.sh`'s quota leg) — not a sandbox mock.
+
 ## v1.29.0 — 2026-10-03 — llmctl integration hardening: honest limits, safe switching, live Superpowers verification
 
 Feature release hardening the existing llmctl detection/provider-alias
