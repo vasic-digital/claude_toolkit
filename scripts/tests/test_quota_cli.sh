@@ -262,9 +262,9 @@ it "cmd_quota with no args: exit 0"
 out="$(cmd_quota 2>&1)"; rc=$?
 assert_eq "0" "$rc" "cmd_quota with no args returns 0"
 
-it "cmd_quota <alias>: positional alias accepted without error (scoping deferred to Phase 4)"
+it "cmd_quota <unconfigured-alias>: returns 2 (unknown alias, correctly scoped per T025)"
 out="$(cmd_quota myalias 2>&1)"; rc=$?
-assert_eq "0" "$rc" "cmd_quota with a positional alias still returns 0 (alias_arg is parsed but intentionally unused by this task)"
+assert_eq "2" "$rc" "cmd_quota with an unconfigured positional alias must return 2 (T025 wires alias scoping)"
 
 it "cmd_quota --json: produces valid, well-formed JSON"
 out="$(cmd_quota --json 2>&1)"
@@ -285,11 +285,11 @@ assert_eq "0" "$rc" "--no-color parsed and forwarded to _cma_quota_render_text w
 case "$out" in *$'\033'*) found=1 ;; *) found=0 ;; esac
 assert_eq "0" "$found" "--no-color output contains no raw ANSI escape bytes"
 
-it "cmd_quota --json myalias --fresh: positional + multiple flags together, any order, still valid JSON"
+it "cmd_quota --json myalias --fresh: positional + multiple flags together, any order, still returns rc=2 + valid JSON for an unknown alias"
 out="$(cmd_quota --json myalias --fresh 2>&1)"; rc=$?
 ok=0
-[[ "$rc" == "0" ]] && echo "$out" | jq -e . >/dev/null 2>&1 && ok=1
-assert_eq "1" "$ok" "positional and flags combine correctly regardless of order, still producing valid JSON"
+[[ "$rc" == "2" ]] && echo "$out" | jq -e . >/dev/null 2>&1 && ok=1
+assert_eq "1" "$ok" "positional and flags combine correctly regardless of order, unknown alias still returns 2 with valid JSON"
 
 it "cmd_quota --bogus-flag: unrecognized flag returns 1, not exit"
 out="$(cmd_quota --bogus-flag 2>&1)"; rc=$?
