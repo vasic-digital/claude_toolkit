@@ -457,6 +457,24 @@ echo "$out3" | grep -qi "does not exist" || assert_eq "contains 'does not exist'
 #     stub's log can be checked for genuine traffic, proving the "zero
 #     calls for deepseek" assertion isn't trivially true because the stub
 #     was never wired into the call path at all.
+#
+# REVIEW ROUND 1 FIX: openrouter's quota-endpoints.json entry points at
+# the real https://openrouter.ai, and the first version of this test let
+# _cma_quota_probe_all's LIVE-probe branch run for it unmocked -- a real
+# outbound HTTPS request, which this project's own convention forbids in a
+# unit test (research.md Section 8: "never a real network call in a unit
+# test", and this very file already documents the same rule for its T022
+# fixtures a few dozen lines above: "no network call" / "no mock HTTP
+# server needed"). The fix pre-seeds quota-cache.json with a valid,
+# non-expired cache record for openrouter BEFORE calling
+# _cma_quota_probe_all, so the CACHED branch
+# (scripts/claude-providers.sh's `if [[ -n "$cached" ]]` arm) is taken
+# instead of the live-probe one -- pure jq, zero subprocesses, zero
+# network. The SYNCHRONOUS cache-check call (the `python3 -c "..."`
+# one-liner that reads this very cache file) still genuinely runs and
+# still logs a line naming "openrouter" through the stub, so the
+# non-vacuous "stub observed real traffic" proof survives unchanged; only
+# the network-touching live-probe subprocess is removed from the picture.
 
 it "T028 setup: openrouter provider fixture (HAS a quota-endpoints.json entry)"
 pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
@@ -467,6 +485,29 @@ cat >> "$ALIAS_FILE" <<'EOF'
 alias openrouter="cma_run_provider openrouter"
 EOF
 assert_file "$pdir/openrouter.env" "openrouter.env fixture written"
+
+it "T028 setup: openrouter's quota cache is pre-seeded with a fresh, non-expired record (so the probe takes the CACHED branch, never the network-touching live one)"
+cache_file="$HOME/.local/share/claude-multi-account/quota-cache.json"
+mkdir -p "$(dirname "$cache_file")"
+now_ts="$(date +%s)"
+jq -n --argjson now "$now_ts" '{
+  _cache_version: 1,
+  _cached_at: $now,
+  providers: {
+    openrouter: {
+      provider_id: "openrouter",
+      windows: [
+        {window:"subscription", amount_used:10, amount_remaining:90, limit_total:100,
+         unit:"credits", percent_remaining:90.0, resets:false, reset_at:null}
+      ],
+      account_blocked: false,
+      absence_reason: null,
+      http_status: 200,
+      _cached_at: $now
+    }
+  }
+}' > "$cache_file"
+assert_file "$cache_file" "quota-cache.json pre-seeded"
 
 it "T028: the real python3 absolute path resolves before any stub is installed"
 real_python3="$(command -v python3)"
@@ -518,5 +559,16 @@ or_calls="$(grep -c -- 'openrouter' "$stub_log" 2>/dev/null)"
 [[ -z "$or_calls" ]] && or_calls=0
 at_least_one=0; (( or_calls >= 1 )) && at_least_one=1
 assert_eq "1" "$at_least_one" "openrouter (a real quota-endpoints.json entry) must trigger at least one logged python3 invocation"
+
+it "T028: openrouter's row came from the CACHE, not a live probe (data_source=cached, absence_reason=null)"
+or_src="$(echo "$probe_out" | jq -r 'select(.provider_id=="openrouter") | .data_source')"
+assert_eq "cached" "$or_src" "openrouter must resolve via the pre-seeded cache record, not a fresh network probe"
+or_absence="$(echo "$probe_out" | jq -r 'select(.provider_id=="openrouter") | .absence_reason')"
+assert_eq "null" "$or_absence" "the cached record's success (absence_reason=null) must round-trip, proving the real cache record was read"
+
+it "T028: no python3 subprocess call ever named openrouter as a --provider-id argument (the live-probe/network path never ran)"
+or_live_calls="$(grep -c -- '--provider-id openrouter' "$stub_log" 2>/dev/null)"
+[[ -z "$or_live_calls" ]] && or_live_calls=0
+assert_eq "0" "$or_live_calls" "the live-probe subprocess (the only one that would touch the real network) must never be launched when a fresh cache record exists"
 
 summary
