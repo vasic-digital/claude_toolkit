@@ -178,6 +178,15 @@ def probe_provider(provider_id, spec, api_key, timeout):
         if resolved is not None:
             windows.append(resolved)
 
+    if not windows:
+        return {
+            "provider_id": provider_id, "windows": [],
+            "account_blocked": account_blocked,
+            "absence_reason": "probe_failed",
+            "absence_detail": "provider responded but no interpretable usage signals were found (possibly an uncapped/unlimited key, or an unexpected response shape)",
+            "http_status": status,
+        }
+
     return {
         "provider_id": provider_id, "windows": windows,
         "account_blocked": account_blocked, "absence_reason": None,
@@ -216,6 +225,14 @@ def save_quota_cache(path, data):
 
 
 def main(argv=None):
+    # Quota probes target real public HTTPS quota endpoints -- none of
+    # quota-endpoints.json's documented entries need a non-default CA.
+    # CMA_PROVIDER_CA_CERT is set HOST-WIDE for an unrelated local
+    # self-signed endpoint (HelixLLM) and must not leak into this
+    # subprocess's TLS verification, or every public-HTTPS probe fails
+    # (model_verify.ca_ssl_context() trusts ONLY the named CA when set,
+    # by design, for its own original use case -- T038 review finding F1).
+    os.environ.pop("CMA_PROVIDER_CA_CERT", None)
     ap = argparse.ArgumentParser(description="Probe one provider's quota/limits")
     ap.add_argument("--provider-id", required=True)
     ap.add_argument("--spec-file", required=True)

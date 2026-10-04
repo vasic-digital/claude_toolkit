@@ -167,6 +167,15 @@ _cma_quota_render_one_row() {
     # `tr` works identically on bash 3.2+, so it's the portable choice here.
     sev_upper="$(tr '[:lower:]' '[:upper:]' <<<"$sev")"
 
+    local resets reset_at reset_note
+    resets="$(jq -r ".windows[$i].resets" <<<"$line" 2>/dev/null)"
+    reset_at="$(jq -r ".windows[$i].reset_at // empty" <<<"$line" 2>/dev/null)"
+    if [[ "$resets" == "true" && -n "$reset_at" ]]; then
+      reset_note="   (resets $reset_at)"
+    else
+      reset_note="   (does not reset)"
+    fi
+
     if (( color_on )); then
       case "$sev" in
         green) colorcode=$'\033[32m' ;;
@@ -174,11 +183,11 @@ _cma_quota_render_one_row() {
         red|limit_exceeded) colorcode=$'\033[31m' ;;
         *) colorcode="" ;;
       esac
-      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   %s[%s]\033[0m%s\n' \
-        "$w" "$used" "$rem" "$total" "$unit" "$pct" "$colorcode" "$sev_upper" "$cache_note"
+      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   %s[%s]\033[0m%s%s\n' \
+        "$w" "$used" "$rem" "$total" "$unit" "$pct" "$colorcode" "$sev_upper" "$cache_note" "$reset_note"
     else
-      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   [%s]%s\n' \
-        "$w" "$used" "$rem" "$total" "$unit" "$pct" "$sev_upper" "$cache_note"
+      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   [%s]%s%s\n' \
+        "$w" "$used" "$rem" "$total" "$unit" "$pct" "$sev_upper" "$cache_note" "$reset_note"
     fi
   done
 }

@@ -254,6 +254,45 @@ assert result["account_blocked"] is False, result
 PY
 assert_eq 0 $? "probe_provider reports absence_reason=probe_failed and no windows on a non-200 HTTP response"
 
+it "probe_provider: a 200 response that resolves zero windows gets a non-null absence_reason (data-model §1 invariant, never silently falls through)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# Shaped EXACTLY like a real uncapped OpenRouter key's response: the REAL
+# openrouter entry in providers/quota-endpoints.json reads
+# data.limit_remaining (amount_remaining), data.limit (limit_total), and
+# data.usage (amount_used). An uncapped key genuinely reports both
+# limit_remaining and limit as null -- there is no cap, not a failure --
+# which leaves only 1 of the 3 core values (amount_used) resolvable, so
+# resolve_window drops the window and probe_provider must not silently
+# return windows=[] with absence_reason=None (T038 review finding F2).
+body = {"data": {"limit_remaining": None, "limit": None, "usage": 12.34}}
+qp.http_get_json = lambda *a, **k: (200, body)
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+entry = catalog["openrouter"]
+
+result = qp.probe_provider("openrouter", entry, "fake-key", 3.0)
+
+assert result["windows"] == [], result
+assert result["absence_reason"] is not None, result
+assert result["absence_reason"] == "probe_failed", result
+assert isinstance(result.get("absence_detail"), str) and result["absence_detail"], result
+assert result["http_status"] == 200, result
+PY
+assert_eq 0 $? "probe_provider returns absence_reason=probe_failed (never None) when a successful 200 response resolves zero windows"
+
 it "probe_provider: spec with no url returns not_reported_by_provider, no HTTP call attempted"
 python3 - "$SCRIPTS_DIR" <<'PY'
 import sys, importlib.util
@@ -297,7 +336,11 @@ sys.modules["model_verify"] = mv
 spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
 qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
 
-body = {"data": {"account_suspended": True}}
+# This fixture's own quota signals must genuinely resolve a window --
+# otherwise, under the F2 fix (T038 review), a zero-windows result legitimately
+# gets absence_reason="probe_failed" regardless of account_blocked, and this
+# test would be asserting the exact silent-fallthrough bug F2 closed.
+body = {"data": {"account_suspended": True, "used": 1.0, "remaining": 9.0, "limit": 10.0}}
 qp.http_get_json = lambda *a, **k: (200, body)
 
 fake_spec = {
@@ -306,13 +349,24 @@ fake_spec = {
     "account_signals": [
         {"path": ["data", "account_suspended"], "type": "account_blocked", "desc": "test fixture"},
     ],
-    "windows": [],
+    "windows": [
+        {
+            "window": "subscription",
+            "signals": [
+                {"path": ["data", "used"], "type": "amount_used", "desc": "test fixture"},
+                {"path": ["data", "remaining"], "type": "amount_remaining", "desc": "test fixture"},
+                {"path": ["data", "limit"], "type": "limit_total", "desc": "test fixture"},
+                {"path": [], "type": "unit_literal", "value": "credits"},
+            ],
+        }
+    ],
 }
 
 result = qp.probe_provider("fake-provider", fake_spec, "fake-key", 3.0)
 
 assert result["account_blocked"] is True, result
 assert result["absence_reason"] is None, result
+assert len(result["windows"]) == 1, result
 PY
 assert_eq 0 $? "probe_provider sets account_blocked=True when an account_blocked signal resolves to true"
 
