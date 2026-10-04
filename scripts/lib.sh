@@ -61,6 +61,28 @@ _cma_quota_severity() {
   }'
 }
 
+# --force-tty/--force-no-tty exist only for hermetic testing, where no
+# real tty is available to check against -- production callers never
+# pass these two flags.
+_cma_quota_color_enabled() {
+  local force_tty="" json_flag=0 no_color_flag=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --force-tty) force_tty=1 ;;
+      --force-no-tty) force_tty=0 ;;
+      --json) json_flag=1 ;;
+      --no-color) no_color_flag=1 ;;
+    esac
+  done
+  (( json_flag )) && return 1
+  (( no_color_flag )) && return 1
+  [[ -n "${NO_COLOR:-}" ]] && return 1
+  if [[ -n "$force_tty" ]]; then
+    (( force_tty )) && return 0 || return 1
+  fi
+  [[ -t 1 ]] && return 0 || return 1
+}
+
 cma_require() {
   command -v "$1" >/dev/null 2>&1 || cma_die "missing required tool: $1"
 }
