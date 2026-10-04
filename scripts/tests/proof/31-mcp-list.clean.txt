@@ -41,8 +41,7 @@
 ●  ✓ postgres connected
 │      npx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
 │
-●  ✗ puppeteer failed
-│      MCP error -32000: Connection closed
+●  ✓ puppeteer connected
 │      npx -y @modelcontextprotocol/server-puppeteer
 │
 ●  ✓ sequential-thinking connected

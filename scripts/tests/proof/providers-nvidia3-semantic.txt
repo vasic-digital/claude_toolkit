@@ -1,14 +1,15 @@
 providers-semantic[nvidia3]: driver rc=3
 driver json: {
   "round1_sentinel": {
-    "pass": true,
-    "observed": "ZETA-9-ORANGE-7f3a"
+    "pass": false,
+    "observed": "",
+    "reason": "non-200 status 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'minimaxai/minimax-m3' has reached its end of life on 2026-09-09T09:00:00Z and is no longer available.\"}\n"
   },
   "round2_judge": {
-    "pass": false,
+    "pass": null,
     "score": null,
-    "skipped": false,
-    "reason": "round-2 model call failed: http call failed: Post \"https://integrate.api.nvidia.com/v1/chat/completions\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+    "skipped": true,
+    "reason": "round 1 did not pass; round 2 not attempted"
   },
   "overall_pass": false
 }

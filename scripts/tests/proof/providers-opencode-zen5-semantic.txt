@@ -3,7 +3,7 @@ driver json: {
   "round1_sentinel": {
     "pass": false,
     "observed": "",
-    "reason": "provider definitively rejected the request: non-200 status 401: {\"type\":\"error\",\"error\":{\"type\":\"CreditsError\",\"message\":\"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing\"}}"
+    "reason": "provider definitively rejected the request: non-200 status 402: {\"error\":{\"type\":\"server_error\",\"message\":\"Upstream request failed: Insufficient account funds\"}}"
   },
   "round2_judge": {
     "pass": null,
@@ -13,5 +13,5 @@ driver json: {
   },
   "overall_pass": false
 }
-providers-semantic[opencode-zen5]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 401: {"type":"error","error":{"type":"CreditsError","message":"Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_***REDACTED***/billing"}}
+providers-semantic[opencode-zen5]: layer-3 unverified — driver exit 1; reason: provider definitively rejected the request: non-200 status 402: {"error":{"type":"server_error","message":"Upstream request failed: Insufficient account funds"}}
 semantic verdict: unverified

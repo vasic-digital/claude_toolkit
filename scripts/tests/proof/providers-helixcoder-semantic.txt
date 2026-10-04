@@ -1,0 +1,2 @@
+providers-semantic[helixcoder]: skip — no key in $HELIXCODER_API_KEY for model under test
+semantic verdict: skip

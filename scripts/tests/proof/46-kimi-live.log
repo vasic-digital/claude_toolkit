@@ -1,20 +1,388 @@
-Kimi Code live verification: Sun Sep  6 01:02:03 AM CEST 2026
+Kimi Code live verification: Sun Oct  4 07:49:32 PM CEST 2026
 alias file: /home/milosvasic/.local/share/claude-multi-account/aliases.sh
 
   • native kimi smoke (real CLI + real OAuth subscription)
     [32m[PASS][0m native kimi -p replies KIMI-OK
 
-  • kimi-<id> twin aliases (materialized by a v1.27.0 sync)
-  SKIP: no kimi-<id> alias in /home/milosvasic/.local/share/claude-multi-account/aliases.sh — run 'claude-providers sync' to materialize (needs a provider key on the host)
+  • alias invariant: 'helixagent' stays Claude (cma_run_provider), 'kimi-helixagent' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'helixagent'/'kimi-helixagent' materialized (config + env + Claude-twin form intact)
+
+  • kimi-helixagent smoke through real ~/.kimi-prov-helixagent/config.toml
+  SKIP: helixagent status=unverified — filtered by the verification gate, not launchable
+
+  • alias invariant: 'helixagent-native' stays Claude (cma_run_provider), 'kimi-helixagent-native' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'helixagent-native'/'kimi-helixagent-native' materialized (config + env + Claude-twin form intact)
+
+  • kimi-helixagent-native smoke through real ~/.kimi-prov-helixagent-native/config.toml
+    [31m[FAIL][0m kimi-helixagent-native smoke
+           no KIMI-OK in: kimi version 0.42.0
+error: failed to run prompt: provider.auth_error: 401 {"error":{"message":"missing or invalid Authorization header","type":"invalid_request_error","param":null,"code":null}}
+See log: /home/milosvasic/.kimi-prov-helixagent-native/logs/kimi-code.log
+
+  • alias invariant: 'helixllm-gateway' stays Claude (cma_run_provider), 'kimi-helixllm-gateway' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'helixllm-gateway'/'kimi-helixllm-gateway' materialized (config + env + Claude-twin form intact)
+
+  • kimi-helixllm-gateway smoke through real ~/.kimi-prov-helixllm-gateway/config.toml
+    [31m[FAIL][0m kimi-helixllm-gateway smoke
+           no KIMI-OK in: usError: 413 this prompt is approximately 104105 tokens, which exceeds the 32768-token context available to serve it; the request was refused rather than answered on a truncated prompt — send less context or split the request
+See log: /home/milosvasic/.kimi-prov-helixllm-gateway/logs/kimi-code.log
+
+  • alias invariant: 'hyper1' stays Claude (cma_run_provider), 'kimi-hyper1' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'hyper1'/'kimi-hyper1' materialized (config + env + Claude-twin form intact)
+
+  • kimi-hyper1 smoke through real ~/.kimi-prov-hyper1/config.toml
+    [32m[PASS][0m kimi-hyper1 replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'hyper2' stays Claude (cma_run_provider), 'kimi-hyper2' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'hyper2'/'kimi-hyper2' materialized (config + env + Claude-twin form intact)
+
+  • kimi-hyper2 smoke through real ~/.kimi-prov-hyper2/config.toml
+    [32m[PASS][0m kimi-hyper2 replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'hyper3' stays Claude (cma_run_provider), 'kimi-hyper3' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'hyper3'/'kimi-hyper3' materialized (config + env + Claude-twin form intact)
+
+  • kimi-hyper3 smoke through real ~/.kimi-prov-hyper3/config.toml
+    [32m[PASS][0m kimi-hyper3 replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'hyper4' stays Claude (cma_run_provider), 'kimi-hyper4' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'hyper4'/'kimi-hyper4' materialized (config + env + Claude-twin form intact)
+
+  • kimi-hyper4 smoke through real ~/.kimi-prov-hyper4/config.toml
+    [32m[PASS][0m kimi-hyper4 replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'hyper5' stays Claude (cma_run_provider), 'kimi-hyper5' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'hyper5'/'kimi-hyper5' materialized (config + env + Claude-twin form intact)
+
+  • kimi-hyper5 smoke through real ~/.kimi-prov-hyper5/config.toml
+  SKIP: hyper5 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'deepseek' stays Claude (cma_run_provider), 'kimi-deepseek' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'deepseek'/'kimi-deepseek' materialized (config + env + Claude-twin form intact)
+
+  • kimi-deepseek smoke through real ~/.kimi-prov-deepseek/config.toml
+  SKIP: deepseek status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190' stays Claude (cma_run_provider), 'kimi-helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'huggingface' stays Claude (cma_run_provider), 'kimi-huggingface' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'huggingface'/'kimi-huggingface' materialized (config + env + Claude-twin form intact)
+
+  • kimi-huggingface smoke through real ~/.kimi-prov-huggingface/config.toml
+    [31m[FAIL][0m kimi-huggingface smoke
+           no KIMI-OK in: error: failed to run prompt: provider.api_error: 402 "You have depleted your monthly included credits. Purchase pre-paid credits to continue using Inference Providers. Alternatively, subscribe to PRO to get 20x more included usage."
+See log: /home/milosvasic/.kimi-prov-huggingface/logs/kimi-code.log
+
+  • alias invariant: 'hyper' stays Claude (cma_run_provider), 'kimi-hyper' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'hyper'/'kimi-hyper' materialized (config + env + Claude-twin form intact)
+
+  • kimi-hyper smoke through real ~/.kimi-prov-hyper/config.toml
+    [32m[PASS][0m kimi-hyper replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'kilo' stays Claude (cma_run_provider), 'kimi-kilo' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'kilo'/'kimi-kilo' materialized (config + env + Claude-twin form intact)
+
+  • kimi-kilo smoke through real ~/.kimi-prov-kilo/config.toml
+    [32m[PASS][0m kimi-kilo replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'nvidia2' stays Claude (cma_run_provider), 'kimi-nvidia2' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-nvidia2/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'nvidia3' stays Claude (cma_run_provider), 'kimi-nvidia3' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-nvidia3/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'nvidia4' stays Claude (cma_run_provider), 'kimi-nvidia4' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-nvidia4/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'nvidia' stays Claude (cma_run_provider), 'kimi-nvidia' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'nvidia'/'kimi-nvidia' materialized (config + env + Claude-twin form intact)
+
+  • kimi-nvidia smoke through real ~/.kimi-prov-nvidia/config.toml
+  SKIP: nvidia status=unverified — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode' stays Claude (cma_run_provider), 'kimi-opencode' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode'/'kimi-opencode' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode smoke through real ~/.kimi-prov-opencode/config.toml
+  SKIP: opencode status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'openrouter2' stays Claude (cma_run_provider), 'kimi-openrouter2' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-openrouter2/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'openrouter3' stays Claude (cma_run_provider), 'kimi-openrouter3' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-openrouter3/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'openrouter4' stays Claude (cma_run_provider), 'kimi-openrouter4' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-openrouter4/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'openrouter5' stays Claude (cma_run_provider), 'kimi-openrouter5' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m kimi-prov config
+           missing /home/milosvasic/.kimi-prov-openrouter5/config.toml — the twin was emitted but its config.toml was not rendered
+
+  • alias invariant: 'openrouter' stays Claude (cma_run_provider), 'kimi-openrouter' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'openrouter'/'kimi-openrouter' materialized (config + env + Claude-twin form intact)
+
+  • kimi-openrouter smoke through real ~/.kimi-prov-openrouter/config.toml
+    [32m[PASS][0m kimi-openrouter replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'poe' stays Claude (cma_run_provider), 'kimi-poe' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'poe'/'kimi-poe' materialized (config + env + Claude-twin form intact)
+
+  • kimi-poe smoke through real ~/.kimi-prov-poe/config.toml
+  SKIP: poe status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'sarvam' stays Claude (cma_run_provider), 'kimi-sarvam' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'sarvam'/'kimi-sarvam' materialized (config + env + Claude-twin form intact)
+
+  • kimi-sarvam smoke through real ~/.kimi-prov-sarvam/config.toml
+    [31m[FAIL][0m kimi-sarvam smoke
+           no KIMI-OK in: kimi version 0.42.0
+error: failed to run prompt: provider.api_error: 400 max_tokens (131072) exceeds the maximum output length of 128000 tokens for sarvam-105b.
+See log: /home/milosvasic/.kimi-prov-sarvam/logs/kimi-code.log
+
+  • alias invariant: 'zai-coding-plan' stays Claude (cma_run_provider), 'kimi-zai-coding-plan' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'zai-coding-plan'/'kimi-zai-coding-plan' materialized (config + env + Claude-twin form intact)
+
+  • kimi-zai-coding-plan smoke through real ~/.kimi-prov-zai-coding-plan/config.toml
+    [32m[PASS][0m kimi-zai-coding-plan replies KIMI-OK through the rendered config.toml
+
+  • alias invariant: 'zai' stays Claude (cma_run_provider), 'kimi-zai' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'zai'/'kimi-zai' materialized (config + env + Claude-twin form intact)
+
+  • kimi-zai smoke through real ~/.kimi-prov-zai/config.toml
+  SKIP: zai status=unverified — filtered by the verification gate, not launchable
+
+  • alias invariant: 'helixcoder' stays Claude (cma_run_provider), 'kimi-helixcoder' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'helixcoder'/'kimi-helixcoder' materialized (config + env + Claude-twin form intact)
+
+  • kimi-helixcoder smoke through real ~/.kimi-prov-helixcoder/config.toml
+  SKIP: helixcoder status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'llmctl-vision' stays Claude (cma_run_provider), 'kimi-llmctl-vision' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'llmctl-vision'/'kimi-llmctl-vision' materialized (config + env + Claude-twin form intact)
+
+  • kimi-llmctl-vision smoke through real ~/.kimi-prov-llmctl-vision/config.toml
+  SKIP: llmctl-vision status=orphaned — filtered by the verification gate, not launchable
+
+  • alias invariant: 'chutes' stays Claude (cma_run_provider), 'kimi-chutes' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'chutes'/'kimi-chutes' materialized (config + env + Claude-twin form intact)
+
+  • kimi-chutes smoke through real ~/.kimi-prov-chutes/config.toml
+  SKIP: chutes status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'chutes1' stays Claude (cma_run_provider), 'kimi-chutes1' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'chutes1'/'kimi-chutes1' materialized (config + env + Claude-twin form intact)
+
+  • kimi-chutes1 smoke through real ~/.kimi-prov-chutes1/config.toml
+  SKIP: chutes1 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'chutes2' stays Claude (cma_run_provider), 'kimi-chutes2' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'chutes2'/'kimi-chutes2' materialized (config + env + Claude-twin form intact)
+
+  • kimi-chutes2 smoke through real ~/.kimi-prov-chutes2/config.toml
+  SKIP: chutes2 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'chutes3' stays Claude (cma_run_provider), 'kimi-chutes3' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'chutes3'/'kimi-chutes3' materialized (config + env + Claude-twin form intact)
+
+  • kimi-chutes3 smoke through real ~/.kimi-prov-chutes3/config.toml
+  SKIP: chutes3 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'chutes4' stays Claude (cma_run_provider), 'kimi-chutes4' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'chutes4'/'kimi-chutes4' materialized (config + env + Claude-twin form intact)
+
+  • kimi-chutes4 smoke through real ~/.kimi-prov-chutes4/config.toml
+  SKIP: chutes4 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'chutes5' stays Claude (cma_run_provider), 'kimi-chutes5' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'chutes5'/'kimi-chutes5' materialized (config + env + Claude-twin form intact)
+
+  • kimi-chutes5 smoke through real ~/.kimi-prov-chutes5/config.toml
+  SKIP: chutes5 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'fireworks-ai' stays Claude (cma_run_provider), 'kimi-fireworks-ai' is Kimi (cma_run_kimi_provider)
+    [31m[FAIL][0m Claude twin invariant
+           alias line for 'fireworks-ai' missing or not the cma_run_provider form (no-prefix behavior changed!)
+
+  • alias invariant: 'inference' stays Claude (cma_run_provider), 'kimi-inference' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'inference'/'kimi-inference' materialized (config + env + Claude-twin form intact)
+
+  • kimi-inference smoke through real ~/.kimi-prov-inference/config.toml
+  SKIP: inference status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'llmctl-small' stays Claude (cma_run_provider), 'kimi-llmctl-small' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'llmctl-small'/'kimi-llmctl-small' materialized (config + env + Claude-twin form intact)
+
+  • kimi-llmctl-small smoke through real ~/.kimi-prov-llmctl-small/config.toml
+    [31m[FAIL][0m kimi-llmctl-small smoke
+           no KIMI-OK in: kimi version 0.42.0
+error: failed to run prompt: provider.api_error: 400 request (92637 tokens) exceeds the available context size (55040 tokens), try increasing it
+See log: /home/milosvasic/.kimi-prov-llmctl-small/logs/kimi-code.log
+
+  • alias invariant: 'novita-ai' stays Claude (cma_run_provider), 'kimi-novita-ai' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'novita-ai'/'kimi-novita-ai' materialized (config + env + Claude-twin form intact)
+
+  • kimi-novita-ai smoke through real ~/.kimi-prov-novita-ai/config.toml
+  SKIP: novita-ai status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-go1' stays Claude (cma_run_provider), 'kimi-opencode-go1' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-go1'/'kimi-opencode-go1' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-go1 smoke through real ~/.kimi-prov-opencode-go1/config.toml
+  SKIP: opencode-go1 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-go2' stays Claude (cma_run_provider), 'kimi-opencode-go2' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-go2'/'kimi-opencode-go2' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-go2 smoke through real ~/.kimi-prov-opencode-go2/config.toml
+  SKIP: opencode-go2 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-go3' stays Claude (cma_run_provider), 'kimi-opencode-go3' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-go3'/'kimi-opencode-go3' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-go3 smoke through real ~/.kimi-prov-opencode-go3/config.toml
+  SKIP: opencode-go3 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-go4' stays Claude (cma_run_provider), 'kimi-opencode-go4' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-go4'/'kimi-opencode-go4' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-go4 smoke through real ~/.kimi-prov-opencode-go4/config.toml
+  SKIP: opencode-go4 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-go5' stays Claude (cma_run_provider), 'kimi-opencode-go5' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-go5'/'kimi-opencode-go5' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-go5 smoke through real ~/.kimi-prov-opencode-go5/config.toml
+  SKIP: opencode-go5 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-zen1' stays Claude (cma_run_provider), 'kimi-opencode-zen1' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-zen1'/'kimi-opencode-zen1' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-zen1 smoke through real ~/.kimi-prov-opencode-zen1/config.toml
+  SKIP: opencode-zen1 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-zen2' stays Claude (cma_run_provider), 'kimi-opencode-zen2' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-zen2'/'kimi-opencode-zen2' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-zen2 smoke through real ~/.kimi-prov-opencode-zen2/config.toml
+  SKIP: opencode-zen2 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-zen3' stays Claude (cma_run_provider), 'kimi-opencode-zen3' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-zen3'/'kimi-opencode-zen3' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-zen3 smoke through real ~/.kimi-prov-opencode-zen3/config.toml
+  SKIP: opencode-zen3 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-zen4' stays Claude (cma_run_provider), 'kimi-opencode-zen4' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-zen4'/'kimi-opencode-zen4' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-zen4 smoke through real ~/.kimi-prov-opencode-zen4/config.toml
+  SKIP: opencode-zen4 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'opencode-zen5' stays Claude (cma_run_provider), 'kimi-opencode-zen5' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'opencode-zen5'/'kimi-opencode-zen5' materialized (config + env + Claude-twin form intact)
+
+  • kimi-opencode-zen5 smoke through real ~/.kimi-prov-opencode-zen5/config.toml
+  SKIP: opencode-zen5 status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'siliconflow' stays Claude (cma_run_provider), 'kimi-siliconflow' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'siliconflow'/'kimi-siliconflow' materialized (config + env + Claude-twin form intact)
+
+  • kimi-siliconflow smoke through real ~/.kimi-prov-siliconflow/config.toml
+  SKIP: siliconflow status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'tencent-tokenhub' stays Claude (cma_run_provider), 'kimi-tencent-tokenhub' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'tencent-tokenhub'/'kimi-tencent-tokenhub' materialized (config + env + Claude-twin form intact)
+
+  • kimi-tencent-tokenhub smoke through real ~/.kimi-prov-tencent-tokenhub/config.toml
+  SKIP: tencent-tokenhub status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'tokenrouter' stays Claude (cma_run_provider), 'kimi-tokenrouter' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'tokenrouter'/'kimi-tokenrouter' materialized (config + env + Claude-twin form intact)
+
+  • kimi-tokenrouter smoke through real ~/.kimi-prov-tokenrouter/config.toml
+  SKIP: tokenrouter status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'tokenrouter-code' stays Claude (cma_run_provider), 'kimi-tokenrouter-code' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'tokenrouter-code'/'kimi-tokenrouter-code' materialized (config + env + Claude-twin form intact)
+
+  • kimi-tokenrouter-code smoke through real ~/.kimi-prov-tokenrouter-code/config.toml
+  SKIP: tokenrouter-code status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'tokenrouter-fast' stays Claude (cma_run_provider), 'kimi-tokenrouter-fast' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'tokenrouter-fast'/'kimi-tokenrouter-fast' materialized (config + env + Claude-twin form intact)
+
+  • kimi-tokenrouter-fast smoke through real ~/.kimi-prov-tokenrouter-fast/config.toml
+  SKIP: tokenrouter-fast status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'tokenrouter-long' stays Claude (cma_run_provider), 'kimi-tokenrouter-long' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'tokenrouter-long'/'kimi-tokenrouter-long' materialized (config + env + Claude-twin form intact)
+
+  • kimi-tokenrouter-long smoke through real ~/.kimi-prov-tokenrouter-long/config.toml
+  SKIP: tokenrouter-long status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'tokenrouter-reasoning' stays Claude (cma_run_provider), 'kimi-tokenrouter-reasoning' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'tokenrouter-reasoning'/'kimi-tokenrouter-reasoning' materialized (config + env + Claude-twin form intact)
+
+  • kimi-tokenrouter-reasoning smoke through real ~/.kimi-prov-tokenrouter-reasoning/config.toml
+  SKIP: tokenrouter-reasoning status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'upstage' stays Claude (cma_run_provider), 'kimi-upstage' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'upstage'/'kimi-upstage' materialized (config + env + Claude-twin form intact)
+
+  • kimi-upstage smoke through real ~/.kimi-prov-upstage/config.toml
+  SKIP: upstage status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'xiaomi' stays Claude (cma_run_provider), 'kimi-xiaomi' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'xiaomi'/'kimi-xiaomi' materialized (config + env + Claude-twin form intact)
+
+  • kimi-xiaomi smoke through real ~/.kimi-prov-xiaomi/config.toml
+  SKIP: xiaomi status=failed — filtered by the verification gate, not launchable
+
+  • alias invariant: 'llmctl-moe-fast' stays Claude (cma_run_provider), 'kimi-llmctl-moe-fast' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'llmctl-moe-fast'/'kimi-llmctl-moe-fast' materialized (config + env + Claude-twin form intact)
+
+  • kimi-llmctl-moe-fast smoke through real ~/.kimi-prov-llmctl-moe-fast/config.toml
+  SKIP: llmctl-moe-fast status=orphaned — filtered by the verification gate, not launchable
+
+  • alias invariant: 'llmctl-vision-pro' stays Claude (cma_run_provider), 'kimi-llmctl-vision-pro' is Kimi (cma_run_kimi_provider)
+    [32m[PASS][0m twin 'llmctl-vision-pro'/'kimi-llmctl-vision-pro' materialized (config + env + Claude-twin form intact)
+
+  • kimi-llmctl-vision-pro smoke through real ~/.kimi-prov-llmctl-vision-pro/config.toml
+  SKIP: llmctl-vision-pro status=orphaned — filtered by the verification gate, not launchable
 
   • legacy rename: kc-* forms + no kimi-kc-* echo
     [32m[PASS][0m no kimi-kc-* alias exists (the kimi-kc-* namespace is permanently vacated)
-  SKIP: kimi-for-coding still in status.json (pre-sync host) — the rename runs AT 'claude-providers sync', not before it
-  SKIP: kimi-for-coding2 still in status.json (pre-sync host) — the rename runs AT 'claude-providers sync', not before it
+    [32m[PASS][0m kc-for-coding present as cma_run_provider kc-for-coding (Kimi-native backend, Claude agent)
+    [32m[PASS][0m kc-for-coding2 present as cma_run_provider kc-for-coding2 (Kimi-native backend, Claude agent)
   SKIP: neither kimi-for-coding-highspeed nor kc-for-coding-highspeed in status.json on this host
   SKIP: neither kimi-k3 nor kc-k3 in status.json on this host
   SKIP: neither kimi-k2p7 nor kc-k2p7 in status.json on this host
 
-KIMI: passed: 2 failed: 0 skipped: 6
+KIMI: passed: 63 failed: 14 skipped: 41
 
-[32m✓ 2 passed, 0 failed[0m
+[31m✗ 14 failed, 63 passed[0m
+
+Failures:
+  - kimi-helixagent-native smoke through real ~/.kimi-prov-helixagent-native/config.toml :: kimi-helixagent-native smoke
+  - kimi-helixllm-gateway smoke through real ~/.kimi-prov-helixllm-gateway/config.toml :: kimi-helixllm-gateway smoke
+  - alias invariant: 'helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190' stays Claude (cma_run_provider), 'kimi-helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - kimi-huggingface smoke through real ~/.kimi-prov-huggingface/config.toml :: kimi-huggingface smoke
+  - alias invariant: 'nvidia2' stays Claude (cma_run_provider), 'kimi-nvidia2' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - alias invariant: 'nvidia3' stays Claude (cma_run_provider), 'kimi-nvidia3' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - alias invariant: 'nvidia4' stays Claude (cma_run_provider), 'kimi-nvidia4' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - alias invariant: 'openrouter2' stays Claude (cma_run_provider), 'kimi-openrouter2' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - alias invariant: 'openrouter3' stays Claude (cma_run_provider), 'kimi-openrouter3' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - alias invariant: 'openrouter4' stays Claude (cma_run_provider), 'kimi-openrouter4' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - alias invariant: 'openrouter5' stays Claude (cma_run_provider), 'kimi-openrouter5' is Kimi (cma_run_kimi_provider) :: kimi-prov config
+  - kimi-sarvam smoke through real ~/.kimi-prov-sarvam/config.toml :: kimi-sarvam smoke
+  - alias invariant: 'fireworks-ai' stays Claude (cma_run_provider), 'kimi-fireworks-ai' is Kimi (cma_run_kimi_provider) :: Claude twin invariant
+  - kimi-llmctl-small smoke through real ~/.kimi-prov-llmctl-small/config.toml :: kimi-llmctl-small smoke

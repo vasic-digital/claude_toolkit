@@ -1,2 +1,2 @@
-Kimi/llmctl live integration: Sun Oct  4 01:14:38 +05 2026
-SKIP: llmctl-small is not verified (status=absent) — run: claude-providers sync llmctl-small
+Kimi/llmctl live integration: Sun Oct  4 07:06:35 PM CEST 2026
+SKIP: llmctl server not reachable at http://127.0.0.1:8085/v1 (is 'llmctl start small' running?)

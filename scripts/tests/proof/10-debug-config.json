@@ -26,21 +26,21 @@
         "helixagent-ensemble": {
           "name": "helixagent-ensemble",
           "limit": {
-            "context": 32768,
+            "context": 131072,
             "output": 4096
           }
         },
         "helix-debate": {
           "name": "helix-debate",
           "limit": {
-            "context": 32768,
+            "context": 131072,
             "output": 4096
           }
         },
         "helix-llm": {
           "name": "helix-llm",
           "limit": {
-            "context": 32768,
+            "context": 131072,
             "output": 4096
           }
         }
@@ -252,7 +252,7 @@
         "tavily-mcp"
       ],
       "environment": {
-        "TAVILY_API_KEY": ""
+        "TAVILY_API_KEY": "REDACTED"
       }
     },
     "time": {

@@ -1,6 +1,6 @@
 
   • opencode binary runs and reports a version
-    [32m[PASS][0m version: 1.18.29
+    [32m[PASS][0m version: 1.18.30
 
   • opencode resolves the generated config without error
     [32m[PASS][0m debug config exit (0)
@@ -9,13 +9,12 @@
     [32m[PASS][0m skill paths configured: 1
 
   • opencode discovers the Claude plugin skills
-    [31m[FAIL][0m skills resolved
-           got=15 want>=200
+    [32m[PASS][0m skills resolved: 994 (>= 200)
 
   • every enabled MCP server connects
-    [32m[PASS][0m connected MCP servers: 18 (>= 3)
+    [32m[PASS][0m connected MCP servers: 19 (>= 3)
     [31m[FAIL][0m some enabled MCP servers failed
-           failed=2 (see 31-mcp-list.clean.txt)
+           failed=1 (see 31-mcp-list.clean.txt)
 
   • user CLAUDE.md is wired as an instruction (if present)
     [32m[PASS][0m no instructions (CLAUDE.md absent — acceptable)
@@ -35,6 +34,7 @@ Evidence written to: /home/milosvasic/Projects/claude_toolkit/scripts/tests/proo
 44-alias-e2e.log
 45-constitution.log
 45-constitution.txt
+46-kimi-live.log
 50-providers-live.txt
 51-detected-accounts.txt
 60-xiaomi-live.txt
@@ -45,16 +45,21 @@ Evidence written to: /home/milosvasic/Projects/claude_toolkit/scripts/tests/proo
 90-nezha-deployment.txt
 93-helixagent-pins-survive-live-sync.txt
 94-dynamic-account-dispatch.txt
+94-helixllm-facade-model-reality.txt
 95-add-account-tmux-notice.txt
 96-free-tier-multi-sync.txt
 97-helixllm-model-export.txt
 97b-helixllm-loading-host-data-loss.txt
+98-kimi-wire-and-status-freshness.txt
+99-llmctl-detect.txt
 PROOF.md
 alias-verify-evidence.txt
 ccr-go-live.txt
 claude-live-superpowers-cli.txt
 claude-live-verify.txt
 kimi-live-evidence.txt
+kimi-llmctl-integration-evidence.txt
+llmctl-superpowers-live-matrix.json
 providers-chutes-semantic.txt
 providers-chutes-superpowers.txt
 providers-chutes1-semantic.txt
@@ -79,6 +84,8 @@ providers-helixagent-native-semantic.txt
 providers-helixagent-native-superpowers.txt
 providers-helixagent-semantic.txt
 providers-helixagent-superpowers.txt
+providers-helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190-semantic.txt
+providers-helixllm-anton-qwen2-5-coder-3b-instruct-q4_k_m-f6771589d190-superpowers.txt
 providers-helixllm-gateway-semantic.txt
 providers-helixllm-gateway-superpowers.txt
 providers-huggingface-semantic.txt
@@ -115,6 +122,15 @@ providers-kimi-k3-256k-semantic.txt
 providers-kimi-k3-256k-superpowers.txt
 providers-kimi-k3-semantic.txt
 providers-kimi-k3-superpowers.txt
+providers-llmctl-moe-fast-superpowers.txt
+providers-llmctl-small-claude-subagent-driven-development-superpowers.txt
+providers-llmctl-small-claude-systematic-debugging-superpowers.txt
+providers-llmctl-small-claude-using-superpowers-superpowers.txt
+providers-llmctl-small-kimi-subagent-driven-development-superpowers.txt
+providers-llmctl-small-kimi-systematic-debugging-superpowers.txt
+providers-llmctl-small-kimi-using-superpowers-superpowers.txt
+providers-llmctl-small-superpowers.txt
+providers-llmctl-vision-superpowers.txt
 providers-negative-case-superpowers.txt
 providers-novita-ai-semantic.txt
 providers-novita-ai-superpowers.txt
@@ -203,9 +219,12 @@ providers-zhipuai-coding-plan-semantic.txt
 providers-zhipuai-coding-plan-superpowers.txt
 providers-zhipuai-semantic.txt
 providers-zhipuai-superpowers.txt
+test_llmctl_context_carve.txt
+test_llmctl_lan_exposure.txt
+test_llmctl_stress_chaos.txt
+test_render_config_base_null.txt
 
-[31m✗ 2 failed, 7 passed[0m
+[31m✗ 1 failed, 8 passed[0m
 
 Failures:
-  - opencode discovers the Claude plugin skills :: skills resolved
   - every enabled MCP server connects :: some enabled MCP servers failed

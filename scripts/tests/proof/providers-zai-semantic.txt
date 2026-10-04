@@ -8,7 +8,7 @@ driver json: {
     "pass": false,
     "score": null,
     "skipped": false,
-    "reason": "round-2 model call failed: http call failed: Post \"https://api.z.ai/api/paas/v4/chat/completions\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+    "reason": "round-2 model call failed: non-200 status 429: {\"error\":{\"code\":\"1305\",\"message\":\"The service may be temporarily overloaded, please try again later\"}}"
   },
   "overall_pass": false
 }

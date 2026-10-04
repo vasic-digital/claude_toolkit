@@ -1,0 +1,7 @@
+# ROUTE-INTENDED: tokenrouter-fast/deepseek/deepseek-v4.1-flash (transport=router)
+# ROUTE-INTENDED-BACKGROUND: tokenrouter-fast/z-ai/glm-5.3-flash
+claude-providers: alias tokenrouter-fast is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for tokenrouter-fast)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=tokenrouter-fast/deepseek/deepseek-v4.1-flash; NO turn ran — route attribution is not applicable)

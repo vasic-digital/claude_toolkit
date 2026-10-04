@@ -1,7 +1,7 @@
-# ROUTE-INTENDED: fireworks-ai/accounts/fireworks/routers/glm-5p2-fast (transport=router)
-# ROUTE-INTENDED-BACKGROUND: fireworks-ai/accounts/fireworks/models/gpt-oss-20b
+# ROUTE-INTENDED: fireworks-ai/accounts/fireworks/routers/deepseek-flash-latest (transport=router)
+# ROUTE-INTENDED-BACKGROUND: fireworks-ai/accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
 claude-providers: alias fireworks-ai is failed — not launching.
   Re-verify: claude-providers sync   (re-runs verification for fireworks-ai)
   Override (operator): run the alias with --force
 # LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=fireworks-ai/accounts/fireworks/routers/glm-5p2-fast; NO turn ran — route attribution is not applicable)
+# FAIL: launch-refused-unverified (rc=3 intended=fireworks-ai/accounts/fireworks/routers/deepseek-flash-latest; NO turn ran — route attribution is not applicable)

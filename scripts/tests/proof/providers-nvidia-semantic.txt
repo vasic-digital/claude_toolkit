@@ -3,7 +3,7 @@ driver json: {
   "round1_sentinel": {
     "pass": false,
     "observed": "",
-    "reason": "non-200 status 503: {\"error\":{\"message\":\"ResourceExhausted: Worker local total request limit reached (16/16)\",\"type\":\"Service Unavailable\",\"code\":503}}"
+    "reason": "non-200 status 503: {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}"
   },
   "round2_judge": {
     "pass": null,
