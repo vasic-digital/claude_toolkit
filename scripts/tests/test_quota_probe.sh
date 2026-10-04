@@ -356,4 +356,88 @@ assert parsed["absence_reason"] is None, parsed
 PY
 assert_eq 0 $? "quota_probe.py's main() CLI entrypoint reads a spec file, probes, and prints valid JSON"
 
+it "resolve_account_blocked: account_blocked signal resolves true"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+spec = {"account_signals": [{"path": ["data", "suspended"], "type": "account_blocked"}]}
+body = {"data": {"suspended": True}}
+result = qp.resolve_account_blocked(spec, body)
+assert result is True, f"expected True, got {result!r}"
+PY
+assert_eq 0 $? "resolve_account_blocked returns True when account_blocked signal resolves to true"
+
+it "resolve_account_blocked: account_blocked signal resolves false"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+spec = {"account_signals": [{"path": ["data", "suspended"], "type": "account_blocked"}]}
+body = {"data": {"suspended": False}}
+result = qp.resolve_account_blocked(spec, body)
+assert result is False, f"expected False, got {result!r}"
+PY
+assert_eq 0 $? "resolve_account_blocked returns False when account_blocked signal resolves to false"
+
+it "resolve_account_blocked: no account_signals key returns False (documented default)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+spec = {}
+body = {"data": {}}
+result = qp.resolve_account_blocked(spec, body)
+assert result is False, f"expected False, got {result!r}"
+PY
+assert_eq 0 $? "resolve_account_blocked returns False when spec has no account_signals key (documented default)"
+
+it "resolve_account_blocked: account_blocked_negated signal inverts correctly"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+spec = {"account_signals": [{"path": ["data", "active"], "type": "account_blocked_negated"}]}
+body = {"data": {"active": False}}
+result = qp.resolve_account_blocked(spec, body)
+assert result is True, f"expected True (NOT active -> blocked), got {result!r}"
+PY
+assert_eq 0 $? "resolve_account_blocked handles account_blocked_negated type correctly (inverts the signal)"
+
 summary
