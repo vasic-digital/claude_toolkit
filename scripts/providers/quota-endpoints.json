@@ -1,0 +1,60 @@
+{
+  "_comment": [
+    "Documented usage-window (quota) endpoints, keyed by models.dev provider id.",
+    "Data, not code: an operator can add a provider here without touching Python.",
+    "",
+    "Consumed by `scripts/quota_probe.py`, which probes these endpoints and writes the",
+    "verdict into a cache that downstream tooling reads when reporting rate-limit and",
+    "usage information. This is separate from account balance (credit-endpoints.json),",
+    "which answers 'is this account funded'; this file answers 'how much usage window",
+    "is left before hitting a limit'.",
+    "",
+    "Only providers with a DOCUMENTED, first-party usage-window endpoint belong here.",
+    "Most providers publish none. Absence of a provider's id in this file means the",
+    "provider does not report usage windows — the value is never estimated or inferred.",
+    "",
+    "Entry fields:",
+    "  url      absolute https endpoint (GET)",
+    "  auth     bearer | x-api-key | raw (header named by auth_header)",
+    "  doc      citation for the response shape below",
+    "  windows  REQUIRED, array of one or more window entries, each with:",
+    "             window  one of: session | daily | weekly | subscription",
+    "             signals ORDERED list, most precise first; the first one PRESENT in the",
+    "                     response decides. Each signal has:",
+    "                       path  list of dict keys / integer list indices",
+    "                             [] (empty) means the root object itself",
+    "                       type  amount_used          number of units consumed",
+    "                             amount_remaining    units left before hitting limit",
+    "                             limit_total         total capacity of this window",
+    "                             percent_remaining   % of limit remaining",
+    "                             reset_at            ISO 8601 timestamp when window resets",
+    "                             reset_in_seconds    seconds until window resets",
+    "                             unit_literal        fixed known unit string (used with value field)",
+    "                             account_blocked     true => account cannot make requests",
+    "                             account_blocked_negated false => account can make requests",
+    "                       minus optional path subtracted from a balance/limit (spent-to-date)",
+    "                       value only for unit_literal; a fixed string naming the unit",
+    "                       desc  what the field actually means, for the audit trail",
+    "  account_signals optional, for account-level status not tied to a specific window",
+    "",
+    "Ordering matters: a field that is exact but often null must come before a",
+    "coarser field that is always present, or the coarse one would mask it."
+  ],
+
+  "openrouter": {
+    "url": "https://openrouter.ai/api/v1/key",
+    "auth": "bearer",
+    "doc": "https://openrouter.ai/docs/api-reference/limits",
+    "windows": [
+      {
+        "window": "subscription",
+        "signals": [
+          { "path": ["data", "limit_remaining"], "type": "amount_remaining", "desc": "credits left under this key's spending cap; null when the key is uncapped" },
+          { "path": ["data", "limit"], "type": "limit_total", "desc": "the key's total spending cap; null when uncapped" },
+          { "path": ["data", "usage"], "type": "amount_used", "desc": "credits consumed so far under this key" },
+          { "path": [], "type": "unit_literal", "value": "credits" }
+        ]
+      }
+    ]
+  }
+}
