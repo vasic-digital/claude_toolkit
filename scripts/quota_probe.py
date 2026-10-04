@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """quota_probe.py — resolves a provider's `quota-endpoints.json` window spec
-against an already-fetched HTTP response body into a plain Usage Window dict.
+against an already-fetched HTTP response body into a plain Usage Window dict,
+and (since Task 17a) live-probes one provider over HTTP via `probe_provider`
+plus a `main()` CLI entrypoint for a later bash orchestrator (T017b) to invoke
+as a subprocess per provider.
 
-This module does no HTTP itself (that is a later task's job); `resolve_window`
-is a pure function over `(window_spec, body)`.
+`resolve_window` itself remains a pure function over `(window_spec, body)` —
+`probe_provider` is the thin HTTP-calling wrapper around it.
 
 Reuses `model_verify.py`'s JSON-path helpers rather than re-implementing
 JSON-path walking (`research.md §3`'s explicit decision).
