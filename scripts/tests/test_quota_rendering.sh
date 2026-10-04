@@ -54,4 +54,25 @@ it "_cma_quota_severity(-5) is limit_exceeded (negative remaining still classifi
 out="$(_cma_quota_severity -5)"
 assert_eq "limit_exceeded" "$out" "negative remaining (e.g. after overage) is limit_exceeded, never undefined"
 
+it "_cma_quota_color_enabled: tty, no NO_COLOR, no flags -> ON"
+unset NO_COLOR
+_cma_quota_color_enabled --force-tty
+assert_eq 0 $? "tty + no NO_COLOR + no --json/--no-color = color on"
+
+it "_cma_quota_color_enabled: tty, but NO_COLOR=1 -> OFF"
+export NO_COLOR=1
+_cma_quota_color_enabled --force-tty
+assert_eq 1 $? "NO_COLOR set forces color off even on a real tty"
+unset NO_COLOR
+
+it "_cma_quota_color_enabled: non-tty -> OFF regardless of NO_COLOR"
+unset NO_COLOR
+_cma_quota_color_enabled --force-no-tty
+assert_eq 1 $? "non-tty forces color off even with NO_COLOR unset"
+
+it "_cma_quota_color_enabled: tty, no NO_COLOR, but --no-color flag -> OFF"
+unset NO_COLOR
+_cma_quota_color_enabled --force-tty --no-color
+assert_eq 1 $? "--no-color flag forces color off even on a real tty with NO_COLOR unset"
+
 summary
