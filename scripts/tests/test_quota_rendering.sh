@@ -138,7 +138,12 @@ echo "$json_out" | jq -e . >/dev/null 2>&1
 assert_eq "0" "$?" "output must be valid, non-empty JSON (jq -e . exits 0)"
 
 it "_cma_quota_render_json top-level shape matches data-model.md §5"
-keys="$(echo "$json_out" | jq -S 'keys' 2>/dev/null)"
+# -c (compact) is load-bearing here: `jq -S 'keys'` alone sorts the keys
+# but still pretty-prints one key per line, which can never equal the
+# compact string literal below -- that would be a permanent false-FAIL,
+# not a RED-until-T021 state. `-Sc`/`-cS` emits the compact single-line
+# array the literal expects.
+keys="$(echo "$json_out" | jq -Sc 'keys' 2>/dev/null)"
 assert_eq '["generated_at","rows","scoped_to","unknown_alias"]' "$keys" "exactly these 4 top-level keys, nothing more/less"
 
 it "_cma_quota_render_json: rows length matches the fixture's row count"
