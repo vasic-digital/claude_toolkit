@@ -185,12 +185,23 @@ assert_eq "0" "$mismatch" "every window's JSON severity value must appear (case-
 # untouched.
 BLOCKED_ROW='{"provider_id":"blockedprov","alias_names":["blockedprov"],"base_url":"https://api.blockedprov.example/v1","windows":[{"window":"session","amount_used":10,"amount_remaining":90,"limit_total":100,"unit":"tokens","percent_remaining":90,"resets":false,"reset_at":null}],"account_blocked":true,"absence_reason":null,"data_source":"live","data_age_seconds":null}'
 
-it "_cma_quota_render_text: a blocked account shows a distinct ACCOUNT BLOCKED statement"
+# The combined fixture stream also contains "session" window lines from
+# the UNRELATED dualwin/cachedprov rows defined above. A bare
+# `grep -q "session"` against the WHOLE combined output can therefore
+# never fail -- it would match those other rows' windows even if
+# blockedprov's own window were wrongly hidden. Both checks below are
+# scoped to blockedprov's OWN rendered block (from its header line to
+# the next blank line -- the per-row separator _cma_quota_render_text
+# emits), so the "windows still shown" assertion actually has teeth
+# against the regression it is named to catch.
 out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_text --force-no-tty)"
-echo "$out" | grep -qi "account blocked" || assert_eq "contains 'account blocked'" "missing" "FR-011: distinct statement required"
+block="$(echo "$out" | sed -n '/^blockedprov/,/^$/p')"
+
+it "_cma_quota_render_text: a blocked account shows a distinct ACCOUNT BLOCKED statement"
+echo "$block" | grep -qi "account blocked" || assert_eq "contains 'account blocked' in blockedprov's own block" "missing" "FR-011: distinct statement required"
 
 it "_cma_quota_render_text: a blocked account's windows are STILL shown, not hidden"
-echo "$out" | grep -q "session" || assert_eq "contains window line" "missing" "prior windows must remain visible, only annotated as moot"
+echo "$block" | grep -q "session" || assert_eq "contains blockedprov's own window line" "missing" "prior windows must remain visible, only annotated as moot -- scoped to THIS row, not any other row in the combined output"
 
 it "_cma_quota_render_json: account_blocked field is true for the blocked row"
 json_out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_json)"
