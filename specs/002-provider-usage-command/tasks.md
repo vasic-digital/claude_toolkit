@@ -155,7 +155,7 @@
 - [x] **T025 [US2]** Modify `cmd_quota()` (`scripts/claude-providers.sh`) to accept the positional `<alias>` parsed back in T012: when present, after gathering accounts (T015/T016), filter to the ONE matching provider-account-group-or-native-account before probing (never probe every OTHER alias just to discard the result — this is also a latency win, not only a correctness one); when no match exists, set `unknown_alias=true`, skip probing entirely, print the plain-text statement, and `return 2`. Confirm T023 passes.
   - **Files**: Modify `scripts/claude-providers.sh`.
 
-- [ ] **T026 [US2]** Implement `quota_probe.resolve_account_blocked(provider_spec, body)` in `scripts/quota_probe.py`, importing `_dig_bool` from `model_verify` (same reuse discipline as T003) and reading the OPTIONAL `account_signals` list per the new contract section. Wire its result into T017's per-account probe output as the `account_blocked` field (data-model.md §1). Confirm T024 passes.
+- [x] **T026 [US2]** Implement `quota_probe.resolve_account_blocked(provider_spec, body)` in `scripts/quota_probe.py`, importing `_dig_bool` from `model_verify` (same reuse discipline as T003) and reading the OPTIONAL `account_signals` list per the new contract section. Wire its result into T017's per-account probe output as the `account_blocked` field (data-model.md §1). Confirm T024 passes.
   - **Files**: Modify `scripts/quota_probe.py`, `scripts/claude-providers.sh` (the T017 orchestration call site now also calls this and merges its result).
   - **Interfaces — Produces**: `resolve_account_blocked(provider_spec: dict, body: dict) -> bool`.
 
