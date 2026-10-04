@@ -10,7 +10,8 @@
 #   1. The collision risk cited as the reason for the rename is real, not
 #      a straw man — `usage()` already exists as a function in both files.
 #   2. `quota` and `limits` are NOT already dispatch case-labels in either
-#      of claude-providers.sh's two subcommand-gating case blocks.
+#      of claude-providers.sh's two subcommand-gating case blocks, NOR in
+#      kimi-providers.sh's own (structurally different) case block.
 #   3. `quota` and `limits` are NOT already function names anywhere in
 #      claude-providers.sh, kimi-providers.sh, or lib.sh.
 #
@@ -28,23 +29,22 @@
 #
 # Structural note on kimi-providers.sh: investigated directly for this
 # task. It is genuinely a thin wrapper (143 lines total) with its own
-# SINGLE `case "$SUBCMD" in ... esac` block (same anchor text as
-# claude-providers.sh's block 2), but its shape is NOT an enumerated
-# allowlist of valid subcommand names the way claude-providers.sh's two
-# blocks are. Its only arms are `""|-h|--help`, `list|list-all|list-faulty`,
+# SINGLE `case "$SUBCMD" in ... esac` block (lines ~65-71; same anchor text
+# as claude-providers.sh's block 2), but its shape is NOT an enumerated
+# allowlist of every valid subcommand name the way claude-providers.sh's
+# two blocks are. Its only arms are `""|-h|--help`, `list|list-all|list-faulty`,
 # and a catch-all `*) exec "$ENGINE" "$@" ;;` that forwards every other
 # subcommand name — including, today, `quota`/`limits` once T012 adds
-# them — verbatim to the claude-providers.sh engine. There is therefore no
-# kimi-providers.sh-local enumerated case-label list analogous to
-# claude-providers.sh's two blocks to run the block1/block2 extractors
-# against (confirmed empirically: the block2 extractor pattern, applied to
-# kimi-providers.sh's case block, yields zero matches, because every arm
-# there uses `|`-alternation inline on one line rather than one bare
-# `name)` per line). What DOES matter for kimi-providers.sh is covered
-# below at the FUNCTION-name level (assertions 1, 2, and 5), which is
-# exactly where kimi-providers.sh's real `usage()` function lives and
-# where a future `quota`/`limits` FUNCTION (as opposed to case arm) would
-# collide.
+# them — verbatim to the claude-providers.sh engine. It IS still a real
+# case block that a T012 edit could add a `quota)`/`limits)` arm to
+# directly (rather than relying on the catch-all forward), so it is
+# checked below (assertion 6) via `_extract_kimi_block_names`, once the
+# shared extraction logic handles `|`-alternation arms (review round 1,
+# Issue 3) rather than assuming one bare `name)` per line. What ALSO
+# matters for kimi-providers.sh is covered at the FUNCTION-name level
+# (assertions 1, 2, and 5), which is exactly where kimi-providers.sh's
+# real `usage()` function lives and where a future `quota`/`limits`
+# FUNCTION (as opposed to case arm) would collide.
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,32 +59,70 @@ make_sandbox
 set +e   # lib assertion helpers; no lib.sh function call in this file.
 
 # --- extraction helpers -----------------------------------------------------
+#
+# All three case-block extractors share the same robustness requirements
+# (review round 1 findings, fixed here):
+#   - Read EVERY label line in the block's range, not just the first — a
+#     name added as a brand-new line (rather than edited into an existing
+#     compound line) must still be visible.
+#   - Allow `|` in the captured character class, so a multi-name alternation
+#     arm (e.g. `quota|limits) cmd_quota ;;`) is captured whole, THEN split
+#     on `|` into one name per output line — never require the whole block
+#     to be a single compound line.
+#   - Strip leading whitespace AND the trailing `)` via one `sed`, not
+#     `tr -d ')'` alone — `tr -d` only removes the `)` byte and leaves
+#     leading spaces in place, which silently defeats `grep -qx` equality
+#     checks against the first captured label (reproduced against the real
+#     file pre-fix: the block 1 extractor emitted "  sync" instead of
+#     "sync", so `grep -qx sync` against its own output failed even though
+#     `sync` genuinely is the first name in the block).
+#   - A case-arm BODY line (e.g. a continuation line inside a multi-line
+#     `sync)` arm, or a `#`-comment line) must NOT match: the character
+#     class excludes `#`/quotes/`$`/`{`/`"`/space, and the match requires
+#     the captured run to be followed IMMEDIATELY by `)` — a body line like
+#     `cmd_add "${POSITIONAL[@]:-}" ;;` has no `)` immediately after a
+#     leading identifier run, so it correctly produces no match.
 
 # Block 1: case "${1:-}" in ... esac — the early arg-sniffing block that
 # decides whether $1 is even recognized as a subcommand name at all. On the
 # real claude-providers.sh, this is a single compound alternation line
-# listing every valid subcommand name.
+# listing every valid subcommand name — but the extractor does not assume
+# that shape; it reads every label line in the block.
 _extract_block1_names() {
   sed -n '/^case "\${1:-}" in$/,/^esac$/p' "$1" \
-    | grep -oE '^\s*[a-zA-Z0-9_|-]+\)' \
-    | head -1 \
-    | tr -d ')' \
+    | grep -oE '^[[:space:]]*[a-zA-Z0-9_|-]+\)' \
+    | sed -E 's/^[[:space:]]+//; s/\)$//' \
     | tr '|' '\n'
 }
 
-# Block 2: case "$SUBCMD" in ... esac — the main per-command dispatch, one
-# "name)" arm per line.
+# Block 2: case "$SUBCMD" in ... esac — claude-providers.sh's main
+# per-command dispatch.
 _extract_block2_names() {
   sed -n '/^case "\$SUBCMD" in$/,/^esac$/p' "$1" \
-    | grep -oE '^\s+[a-zA-Z0-9_-]+\)' \
-    | tr -d ') '
+    | grep -oE '^[[:space:]]*[a-zA-Z0-9_|-]+\)' \
+    | sed -E 's/^[[:space:]]+//; s/\)$//' \
+    | tr '|' '\n'
+}
+
+# kimi-providers.sh's OWN case "$SUBCMD" in ... esac block (lines ~65-71).
+# Same anchor text as claude-providers.sh's block 2, but a structurally
+# different (thin-forwarder) body — see the file header note. Same
+# extraction logic applies verbatim once `|`-alternation is handled, so this
+# is a distinct function only because it targets a different file/anchor
+# instance, not different logic.
+_extract_kimi_block_names() {
+  sed -n '/^case "\$SUBCMD" in$/,/^esac$/p' "$1" \
+    | grep -oE '^[[:space:]]*[a-zA-Z0-9_|-]+\)' \
+    | sed -E 's/^[[:space:]]+//; s/\)$//' \
+    | tr '|' '\n'
 }
 
 # Every bash function name defined at column 0 (top-level, not nested) in a
-# given file.
+# given file. `[[:space:]]` (not `\s`, a GNU extension) for BSD/GNU
+# portability per this project's own CLAUDE.md.
 _extract_func_names() {
-  grep -oE '^[a-zA-Z_][a-zA-Z0-9_]*\s*\(\)\s*\{' "$1" \
-    | sed -E 's/\s*\(\)\s*\{//'
+  grep -oE '^[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(\)[[:space:]]*\{' "$1" \
+    | sed -E 's/[[:space:]]*\(\)[[:space:]]*\{//'
 }
 
 # --- assertions, in the exact required order --------------------------------
@@ -130,5 +168,20 @@ collision=0
 echo "$all_funcs" | grep -qx "quota" && collision=1
 echo "$all_funcs" | grep -qx "limits" && collision=1
 assert_eq "0" "$collision" "quota/limits must not already exist as function names anywhere in the three files"
+
+# Review round 1, Issue 3: once the shared extractor logic above correctly
+# handles `|`-alternation (not just one bare name per line), it generalizes
+# cheaply to kimi-providers.sh's own case "$SUBCMD" in block too (its arms
+# are `""|-h|--help)`, `list|list-all|list-faulty)`, and a catch-all `*)` —
+# see the file header note on why this is NOT the same shape as
+# claude-providers.sh's two blocks, but it IS a real case block that a
+# future T012 edit could add a `quota)`/`limits)` arm to, so it must be
+# checked too.
+it "quota/limits is not yet a case-label in kimi-providers.sh's own dispatch block"
+bk="$(_extract_kimi_block_names "$SCRIPTS_DIR/kimi-providers.sh")"
+collision=0
+echo "$bk" | grep -qx "quota" && collision=1
+echo "$bk" | grep -qx "limits" && collision=1
+assert_eq "0" "$collision" "quota/limits must not already be a case label in kimi-providers.sh's own dispatch block"
 
 summary
