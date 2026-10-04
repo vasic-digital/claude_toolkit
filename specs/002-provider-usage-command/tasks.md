@@ -93,15 +93,15 @@
 
 ### Tests for User Story 1
 
-- [ ] **T013 [P] [TDD] [US1]** Write a failing test in a new `scripts/tests/test_quota_cli.sh` section: given a sandbox with `.env` files for `deepseek.env` and `kimi-deepseek`-style twin-sharing (both carrying `CMA_PROVIDER_ID=deepseek`, matching the real on-disk convention confirmed in research.md §2), calling a not-yet-existing `_cma_quota_group_accounts` bash function returns exactly ONE provider-account group for `deepseek` whose `alias_names` lists both alias names — proving the de-duplication data-model.md §2 requires, before any probing logic exists.
+- [x] **T013 [P] [TDD] [US1]** Write a failing test in a new `scripts/tests/test_quota_cli.sh` section: given a sandbox with `.env` files for `deepseek.env` and `kimi-deepseek`-style twin-sharing (both carrying `CMA_PROVIDER_ID=deepseek`, matching the real on-disk convention confirmed in research.md §2), calling a not-yet-existing `_cma_quota_group_accounts` bash function returns exactly ONE provider-account group for `deepseek` whose `alias_names` lists both alias names — proving the de-duplication data-model.md §2 requires, before any probing logic exists.
   - **Files**: Modify `scripts/tests/test_quota_cli.sh`.
 
-- [ ] **T014 [P] [TDD] [US1]** Write a failing test in `scripts/tests/test_quota_cli.sh`: given a sandbox with two native-account dirs (`claude1`, `claude2`) each with a distinct fake `.claude.json` carrying a different `oauthAccount.organizationRateLimitTier`, calling a not-yet-existing `_cma_quota_list_native_accounts` function returns TWO separate entries (never de-duplicated — data-model.md §3's "each slot is independently distinct" rule), each carrying its own `plan_tier` string read from its own fake `.claude.json`.
+- [x] **T014 [P] [TDD] [US1]** Write a failing test in `scripts/tests/test_quota_cli.sh`: given a sandbox with two native-account dirs (`claude1`, `claude2`) each with a distinct fake `.claude.json` carrying a different `oauthAccount.organizationRateLimitTier`, calling a not-yet-existing `_cma_quota_list_native_accounts` function returns TWO separate entries (never de-duplicated — data-model.md §3's "each slot is independently distinct" rule), each carrying its own `plan_tier` string read from its own fake `.claude.json`.
   - **Files**: Modify `scripts/tests/test_quota_cli.sh`.
 
 ### Implementation for User Story 1
 
-- [ ] **T015 [US1]** Implement `_cma_quota_group_accounts` in `scripts/lib.sh`: enumerate every `$pdir/*.env` (`pdir="$(cma_providers_dir)"`), source each to read `CMA_PROVIDER_ID`, and group alias filenames (the `.env` basename minus `.env`) by that id, producing one record per distinct `CMA_PROVIDER_ID` with its full `alias_names` list — satisfy T013.
+- [x] **T015 [US1]** Implement `_cma_quota_group_accounts` in `scripts/lib.sh`: enumerate every `$pdir/*.env` (`pdir="$(cma_providers_dir)"`), source each to read `CMA_PROVIDER_ID`, and group alias filenames (the `.env` basename minus `.env`) by that id, producing one record per distinct `CMA_PROVIDER_ID` with its full `alias_names` list — satisfy T013.
   - **Files**: Modify `scripts/lib.sh`.
   - **Interfaces — Produces**: `_cma_quota_group_accounts` → stdout, one JSON object per line (`{"provider_id":..., "alias_names":[...], "base_url":..., "endpoint_spec_present":...}`), `endpoint_spec_present` computed by checking whether `scripts/providers/quota-endpoints.json` has a top-level key matching `provider_id`.
 
