@@ -423,4 +423,100 @@ it "cmd_quota this-alias-does-not-exist-xyz123 (text mode): states plainly the a
 out3="$(cmd_quota this-alias-does-not-exist-xyz123 2>&1)"
 echo "$out3" | grep -qi "does not exist" || assert_eq "contains 'does not exist'" "missing" "FR-003: never silent, never a bare crash (currently prints the full unscoped fleet report instead)"
 
+# --- T028: no-probe-attempt test for a no-endpoint-spec provider ------------
+#
+# Regression-confirming test (T017 already built the endpoint_spec_present
+# short-circuit in _cma_quota_probe_all) -- NOT a RED-then-GREEN pair. It
+# proves, mechanically, that a provider ABSENT from quota-endpoints.json
+# never causes a live-probe subprocess to be launched at all.
+#
+# tasks.md's literal text says "stub curl" -- that does not match the real
+# implementation. quota_probe.py's http_get_json (reused from
+# model_verify.py) uses Python's urllib.request.urlopen, never curl, so
+# stubbing curl would prove nothing (it is genuinely never invoked). The
+# real subprocess _cma_quota_probe_all launches for a live probe is
+# `python3 "$lib_dir/quota_probe.py" --provider-id ...` (and, before that, a
+# `python3 -c "..."` cache-check call for any spec-present provider) -- this
+# stub intercepts python3 instead.
+#
+# Critical gotcha avoided: the stub does NOT `exec python3 "$@"` (which
+# would re-enter PATH resolution and could hit the SAME stub again). The
+# REAL python3's absolute path is resolved via `command -v python3` BEFORE
+# the stub is installed, and that absolute path is baked directly into the
+# stub script body, so the stub delegates to the genuine interpreter after
+# logging -- every OTHER test in this file, before and after this block,
+# keeps running against the real python3, completely unaffected.
+#
+# Fixtures:
+#   - "deepseek": already configured earlier in this file (T013) with a
+#     real .env + alias line, and genuinely ABSENT from
+#     quota-endpoints.json -- reused here, per the task brief, as the
+#     no-endpoint-spec provider rather than inventing a duplicate fixture.
+#   - "openrouter": newly added here, WITH a real quota-endpoints.json
+#     entry (the only entry the file documents today) -- set up so the
+#     stub's log can be checked for genuine traffic, proving the "zero
+#     calls for deepseek" assertion isn't trivially true because the stub
+#     was never wired into the call path at all.
+
+it "T028 setup: openrouter provider fixture (HAS a quota-endpoints.json entry)"
+pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
+cma_provider_write_env openrouter OPENROUTER_API_KEY router \
+  "https://openrouter.ai/api/v1" "openrouter/test-model" "openrouter/test-model" \
+  "$HOME/.claude-prov-openrouter" 128000 8192 openrouter
+cat >> "$ALIAS_FILE" <<'EOF'
+alias openrouter="cma_run_provider openrouter"
+EOF
+assert_file "$pdir/openrouter.env" "openrouter.env fixture written"
+
+it "T028: the real python3 absolute path resolves before any stub is installed"
+real_python3="$(command -v python3)"
+[[ -n "$real_python3" && -x "$real_python3" ]] && found=1 || found=0
+assert_eq "1" "$found" "a real python3 binary must be found on PATH before the stub can delegate to it"
+
+# Install the scoped stub: a fresh directory (not $HOME/.local/bin, so there
+# is no production symlink to clobber) prepended to PATH for THIS TEST ONLY.
+# It logs every invocation's argv, then execs the baked-in absolute path --
+# never the bare name "python3" -- so it cannot recursively re-enter itself.
+stub_dir="$HOME/.quota-stub-bin"
+stub_log="$HOME/.quota-stub-python3.log"
+: > "$stub_log"
+sandbox_stub "$stub_dir/python3" <<STUBEOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$stub_log"
+exec "$real_python3" "\$@"
+STUBEOF
+
+old_path="$PATH"
+export PATH="$stub_dir:$PATH"
+
+probe_out="$(_cma_quota_probe_all 0 "" 2>&1)"
+probe_rc=$?
+
+# Restore PATH immediately -- scoped to just this test, per the brief, so
+# every later test in this file runs against the genuine python3 again.
+export PATH="$old_path"
+rm -rf "$stub_dir"
+
+it "T028: _cma_quota_probe_all still completes cleanly with the stub installed"
+assert_eq "0" "$probe_rc" "probe orchestration must not error out merely because python3 was intercepted"
+
+it "T028: deepseek's row reports absence_reason=not_reported_by_provider"
+ds_absence="$(echo "$probe_out" | jq -r 'select(.provider_id=="deepseek") | .absence_reason')"
+assert_eq "not_reported_by_provider" "$ds_absence" "deepseek (no quota-endpoints.json entry) must report the honest absence reason"
+
+it "T028: deepseek's row reports windows=[]"
+ds_windows="$(echo "$probe_out" | jq -c 'select(.provider_id=="deepseek") | .windows')"
+assert_eq "[]" "$ds_windows" "deepseek's windows must stay empty -- never estimated/inferred"
+
+it "T028: zero python3 subprocess calls name deepseek as a --provider-id argument"
+ds_calls="$(grep -c -- '--provider-id deepseek' "$stub_log" 2>/dev/null)"
+[[ -z "$ds_calls" ]] && ds_calls=0
+assert_eq "0" "$ds_calls" "the no-endpoint-spec provider must short-circuit entirely -- no live-probe subprocess, ever"
+
+it "T028: the stub observed REAL traffic -- openrouter's id appears at least once in the log (proves the stub is live, not vacuously silent)"
+or_calls="$(grep -c -- 'openrouter' "$stub_log" 2>/dev/null)"
+[[ -z "$or_calls" ]] && or_calls=0
+at_least_one=0; (( or_calls >= 1 )) && at_least_one=1
+assert_eq "1" "$at_least_one" "openrouter (a real quota-endpoints.json entry) must trigger at least one logged python3 invocation"
+
 summary
