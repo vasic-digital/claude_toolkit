@@ -49,6 +49,18 @@ cma_warn() { printf '\033[33m[cma warn]\033[0m %s\n' "$*" >&2; }
 cma_err()  { printf '\033[31m[cma err]\033[0m %s\n' "$*" >&2; }
 cma_die()  { cma_err "$*"; exit 1; }
 
+# Quota severity classifier: the <= 0 check MUST come first to correctly
+# classify negative values (e.g., -5 representing usage past 100%) as limit_exceeded.
+_cma_quota_severity() {
+  local pct="$1"
+  awk -v p="$pct" 'BEGIN {
+    if (p <= 0) { print "limit_exceeded"; exit }
+    if (p < 10) { print "red"; exit }
+    if (p < 30) { print "yellow"; exit }
+    print "green"
+  }'
+}
+
 cma_require() {
   command -v "$1" >/dev/null 2>&1 || cma_die "missing required tool: $1"
 }
