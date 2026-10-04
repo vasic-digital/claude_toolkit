@@ -316,4 +316,35 @@ assert_eq "1" "$count" "exactly one record for the deepseek provider account"
 names="$(echo "$out" | jq -r 'select(.provider_id=="deepseek") | .alias_names[]' | sort | tr '\n' ',')"
 assert_eq "deepseek,kimi-deepseek," "$names" "alias_names covers both the bare and the kimi-twin alias"
 
+# --- T014: failing test for _cma_quota_list_native_accounts (not yet implemented) ----
+#
+# Task 14 introduces the NOT-YET-EXISTING bash function _cma_quota_list_native_accounts.
+# This test demonstrates the function's required behavior: listing EVERY configured
+# native account separately, never merging/de-duplicating them. The fixture creates
+# two account-dir skeletons using make_account, then overwrites each .claude.json
+# with a specific organizationRateLimitTier value to simulate the cached tier data.
+
+it "_cma_quota_list_native_accounts returns TWO separate entries for claude1 and claude2 -- never merged"
+dir1="$(make_account claude1)"
+cat > "$dir1/.claude.json" <<'EOF'
+{"oauthAccount": {"organizationRateLimitTier": "default_claude_pro"}}
+EOF
+
+dir2="$(make_account claude2)"
+cat > "$dir2/.claude.json" <<'EOF'
+{"oauthAccount": {"organizationRateLimitTier": "default_claude_max_20x"}}
+EOF
+
+out="$(_cma_quota_list_native_accounts)"
+count="$(echo "$out" | jq -s 'length')"
+assert_eq "2" "$count" "two native accounts must produce two separate rows, never de-duplicated"
+
+it "_cma_quota_list_native_accounts: claude1's plan_tier comes from claude1's own .claude.json"
+tier1="$(echo "$out" | jq -r 'select(.account_id | endswith("claude1")) | .plan_tier')"
+assert_eq "default_claude_pro" "$tier1" "claude1's own cached tier is read correctly"
+
+it "_cma_quota_list_native_accounts: claude2's plan_tier comes from claude2's own .claude.json (different value, proving no cross-contamination)"
+tier2="$(echo "$out" | jq -r 'select(.account_id | endswith("claude2")) | .plan_tier')"
+assert_eq "default_claude_max_20x" "$tier2" "claude2's own cached tier is read correctly, and differs from claude1's -- proving neither account's value leaked into the other"
+
 summary
