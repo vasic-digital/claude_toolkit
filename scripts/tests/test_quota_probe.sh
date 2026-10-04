@@ -191,4 +191,169 @@ assert back["_cache_version"] == qp.QUOTA_CACHE_VERSION, back
 PY
 assert_eq 0 $? "save_quota_cache + load_quota_cache round-trip real provider data intact"
 
+it "probe_provider: successful probe returns resolved windows"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# Patch quota_probe's OWN bound name (it imported http_get_json directly via
+# `from model_verify import ... http_get_json`, which creates a separate
+# binding in quota_probe's namespace — patching mv.http_get_json would NOT
+# be observed by quota_probe.probe_provider).
+body = {"data": {"limit_remaining": 52.68, "limit": 100.0, "usage": 47.32}}
+qp.http_get_json = lambda *a, **k: (200, body)
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+entry = catalog["openrouter"]
+
+result = qp.probe_provider("openrouter", entry, "fake-key", 3.0)
+
+assert result["absence_reason"] is None, result
+assert len(result["windows"]) >= 1, result
+assert result["http_status"] == 200, result
+assert result["provider_id"] == "openrouter", result
+PY
+assert_eq 0 $? "probe_provider returns resolved windows + http_status=200 + absence_reason=None on a successful probe"
+
+it "probe_provider: non-200 response returns probe_failed"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+qp.http_get_json = lambda *a, **k: (500, {})
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+entry = catalog["openrouter"]
+
+result = qp.probe_provider("openrouter", entry, "fake-key", 3.0)
+
+assert result["absence_reason"] == "probe_failed", result
+assert result["windows"] == [], result
+assert result["http_status"] == 500, result
+assert result["account_blocked"] is False, result
+PY
+assert_eq 0 $? "probe_provider reports absence_reason=probe_failed and no windows on a non-200 HTTP response"
+
+it "probe_provider: spec with no url returns not_reported_by_provider, no HTTP call attempted"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+call_count = {"n": 0}
+def counting_http_get_json(*a, **k):
+    call_count["n"] += 1
+    return (200, {})
+qp.http_get_json = counting_http_get_json
+
+result = qp.probe_provider("no-url-provider", {}, "fake-key", 3.0)
+
+assert result["absence_reason"] == "not_reported_by_provider", result
+assert result["windows"] == [], result
+assert result["http_status"] is None, result
+assert call_count["n"] == 0, f"expected http_get_json to never be called, was called {call_count['n']} times"
+PY
+assert_eq 0 $? "probe_provider never calls http_get_json when the spec has no url, and returns not_reported_by_provider"
+
+it "probe_provider: account_signals correctly sets account_blocked"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+body = {"data": {"account_suspended": True}}
+qp.http_get_json = lambda *a, **k: (200, body)
+
+fake_spec = {
+    "url": "https://example.test/v1/key",
+    "auth": "bearer",
+    "account_signals": [
+        {"path": ["data", "account_suspended"], "type": "account_blocked", "desc": "test fixture"},
+    ],
+    "windows": [],
+}
+
+result = qp.probe_provider("fake-provider", fake_spec, "fake-key", 3.0)
+
+assert result["account_blocked"] is True, result
+assert result["absence_reason"] is None, result
+PY
+assert_eq 0 $? "probe_provider sets account_blocked=True when an account_blocked signal resolves to true"
+
+it "quota_probe.py main(): CLI entrypoint end-to-end with a spec file on disk"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, io, contextlib
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+body = {"data": {"limit_remaining": 52.68, "limit": 100.0, "usage": 47.32}}
+qp.http_get_json = lambda *a, **k: (200, body)
+
+spec_path = home_dir + "/cli-quota-endpoints.json"
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+with open(spec_path, "w") as f:
+    json.dump({"openrouter": catalog["openrouter"]}, f)
+
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    rc = qp.main([
+        "--provider-id", "openrouter",
+        "--spec-file", spec_path,
+        "--api-key-env", "FAKE_KEY",
+        "--timeout", "3",
+    ])
+
+assert rc == 0, rc
+parsed = json.loads(buf.getvalue())
+assert parsed["provider_id"] == "openrouter", parsed
+assert len(parsed["windows"]) >= 1, parsed
+assert parsed["absence_reason"] is None, parsed
+PY
+assert_eq 0 $? "quota_probe.py's main() CLI entrypoint reads a spec file, probes, and prints valid JSON"
+
 summary

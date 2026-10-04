@@ -14,12 +14,14 @@ and should go stale faster than the credit cache's model-selection concern
 (research.md §4).
 """
 
+import argparse
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone, timedelta
 
-from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
+from model_verify import _dig, _walk, _dig_bool, http_get_json  # noqa: F401 (re-exported for later tasks)
 
 QUOTA_CACHE_VERSION = 1
 QUOTA_CACHE_TTL_SECONDS = 21600  # 6 hours = CREDIT_CACHE_TTL_SECONDS (86400) / 4 —
@@ -118,6 +120,56 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
     }
 
 
+def probe_provider(provider_id, spec, api_key, timeout):
+    """Live-probe one quota-endpoints.json provider entry. Returns a dict:
+    {provider_id, windows: [...], account_blocked: bool,
+     absence_reason: str|None, http_status: int|None}."""
+    url = spec.get("url")
+    if not url:
+        return {
+            "provider_id": provider_id, "windows": [], "account_blocked": False,
+            "absence_reason": "not_reported_by_provider", "http_status": None,
+        }
+
+    auth = (spec.get("auth") or "bearer").lower()
+    if auth == "bearer":
+        headers = {"Authorization": f"Bearer {api_key}"}
+    elif auth == "x-api-key":
+        headers = {"x-api-key": api_key}
+    else:
+        headers = {(spec.get("auth_header") or "Authorization"): api_key}
+
+    status, body = http_get_json(url, headers, timeout)
+    if status != 200 or not isinstance(body, dict):
+        return {
+            "provider_id": provider_id, "windows": [], "account_blocked": False,
+            "absence_reason": "probe_failed", "http_status": status,
+        }
+
+    account_blocked = False
+    for sig in (spec.get("account_signals") or []):
+        kind = (sig.get("type") or "").lower()
+        if kind not in ("account_blocked", "account_blocked_negated"):
+            continue
+        flag = _dig_bool(body, sig.get("path") or [])
+        if flag is None:
+            continue
+        account_blocked = flag if kind == "account_blocked" else (not flag)
+        break
+
+    windows = []
+    for w in (spec.get("windows") or []):
+        resolved = resolve_window(w, body)
+        if resolved is not None:
+            windows.append(resolved)
+
+    return {
+        "provider_id": provider_id, "windows": windows,
+        "account_blocked": account_blocked, "absence_reason": None,
+        "http_status": status,
+    }
+
+
 def load_quota_cache(path):
     """Read the quota cache, honouring the same version+TTL gate the
     credit cache applies. A rejected cache comes back empty, never
@@ -146,3 +198,35 @@ def save_quota_cache(path, data):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Probe one provider's quota/limits")
+    ap.add_argument("--provider-id", required=True)
+    ap.add_argument("--spec-file", required=True)
+    ap.add_argument("--api-key-env", default="")
+    ap.add_argument("--timeout", type=float, default=3.0)
+    args = ap.parse_args(argv)
+
+    try:
+        with open(args.spec_file) as f:
+            all_specs = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        all_specs = {}
+
+    spec = all_specs.get(args.provider_id)
+    if spec is None:
+        print(json.dumps({
+            "provider_id": args.provider_id, "windows": [], "account_blocked": False,
+            "absence_reason": "not_reported_by_provider", "http_status": None,
+        }))
+        return 0
+
+    api_key = os.environ.get(args.api_key_env, "") if args.api_key_env else ""
+    result = probe_provider(args.provider_id, spec, api_key, args.timeout)
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
