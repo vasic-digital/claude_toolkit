@@ -3402,6 +3402,44 @@ _cma_quota_group_accounts() {
   done
 }
 
+# _cma_quota_list_native_accounts: one JSON object per line, one per
+# native account slot (data-model.md §3). Every slot is independently
+# real -- unlike Provider Accounts, these are NEVER de-duplicated.
+# Reuses cma_detect_accounts / cma_detect_kimi_accounts verbatim rather
+# than re-deriving account discovery.
+_cma_quota_list_native_accounts() {
+  local d name account_id tier
+
+  while IFS= read -r d; do
+    [[ -n "$d" ]] || continue
+    name="$(basename "$d")"
+    account_id="${name#"${ACCOUNT_PREFIX:-.claude-}"}"
+    tier="$(jq -r '.oauthAccount.organizationRateLimitTier // empty' "$d/.claude.json" 2>/dev/null)"
+    if [[ -n "$tier" ]]; then
+      jq -n --arg id "$account_id" --arg tier "$tier" \
+        '{account_id: $id, family: "claude", plan_tier: $tier}'
+    else
+      jq -n --arg id "$account_id" \
+        '{account_id: $id, family: "claude", plan_tier: null}'
+    fi
+  done < <(cma_detect_accounts)
+
+  while IFS= read -r d; do
+    [[ -n "$d" ]] || continue
+    name="$(basename "$d")"
+    account_id="${name#"${KIMI_ACCOUNT_PREFIX:-.kimi-code-}"}"
+    # No confirmed Kimi-family analog to Claude's
+    # oauthAccount.organizationRateLimitTier was found. T016's own
+    # investigation (see task-16-report.md) inspected config.toml,
+    # credentials/*.json, oauth/, workspaces.json, cache/, and logs/ in
+    # TWO real ~/.kimi-code-* accounts on this host (kimi1, kimi2) and
+    # found no tier/rate-limit/plan field anywhere in either tree.
+    # Honest null, never guessed, per research.md §7.
+    jq -n --arg id "$account_id" \
+      '{account_id: $id, family: "kimi", plan_tier: null}'
+  done < <(cma_detect_kimi_accounts)
+}
+
 # --- verification status cache ---------------------------------------------
 # Single source of truth for "is this provider alias usable". Holds ONLY
 # non-secret metadata: provider id -> {status, model, checked_at, failing_layer}.
