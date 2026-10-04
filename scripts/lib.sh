@@ -3359,6 +3359,49 @@ CMA_SHARED_ITEMS=(
 
 cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
 
+# _cma_quota_group_accounts: one JSON object per line, one per distinct
+# real Provider Account (data-model.md §2). alias_names covers every
+# $ALIAS_FILE line that launches this SAME provider id, across every
+# family wrapper (cma_run_provider / cma_run_kimi_provider /
+# cma_run_pi_provider) -- this is the real cross-family sharing
+# mechanism; there is never a second .env file for the same id.
+_cma_quota_group_accounts() {
+  local pdir; pdir="$(cma_providers_dir)"
+  [[ -d "$pdir" ]] || return 0
+  compgen -G "$pdir"/*.env >/dev/null 2>&1 || return 0
+
+  local endpoints_file="${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json"
+  local f pid base names_json spec_present
+
+  for f in "$pdir"/*.env; do
+    [[ -f "$f" ]] || continue
+    # Isolated sourcing so nothing from the env file leaks into this
+    # process (the same convention cma_provider_write_env's callers use,
+    # e.g. scripts/claude-providers.sh:3340).
+    # shellcheck disable=SC1090
+    pid="$( ( unset CMA_PROVIDER_ID; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_ID:-}" ) )"
+    base="$( ( unset CMA_PROVIDER_BASE_URL; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_BASE_URL:-}" ) )"
+    [[ -n "$pid" ]] || continue
+
+    names_json="[]"
+    if [[ -f "${ALIAS_FILE:-}" ]]; then
+      names_json="$(
+        grep -E "^alias [a-zA-Z0-9_-]+=\"cma_run_(provider|kimi_provider|pi_provider) ${pid}\"\$" "$ALIAS_FILE" 2>/dev/null \
+          | sed -E 's/^alias ([a-zA-Z0-9_-]+)=.*/\1/' \
+          | jq -R . | jq -s .
+      )"
+    fi
+
+    spec_present="false"
+    if [[ -f "$endpoints_file" ]] && jq -e --arg id "$pid" 'has($id)' "$endpoints_file" >/dev/null 2>&1; then
+      spec_present="true"
+    fi
+
+    jq -n --arg pid "$pid" --arg base "$base" --argjson names "$names_json" --argjson present "$spec_present" \
+      '{provider_id: $pid, alias_names: $names, base_url: $base, endpoint_spec_present: $present}'
+  done
+}
+
 # --- verification status cache ---------------------------------------------
 # Single source of truth for "is this provider alias usable". Holds ONLY
 # non-secret metadata: provider id -> {status, model, checked_at, failing_layer}.
