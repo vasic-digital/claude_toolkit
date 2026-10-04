@@ -284,4 +284,36 @@ it "cmd_quota --bogus-flag: unrecognized flag returns 1, not exit"
 out="$(cmd_quota --bogus-flag 2>&1)"; rc=$?
 assert_eq "1" "$rc" "unknown flag returns 1 (not an exit that would kill the test runner -- proven by the fact this line runs at all)"
 
+# --- T013: failing test for _cma_quota_group_accounts (not yet implemented) ----
+#
+# Task 13 introduces the NOT-YET-EXISTING bash function _cma_quota_group_accounts.
+# This test demonstrates the function's required behavior by setting up a fixture
+# with one provider (.env file) and multiple alias lines referencing it (simulating
+# cross-family sharing), then invoking the function and checking its output shape.
+#
+# The fixture models the real cross-family sharing mechanism discovered at
+# claude-providers.sh:2732 and :2747 — ONE .env file per account, PLUS MULTIPLE
+# alias lines in $ALIAS_FILE, each naming the SAME provider id as its argument,
+# but calling different family wrapper functions. The function's job is to group
+# these aliases by provider_id and produce one JSON record per account.
+
+it "_cma_quota_group_accounts groups deepseek + kimi-deepseek into ONE provider-account record"
+pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
+cma_provider_write_env deepseek DEEPSEEK_API_KEY router \
+  "https://api.deepseek.com/v1" deepseek-chat deepseek-chat \
+  "$HOME/.claude-prov-deepseek" 128000 8192 deepseek
+
+cat > "$ALIAS_FILE" <<'EOF'
+alias deepseek="cma_run_provider deepseek"
+alias kimi-deepseek="cma_run_kimi_provider deepseek"
+EOF
+
+out="$(_cma_quota_group_accounts)"
+# Exactly one JSON line for provider_id=deepseek (not two, not zero).
+count="$(echo "$out" | jq -r 'select(.provider_id=="deepseek")' | jq -s 'length')"
+assert_eq "1" "$count" "exactly one record for the deepseek provider account"
+# That one record's alias_names lists BOTH alias names.
+names="$(echo "$out" | jq -r 'select(.provider_id=="deepseek") | .alias_names[]' | sort | tr '\n' ',')"
+assert_eq "deepseek,kimi-deepseek," "$names" "alias_names covers both the bare and the kimi-twin alias"
+
 summary
