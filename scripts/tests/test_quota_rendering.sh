@@ -174,4 +174,27 @@ while IFS=$'\t' read -r sev; do
 done <<<"$severities"
 assert_eq "0" "$mismatch" "every window's JSON severity value must appear (case-insensitively) somewhere in the text rendering"
 
+# --- Distinct "account blocked" rendering (T027) ----------------------
+#
+# A separate single-row fixture, NOT appended to the FIXTURE array above:
+# FIXTURE's row count is asserted exactly (T018/T020's "4 total window
+# lines", "4 rows in, 4 rows out", "4 severity values" checks), so adding
+# a 5th row there would turn those into false-FAILs rather than a
+# deliberate RED for THIS task. Concatenating this row onto FIXTURE[@]
+# only at the point of use (per the brief) keeps every earlier assertion
+# untouched.
+BLOCKED_ROW='{"provider_id":"blockedprov","alias_names":["blockedprov"],"base_url":"https://api.blockedprov.example/v1","windows":[{"window":"session","amount_used":10,"amount_remaining":90,"limit_total":100,"unit":"tokens","percent_remaining":90,"resets":false,"reset_at":null}],"account_blocked":true,"absence_reason":null,"data_source":"live","data_age_seconds":null}'
+
+it "_cma_quota_render_text: a blocked account shows a distinct ACCOUNT BLOCKED statement"
+out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_text --force-no-tty)"
+echo "$out" | grep -qi "account blocked" || assert_eq "contains 'account blocked'" "missing" "FR-011: distinct statement required"
+
+it "_cma_quota_render_text: a blocked account's windows are STILL shown, not hidden"
+echo "$out" | grep -q "session" || assert_eq "contains window line" "missing" "prior windows must remain visible, only annotated as moot"
+
+it "_cma_quota_render_json: account_blocked field is true for the blocked row"
+json_out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_json)"
+ab="$(echo "$json_out" | jq -r '.rows[] | select(.display_name=="blockedprov") | .account_blocked')"
+assert_eq "true" "$ab" "account_blocked must survive into the JSON output"
+
 summary

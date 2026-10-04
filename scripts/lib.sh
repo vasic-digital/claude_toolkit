@@ -122,6 +122,20 @@ _cma_quota_render_one_row() {
     return 0
   fi
 
+  # FR-011: a blocked account gets a distinct, unmistakable statement --
+  # shared by both the provider-account and native-account branches above
+  # (an account can be blocked regardless of row kind). Deliberately does
+  # NOT return/continue: the windows loop below still runs, so prior
+  # windows stay visible, only annotated as moot.
+  local blocked; blocked="$(jq -r '.account_blocked // false' <<<"$line" 2>/dev/null)"
+  if [[ "$blocked" == "true" ]]; then
+    if (( color_on )); then
+      printf '  \033[31;1mACCOUNT BLOCKED\033[0m — the whole subscription is suspended; windows below are moot\n'
+    else
+      printf '  ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot\n'
+    fi
+  fi
+
   local n_windows; n_windows="$(jq -r '.windows | length' <<<"$line" 2>/dev/null)"
   local src; src="$(jq -r '.data_source // empty' <<<"$line" 2>/dev/null)"
   local age; age="$(jq -r '.data_age_seconds // empty' <<<"$line" 2>/dev/null)"
