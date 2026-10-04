@@ -379,4 +379,48 @@ out_json="$(cmd_quota --json 2>&1)"
 echo "$out_json" | jq -e . >/dev/null 2>&1
 assert_eq "0" "$?" "cmd_quota --json's output is valid JSON"
 
+# --- T023: failing tests for alias-scoped cmd_quota <alias> (not yet implemented) ----
+#
+# cmd_quota already PARSES a positional alias_arg (see the comment right above
+# the `local result` line in cmd_quota, and the T012 "scoping deferred to
+# Phase 4" assertion earlier in this file) but currently ignores it entirely:
+# it always probes and renders every configured account/provider regardless
+# of what alias_arg holds, and always returns 0 -- even for an alias that was
+# never configured anywhere. T025 (Phase 4 / User Story 2) is the task that
+# will make cmd_quota actually honor alias_arg: scope the probe/render to
+# just that one account, exit 2 for an unknown alias, and report
+# unknown_alias:true/"does not exist" instead of silently succeeding.
+#
+# Fixture: reuses "deepseek", the real provider-account alias T013 already
+# configured earlier in this same sandbox/file (one .env under
+# cma_providers_dir, plus `alias deepseek="cma_run_provider deepseek"` and
+# `alias kimi-deepseek="cma_run_kimi_provider deepseek"` written into
+# $ALIAS_FILE) -- the cleanest already-real, currently-configured alias name
+# in this file, per the task brief's instruction to substitute whatever
+# fixture actually exists rather than inventing one.
+
+it "cmd_quota deepseek --json: scoped_to is set, rows has at most one entry"
+out="$(cmd_quota deepseek --json 2>&1)"
+scoped="$(echo "$out" | jq -r '.scoped_to' 2>/dev/null)"
+assert_eq "deepseek" "$scoped" "scoped_to must name the requested alias (currently stays null -- alias_arg is parsed but not yet wired to scope anything)"
+n="$(echo "$out" | jq '.rows | length' 2>/dev/null)"
+le1=0; (( n <= 1 )) && le1=1
+assert_eq "1" "$le1" "a scoped request must return at most one row (currently returns every configured account/provider row, unscoped)"
+
+it "cmd_quota this-alias-does-not-exist-xyz123: exit code 2"
+cmd_quota this-alias-does-not-exist-xyz123 >/dev/null 2>&1
+rc=$?
+assert_eq "2" "$rc" "an unknown alias must exit 2, never 0 and never a crash (currently always returns 0 regardless of alias_arg)"
+
+it "cmd_quota this-alias-does-not-exist-xyz123 --json: unknown_alias true, rows empty"
+out2="$(cmd_quota this-alias-does-not-exist-xyz123 --json 2>&1)"
+unk="$(echo "$out2" | jq -r '.unknown_alias' 2>/dev/null)"
+assert_eq "true" "$unk" "unknown_alias must be true for an alias nothing configured (currently always stays false)"
+n2="$(echo "$out2" | jq '.rows | length' 2>/dev/null)"
+assert_eq "0" "$n2" "rows must be empty for an unknown alias (currently returns every row, unscoped, regardless of alias_arg)"
+
+it "cmd_quota this-alias-does-not-exist-xyz123 (text mode): states plainly the alias does not exist"
+out3="$(cmd_quota this-alias-does-not-exist-xyz123 2>&1)"
+echo "$out3" | grep -qi "does not exist" || assert_eq "contains 'does not exist'" "missing" "FR-003: never silent, never a bare crash (currently prints the full unscoped fleet report instead)"
+
 summary
