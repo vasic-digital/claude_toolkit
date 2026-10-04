@@ -62,4 +62,77 @@ assert result["reset_at"] is None, result
 PY
 assert_eq 0 $? "resolve_window returns the correct dict shape for a fully-populated OpenRouter-style response"
 
+it "resolve_window drops the window entirely when only 1 of 3 core values resolves (never a placeholder)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# Only amount_remaining is declared; no amount_used or limit_total signal at
+# all, and no unit_literal either -- genuinely incomplete data.
+window_spec = {
+    "window": "subscription",
+    "signals": [
+        {"path": ["data", "remaining"], "type": "amount_remaining", "desc": "test fixture"},
+    ],
+}
+body = {"data": {"remaining": 42.0}}
+
+result = qp.resolve_window(window_spec, body)
+assert result is None, f"expected None (dropped window), got {result!r}"
+PY
+assert_eq 0 $? "resolve_window returns None when only amount_remaining resolves (amount_used and limit_total both unresolvable)"
+
+it "resolve_window converts reset_in_seconds to an absolute ISO-8601 reset_at using a frozen clock"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+from datetime import datetime, timezone, timedelta
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+FROZEN_NOW = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+class FrozenDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return FROZEN_NOW
+
+qp.datetime = FrozenDatetime  # patch the name resolve_window's module looks up
+
+window_spec = {
+    "window": "daily",
+    "signals": [
+        {"path": ["data", "used"], "type": "amount_used", "desc": "test"},
+        {"path": ["data", "remaining"], "type": "amount_remaining", "desc": "test"},
+        {"path": ["data", "limit"], "type": "limit_total", "desc": "test"},
+        {"path": [], "type": "unit_literal", "value": "requests"},
+        {"path": ["data", "reset_in"], "type": "reset_in_seconds", "desc": "test"},
+    ],
+}
+body = {"data": {"used": 10, "remaining": 90, "limit": 100, "reset_in": 3600}}
+
+result = qp.resolve_window(window_spec, body)
+assert result is not None, "expected a real window, got None"
+expected_reset_at = (FROZEN_NOW + timedelta(seconds=3600)).isoformat()
+assert result["reset_at"] == expected_reset_at, f"got {result['reset_at']!r}, want {expected_reset_at!r}"
+assert result["resets"] is True, result
+PY
+assert_eq 0 $? "resolve_window converts reset_in_seconds=3600 to the correct absolute reset_at and sets resets=True"
+
 summary
