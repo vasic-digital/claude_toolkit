@@ -83,6 +83,87 @@ _cma_quota_color_enabled() {
   [[ -t 1 ]] && return 0 || return 1
 }
 
+# _cma_quota_render_text: reads newline-delimited Reportable Entity JSON
+# from stdin, writes human-readable text to stdout. One line per Usage
+# Window, grouped under one header per row (never once per alias_name).
+# Accepts the same color-gating flags _cma_quota_color_enabled does
+# (--no-color, --force-tty, --force-no-tty, --json is irrelevant here).
+_cma_quota_render_text() {
+  local color_on=1
+  if ! _cma_quota_color_enabled "$@"; then color_on=0; fi
+
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    _cma_quota_render_one_row "$line" "$color_on"
+    printf '\n'
+  done
+}
+
+# Renders ONE Reportable Entity row. Separated from the stdin loop so it
+# stays independently testable and readable.
+_cma_quota_render_one_row() {
+  local line="$1" color_on="$2"
+  local pid aid header
+  pid="$(jq -r '.provider_id // empty' <<<"$line" 2>/dev/null)"
+  aid="$(jq -r '.account_id // empty' <<<"$line" 2>/dev/null)"
+
+  if [[ -n "$pid" ]]; then
+    local names; names="$(jq -r '.alias_names | join(", ")' <<<"$line" 2>/dev/null)"
+    printf '%s  (alias: %s)\n' "$pid" "$names"
+  else
+    local tier; tier="$(jq -r '.plan_tier // "unknown"' <<<"$line" 2>/dev/null)"
+    printf '%s  (native, plan tier: %s)\n' "$aid" "$tier"
+  fi
+
+  local absence; absence="$(jq -r '.absence_reason // empty' <<<"$line" 2>/dev/null)"
+  if [[ -n "$absence" ]]; then
+    printf '  —   not reported by provider\n'
+    return 0
+  fi
+
+  local n_windows; n_windows="$(jq -r '.windows | length' <<<"$line" 2>/dev/null)"
+  local src; src="$(jq -r '.data_source // empty' <<<"$line" 2>/dev/null)"
+  local age; age="$(jq -r '.data_age_seconds // empty' <<<"$line" 2>/dev/null)"
+  local cache_note=""
+  if [[ "$src" == "cached" && -n "$age" ]]; then
+    cache_note=" (cached, ${age}s old)"
+  fi
+
+  local i
+  for (( i = 0; i < n_windows; i++ )); do
+    local w used rem total unit pct sev colorcode sev_upper
+    w="$(jq -r ".windows[$i].window" <<<"$line" 2>/dev/null)"
+    used="$(jq -r ".windows[$i].amount_used" <<<"$line" 2>/dev/null)"
+    rem="$(jq -r ".windows[$i].amount_remaining" <<<"$line" 2>/dev/null)"
+    total="$(jq -r ".windows[$i].limit_total" <<<"$line" 2>/dev/null)"
+    unit="$(jq -r ".windows[$i].unit" <<<"$line" 2>/dev/null)"
+    pct="$(jq -r ".windows[$i].percent_remaining" <<<"$line" 2>/dev/null)"
+    sev="$(_cma_quota_severity "$pct")"
+    # Uppercased via `tr`, not `${sev^^}`: lib.sh has no existing
+    # `${var^^}`-style usage to lean on for a bash-4+ precedent, and this
+    # file is sourced directly by the test harness (test_quota_rendering.sh)
+    # with no BASH_VERSINFO re-exec guard of its own (unlike the wrapper
+    # scripts, e.g. claude-unify.sh, which guard *before* sourcing lib.sh).
+    # `tr` works identically on bash 3.2+, so it's the portable choice here.
+    sev_upper="$(tr '[:lower:]' '[:upper:]' <<<"$sev")"
+
+    if (( color_on )); then
+      case "$sev" in
+        green) colorcode=$'\033[32m' ;;
+        yellow) colorcode=$'\033[33m' ;;
+        red|limit_exceeded) colorcode=$'\033[31m' ;;
+        *) colorcode="" ;;
+      esac
+      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   %s[%s]\033[0m%s\n' \
+        "$w" "$used" "$rem" "$total" "$unit" "$pct" "$colorcode" "$sev_upper" "$cache_note"
+    else
+      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   [%s]%s\n' \
+        "$w" "$used" "$rem" "$total" "$unit" "$pct" "$sev_upper" "$cache_note"
+    fi
+  done
+}
+
 cma_require() {
   command -v "$1" >/dev/null 2>&1 || cma_die "missing required tool: $1"
 }
