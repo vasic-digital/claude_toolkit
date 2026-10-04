@@ -105,7 +105,7 @@
   - **Files**: Modify `scripts/lib.sh`.
   - **Interfaces — Produces**: `_cma_quota_group_accounts` → stdout, one JSON object per line (`{"provider_id":..., "alias_names":[...], "base_url":..., "endpoint_spec_present":...}`), `endpoint_spec_present` computed by checking whether `scripts/providers/quota-endpoints.json` has a top-level key matching `provider_id`.
 
-- [ ] **T016 [US1]** Implement `_cma_quota_list_native_accounts` in `scripts/lib.sh`: enumerate every native account dir this toolkit already detects (reuse `cma_detect_accounts`'s existing detection, never re-derive it), and for each, attempt to read `oauthAccount.organizationRateLimitTier` from that account's own `.claude.json` (or the Kimi-family equivalent field — confirm during this task whether an analogous field exists in a real Kimi account's config by inspecting one; if none is found, `plan_tier` is `null` for Kimi accounts, honestly, not guessed) — satisfy T014.
+- [x] **T016 [US1]** Implement `_cma_quota_list_native_accounts` in `scripts/lib.sh`: enumerate every native account dir this toolkit already detects (reuse `cma_detect_accounts`'s existing detection, never re-derive it), and for each, attempt to read `oauthAccount.organizationRateLimitTier` from that account's own `.claude.json` (or the Kimi-family equivalent field — confirm during this task whether an analogous field exists in a real Kimi account's config by inspecting one; if none is found, `plan_tier` is `null` for Kimi accounts, honestly, not guessed) — satisfy T014.
   - **Files**: Modify `scripts/lib.sh`.
   - **Interfaces — Produces**: `_cma_quota_list_native_accounts` → stdout, one JSON object per line (`{"account_id":..., "family":"claude"|"kimi", "plan_tier": <string|null>}`).
 
