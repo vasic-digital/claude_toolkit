@@ -4016,6 +4016,136 @@ cmd_sync_multi() {
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
 
+# _cma_quota_probe_all: bounded-concurrency probe orchestration across
+# every provider-account group (T015) and every native account (T016).
+# Reuses the EXACT batch pattern from detect_llmctl_records
+# (scripts/claude-providers.sh:2140-2270, research.md S5): zero-padded
+# indexed temp files, backgrounded jobs with the load-bearing
+# </dev/null >/dev/null 2>&1 redirect on the subshell GROUP (prevents the
+# documented fd-1-inheritance hang), batched `wait` every N jobs.
+_cma_quota_probe_all() {
+  local fresh="${1:-0}" timeout_override="${2:-}"
+  local lib_dir="${LIB_DIR:-${SCRIPTS_DIR:-}}"
+  local spec_file="$lib_dir/providers/quota-endpoints.json"
+  local cache_file="$HOME/.local/share/claude-multi-account/quota-cache.json"
+  local timeout="${timeout_override:-${CMA_QUOTA_HTTP_TIMEOUT:-3}}"
+  local max_parallel="${CMA_QUOTA_MAX_PARALLEL_PROBES:-8}"
+  [[ "$max_parallel" =~ ^[0-9]+$ && "$max_parallel" -gt 0 ]] || max_parallel=8
+
+  local tmpdir
+  tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma-quota-probe.XXXXXX" 2>/dev/null)" || return 1
+  trap 'rm -rf "'"$tmpdir"'" 2>/dev/null' RETURN
+
+  local idx=0 in_batch=0 line pid alias_names base epresent outfile
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    pid="$(jq -r '.provider_id' <<<"$line" 2>/dev/null)" || continue
+    alias_names="$(jq -c '.alias_names' <<<"$line" 2>/dev/null)" || alias_names="[]"
+    base="$(jq -r '.base_url' <<<"$line" 2>/dev/null)" || base=""
+    epresent="$(jq -r '.endpoint_spec_present' <<<"$line" 2>/dev/null)" || epresent="false"
+    outfile="$tmpdir/$(printf '%06d' "$idx").json"
+    idx=$(( idx + 1 ))
+
+    if [[ "$epresent" != "true" ]]; then
+      jq -cn --arg pid "$pid" --argjson names "$alias_names" --arg base "$base" \
+        '{provider_id:$pid, alias_names:$names, base_url:$base, windows:[],
+          account_blocked:false, absence_reason:"not_reported_by_provider",
+          data_source:null, data_age_seconds:null}' \
+        > "$outfile" 2>/dev/null
+      continue
+    fi
+
+    local cached=""
+    if (( ! fresh )); then
+      cached="$(
+        python3 -c "
+import sys, json
+sys.path.insert(0, sys.argv[1])
+import quota_probe as qp
+data = qp.load_quota_cache(sys.argv[2])
+rec = data.get('providers', {}).get(sys.argv[3])
+print(json.dumps(rec) if rec else '')
+" "$lib_dir" "$cache_file" "$pid" 2>/dev/null
+      )"
+    fi
+
+    local keyvar=""
+    keyvar="$( ( unset CMA_PROVIDER_KEYVAR; set +e; . "$(cma_providers_dir)/$pid.env" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_KEYVAR:-}" ) )"
+
+    if [[ -n "$cached" ]]; then
+      (
+        set +e
+        now="$(date +%s)"
+        cached_at="$(jq -r '._cached_at // 0' <<<"$cached" 2>/dev/null)"
+        cached_at="${cached_at%.*}"
+        [[ "$cached_at" =~ ^[0-9]+$ ]] || cached_at="$now"
+        age=$(( now - cached_at ))
+        windows="$(jq -c '.windows // []' <<<"$cached" 2>/dev/null)" || windows="[]"
+        blocked="$(jq -c '.account_blocked // false' <<<"$cached" 2>/dev/null)" || blocked="false"
+        jq -cn --arg pid "$pid" --argjson names "$alias_names" --arg base "$base" \
+          --argjson windows "$windows" --argjson blocked "$blocked" --argjson age "$age" \
+          '{provider_id:$pid, alias_names:$names, base_url:$base, windows:$windows,
+            account_blocked:$blocked, absence_reason:null,
+            data_source:"cached", data_age_seconds:$age}' \
+          > "$outfile" 2>/dev/null
+      ) </dev/null >/dev/null 2>&1 &
+    else
+      (
+        set +e
+        result="$(python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
+          --spec-file "$spec_file" --api-key-env "$keyvar" --timeout "$timeout" 2>/dev/null)"
+        [[ -n "$result" ]] || result='{"windows":[],"account_blocked":false,"absence_reason":"probe_failed","http_status":null}'
+        windows="$(jq -c '.windows // []' <<<"$result" 2>/dev/null)" || windows="[]"
+        blocked="$(jq -c '.account_blocked // false' <<<"$result" 2>/dev/null)" || blocked="false"
+        absence="$(jq -r '.absence_reason // empty' <<<"$result" 2>/dev/null)" || absence=""
+        jq -cn --arg pid "$pid" --argjson names "$alias_names" --arg base "$base" \
+          --argjson windows "$windows" --argjson blocked "$blocked" --arg absence "$absence" \
+          '{provider_id:$pid, alias_names:$names, base_url:$base, windows:$windows,
+            account_blocked:$blocked,
+            absence_reason:(if $absence=="" then null else $absence end),
+            data_source:"live", data_age_seconds:null}' \
+          > "$outfile" 2>/dev/null
+        # Cache write-back: pipe the JSON via STDIN, never interpolate it
+        # into embedded Python source (the result body came from an HTTP
+        # response and could contain quotes/backslashes that would break
+        # or corrupt a string-interpolated python3 -c call).
+        printf '%s' "$result" | python3 -c "
+import sys, json
+sys.path.insert(0, sys.argv[1])
+import quota_probe as qp
+rec = json.load(sys.stdin)
+data = qp.load_quota_cache(sys.argv[2])
+data.setdefault('providers', {})[sys.argv[3]] = rec
+qp.save_quota_cache(sys.argv[2], data)
+" "$lib_dir" "$cache_file" "$pid" 2>/dev/null
+      ) </dev/null >/dev/null 2>&1 &
+    fi
+
+    in_batch=$(( in_batch + 1 ))
+    if (( in_batch >= max_parallel )); then
+      wait
+      in_batch=0
+    fi
+  done < <(_cma_quota_group_accounts)
+  wait
+
+  local nline
+  while IFS= read -r nline; do
+    [[ -n "$nline" ]] || continue
+    outfile="$tmpdir/$(printf '%06d' "$idx").json"
+    idx=$(( idx + 1 ))
+    jq -c '. + {windows:[], account_blocked:false,
+                absence_reason:"not_reported_by_provider",
+                data_source:null, data_age_seconds:null}' \
+      <<<"$nline" > "$outfile" 2>/dev/null
+  done < <(_cma_quota_list_native_accounts)
+
+  if compgen -G "$tmpdir"/*.json >/dev/null 2>&1; then
+    jq -cs '.[]' "$tmpdir"/*.json 2>/dev/null
+  fi
+}
+
 # quota/limits: argument parsing only for now (T012). Real probing and
 # rendering land in User Story 1's tasks -- this function currently just
 # echoes what it parsed and returns 0, proving the dispatch wiring works
