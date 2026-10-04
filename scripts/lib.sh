@@ -3397,7 +3397,7 @@ _cma_quota_group_accounts() {
       spec_present="true"
     fi
 
-    jq -n --arg pid "$pid" --arg base "$base" --argjson names "$names_json" --argjson present "$spec_present" \
+    jq -nc --arg pid "$pid" --arg base "$base" --argjson names "$names_json" --argjson present "$spec_present" \
       '{provider_id: $pid, alias_names: $names, base_url: $base, endpoint_spec_present: $present}'
   done
 }
@@ -3414,12 +3414,16 @@ _cma_quota_list_native_accounts() {
     [[ -n "$d" ]] || continue
     name="$(basename "$d")"
     account_id="${name#"${ACCOUNT_PREFIX:-.claude-}"}"
-    tier="$(jq -r '.oauthAccount.organizationRateLimitTier // empty' "$d/.claude.json" 2>/dev/null)"
+    # Guard against set -e: a missing/unreadable .claude.json (a valid,
+    # documented account state -- cma_detect_accounts explicitly counts
+    # empty, never-launched account dirs) makes jq exit non-zero, which
+    # would otherwise abort this whole function under set -euo pipefail.
+    tier="$(jq -r '.oauthAccount.organizationRateLimitTier // empty' "$d/.claude.json" 2>/dev/null)" || tier=""
     if [[ -n "$tier" ]]; then
-      jq -n --arg id "$account_id" --arg tier "$tier" \
+      jq -nc --arg id "$account_id" --arg tier "$tier" \
         '{account_id: $id, family: "claude", plan_tier: $tier}'
     else
-      jq -n --arg id "$account_id" \
+      jq -nc --arg id "$account_id" \
         '{account_id: $id, family: "claude", plan_tier: null}'
     fi
   done < <(cma_detect_accounts)
@@ -3435,7 +3439,7 @@ _cma_quota_list_native_accounts() {
     # TWO real ~/.kimi-code-* accounts on this host (kimi1, kimi2) and
     # found no tier/rate-limit/plan field anywhere in either tree.
     # Honest null, never guessed, per research.md §7.
-    jq -n --arg id "$account_id" \
+    jq -nc --arg id "$account_id" \
       '{account_id: $id, family: "kimi", plan_tier: null}'
   done < <(cma_detect_kimi_accounts)
 }
