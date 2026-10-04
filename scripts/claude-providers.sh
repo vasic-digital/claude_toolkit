@@ -4026,7 +4026,12 @@ cmd_sync_multi() {
 _cma_quota_probe_all() {
   local fresh="${1:-0}" timeout_override="${2:-}" alias_filter="${3:-}"
   local lib_dir="${LIB_DIR:-${SCRIPTS_DIR:-}}"
-  local spec_file="$lib_dir/providers/quota-endpoints.json"
+  # CMA_QUOTA_ENDPOINTS_FILE override (T029): same purpose as the sibling
+  # endpoints_file override in lib.sh's _cma_quota_group_accounts -- lets a
+  # test point the live-probe spec lookup at an isolated sandbox copy rather
+  # than the TRACKED scripts/providers/quota-endpoints.json (real external
+  # hosts only; no test may dial them).
+  local spec_file="${CMA_QUOTA_ENDPOINTS_FILE:-$lib_dir/providers/quota-endpoints.json}"
   local cache_file="$HOME/.local/share/claude-multi-account/quota-cache.json"
   local timeout="${timeout_override:-${CMA_QUOTA_HTTP_TIMEOUT:-3}}"
   local max_parallel="${CMA_QUOTA_MAX_PARALLEL_PROBES:-8}"
@@ -4061,7 +4066,7 @@ _cma_quota_probe_all() {
       jq -cn --arg pid "$pid" --argjson names "$alias_names" --arg base "$base" \
         '{provider_id:$pid, alias_names:$names, base_url:$base, windows:[],
           account_blocked:false, absence_reason:"not_reported_by_provider",
-          data_source:null, data_age_seconds:null}' \
+          absence_detail:null, data_source:null, data_age_seconds:null}' \
         > "$outfile" 2>/dev/null
       continue
     fi
@@ -4115,7 +4120,7 @@ print(json.dumps(rec) if rec else '')
         jq -cn --arg pid "$pid" --argjson names "$alias_names" --arg base "$base" \
           --argjson windows "$windows" --argjson blocked "$blocked" --argjson age "$age" \
           '{provider_id:$pid, alias_names:$names, base_url:$base, windows:$windows,
-            account_blocked:$blocked, absence_reason:null,
+            account_blocked:$blocked, absence_reason:null, absence_detail:null,
             data_source:"cached", data_age_seconds:$age}' \
           > "$outfile" 2>/dev/null
       ) </dev/null >/dev/null 2>&1 &
@@ -4124,15 +4129,18 @@ print(json.dumps(rec) if rec else '')
         set +e
         result="$(python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
           --spec-file "$spec_file" --api-key-env "$keyvar" --timeout "$timeout" 2>/dev/null)"
-        [[ -n "$result" ]] || result='{"windows":[],"account_blocked":false,"absence_reason":"probe_failed","http_status":null}'
+        [[ -n "$result" ]] || result='{"windows":[],"account_blocked":false,"absence_reason":"probe_failed","absence_detail":"quota probe subprocess produced no output","http_status":null}'
         windows="$(jq -c '.windows // []' <<<"$result" 2>/dev/null)" || windows="[]"
         blocked="$(jq -c '.account_blocked // false' <<<"$result" 2>/dev/null)" || blocked="false"
         absence="$(jq -r '.absence_reason // empty' <<<"$result" 2>/dev/null)" || absence=""
+        detail="$(jq -r '.absence_detail // empty' <<<"$result" 2>/dev/null)" || detail=""
         jq -cn --arg pid "$pid" --argjson names "$alias_names" --arg base "$base" \
-          --argjson windows "$windows" --argjson blocked "$blocked" --arg absence "$absence" \
+          --argjson windows "$windows" --argjson blocked "$blocked" \
+          --arg absence "$absence" --arg detail "$detail" \
           '{provider_id:$pid, alias_names:$names, base_url:$base, windows:$windows,
             account_blocked:$blocked,
             absence_reason:(if $absence=="" then null else $absence end),
+            absence_detail:(if $detail=="" then null else $detail end),
             data_source:"live", data_age_seconds:null}' \
           > "$outfile" 2>/dev/null
         # Pending-cache write (review round 1 fix, replaces the old
@@ -4201,7 +4209,7 @@ qp.save_quota_cache(cache_file, data)
     outfile="$tmpdir/$(printf '%06d' "$idx").json"
     idx=$(( idx + 1 ))
     jq -c '. + {windows:[], account_blocked:false,
-                absence_reason:"not_reported_by_provider",
+                absence_reason:"not_reported_by_provider", absence_detail:null,
                 data_source:null, data_age_seconds:null}' \
       <<<"$nline" > "$outfile" 2>/dev/null
   done < <(_cma_quota_list_native_accounts)

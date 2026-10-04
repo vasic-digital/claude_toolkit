@@ -163,9 +163,11 @@ def probe_provider(provider_id, spec, api_key, timeout):
 
     status, body = http_get_json(url, headers, timeout)
     if status != 200 or not isinstance(body, dict):
+        detail = f"HTTP {status}" if status else "connection failed or timed out"
         return {
             "provider_id": provider_id, "windows": [], "account_blocked": False,
-            "absence_reason": "probe_failed", "http_status": status,
+            "absence_reason": "probe_failed", "absence_detail": detail,
+            "http_status": status,
         }
 
     account_blocked = resolve_account_blocked(spec, body)

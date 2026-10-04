@@ -571,4 +571,79 @@ or_live_calls="$(grep -c -- '--provider-id openrouter' "$stub_log" 2>/dev/null)"
 [[ -z "$or_live_calls" ]] && or_live_calls=0
 assert_eq "0" "$or_live_calls" "the live-probe subprocess (the only one that would touch the real network) must never be launched when a fresh cache record exists"
 
+# --- T029: a real absence_detail for probe_failed results -------------------
+#
+# A real gap: `absence_detail` is required (by this task's spec) to be a
+# NON-EMPTY string naming the real failure for a probe_failed result, but
+# nothing in the pipeline populates it today -- quota_probe.py's
+# probe_provider() failure branch returns only absence_reason/http_status,
+# _cma_quota_probe_all never extracts/forwards a detail string, and
+# _cma_quota_render_json hardcodes absence_detail:null unconditionally. This
+# block proves the gap, then (once the fix lands in production code) proves
+# it closed.
+#
+# Fixture: a NEW provider id ("quota-fixture-unreachable") whose
+# quota-endpoints.json entry points at an intentionally-unreachable LOCAL
+# address, http://127.0.0.1:1/ -- port 1 on loopback refuses the connection
+# almost instantly on virtually every host, so this is a REAL connection
+# attempt that fails fast and hermetically, no mocking needed (matching Task
+# 28's hermetic-testing correction: never a real network call in a unit
+# test). The real, TRACKED scripts/providers/quota-endpoints.json documents
+# only "openrouter" (a genuine external host that must never be dialed from
+# a test), so this fixture lives in an ISOLATED temp copy -- a verbatim copy
+# of the real file's entries plus the one new unreachable entry -- pointed
+# at via CMA_QUOTA_ENDPOINTS_FILE, the override this task adds to
+# _cma_quota_group_accounts (lib.sh) and _cma_quota_probe_all
+# (claude-providers.sh) for exactly this purpose: the same documented
+# rationale as this file's own existing CMA_PROVIDERS_KEY_ALIASES /
+# CMA_PROVIDERS_OVERRIDES overrides a few lines up ("so the hermetic test
+# suite can point them at sandbox copies -- otherwise a sync inside a test
+# would rewrite the TRACKED repo files"). The override is exported only for
+# the single probe call below and unset immediately after.
+
+it "T029 setup: isolated quota-endpoints.json fixture (real entries + one unreachable-local-address entry)"
+quota_fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/cma-quota-fixture.XXXXXX")"
+quota_fixture_file="$quota_fixture_dir/quota-endpoints.json"
+jq --slurpfile real "$SCRIPTS_DIR/providers/quota-endpoints.json" -n '
+  ($real[0] | with_entries(select(.key != "_comment"))) + {
+    "quota-fixture-unreachable": {
+      url: "http://127.0.0.1:1/",
+      auth: "bearer",
+      windows: [
+        { window: "subscription", signals: [ { path: [], type: "unit_literal", value: "credits" } ] }
+      ]
+    }
+  }
+' > "$quota_fixture_file"
+assert_file "$quota_fixture_file" "isolated quota-endpoints.json fixture written"
+
+it "T029 setup: quota-fixture-unreachable provider env + alias"
+pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
+cma_provider_write_env quota-fixture-unreachable QUOTAFIXTURE_API_KEY router \
+  "http://127.0.0.1:1" quota-fixture-unreachable/test-model quota-fixture-unreachable/test-model \
+  "$HOME/.claude-prov-quota-fixture-unreachable" 128000 8192 quota-fixture-unreachable
+cat >> "$ALIAS_FILE" <<'EOF'
+alias quota-fixture-unreachable="cma_run_provider quota-fixture-unreachable"
+EOF
+assert_file "$pdir/quota-fixture-unreachable.env" "quota-fixture-unreachable.env fixture written"
+
+it "a probe_failed result has a non-empty absence_detail distinct from not_reported_by_provider"
+export CMA_QUOTA_ENDPOINTS_FILE="$quota_fixture_file"
+t029_out="$(_cma_quota_probe_all 1 "1")"
+unset CMA_QUOTA_ENDPOINTS_FILE
+t029_result="$(echo "$t029_out" | jq -c 'select(.provider_id=="quota-fixture-unreachable")')"
+t029_reason="$(echo "$t029_result" | jq -r '.absence_reason')"
+t029_detail="$(echo "$t029_result" | jq -r '.absence_detail // empty')"
+assert_eq "probe_failed" "$t029_reason" "a genuinely-attempted-but-failed probe must report probe_failed"
+t029_ok=0; [[ -n "$t029_detail" ]] && t029_ok=1
+assert_eq "1" "$t029_ok" "absence_detail must be a non-empty string naming the real failure"
+
+t029_not_reported_reason="$(echo "$t029_out" | jq -r 'select(.provider_id=="deepseek") | .absence_reason')"
+t029_neq=1; [[ "$t029_reason" == "$t029_not_reported_reason" ]] && t029_neq=0
+assert_eq "1" "$t029_neq" "probe_failed and not_reported_by_provider must be textually DIFFERENT strings, never confused"
+
+it "T029: every row carries the absence_detail KEY, even when its value is null (key never omitted)"
+t029_all_have="$(echo "$t029_out" | jq -s 'map(has("absence_detail")) | all')"
+assert_eq "true" "$t029_all_have" "absence_detail key must be present on every row -- null is a valid value, a missing key is not"
+
 summary

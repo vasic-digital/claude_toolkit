@@ -195,7 +195,7 @@ _cma_quota_render_json() {
           kind: $kind,
           display_name: $dname,
           endpoint_spec_present: $esp,
-          absence_detail: null,
+          absence_detail: (.absence_detail // null),
           windows: [
             .windows[]
             | . + { severity: (
@@ -3500,7 +3500,12 @@ _cma_quota_group_accounts() {
   [[ -d "$pdir" ]] || return 0
   compgen -G "$pdir"/*.env >/dev/null 2>&1 || return 0
 
-  local endpoints_file="${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json"
+  # CMA_QUOTA_ENDPOINTS_FILE override (T029): same documented rationale as
+  # claude-providers.sh's CMA_PROVIDERS_KEY_ALIASES / CMA_PROVIDERS_OVERRIDES
+  # -- lets the hermetic test suite point this lookup at an isolated sandbox
+  # copy instead of the TRACKED scripts/providers/quota-endpoints.json, which
+  # documents only real external endpoints (no test may dial them).
+  local endpoints_file="${CMA_QUOTA_ENDPOINTS_FILE:-${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json}"
   local f pid base names_json spec_present
 
   for f in "$pdir"/*.env; do
