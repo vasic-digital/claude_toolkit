@@ -129,7 +129,7 @@
   - **Files**: Modify `scripts/lib.sh`.
   - **Interfaces — Produces**: `_cma_quota_render_json` (same input contract as `_cma_quota_render_text`).
 
-- [ ] **T022 [US1]** Wire `cmd_quota()` (from T012) to call, in order: T015 + T016 (gather accounts) → T017 (probe, respecting `--fresh` by skipping T006's cache read and `--timeout` by overriding the `CMA_QUOTA_HTTP_TIMEOUT:-3` default) → capture the combined result once → T019 or T021 depending on `--json` → print to stdout → return 0. This completes User Story 1 end-to-end.
+- [x] **T022 [US1]** Wire `cmd_quota()` (from T012) to call, in order: T015 + T016 (gather accounts) → T017 (probe, respecting `--fresh` by skipping T006's cache read and `--timeout` by overriding the `CMA_QUOTA_HTTP_TIMEOUT:-3` default) → capture the combined result once → T019 or T021 depending on `--json` → print to stdout → return 0. This completes User Story 1 end-to-end.
   - **Files**: Modify `scripts/claude-providers.sh`.
 
 **Checkpoint**: `claude-providers quota` (and `limits`, and `kimi-providers quota`/`limits` via its existing passthrough — confirmed needing no change, research.md §1) now fully works for the fleet-wide, no-argument case. Run quickstart.md Scenarios 1, 5, and 6 against a real sandbox/live install before proceeding.
