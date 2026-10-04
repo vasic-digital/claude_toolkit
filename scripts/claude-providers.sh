@@ -4213,10 +4213,11 @@ qp.save_quota_cache(cache_file, data)
   fi
 }
 
-# quota/limits: argument parsing only for now (T012). Real probing and
-# rendering land in User Story 1's tasks -- this function currently just
-# echoes what it parsed and returns 0, proving the dispatch wiring works
-# end to end before any data-fetching logic exists.
+# quota/limits: wires the fleet-wide, no-argument case end to end --
+# probes every provider + native account (T017), then renders either
+# as JSON (T021) or human-readable text (T019). Single-alias scoping
+# (alias_arg) is Phase 4 / User Story 2's job (data-model.md §5's
+# scoped_to field) and is deliberately left unused here.
 cmd_quota() {
   local alias_arg="" json=0 fresh=0 timeout="" no_color=0
   while (( $# )); do
@@ -4229,7 +4230,21 @@ cmd_quota() {
       *) alias_arg="$1"; shift ;;
     esac
   done
-  cma_log "quota: alias=${alias_arg:-<all>} json=$json fresh=$fresh timeout=${timeout:-<default>} no_color=$no_color"
+
+  # alias_arg is intentionally unused here -- single-alias scoping is
+  # Phase 4 / User Story 2's job (data-model.md §5's scoped_to field);
+  # this task wires only the fleet-wide, no-argument case.
+
+  local result
+  result="$(_cma_quota_probe_all "$fresh" "$timeout")"
+
+  if (( json )); then
+    _cma_quota_render_json <<<"$result"
+  elif (( no_color )); then
+    _cma_quota_render_text --no-color <<<"$result"
+  else
+    _cma_quota_render_text <<<"$result"
+  fi
   return 0
 }
 
