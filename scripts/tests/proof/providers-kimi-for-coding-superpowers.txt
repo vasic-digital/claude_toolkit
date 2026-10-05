@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: kimi-for-coding/kimi-for-coding (transport=router)
-# ROUTE-INTENDED-BACKGROUND: kimi-for-coding/kimi-for-coding
-claude-providers: alias kimi-for-coding is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for kimi-for-coding)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=kimi-for-coding/kimi-for-coding; NO turn ran — route attribution is not applicable)

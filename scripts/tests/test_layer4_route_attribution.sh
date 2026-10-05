@@ -272,8 +272,11 @@ BASH_ABS="$(command -v bash)"
 build_nojq_path() {
   mkdir -p "$NOJQ_BIN"
   local t p missing=""
+  # mv + chmod: verify_superpowers_tui.sh publishes its evidence atomically
+  # (temp file renamed into place at exit, B-proof-writers), so they are part
+  # of "everything the script needs" exactly like mktemp.
   for t in bash env timeout mktemp date mkdir rmdir dirname basename \
-           find grep sort tail awk sed curl wc tr cut cat; do
+           find grep sort tail awk sed curl wc tr cut cat mv chmod; do
     p="$(command -v "$t" 2>/dev/null)"
     if [[ -z "$p" ]]; then missing="$missing $t"; continue; fi
     ln -sf "$p" "$NOJQ_BIN/$t"

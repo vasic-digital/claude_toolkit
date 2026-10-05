@@ -1,5 +1,0 @@
-# provider live verification — Sun Oct  4 07:24:58 PM CEST 2026
-providers installed: 63
-ccr installed: yes
-LLMsVerifier binary: not-built
-aggregate: /home/milosvasic/Projects/claude_toolkit/scripts/tests/proof/providers-summary.json

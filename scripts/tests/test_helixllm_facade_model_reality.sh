@@ -59,10 +59,13 @@ DEFAULT_SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 # The tree under test. Overridable so the RED leg can point at the PRE-FIX tree
 # and genuinely reproduce the defect instead of merely asserting it inverted.
 SCRIPTS_DIR="${CMA_TEST_SCRIPTS_DIR:-$DEFAULT_SCRIPTS_DIR}"
-PROOF_DIR="$TESTS_DIR/proof"
-mkdir -p "$PROOF_DIR"
-PROOF="${CMA_TEST_PROOF:-$PROOF_DIR/94-helixllm-facade-model-reality.txt}"
-: > "$PROOF"
+# Volatile run output (D1): written to a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="$(cma_proof_volatile_dir)"
+PROOF_FINAL="${CMA_TEST_PROOF:-$PROOF_DIR/94-helixllm-facade-model-reality.txt}"
+PROOF="$(cma_proof_open "$PROOF_FINAL")"
 
 RED_MODE="${RED_MODE:-0}"
 
@@ -354,4 +357,5 @@ assert_eq "orphaned" "$(jq -r '.["ghost-provider"].status' "$PDIR/status.json")"
 echo >> "$PROOF"
 echo "=== result: pass=$TESTS_PASSED fail=$TESTS_FAILED ===" >> "$PROOF"
 
+cma_proof_commit "$PROOF" "$PROOF_FINAL"
 summary

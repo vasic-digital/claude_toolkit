@@ -47,10 +47,13 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert.sh
 source "$TESTS_DIR/lib/assert.sh"
 
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
-mkdir -p "$PROOF_DIR"
-EV="$PROOF_DIR/kimi-llmctl-integration-evidence.txt"
-: > "$EV"
+# Volatile run output (D1): built in a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
+EV_FINAL="$PROOF_DIR/kimi-llmctl-integration-evidence.txt"
+EV="$(cma_proof_open "$EV_FINAL")"
 
 ALIAS_FILE="${ALIAS_FILE:-$HOME/.local/share/claude-multi-account/aliases.sh}"
 PDIR="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}"
@@ -63,7 +66,7 @@ echo "Kimi/llmctl live integration: $(date)" | tee -a "$EV"
 # ---------------------------------------------------------------------------
 # Prerequisite gate — every SKIP is named + honest, never silently a PASS.
 # ---------------------------------------------------------------------------
-_skip() { echo "SKIP: $1" | tee -a "$EV"; summary; exit 0; }
+_skip() { echo "SKIP: $1" | tee -a "$EV"; cma_proof_commit "$EV" "$EV_FINAL"; summary; exit 0; }
 
 command -v jq   >/dev/null 2>&1 || _skip "jq is required"
 command -v curl >/dev/null 2>&1 || _skip "curl is required"
@@ -157,5 +160,6 @@ else
     "rc=$_rc out=$_out"
 fi
 
-echo "full evidence: $EV"
+cma_proof_commit "$EV" "$EV_FINAL"
+echo "full evidence: $EV_FINAL"
 summary

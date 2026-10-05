@@ -295,7 +295,8 @@ fi
 # proof/ dir must never be mutated, so operate strictly on copies made here in
 # the sandbox. If the corpus is not reachable (CI without it), SKIP honestly.
 it "IDEMPOTENCE: _redact is a fixed point after one pass over real corpus copies"
-CORPUS="$SCRIPTS_DIR/tests/proof"
+# D1: regenerated evidence now lives in the git-ignored proof/volatile/ folder.
+CORPUS="$SCRIPTS_DIR/tests/proof/volatile"
 if [[ -d "$CORPUS" ]] && compgen -G "$CORPUS/providers-*-semantic.txt" >/dev/null 2>&1; then
   work="$HOME/corpus-idem"; mkdir -p "$work"
   # Only the files _redact is applied to in production: *-semantic / *-superpowers.

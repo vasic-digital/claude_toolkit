@@ -17,7 +17,11 @@ set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
+# Volatile run output (D1): git-ignored proof/volatile/ folder; the matrix is
+# built in a temp file beside its final path and renamed into place.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
 mkdir -p "$PROOF_DIR"
 
 RUN_INDEX=1
@@ -103,7 +107,8 @@ else
   done <<<"$ALIASES"
 fi
 
-jq -s 'sort_by(.combination_id)' "$RESULTS_TMP"/*.json > "$OUT"
+_out_tmp="$(cma_proof_open "$OUT")"
+jq -s 'sort_by(.combination_id)' "$RESULTS_TMP"/*.json > "$_out_tmp" && cma_proof_commit "$_out_tmp" "$OUT"
 echo "Check Result matrix written: $OUT"
 jq -r '.[] | "\(.verdict|ascii_upcase): \(.combination_id)\(if .reason != "" then " -- " + .reason else "" end)"' "$OUT"
 echo "total=$(jq 'length' "$OUT")"

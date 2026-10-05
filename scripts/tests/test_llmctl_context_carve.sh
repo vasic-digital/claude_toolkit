@@ -28,10 +28,13 @@ set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
-PROOF_DIR="$TESTS_DIR/proof"
-mkdir -p "$PROOF_DIR"
-PROOF="$PROOF_DIR/test_llmctl_context_carve.txt"
-: > "$PROOF"
+# Volatile run output (D1): written to a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="$(cma_proof_volatile_dir)"
+PROOF_FINAL="$PROOF_DIR/test_llmctl_context_carve.txt"
+PROOF="$(cma_proof_open "$PROOF_FINAL")"
 
 # shellcheck source=lib/assert.sh
 source "$TESTS_DIR/lib/assert.sh"
@@ -164,4 +167,5 @@ _large_warning="$(jq -r '.context_warning // "ABSENT"' <<<"$LARGE_REC")"
 echo "large record context_warning field: $_large_warning" >> "$PROOF"
 assert_eq "ABSENT" "$_large_warning" "a comfortably-sized real context carries no warning field (negative control)"
 
+cma_proof_commit "$PROOF" "$PROOF_FINAL"
 summary

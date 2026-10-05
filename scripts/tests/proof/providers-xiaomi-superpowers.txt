@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: xiaomi/mimo-v2.5-pro (transport=router)
-# ROUTE-INTENDED-BACKGROUND: xiaomi/mimo-v2.5
-claude-providers: alias xiaomi is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for xiaomi)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=xiaomi/mimo-v2.5-pro; NO turn ran — route attribution is not applicable)

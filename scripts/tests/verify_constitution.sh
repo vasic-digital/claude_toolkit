@@ -34,10 +34,13 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 
 CMA_REPO_ROOT="${CMA_REPO_ROOT:-$(cd "$TESTS_DIR/../.." && pwd)}"
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
-mkdir -p "$PROOF_DIR"
-EV="$PROOF_DIR/45-constitution.txt"
-: > "$EV"
+# Volatile run output (D1): built in a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
+EV_FINAL="$PROOF_DIR/45-constitution.txt"
+EV="$(cma_proof_open "$EV_FINAL")"
 
 set +e  # failing-by-design greps must not abort the run
 
@@ -183,5 +186,6 @@ assert_eq 1 "$fx_ok" "fixture/rubric live in scripts/providers/ and are referenc
   echo "repo root: $CMA_REPO_ROOT"
 } >> "$EV"
 
-echo "evidence: $EV"
+cma_proof_commit "$EV" "$EV_FINAL"
+echo "evidence: $EV_FINAL"
 summary

@@ -123,11 +123,38 @@ esac
 # name so a full matrix run (T027) never overwrites one combination's
 # evidence with another's.
 if [[ "$AGENT" == "claude" && "$COMMAND" == "using-superpowers" ]]; then
-  : "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof}/providers-${ALIAS_ID}-superpowers.txt}"
+  : "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof/volatile}/providers-${ALIAS_ID}-superpowers.txt}"
 else
-  : "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof}/providers-${ALIAS_ID}-${AGENT}-${COMMAND}-superpowers.txt}"
+  : "${OUT:=${PROOF_DIR:-$TESTS_ROOT/tests/proof/volatile}/providers-${ALIAS_ID}-${AGENT}-${COMMAND}-superpowers.txt}"
 fi
 mkdir -p "$(dirname "$OUT")"
+
+# Atomic evidence (D1, B-proof-writers). The launch used to truncate $OUT in
+# place and append for the rest of the run, so a reader (the sweeps in
+# verify_providers_live.sh, a concurrent proof run) could see a half-written
+# file. From the truncation point on, the evidence is built in a temp file in
+# the SAME directory and renamed over $OUT when the script exits, whichever
+# exit it takes; a reader sees the previous complete file or the new one.
+# Before that point, skip() still APPENDS to the existing complete file (see
+# below). If the temp cannot be created the run falls back to the old
+# in-place write rather than losing the evidence.
+_stui_begin_evidence() {
+  OUT_FINAL="$OUT"
+  if OUT="$(mktemp "$(dirname "$OUT_FINAL")/.$(basename "$OUT_FINAL").tmp.XXXXXX" 2>/dev/null)"; then
+    trap '_stui_publish_evidence' EXIT
+  else
+    OUT="$OUT_FINAL"; printf '' > "$OUT"
+  fi
+}
+_stui_publish_evidence() {
+  if [[ -n "${OUT_FINAL:-}" && "$OUT" != "$OUT_FINAL" && -f "$OUT" ]]; then
+    chmod 0644 "$OUT" 2>/dev/null
+    # Never silent: a failed rename leaves the previous evidence as the
+    # current verdict, so say where this run's evidence actually is.
+    mv -f "$OUT" "$OUT_FINAL" 2>/dev/null \
+      || echo "EVIDENCE-UNPUBLISHED: could not rename $OUT to $OUT_FINAL — this run's evidence is in the temp file; $OUT_FINAL is STALE" >&2
+  fi
+}
 
 # skip() APPENDS its marker rather than truncating, because a precondition SKIP
 # fires before the launch truncates $OUT and the earlier content is still
@@ -414,7 +441,7 @@ if [[ "$AGENT" == "kimi" ]]; then
   # them, then rewrote only ROUTE-INTENDED afterward — so every committed
   # Kimi evidence file was missing ROUTE-RESOLVED, and the live-matrix JSON
   # recorded route_resolved:"" instead of the intended explicit "n/a".
-  : > "$OUT"
+  _stui_begin_evidence
   printf '# ROUTE-INTENDED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
   printf '# ROUTE-RESOLVED: n/a (Kimi Code — native-only launch, no router/ccr layer)\n' >> "$OUT"
   CMA_STUI_NO_KIMI_WRAPPER="__CMA_STUI_KIMI_WRAPPER_UNDEFINED__$$-$(date +%s)-${RANDOM}${RANDOM}__"
@@ -491,7 +518,7 @@ SCRUB=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_ENTRYPOINT
        -u CLAUDE_CONFIG_DIR -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL
        -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u BASH_ENV)
 tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-stui.XXXXXX")"
-: > "$OUT"
+_stui_begin_evidence
 printf '# ROUTE-INTENDED: %s (transport=%s)\n' "$ROUTE_INTENDED" "$P_TRANSPORT" >> "$OUT"
 printf '# ROUTE-INTENDED-BACKGROUND: %s\n' "$ROUTE_INTENDED_BG" >> "$OUT"
 # Snapshot the gateway's liveness markers BEFORE the launch so the restart

@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: llmctl-vision-pro//home/milosvasic/.local/share/llmctl/models/vision-pro/gemma-3-12b-it-Q4_K_M.gguf (transport=router)
-# ROUTE-INTENDED-BACKGROUND: llmctl-vision-pro//home/milosvasic/.local/share/llmctl/models/vision-pro/gemma-3-12b-it-Q4_K_M.gguf
-claude-providers: alias llmctl-vision-pro is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for llmctl-vision-pro)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=llmctl-vision-pro//home/milosvasic/.local/share/llmctl/models/vision-pro/gemma-3-12b-it-Q4_K_M.gguf; NO turn ran — route attribution is not applicable)

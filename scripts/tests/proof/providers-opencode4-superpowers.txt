@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: opencode4/laguna-s-2.1-free (transport=router)
-# ROUTE-INTENDED-BACKGROUND: opencode4/nemotron-3.5-lightning-free
-claude-providers: alias opencode4 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for opencode4)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=opencode4/laguna-s-2.1-free; NO turn ran — route attribution is not applicable)

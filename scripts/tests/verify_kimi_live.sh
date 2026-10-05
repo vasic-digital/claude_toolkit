@@ -38,10 +38,13 @@ set +e
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
-mkdir -p "$PROOF_DIR"
-EV="$PROOF_DIR/kimi-live-evidence.txt"
-: > "$EV"
+# Volatile run output (D1): built in a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
+EV_FINAL="$PROOF_DIR/kimi-live-evidence.txt"
+EV="$(cma_proof_open "$EV_FINAL")"
 
 ALIAS_FILE="${ALIAS_FILE:-$HOME/.local/share/claude-multi-account/aliases.sh}"
 PDIR="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}"
@@ -230,5 +233,6 @@ fi
 
 echo | tee -a "$EV"
 echo "KIMI: passed: $passed failed: $failed skipped: $skipped" | tee -a "$EV"
+cma_proof_commit "$EV" "$EV_FINAL"
 summary
 exit $failed

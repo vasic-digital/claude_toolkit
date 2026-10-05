@@ -31,10 +31,13 @@ set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
-PROOF_DIR="$TESTS_DIR/proof"
-mkdir -p "$PROOF_DIR"
-PROOF="$PROOF_DIR/test_llmctl_stress_chaos.txt"
-: > "$PROOF"
+# Volatile run output (D1): written to a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="$(cma_proof_volatile_dir)"
+PROOF_FINAL="$PROOF_DIR/test_llmctl_stress_chaos.txt"
+PROOF="$(cma_proof_open "$PROOF_FINAL")"
 
 # shellcheck source=lib/assert.sh
 source "$TESTS_DIR/lib/assert.sh"
@@ -257,7 +260,12 @@ race_is_one_of_the_two=1
 # scenario validates is below: the fake llmctl's OWN switch subcommand does
 # real stub work (a sleep) INSIDE the locked section, which is a genuine,
 # observable serialization point regardless of this control's outcome.
-echo "race-window control observed value: $race_val (informational only)" >> "$PROOF"
+# Record the SET of allowed outcomes and whether the observed value fell inside
+# it, never the value itself: which writer lands last is scheduler-dependent,
+# so recording it made the evidence differ on every run without any change in
+# behaviour.
+if (( race_is_one_of_the_two == 0 )); then _race_in_set=yes; else _race_in_set=no; fi
+echo "race-window control: allowed outcomes {profile-one-aaaa, profile-two-bbbb}; observed outcome within the set: $_race_in_set (informational only)" >> "$PROOF"
 
 it "SCENARIO C: two concurrent _cma_llmctl_ensure_active switches end in exactly ONE coherent active profile"
 reset_lc
@@ -278,10 +286,16 @@ plausible_len=1
 [[ "$active_len" -eq 4 ]] && plausible_len=0   # len("slow")==len("dead")==4; a torn write would differ
 assert_eq 0 "$plausible_len" "active marker length matches a genuine single profile name, not a partial/merged write"
 
+# Same rule as the control above: the final marker is one of two legitimate
+# serializations, so the evidence records the allowed outcome set and the
+# membership verdict (asserted above), not the last writer's value.
+if (( coherent == 0 )); then _c_in_set=yes; else _c_in_set=no; fi
 {
   echo
-  echo "=== final $LC_DIR/active ==="
-  cat "$LC_DIR/active" 2>/dev/null
+  echo "=== Scenario C final active marker ==="
+  echo "allowed outcomes: {dead, slow}"
+  echo "final value is one of the allowed outcomes: $_c_in_set"
 } >> "$PROOF" 2>&1
 
+cma_proof_commit "$PROOF" "$PROOF_FINAL"
 summary

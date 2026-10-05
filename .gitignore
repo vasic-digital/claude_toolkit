@@ -21,3 +21,8 @@ verification_results/
 
 # Live multi-prompt TUI evidence — regenerable ad-hoc, do not commit
 scripts/tests/proof/verify-aliases-multi-prompt/
+
+# Volatile proof output (D1, B-proof-writers): every regenerated run artifact
+# (timestamps, ports, PIDs, sandbox paths) is written here and never tracked.
+# Only the curated scripts/tests/proof/{.gitkeep,PROOF.md,00-summary.txt} stay tracked.
+scripts/tests/proof/volatile/

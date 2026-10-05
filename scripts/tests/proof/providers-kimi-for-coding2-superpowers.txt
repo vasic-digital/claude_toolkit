@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: kimi-for-coding2/k3-256k (transport=router)
-# ROUTE-INTENDED-BACKGROUND: kimi-for-coding2/kimi-for-coding
-claude-providers: alias kimi-for-coding2 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for kimi-for-coding2)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=kimi-for-coding2/k3-256k; NO turn ran — route attribution is not applicable)

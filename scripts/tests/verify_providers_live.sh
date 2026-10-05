@@ -7,13 +7,19 @@
 # Every check writes raw evidence to $PROOF_DIR.
 #
 # Knobs:
-#   PROOF_DIR  where to write evidence (default scripts/tests/proof)
+#   PROOF_DIR  where to write evidence (default scripts/tests/proof/volatile,
+#              git-ignored: regenerated run output, D1)
 set -uo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
 
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
+# Every artifact below is built in a temp file beside its final path and
+# renamed into place when complete (cma_proof_open / cma_proof_commit), so a
+# reader never sees a half-written evidence file.
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
 mkdir -p "$PROOF_DIR"
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 ALIASES="${ALIAS_FILE:-$HOME/.local/share/claude-multi-account/aliases.sh}"
@@ -24,8 +30,8 @@ if [[ ! -d "$PDIR" ]] || ! compgen -G "$PDIR/*.env" >/dev/null 2>&1; then
 fi
 
 set +e
-EV="$PROOF_DIR/50-providers-live.txt"
-: > "$EV"
+EV_FINAL="$PROOF_DIR/50-providers-live.txt"
+EV="$(cma_proof_open "$EV_FINAL")"
 
 it "every provider env file has the required non-secret fields"
 ok=1
@@ -64,7 +70,9 @@ grep -q '^cma_run_provider()' "$ALIASES"; assert_eq 0 $? "wrapper present"
 it "provider config dirs are excluded from account detection"
 # Source lib.sh and confirm no ~/.claude-prov-* leaks into detection.
 # shellcheck source=/dev/null  # lib.sh loaded dynamically via $SCRIPTS_DIR; path resolved at runtime
-( source "$SCRIPTS_DIR/lib.sh" 2>/dev/null; cma_detect_accounts ) > "$PROOF_DIR/51-detected-accounts.txt" 2>/dev/null
+_da_tmp="$(cma_proof_open "$PROOF_DIR/51-detected-accounts.txt")"
+( source "$SCRIPTS_DIR/lib.sh" 2>/dev/null; cma_detect_accounts ) > "$_da_tmp" 2>/dev/null
+cma_proof_commit "$_da_tmp" "$PROOF_DIR/51-detected-accounts.txt"
 grep -q 'prov-' "$PROOF_DIR/51-detected-accounts.txt"; assert_eq 1 $? "no provider dir detected as account"
 
 {
@@ -78,8 +86,9 @@ grep -q 'prov-' "$PROOF_DIR/51-detected-accounts.txt"; assert_eq 1 $? "no provid
 # Read-only against real host state; every sub-check is an honest SKIP when a
 # precondition (key/judge/go/network/real-claude) is absent — never a faked
 # PASS (§11.4.3). Extends this already-wired file; no proof/ duplicate.
-SUMMARY="$PROOF_DIR/providers-summary.json"
-printf '{}\n' > "$SUMMARY"
+SUMMARY_FINAL="$PROOF_DIR/providers-summary.json"
+SUMMARY="$(cma_proof_open "$SUMMARY_FINAL")"
+printf '{}\n' >> "$SUMMARY"
 KEYS_FILE="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
 
 # Strip anything resembling a leaked credential out of captured evidence before
@@ -268,11 +277,13 @@ for f in "$PDIR"/*.env; do
 
   it "semantic (layer 3) for '$id' — PASS/SKIP, never a faked pass"
   sem_ev="$PROOF_DIR/providers-${id}-semantic.txt"
+  sem_tmp="$(cma_proof_open "$sem_ev")"
   sem="$( ( [[ -f "$KEYS_FILE" ]] && { set -a +u; . "$KEYS_FILE"; set +a; }
             bash "$SCRIPTS_DIR/providers-semantic.sh" --provider "$id" \
-              --model "$model" --key-var "$keyvar" --base-url "$baseurl" ) 2>"$sem_ev" )"
-  echo "semantic verdict: ${sem:-skip}" >> "$sem_ev"
-  _redact "$sem_ev"
+              --model "$model" --key-var "$keyvar" --base-url "$baseurl" ) 2>"$sem_tmp" )"
+  echo "semantic verdict: ${sem:-skip}" >> "$sem_tmp"
+  _redact "$sem_tmp"      # redact BEFORE publishing: no reader sees a secret
+  cma_proof_commit "$sem_tmp" "$sem_ev"
   case "$sem" in
     verified)   _pass "layer-3 semantic PASS for $id" ;;
     # 'unverified' is NOT a transient/inconclusive outcome here: providers-semantic.sh
@@ -551,7 +562,8 @@ for f in "$PDIR"/*.env; do
                  evidence:{semantic:$semev, superpowers_tui:$tuiev}}' \
      "$SUMMARY" > "$tmp" && mv "$tmp" "$SUMMARY"
 done
-echo "aggregate: $SUMMARY" >> "$EV"
+cma_proof_commit "$SUMMARY" "$SUMMARY_FINAL"
+echo "aggregate: $SUMMARY_FINAL" >> "$EV"
 
 it "proof sweep: no layer-4 evidence file from THIS run carries a '# FAIL:' marker"
 # Defense in depth, independent of the stdout classification above: re-read the
@@ -668,8 +680,10 @@ if [[ -n "$first_id" && -n "$CB" && "$CB" != "/usr/bin/true" && "$(basename "$CB
     ' )"
   neg_rc=$?
   rmdir "$neg_tmpd" 2>/dev/null || true
-  printf '%s\n' "$neg_out" > "$neg_ev"
-  _redact "$neg_ev"
+  neg_tmp="$(cma_proof_open "$neg_ev")"
+  printf '%s\n' "$neg_out" >> "$neg_tmp"
+  _redact "$neg_tmp"      # redact BEFORE publishing
+  cma_proof_commit "$neg_tmp" "$neg_ev"
   if (( neg_rc == 124 )); then
     echo "SKIP: negative-case launch via '$first_id' timed out (network/precondition absent) — not a classifier finding" >> "$EV"
   elif printf '%s' "$neg_out" | grep -qiE 'superpowers:[a-z0-9_-]+'; then
@@ -681,5 +695,6 @@ else
   echo "SKIP: negative-case honesty check — no real claude binary / alias file available"
 fi
 
-echo "evidence: $EV"
+cma_proof_commit "$EV" "$EV_FINAL"
+echo "evidence: $EV_FINAL"
 summary

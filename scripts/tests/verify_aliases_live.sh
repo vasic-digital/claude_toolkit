@@ -23,7 +23,11 @@ set +e
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
+# Volatile run output (D1): built in a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
 VERBOSE=0 TARGET_ALIAS="" PROXY_PORT=3457
 
 while (( $# )); do
@@ -33,8 +37,8 @@ done
 : "${TIMEOUT:=30}"
 
 mkdir -p "$PROOF_DIR"
-EV="$PROOF_DIR/alias-verify-evidence.txt"
-: > "$EV"
+EV_FINAL="$PROOF_DIR/alias-verify-evidence.txt"
+EV="$(cma_proof_open "$EV_FINAL")"
 
 set -a
 # shellcheck source=/dev/null  # runtime user file; path not known at analysis time
@@ -48,7 +52,7 @@ total=0 passed=0 failed=0 qskip=0 askip=0 tskip=0 gated=0
 
 if [[ -n "$TARGET_ALIAS" ]]; then
   f="$PDIR/$TARGET_ALIAS.env"
-  if [[ -f "$f" ]]; then ALIASES=("$TARGET_ALIAS"); else echo "No env for $TARGET_ALIAS"; exit 1; fi
+  if [[ -f "$f" ]]; then ALIASES=("$TARGET_ALIAS"); else echo "No env for $TARGET_ALIAS"; rm -f "$EV"; exit 1; fi
 else
   ALIASES=(); for f in "$PDIR"/*.env; do ALIASES+=("$(basename "$f" .env)"); done
 fi
@@ -400,6 +404,7 @@ fi
 if (( total == 0 )); then
   echo | tee -a "$EV"
   echo "SKIP: no provider aliases and no runnable Claude alias tests on this host — alias live verification skipped." | tee -a "$EV"
+  cma_proof_commit "$EV" "$EV_FINAL"
   exit 0
 fi
 
@@ -410,4 +415,5 @@ echo "PASS: $passed FAIL: $failed SKIP-QUOTA: ${qskip:-0} SKIP-AUTH: ${askip:-0}
 # and SKIP-GATED aliases are intentionally not launchable (the verification
 # gate already filtered them) — all reported honestly in the evidence, never
 # PASSed, never counted as toolkit failures (mirrors verify_claude_live.sh).
+cma_proof_commit "$EV" "$EV_FINAL"
 exit $failed

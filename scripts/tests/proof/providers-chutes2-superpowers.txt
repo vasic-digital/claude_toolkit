@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: chutes2/Qwen/Qwen3.5-397B-A17B-TEE (transport=router)
-# ROUTE-INTENDED-BACKGROUND: chutes2/google/gemma-4-31B-turbo-TEE
-claude-providers: alias chutes2 is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for chutes2)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=chutes2/Qwen/Qwen3.5-397B-A17B-TEE; NO turn ran — route attribution is not applicable)

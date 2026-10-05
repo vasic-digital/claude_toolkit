@@ -25,7 +25,11 @@ PROMPT_BUDGET="${CMA_MP_PROMPT_BUDGET:-360}"        # seconds per prompt answer
 PROMPT_COUNT="${CMA_MP_PROMPT_COUNT:-10}"
 WORK_ROOT="${TMPDIR:-/tmp}/cma-mp-$$"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROOF_DIR="$REPO_ROOT/scripts/tests/proof/verify-aliases-multi-prompt"
+# Volatile run output (D1): git-ignored proof/volatile/ folder. Each alias log
+# is built in a temp file beside its final path and renamed into place.
+# shellcheck source=lib/proof.sh
+source "$REPO_ROOT/scripts/tests/lib/proof.sh"
+PROOF_DIR="$(cma_proof_volatile_dir)/verify-aliases-multi-prompt"
 
 command -v tmux >/dev/null 2>&1 || { echo "verify-aliases-multi-prompt: tmux not found" >&2; exit 2; }
 command -v jq  >/dev/null 2>&1 || { echo "verify-aliases-multi-prompt: jq not found" >&2; exit 2; }
@@ -141,11 +145,11 @@ run_alias() {
   local alias="$1"
   local sess="cma-mp-$alias-$$"
   local work="$WORK_ROOT/$alias"
-  EVIDENCE="$PROOF_DIR/$alias.log"
+  EVIDENCE_FINAL="$PROOF_DIR/$alias.log"
   mkdir -p "$work"
-  : > "$EVIDENCE"
+  EVIDENCE="$(cma_proof_open "$EVIDENCE_FINAL")"
   printf '# verify-aliases-multi-prompt evidence for alias: %s\n# started: %s\n# prompt_budget: %ss  ready_budget: %ss  count: %s\n' \
-    "$alias" "$(date -Iseconds)" "$PROMPT_BUDGET" "$READY_BUDGET" "$PROMPT_COUNT" > "$EVIDENCE"
+    "$alias" "$(date -Iseconds)" "$PROMPT_BUDGET" "$READY_BUDGET" "$PROMPT_COUNT" >> "$EVIDENCE"
 
   tmux new-session -d -s "$sess" -x 220 -y 50 -c "$work" "bash --noprofile --norc" 2>/dev/null
   # Automated validation must not block on every tool permission dialog.
@@ -167,6 +171,7 @@ run_alias() {
   if (( ! ready )); then
     tmux kill-session -t "$sess" 2>/dev/null
     printf 'OVERALL: tui-not-ready\n' >> "$EVIDENCE"
+    cma_proof_commit "$EVIDENCE" "$EVIDENCE_FINAL"
     printf '%s|tui-not-ready\n' "$alias"
     return
   fi
@@ -189,6 +194,7 @@ run_alias() {
   rm -rf "$work"
 
   printf 'OVERALL: answered=%s failed=%s\n' "$pass" "$fail" >> "$EVIDENCE"
+  cma_proof_commit "$EVIDENCE" "$EVIDENCE_FINAL"
   if (( fail == 0 )); then
     printf '%s|PASS|%s/%s\n' "$alias" "$pass" "$PROMPT_COUNT"
   else

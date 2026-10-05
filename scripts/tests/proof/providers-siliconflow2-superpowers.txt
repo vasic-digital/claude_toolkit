@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: siliconflow2/ByteDance-Seed/Seed-OSS-36B-Instruct (transport=router)
-# ROUTE-INTENDED-BACKGROUND: siliconflow2/Qwen/Qwen3-VL-30B-A3B-Thinking
-claude-providers: alias siliconflow2 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for siliconflow2)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=siliconflow2/ByteDance-Seed/Seed-OSS-36B-Instruct; NO turn ran — route attribution is not applicable)

@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: nvidia2/nvidia/nemotron-3.5-lightning-30b-a3b (transport=router)
-# ROUTE-INTENDED-BACKGROUND: nvidia2/meta/llama-3.2-11b-vision-instruct
-claude-providers: alias nvidia2 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for nvidia2)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=nvidia2/nvidia/nemotron-3.5-lightning-30b-a3b; NO turn ran — route attribution is not applicable)

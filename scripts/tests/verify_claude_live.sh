@@ -27,7 +27,11 @@ set +e
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 ALIASES_FILE="$HOME/.local/share/claude-multi-account/aliases.sh"
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
+# Volatile run output (D1): built in a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
 
 MODE=both TARGET="" PROMPT="Reply with exactly the two characters: OK"
 TIMEOUT=160 OUT=""
@@ -45,9 +49,10 @@ while (( $# )); do
 done
 mkdir -p "$PROOF_DIR"
 : "${OUT:=$PROOF_DIR/claude-live-verify.txt}"
-: > "$OUT"
+OUT_FINAL="$OUT"
+OUT="$(cma_proof_open "$OUT_FINAL")"
 
-[[ -f "$ALIASES_FILE" ]] || { echo "no aliases file ($ALIASES_FILE) — run install.sh"; exit 2; }
+[[ -f "$ALIASES_FILE" ]] || { echo "no aliases file ($ALIASES_FILE) — run install.sh"; rm -f "$OUT"; exit 2; }
 
 # BASH_ENV is scrubbed for the same reason as in verify_superpowers_tui.sh (see
 # the long note there), and this file's launch has the identical shape: a
@@ -174,4 +179,5 @@ for id in "${IDS[@]}"; do
   printf '%s\n' "$line" | tee -a "$OUT"
 done
 echo "# DONE fails=$fails" | tee -a "$OUT"
+cma_proof_commit "$OUT" "$OUT_FINAL"
 exit "$fails"

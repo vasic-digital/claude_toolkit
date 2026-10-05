@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: openrouter3/inclusionai/ling-3.0-flash-fin:free (transport=router)
-# ROUTE-INTENDED-BACKGROUND: openrouter3/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-claude-providers: alias openrouter3 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for openrouter3)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=openrouter3/inclusionai/ling-3.0-flash-fin:free; NO turn ran — route attribution is not applicable)

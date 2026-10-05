@@ -28,8 +28,12 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 
-PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
-PROOF="$PROOF_DIR/ccr-go-live.txt"
+# Volatile run output (D1): built in a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="${PROOF_DIR:-$(cma_proof_volatile_dir)}"
+PROOF_FINAL="$PROOF_DIR/ccr-go-live.txt"
 mkdir -p "$PROOF_DIR"
 
 BUILD_SCRIPT="$REPO_ROOT/scripts/claude-ccr-build.sh"
@@ -99,7 +103,7 @@ MG="http://127.0.0.1:$MG_PORT"   # management (/metrics)
 # ---------------------------------------------------------------------------
 # Proof-file header
 # ---------------------------------------------------------------------------
-: > "$PROOF"
+PROOF="$(cma_proof_open "$PROOF_FINAL")"
 {
   echo "# claude-code-router (bundled Go) — LIVE verification proof"
   echo "generated:  $(date '+%Y-%m-%dT%H:%M:%S%z')"
@@ -124,6 +128,7 @@ if BIN_DIR="$TMP_BIN" bash "$BUILD_SCRIPT" >>"$PROOF" 2>&1; then
 else
   _fail "claude-ccr-build.sh failed" "see $PROOF"
   echo >> "$PROOF"
+  cma_proof_commit "$PROOF" "$PROOF_FINAL"
   summary; exit $?
 fi
 CCR="$TMP_BIN/ccr"
@@ -661,6 +666,8 @@ for _canary in "${AUTH_KEY:-}" "${PROXY_SECRET:-}"; do
   assert_eq 0 "$ck" "auth/proxy canary occurrences in committed proof file"
 done
 
+# Publish only now: the leak sweeps above ran against the unpublished temp.
+cma_proof_commit "$PROOF" "$PROOF_FINAL"
 echo
-echo "Evidence written to: $PROOF"
+echo "Evidence written to: $PROOF_FINAL"
 summary

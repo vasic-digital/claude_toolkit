@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: chutes/zai-org/GLM-5.2-TEE (transport=router)
-# ROUTE-INTENDED-BACKGROUND: chutes/Qwen/Qwen3.6-27B-TEE
-claude-providers: alias chutes is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for chutes)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=chutes/zai-org/GLM-5.2-TEE; NO turn ran — route attribution is not applicable)

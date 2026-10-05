@@ -1,4 +1,0 @@
-claude-providers: alias huggingface3 is pending — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for huggingface3)
-  Override (operator): run the alias with --force
-# FAIL: no-engagement

@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: deepseek2/deepseek-v4-pro (transport=native)
-# ROUTE-INTENDED-BACKGROUND: deepseek2/deepseek-chat
-claude-providers: alias deepseek2 is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for deepseek2)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=deepseek2/deepseek-v4-pro; NO turn ran — route attribution is not applicable)

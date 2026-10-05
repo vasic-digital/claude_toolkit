@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: llmctl-moe-fast//home/milosvasic/.local/share/llmctl/models/moe-fast/gpt-oss-20b-MXFP4.gguf (transport=router)
-# ROUTE-INTENDED-BACKGROUND: llmctl-moe-fast//home/milosvasic/.local/share/llmctl/models/moe-fast/gpt-oss-20b-MXFP4.gguf
-claude-providers: alias llmctl-moe-fast is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for llmctl-moe-fast)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=llmctl-moe-fast//home/milosvasic/.local/share/llmctl/models/moe-fast/gpt-oss-20b-MXFP4.gguf; NO turn ran — route attribution is not applicable)

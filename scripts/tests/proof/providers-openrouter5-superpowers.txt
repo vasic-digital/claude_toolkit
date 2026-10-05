@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: openrouter5/minimax/minimax-m2.7:free (transport=router)
-# ROUTE-INTENDED-BACKGROUND: openrouter5/nvidia/nemotron-3-ultra-550b-a55b:free
-claude-providers: alias openrouter5 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for openrouter5)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=openrouter5/minimax/minimax-m2.7:free; NO turn ran — route attribution is not applicable)

@@ -29,10 +29,20 @@ set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
-PROOF_DIR="$TESTS_DIR/proof"
-mkdir -p "$PROOF_DIR"
-PROOF="$PROOF_DIR/test_llmctl_lan_exposure.txt"
-: > "$PROOF"
+# Volatile run output (D1): written to a temp file beside the final path and
+# renamed into the git-ignored proof/volatile/ folder only on completion.
+# shellcheck source=lib/proof.sh
+source "$TESTS_DIR/lib/proof.sh"
+PROOF_DIR="$(cma_proof_volatile_dir)"
+PROOF_FINAL="$PROOF_DIR/test_llmctl_lan_exposure.txt"
+PROOF="$(cma_proof_open "$PROOF_FINAL")"
+
+# D3: this host's real LAN address must never reach an output file. It is
+# discovered once, here, so every capture below can be filtered through
+# cma_proof_redact_ip, which rewrites it to the fixed placeholder 192.168.x.x
+# BEFORE the bytes are appended to $PROOF. Empty when none is discoverable.
+HOST_LAN_IP="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
+_lan_redact() { cma_proof_redact_ip "$HOST_LAN_IP"; }
 
 # shellcheck source=lib/assert.sh
 source "$TESTS_DIR/lib/assert.sh"
@@ -109,7 +119,7 @@ LOCAL_PORT="$(wait_port_file "$LOCAL_PORT_FILE")"
   ss -ltn "sport = :$EXPOSED_PORT" 2>&1
   echo "--- ss -ltn for local port (sanity check on this host) ---"
   ss -ltn "sport = :$LOCAL_PORT" 2>&1
-} >> "$PROOF" 2>&1
+} 2>&1 | _lan_redact >> "$PROOF"
 
 # --- fake llmctl binary on PATH -----------------------------------------------
 sandbox_stub "$HOME/.local/bin/llmctl" <<EOF
@@ -134,7 +144,7 @@ export PATH="$HOME/.local/bin:$PATH"
 DET="$(CMA_LLMCTL_BIN=llmctl \
     bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
 echo "--- detect_llmctl_records output ---" >> "$PROOF"
-echo "$DET" >> "$PROOF"
+echo "$DET" | _lan_redact >> "$PROOF"
 
 EXPOSED_REC="$(jq -c '[.[] | select(.provider_id=="llmctl-exposed")] | .[0]' <<<"$DET")"
 LOCAL_REC="$(jq -c '[.[] | select(.provider_id=="llmctl-local")] | .[0]' <<<"$DET")"
@@ -160,7 +170,7 @@ assert_eq "false" "$LOCAL_FLAG" "llmctl-local does not carry lan_exposed=true"
 # reports a genuine, non-loopback row for that port — isolating the
 # ss-parsing logic this finding is actually about. SKIPs honestly if no
 # global-scope IPv4 address is discoverable on this host.
-HOST_LAN_IP="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
+# HOST_LAN_IP was discovered once near the top (D3 redaction needs it early).
 if [[ -n "$HOST_LAN_IP" ]]; then
   LANIP_PORT_FILE="$HOME/.llmctl_lanip_port"
   LANIP_PID="$(start_mock "127.0.0.1" "lanip-model" 131072 "$LANIP_PORT_FILE")"
@@ -180,7 +190,7 @@ PY
   {
     echo "--- ss -ltn for LAN-IP ($HOST_LAN_IP) port (sanity check) ---"
     ss -ltn "sport = :$LANIP_PORT" 2>&1
-  } >> "$PROOF" 2>&1
+  } 2>&1 | _lan_redact >> "$PROOF"
   sandbox_stub "$HOME/.local/bin/llmctl" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
@@ -202,13 +212,13 @@ EOF
   LANIP_DET="$(CMA_LLMCTL_BIN=llmctl \
       bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_llmctl_records')"
   echo "--- detect_llmctl_records output (lanip case) ---" >> "$PROOF"
-  echo "$LANIP_DET" >> "$PROOF"
+  echo "$LANIP_DET" | _lan_redact >> "$PROOF"
   LANIP_REC="$(jq -c '[.[] | select(.provider_id=="llmctl-lanip")] | .[0]' <<<"$LANIP_DET")"
   kill "$LANIP_PID" "$LANIP_DECOY_PID" 2>/dev/null
 
   it "CASE LAN-IP (review finding 3a): a profile bound to this host's real, non-wildcard LAN IP is flagged lan_exposed=true"
   LANIP_FLAG="$(jq -r '.lan_exposed // false' <<<"$LANIP_REC")"
-  assert_eq "true" "$LANIP_FLAG" "llmctl-lanip (bound to $HOST_LAN_IP) carries lan_exposed=true (exposure is 'any non-loopback local address', not an enumerated wildcard-literal list)"
+  assert_eq "true" "$LANIP_FLAG" "llmctl-lanip (bound to this host's LAN address, 192.168.x.x in evidence) carries lan_exposed=true (exposure is 'any non-loopback local address', not an enumerated wildcard-literal list)"
 else
   echo "SKIP: CASE LAN-IP — no global-scope IPv4 address discoverable on this host (ip -4 -o addr show scope global returned nothing)" >> "$PROOF"
 fi
@@ -244,7 +254,7 @@ if [[ -n "$DUAL_PORT" ]]; then
   {
     echo "--- ss -ltn for dual-socket (0.0.0.0 + 127.0.0.1, same port) (sanity check) ---"
     ss -ltn "sport = :$DUAL_PORT" 2>&1
-  } >> "$PROOF" 2>&1
+  } 2>&1 | _lan_redact >> "$PROOF"
   sandbox_stub "$HOME/.local/bin/llmctl" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "plan" && "\${2:-}" == "--json" ]]; then
@@ -277,7 +287,7 @@ EOF
     esac
   done <<<"$DUAL_SOCKLINES"
   echo "--- dual-socket parsed rows ---" >> "$PROOF"
-  echo "$DUAL_SOCKLINES" >> "$PROOF"
+  echo "$DUAL_SOCKLINES" | _lan_redact >> "$PROOF"
   kill "$DUAL_PID" 2>/dev/null
 
   it "CASE DUAL-SOCKET (review finding 3b): a port with BOTH a loopback and a wildcard listener is flagged exposed (every row checked, not just the first)"
@@ -317,7 +327,7 @@ WARN_KEYS="$HOME/.llmctl_warn_keys.sh"
 : > "$WARN_KEYS"
 SYNC_STDERR="$(CMA_LLMCTL_BIN=llmctl bash "$PROVIDERS_SH" sync --no-verify --keys-file "$WARN_KEYS" 2>&1 >/dev/null)"
 echo "--- sync stderr (finding-1 warning-surfacing case) ---" >> "$PROOF"
-echo "$SYNC_STDERR" >> "$PROOF"
+echo "$SYNC_STDERR" | _lan_redact >> "$PROOF"
 
 it "CASE WARN-SURFACED (review finding 1): sync prints an operator-visible warning for the LAN-exposed llmctl profile"
 grep -qi "llmctl-exposed.*reachable from the LAN" <<<"$SYNC_STDERR"
@@ -331,4 +341,12 @@ it "CASE WARN-SURFACED (review finding 1): the loopback-only profile does NOT ge
 ! grep -qi "llmctl-local.*reachable from the LAN" <<<"$SYNC_STDERR"
 assert_eq 0 $? "llmctl-local (bound 127.0.0.1) is not falsely warned as LAN-exposed"
 
+it "D3: the evidence file carries no literal LAN address (redacted at capture time)"
+if [[ -n "$HOST_LAN_IP" ]]; then
+  grep -qF "$HOST_LAN_IP" "$PROOF"; assert_eq 1 $? "this host's LAN address is absent from the evidence"
+  grep -qF "192.168.x.x" "$PROOF"; assert_eq 0 $? "the fixed placeholder stands in for it"
+else
+  _pass "SKIP: no global-scope IPv4 on this host, nothing to redact"
+fi
+cma_proof_commit "$PROOF" "$PROOF_FINAL"
 summary

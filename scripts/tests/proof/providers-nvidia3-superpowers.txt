@@ -1,7 +1,0 @@
-# ROUTE-INTENDED: nvidia3/minimaxai/minimax-m3 (transport=router)
-# ROUTE-INTENDED-BACKGROUND: nvidia3/poolside/laguna-xs-2.1
-claude-providers: alias nvidia3 is orphaned — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for nvidia3)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=nvidia3/minimaxai/minimax-m3; NO turn ran — route attribution is not applicable)
