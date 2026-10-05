@@ -51,6 +51,10 @@ Subcommands:
   list-all      list every installed provider (any status), both agents
   list-faulty   list aliases with an issue, both agents
   show <id>     show details for one provider
+  quota [<alias>] [--json] [--fresh] [--timeout N] [--no-color]
+                (alias: limits) forwarded to the same quota engine
+                as claude-providers quota -- see its --help for
+                full option details.
   verify <id>   re-run verification for one provider
   remove <id>   remove a provider (+ its kimi-<id> twin + config dirs, backed up)
   prune [--dry-run] [--unresolved]   report/remove orphaned providers

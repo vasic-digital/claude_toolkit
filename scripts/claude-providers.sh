@@ -114,6 +114,12 @@ Subcommands:
   list-all             list every installed provider alias (any status)
   list-faulty          list only aliases with an issue (failed/unverified/pending)
   show <id>            show details for one provider
+  quota [<alias>] [--json] [--fresh] [--timeout N] [--no-color]
+                       (alias: limits) report usage/limit status for every
+                       provider alias + native account, or just one when
+                       <alias> is given. --json for machine-readable output,
+                       --fresh to bypass the cache, --timeout N to override
+                       the per-provider probe timeout (seconds).
   verify <id> [--deep] re-run verification for one provider + persist status
                        (layers 1-3; --deep also runs the live superpowers-TUI layer 4)
   remove <id>          remove a provider alias + its config dir (backed up)

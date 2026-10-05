@@ -149,4 +149,9 @@ ls -d "$HOME"/.claude-prov-acme.preunify.* >/dev/null 2>&1; assert_eq 0 $? "clau
 ls -d "$HOME"/.kimi-prov-acme.preunify.* >/dev/null 2>&1; assert_eq 0 $? "kimi config dir backed up (preunify)"
 [[ ! -d "$HOME/.kimi-prov-acme" ]]; assert_eq 0 $? "kimi config dir no longer live"
 
+it "kimi-providers --help includes the quota subcommand documentation (I5)"
+kimi_help="$("$SCRIPTS_DIR/kimi-providers.sh" --help 2>&1)"
+echo "$kimi_help" | grep -q "quota" && found=1 || found=0
+assert_eq "1" "$found" "kimi-providers --help must mention quota"
+
 summary

@@ -905,4 +905,9 @@ assert_eq "null" "$nt_reason" "with no timeout binary the live probe must NOT de
 assert_eq "live" "$nt_src" "the row must come from the live probe path (data_source=live)"
 assert_eq "80" "$nt_amt" "the stubbed probe's real window value must round-trip through the no-timeout fallback"
 
+it "claude-providers --help includes the quota subcommand documentation (I5)"
+help_output="$(bash "$SCRIPTS_DIR/claude-providers.sh" --help 2>&1)"
+echo "$help_output" | grep -q "quota" && found=1 || found=0
+assert_eq "1" "$found" "claude-providers --help must mention quota"
+
 summary

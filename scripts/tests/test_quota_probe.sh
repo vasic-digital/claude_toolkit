@@ -605,4 +605,37 @@ assert window["unit"] == "credits", window
 PY
 assert_eq 0 $? "probe_provider resolves the real openrouter spec correctly against a response carrying limit_reset, without crashing on the inert reset_cadence signal"
 
+it "resolve_window: limit_total == 0 resolves percent_remaining=0.0 instead of raising ZeroDivisionError"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# window_spec with amount_used=0, amount_remaining=0, limit_total=0 signals
+# (all present, all zero) — this would raise ZeroDivisionError without the guard
+window_spec = {
+    "window": "subscription",
+    "signals": [
+        {"path": ["data", "used"], "type": "amount_used", "desc": "test"},
+        {"path": ["data", "remaining"], "type": "amount_remaining", "desc": "test"},
+        {"path": ["data", "limit"], "type": "limit_total", "desc": "test"},
+        {"path": [], "type": "unit_literal", "value": "credits"},
+    ],
+}
+body = {"data": {"used": 0, "remaining": 0, "limit": 0}}
+
+result = qp.resolve_window(window_spec, body)
+assert result is not None, f"expected a real window, got None"
+assert result["percent_remaining"] == 0.0, f"expected percent_remaining=0.0, got {result['percent_remaining']!r}"
+PY
+assert_eq 0 $? "resolve_window returns percent_remaining=0.0 for limit_total=0 instead of raising ZeroDivisionError"
+
 summary

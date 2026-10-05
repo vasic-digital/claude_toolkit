@@ -109,6 +109,12 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
     # Percent remaining (rule 4): trust the provider's own figure if present.
     if percent_direct is not None:
         percent_remaining = percent_direct
+    elif limit_total == 0:
+        # A genuine zero-cap key has nothing left, by definition, whatever
+        # amount_remaining happens to report -- avoid the ZeroDivisionError
+        # a literal zero limit_total would otherwise cause (T038-independent-
+        # review finding S2).
+        percent_remaining = 0.0
     else:
         percent_remaining = 100 * amount_remaining / limit_total
 
