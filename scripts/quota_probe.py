@@ -349,18 +349,22 @@ KIMI_USAGE_BASE_URL_DEFAULT = "https://api.kimi.com/coding/v1"
 KIMI_AUTH_EXPIRED_DETAIL = "Kimi access token expired: run `kimi login` to refresh"
 _KIMI_WINDOWS = (("limit_5h", "subscription_5h", "5h"), ("limit_7d", "subscription_7d", "7d"))
 KIMI_RATIO_RANGE_DETAIL = "Kimi usage returned an out-of-range or non-finite used_ratio"
-# used_ratio is a fraction; anything above 1 by more than float noise is not
-# a reading of this window. It is REJECTED, never clamped: clamping 25 to 1
-# would fabricate a limit-exceeded window the provider never reported.
-_KIMI_RATIO_MAX = 1.0001
+# used_ratio is a fraction in [0, 1.0]. Anything above 1.0 by more than float
+# noise (_KIMI_RATIO_EPS) is not a reading of this window. It is REJECTED,
+# never clamped: clamping 25 to 1 would fabricate a limit-exceeded window the
+# provider never reported. ONLY a sub-epsilon overshoot is clamped to 1.0.
+_KIMI_RATIO_MAX = 1.0
+_KIMI_RATIO_EPS = 1e-12
 
 
 def _kimi_ratio_out_of_range(ratio):
     """True when ratio is a real (non-bool) number that is non-finite or
-    outside [0, _KIMI_RATIO_MAX] -- a numeric value that must not render."""
+    outside [0, _KIMI_RATIO_MAX + _KIMI_RATIO_EPS] -- a numeric value that
+    must not render."""
     if isinstance(ratio, bool) or not isinstance(ratio, (int, float)):
         return False
-    return not math.isfinite(ratio) or ratio < 0 or ratio > _KIMI_RATIO_MAX
+    return (not math.isfinite(ratio) or ratio < 0
+            or ratio > _KIMI_RATIO_MAX + _KIMI_RATIO_EPS)
 
 
 def _kimi_access_token(account_dir):
@@ -399,6 +403,10 @@ def resolve_kimi_window(name, cadence, entry):
         return None
     if _kimi_ratio_out_of_range(ratio):
         return None
+    if ratio > _KIMI_RATIO_MAX:
+        # Only reachable for a sub-epsilon float overshoot (the guard above
+        # rejected anything larger): clamp that noise, and nothing else.
+        ratio = _KIMI_RATIO_MAX
     def _num(x):
         # Float noise (0.07*100 = 7.000000000000001) is rounded off, and a
         # whole value is emitted as an int so it renders as "75", not "75.0".

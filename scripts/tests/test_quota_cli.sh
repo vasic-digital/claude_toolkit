@@ -1665,7 +1665,7 @@ echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
 assert_eq "0" "$kn_leak" "the access token never appears in output"
 
 # Fail closed on an unusable used_ratio (review fix of c3a94cf): a ratio that
-# is out of [0, 1.0001], non-finite, or not a real number must NEVER render a
+# is out of [0, 1.0] (+1e-12 float noise), non-finite, or not a real number must NEVER render a
 # window -- no clamping (clamping 25 to 1 would fabricate limit_exceeded).
 _kn_ratio_case() {   # $1 = raw JSON token, $2 = expected absence_detail ("" = do not check)
   rm -f "$kn_home/stub.log"; printf 'ratio:%s\n' "$1" > "$kn_home/stub.mode"
@@ -1703,6 +1703,17 @@ printf 'ratio:1.0\n' > "$kn_home/stub.mode"
 kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
 assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio 1.0: two windows"
 assert_eq "0,0" "$(echo "$kn_row" | jq -r '[.windows[].percent_remaining] | join(",")' 2>/dev/null)" "used_ratio 1.0: percent_remaining 0"
+
+# Upper bound is exactly 1.0 (review fix of dffda50): only a sub-1e-12 float
+# overshoot is clamped to 1.0; 1.0000001 is a real overshoot and is rejected
+# (it used to pass the old 1.0001 tolerance and render a negative percent).
+it "Kimi native: used_ratio 1.0000001 (above 1.0 + epsilon) renders no window, probe_failed"
+_kn_ratio_case '1.0000001' "$kn_range_detail"
+it "Kimi native: used_ratio 1.0000000000001 (within 1e-12 of 1.0) renders at percent_remaining 0"
+rm -f "$kn_home/stub.log"; printf 'ratio:1.0000000000001\n' > "$kn_home/stub.mode"
+kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio 1.0000000000001: two windows"
+assert_eq "0,0" "$(echo "$kn_row" | jq -r '[.windows[].percent_remaining] | join(",")' 2>/dev/null)" "used_ratio 1.0000000000001: percent_remaining 0"
 
 kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null
 rm -rf "$kn_home"
