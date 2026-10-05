@@ -251,4 +251,21 @@ r2="$(echo "$json_out" | jq -r '.rows[] | select(.display_name=="claude1") | .ab
 neq=1; [[ "$r1" == "$r2" ]] && neq=0
 assert_eq "1" "$neq" "probe_failed and not_reported_by_provider must never be the same string"
 
+# --- Distinguish auth-session-expiry from quota-exhaustion (T038-
+# independent-review finding C1) --------------------------------------
+#
+# A native-account row with absence_reason "not_reported_by_provider" AND
+# auth_state "session_expired" must render BOTH facts in its own block --
+# the base phrase (unchanged, still asserted above for the healthy
+# claude1 row) plus an explicit annotation naming the real auth problem --
+# never collapsing the two into the one ambiguous phrase every native
+# account rendered regardless of real auth health before this fix.
+EXPIRED_ROW='{"account_id":"claudeexpired","family":"claude","plan_tier":"default_claude_pro","windows":[],"absence_reason":"not_reported_by_provider","auth_state":"session_expired","data_source":null,"data_age_seconds":null}'
+
+it "_cma_quota_render_text: a session_expired native account states BOTH 'not reported by provider' AND 'session expired' in its own block"
+out="$(printf '%s\n' "${FIXTURE[@]}" "$EXPIRED_ROW" | _cma_quota_render_text --force-no-tty)"
+expired_block="$(echo "$out" | sed -n '/^claudeexpired/,/^$/p')"
+echo "$expired_block" | grep -q "not reported by provider" || assert_eq "contains 'not reported by provider' in claudeexpired's own block" "missing" "the base phrase must still be stated, unchanged"
+echo "$expired_block" | grep -qi "session expired" || assert_eq "contains 'session expired' in claudeexpired's own block" "missing" "the genuine auth-session-expiry must be stated distinctly, not conflated into the base phrase alone"
+
 summary

@@ -386,6 +386,44 @@ it "_cma_quota_list_native_accounts: claude2's plan_tier comes from claude2's ow
 tier2="$(echo "$out" | jq -r 'select(.account_id | endswith("claude2")) | .plan_tier')"
 assert_eq "default_claude_max_20x" "$tier2" "claude2's own cached tier is read correctly, and differs from claude1's -- proving neither account's value leaked into the other"
 
+# --- C1 fix: auth_state (ok / session_expired / not_signed_in) ---------------
+#
+# T038-independent-review finding C1: a native account's genuine
+# auth-session-expiry must be reported as a distinct state from
+# quota-exhaustion, never conflated into the identical "not reported by
+# provider" status every native account rendered regardless of real auth
+# health. Three fixtures cover all three auth_state values. The signal is
+# refreshTokenExpiresAt ONLY (never expiresAt, the routinely-refreshed
+# access token) for Claude, and presence/absence of a credentials file for
+# Kimi (no refresh-expiry field exists in that shape).
+
+it "_cma_quota_list_native_accounts: auth_state=ok when refreshTokenExpiresAt is in the future"
+dir_ok="$(make_account claudeauthok)"
+future_ms=$(( ($(date +%s) + 86400) * 1000 ))
+cat > "$dir_ok/.credentials.json" <<EOF
+{"claudeAiOauth": {"refreshTokenExpiresAt": $future_ms}}
+EOF
+out_auth="$(_cma_quota_list_native_accounts)"
+auth_ok="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudeauthok")) | .auth_state')"
+assert_eq "ok" "$auth_ok" "a future refreshTokenExpiresAt yields auth_state=ok"
+
+it "_cma_quota_list_native_accounts: auth_state=session_expired when refreshTokenExpiresAt is in the past"
+dir_expired="$(make_account claudeauthexpired)"
+past_ms=$(( ($(date +%s) - 86400) * 1000 ))
+cat > "$dir_expired/.credentials.json" <<EOF
+{"claudeAiOauth": {"refreshTokenExpiresAt": $past_ms}}
+EOF
+out_auth="$(_cma_quota_list_native_accounts)"
+auth_expired="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudeauthexpired")) | .auth_state')"
+assert_eq "session_expired" "$auth_expired" "a past refreshTokenExpiresAt yields auth_state=session_expired"
+
+it "_cma_quota_list_native_accounts: auth_state=not_signed_in when .credentials.json is absent entirely"
+dir_nosignin="$(make_account claudeauthnosignin)"
+rm -f "$dir_nosignin/.credentials.json"
+out_auth="$(_cma_quota_list_native_accounts)"
+auth_nosignin="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudeauthnosignin")) | .auth_state')"
+assert_eq "not_signed_in" "$auth_nosignin" "a missing .credentials.json file yields auth_state=not_signed_in"
+
 # --- T022: end-to-end cmd_quota() wiring tests -------------------------------
 #
 # T022 wires cmd_quota() to actually call _cma_quota_probe_all (T017) and

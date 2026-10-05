@@ -122,7 +122,12 @@ _cma_quota_render_one_row() {
       local detail; detail="$(jq -r '.absence_detail // "unknown error"' <<<"$line" 2>/dev/null)"
       printf '  —   probe failed: %s\n' "$detail"
     else
-      printf '  —   not reported by provider\n'
+      local auth_state; auth_state="$(jq -r '.auth_state // empty' <<<"$line" 2>/dev/null)"
+      case "$auth_state" in
+        session_expired) printf '  —   not reported by provider (native session expired -- re-authenticate)\n' ;;
+        not_signed_in)   printf '  —   not reported by provider (not signed in)\n' ;;
+        *)               printf '  —   not reported by provider\n' ;;
+      esac
     fi
     return 0
   fi
@@ -3603,7 +3608,7 @@ _cma_quota_group_accounts() {
 # Reuses cma_detect_accounts / cma_detect_kimi_accounts verbatim rather
 # than re-deriving account discovery.
 _cma_quota_list_native_accounts() {
-  local d name account_id tier
+  local d name account_id tier auth_state
 
   while IFS= read -r d; do
     [[ -n "$d" ]] || continue
@@ -3614,12 +3619,34 @@ _cma_quota_list_native_accounts() {
     # empty, never-launched account dirs) makes jq exit non-zero, which
     # would otherwise abort this whole function under set -euo pipefail.
     tier="$(jq -r '.oauthAccount.organizationRateLimitTier // empty' "$d/.claude.json" 2>/dev/null)" || tier=""
-    if [[ -n "$tier" ]]; then
-      jq -nc --arg id "$account_id" --arg tier "$tier" \
-        '{account_id: $id, family: "claude", plan_tier: $tier}'
+
+    # auth_state: derived ONLY from refreshTokenExpiresAt, NEVER from
+    # expiresAt (the access token, which expires routinely and
+    # refreshes silently -- using it would misreport every healthy
+    # account as expired). Missing credentials file entirely -> not
+    # signed in, distinct from signed-in-but-expired (T038-independent-
+    # review finding C1).
+    auth_state="ok"
+    if [[ ! -f "$d/.credentials.json" ]]; then
+      auth_state="not_signed_in"
     else
-      jq -nc --arg id "$account_id" \
-        '{account_id: $id, family: "claude", plan_tier: null}'
+      local refresh_exp now_ms
+      refresh_exp="$(jq -r '.claudeAiOauth.refreshTokenExpiresAt // empty' "$d/.credentials.json" 2>/dev/null)" || refresh_exp=""
+      if [[ "$refresh_exp" =~ ^[0-9]+$ ]]; then
+        now_ms=$(( $(date +%s) * 1000 ))
+        (( refresh_exp < now_ms )) && auth_state="session_expired"
+      fi
+      # A non-numeric/missing refreshTokenExpiresAt with a credentials
+      # file present stays "ok" -- never guess a failure from an
+      # unparseable field.
+    fi
+
+    if [[ -n "$tier" ]]; then
+      jq -nc --arg id "$account_id" --arg tier "$tier" --arg auth "$auth_state" \
+        '{account_id: $id, family: "claude", plan_tier: $tier, auth_state: $auth}'
+    else
+      jq -nc --arg id "$account_id" --arg auth "$auth_state" \
+        '{account_id: $id, family: "claude", plan_tier: null, auth_state: $auth}'
     fi
   done < <(cma_detect_accounts)
 
@@ -3634,8 +3661,17 @@ _cma_quota_list_native_accounts() {
     # TWO real ~/.kimi-code-* accounts on this host (kimi1, kimi2) and
     # found no tier/rate-limit/plan field anywhere in either tree.
     # Honest null, never guessed, per research.md §7.
-    jq -nc --arg id "$account_id" \
-      '{account_id: $id, family: "kimi", plan_tier: null}'
+    #
+    # auth_state: No Kimi-family refresh-token-expiry field exists in
+    # the real credentials shape (confirmed: access_token, expires_at,
+    # expires_in, refresh_token, scope, token_type -- no separate
+    # refresh-expiry). Honest signal: presence vs. absence of a
+    # credentials file, never a guessed expiry check this data doesn't
+    # support (T038-independent-review finding C1).
+    auth_state="ok"
+    compgen -G "$d/credentials/*.json" >/dev/null 2>&1 || auth_state="not_signed_in"
+    jq -nc --arg id "$account_id" --arg auth "$auth_state" \
+      '{account_id: $id, family: "kimi", plan_tier: null, auth_state: $auth}'
   done < <(cma_detect_kimi_accounts)
 }
 
