@@ -111,8 +111,15 @@ cma_gate_quota_check() {
   if ! jq -e '.rows | type == "array"' "$f" >/dev/null 2>&1; then
     echo "claude-providers quota --json: .rows is not an array"; return 1
   fi
-  n_prov="$(jq '[.rows[] | select(.kind == "provider_account")] | length' "$f")"
-  n_failed="$(jq '[.rows[] | select(.kind == "provider_account" and .absence_reason == "probe_failed")] | length' "$f")"
+  # Fail CLOSED when a count cannot be computed: a non-object row makes
+  # `.kind` a jq error, the count comes back empty, and an unguarded
+  # `[ "" -eq 0 ]` would fall through to the success return below.
+  n_prov="$(jq '[.rows[] | select(.kind == "provider_account")] | length' "$f" 2>/dev/null)" \
+    || { echo "quota --json rows are malformed (non-object row)"; return 1; }
+  n_failed="$(jq '[.rows[] | select(.kind == "provider_account" and .absence_reason == "probe_failed")] | length' "$f" 2>/dev/null)" \
+    || { echo "quota --json rows are malformed (non-object row)"; return 1; }
+  case "$n_prov" in ''|*[!0-9]*) echo "quota --json rows are malformed (provider count not computable: '$n_prov')"; return 1 ;; esac
+  case "$n_failed" in ''|*[!0-9]*) echo "quota --json rows are malformed (failed-probe count not computable: '$n_failed')"; return 1 ;; esac
   if [ "$n_prov" -eq 0 ]; then
     echo "claude-providers quota --json has no provider_account rows — no provider was probed at all"; return 1
   fi

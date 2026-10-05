@@ -162,6 +162,28 @@ FAKE_QUOTA_RC=3 run_gate gatenative ''
 assert_eq 1 "$GATE_RC" "gate FAILS when quota --json exits non-zero"
 grep -q 'exited 3' <<<"$GATE_OUT"; assert_eq 0 $? "the failure names the exit code"
 
+# Malformed rows (review fix 1): a non-object row makes jq's `.kind` error,
+# the counts come back EMPTY, and an unguarded `[ "" -eq 0 ]` fell through to
+# return 0 — a shallow pass on a malformed document. Must fail closed.
+Q_ROWS_NUM="$(_qdoc '1')"
+Q_ROWS_MIXED="$(_qdoc "\"x\",$(_qrow provider_account gateprov probe_failed)")"
+_check_json() { # DOC -> sets CHECK_OUT, CHECK_RC
+  printf '%s\n' "$1" > "$HOME/q-check.json"
+  CHECK_OUT="$(bash "$GATE" --check-quota-json "$HOME/q-check.json" 2>&1)"; CHECK_RC=$?
+}
+for _case in ROWS_NUM ROWS_MIXED; do
+  eval "_doc=\"\$Q_$_case\""
+  it "quota check: malformed rows ($_case) FAIL via --check-quota-json"
+  _check_json "$_doc"
+  assert_eq 1 "$CHECK_RC" "--check-quota-json exits 1 on $_case"
+  grep -q 'rows are malformed' <<<"$CHECK_OUT"; assert_eq 0 $? "the reason names the malformed rows ($_case)"
+  it "quota leg: malformed rows ($_case) FAIL the full gate"
+  FAKE_QUOTA_JSON="$_doc" run_gate gatenative ''
+  assert_eq 1 "$GATE_RC" "gate FAILS on $_case"
+  grep -q 'rows are malformed' <<<"$GATE_OUT"; assert_eq 0 $? "the gate failure names the malformed rows ($_case)"
+  grep -q 'ALL LAYERS GREEN' <<<"$GATE_OUT"; assert_eq 1 $? "no release verdict on $_case"
+done
+
 # ===========================================================================
 # (e) layer 2.6: stderr noise must not be parsed as part of the JSON.
 # ===========================================================================
