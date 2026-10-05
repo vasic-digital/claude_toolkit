@@ -122,6 +122,34 @@ data-model.md §5 field-for-field:
       "absence_reason": "not_reported_by_provider",
       "absence_detail": null,
       "windows": []
+    },
+    {
+      "kind": "native_account",
+      "display_name": "kimi1",
+      "account_id": "kimi1",
+      "family": "kimi",
+      "plan_tier": null,
+      "auth_state": "ok",
+      "account_blocked": false,
+      "endpoint_spec_present": true,
+      "data_source": "live",
+      "data_age_seconds": null,
+      "absence_reason": null,
+      "absence_detail": null,
+      "windows": [
+        {
+          "window": "subscription_5h",
+          "amount_used": 1500,
+          "amount_remaining": 3500,
+          "limit_total": 5000,
+          "unit": "tokens",
+          "percent_remaining": 70.0,
+          "severity": "green",
+          "resets": true,
+          "reset_at": "2026-10-06T12:00:00Z",
+          "reset_cadence": null
+        }
+      ]
     }
   ]
 }
@@ -133,6 +161,15 @@ the KEY is never omitted (so a consumer never has to distinguish "absent
 key" from "present key with value null"; this matches this project's
 existing `--json` conventions elsewhere, e.g. `llmctl plan --json`'s
 per-profile objects always carrying every key).
+
+## Native Kimi account usage windows
+
+Native Kimi accounts that are signed in are probed (one GET request to the
+usages endpoint) and return subscription windows when the token is valid
+(`subscription_5h` and `subscription_7d`). When the access token has expired,
+the probe returns `absence_reason: auth_expired` with no refresh attempt; the
+operator runs `kimi login` to restore the token. Claude native accounts
+(Claude CLI) remain `not_reported_by_provider`.
 
 ## Performance contract (FR-017)
 

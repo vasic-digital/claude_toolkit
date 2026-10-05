@@ -16,7 +16,7 @@ kinds, both satisfying this shared shape:
 | `kind` | enum: `provider_account` \| `native_account` | Which concrete entity this is (§2 / §3) |
 | `display_name` | string | What the operator sees as the row's identity |
 | `windows` | list of **Usage Window** (§4) | Zero or more — zero means "no window could be determined" |
-| `absence_reason` | enum: `null` \| `not_reported_by_provider` \| `probe_failed` | Set only when `windows` is empty; mutually exclusive with having any window (FR-009/FR-010) |
+| `absence_reason` | enum: `null` \| `not_reported_by_provider` \| `probe_failed` \| `auth_expired` | Set only when `windows` is empty; mutually exclusive with having any window (FR-009/FR-010). `auth_expired`: a native Kimi account whose access token has lapsed (the usages endpoint returned 401); the probe makes no refresh, and the user runs `kimi login` to restore. |
 | `absence_detail` | string \| `null` | Human-readable cause when `absence_reason` is set (e.g. the timeout/network error text for `probe_failed`; `null` for `not_reported_by_provider`, which needs no further explanation) |
 | `account_blocked` | boolean | True only when the WHOLE account/subscription is stopped, not merely one window (FR-011) — orthogonal to `windows`/`absence_reason`: a blocked account can still have had real windows before the block, which stay reported, with this flag making the hard-stop visible alongside them |
 | `data_source` | enum: `live` \| `cached` \| `null` | `live` or `cached`: per FR-012. `null`: never probed (native rows, and provider rows with no endpoint spec) |

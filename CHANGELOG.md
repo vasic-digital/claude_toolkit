@@ -40,11 +40,17 @@ were backed up to scratch before removal. The test is now gated behind
 - The gated live test is skipped by default and was verified to leave host state
   byte-identical on the skip path.
 
+### Added
+
+- Kimi native usage windows (5-hour and 7-day) probed from the usages endpoint
+  with no model call or token refresh; returns `auth_expired` on 401 with fail-closed
+  ratio validation.
+
 ### Known limitations (not fixed)
 
 - The Kimi usage probe requires a fresh Kimi login; the stored access token has
   expired. Kimi usage windows are therefore not yet verified.
-- Native usage windows for Claude and Kimi are unsupported: neither exposes a
+- Native usage windows for Claude are unsupported: it does not expose a
   documented usage endpoint.
 - HawkScan was not run: `HAWK_API_KEY` is not set and no application is running.
 - Kimi-leg failures from out-of-credit providers (HTTP 402) and local-backend
