@@ -67,6 +67,7 @@ account slot gets its own probe and its own row, always.
 | `account_id` | string | `claude1`, `kimi2`, etc. |
 | `family` | enum: `claude` \| `kimi` | Which native CLI family |
 | `plan_tier` | string \| `null` | The cached rate-limit tier name where available (research.md §7 — e.g. `default_claude_max_20x` for Claude; the Kimi-family analog, if one is found during implementation); `null` when nothing is cached |
+| `auth_state` | enum: `ok` \| `session_expired` \| `not_signed_in` | Native-session health, reported separately from usage (spec edge case: an expired session and an exhausted quota are different states and are never conflated). Claude: `session_expired` only when `.claudeAiOauth.refreshTokenExpiresAt` in `.credentials.json` is a number in the past; the access-token `expiresAt` is NEVER consulted, since it refreshes routinely. `not_signed_in` when `.credentials.json` is absent. Any other state, including an unparseable `refreshTokenExpiresAt`, is `ok`. Kimi: `not_signed_in` when no `credentials/*.json` exists, otherwise `ok`; the Kimi credentials shape carries no refresh-token expiry, so an expired Kimi session is NOT detected and reports `ok` |
 
 ## 4. Usage Window
 

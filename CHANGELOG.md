@@ -2,6 +2,107 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.1 — 2026-10-05 — `quota`/`limits` patch: post-release review fixes
+
+Patch release for `quota`/`limits` (introduced in v1.30.0). An independent
+review of the released v1.30.0 found two Critical and five Important defects,
+plus two Suggestion-tier issues. This release fixes them. Each fix was made
+under the same subagent-driven TDD and independent-review discipline as the
+original feature: a fresh implementer, a fresh reviewer, and a scoped
+re-review after any fix round.
+
+### Fixed
+
+- **C1 — native accounts had no auth-expiry distinction (Critical).**
+  Every native `claudeN`/`kimiN` account rendered the same
+  `not_reported_by_provider` status regardless of whether its session was
+  healthy, expired, or never signed in. Each native account now carries an
+  `auth_state` field: `ok`, `session_expired`, or `not_signed_in`. For Claude
+  it is derived from `claudeAiOauth.refreshTokenExpiresAt` in
+  `.credentials.json` (never from the routinely refreshed access-token
+  `expiresAt`). For Kimi it is derived from presence of a credentials file,
+  because the Kimi credentials shape has no refresh-token expiry field. The
+  text renderer annotates expired and not-signed-in rows; the base phrase
+  `not reported by provider` is unchanged.
+
+- **C2 — same-credential aliases were reported as separate rows (Critical).**
+  Several provider ids that share one real credential (for example
+  `openrouter`, `openrouter2` through `openrouter5`, all using
+  `OPENROUTER_API_KEY` against the same base URL) rendered as separate rows,
+  four of them falsely reading "not reported by provider". Accounts are now
+  grouped by `CMA_PROVIDER_KEYVAR` plus `CMA_PROVIDER_BASE_URL`. Grouping
+  never merges on an empty key variable. The implementation is bash 3.2
+  compatible. This corrects the v1.30.0 entry's "account-level
+  de-duplication" claim, which covered only aliases that share one `.env`
+  file and did not cover distinct `.env` files that share one credential.
+
+- **I1 — `reset_at` ISO-8601 signals were silently dropped (Important).**
+  A provider reporting a reset time as a timestamp string produced no reset
+  information. The signal is now read as a string and validated as ISO-8601
+  before use. Malformed values are rejected rather than guessed.
+
+- **I2 — OpenRouter spec ignored the real reset-cadence field (Important).**
+  The `openrouter` entry in `quota-endpoints.json` now captures the
+  `limit_reset` field as an informational `reset_cadence` signal. This is a
+  cadence label such as `daily` or `monthly`, not a timestamp, and the
+  resolver does not consume it. OpenRouter's `rate_limit` field is a
+  request-rate limiter, not a quota window, and is deliberately not reported
+  as one.
+
+- **I3 — batch-independence claim in FR-017 and SC-008 was overstated
+  (Important).** Concurrent probes are batched at
+  `CMA_QUOTA_MAX_PARALLEL_PROBES` (default 8), so total wall-clock time is
+  bounded by `ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES) × timeout`, not by the
+  timeout alone. The specification now states this bound. The batching
+  barrier was kept deliberately, to bound the number of concurrent
+  subprocesses. A defensive `timeout` wrapper now bounds each live probe.
+  The wrapper is used only when the `timeout` binary is present, so stock
+  macOS, which does not ship it, is unaffected.
+
+- **I4 — `--json` produced invalid JSON for aliases containing `"` or `\`
+  (Important).** The `scoped_to` value is now built with `jq` encoding
+  instead of string interpolation.
+
+- **I5 — `quota`/`limits` missing from `--help` (Important).** Both
+  `claude-providers --help` and `kimi-providers --help` now list the
+  `quota` subcommand and its `limits` alias. Landed in `f1cd9a4`.
+
+- **S1 — `--timeout` accepted a missing or non-numeric value (Suggestion).**
+  `--timeout` now reports a clear error when the value is missing, and
+  requires a positive integer. `0` and leading-zero forms such as `08` are
+  rejected.
+
+- **S2 — zero-limit provider raised `ZeroDivisionError` (Suggestion).** A
+  provider reporting a zero spending cap with no percentage now yields
+  `percent_remaining = 0.0` instead of an uncaught exception. A
+  provider-supplied percentage still takes precedence. Landed in `f1cd9a4`.
+
+### Testing & Validation
+
+- Quota test files, state at the final fix commit `f1cd9a4` (figures from
+  the I5/S2 implementation report, independently re-run by the reviewer):
+  - `test_quota_cli.sh`: 76 passed, 0 failed
+  - `test_quota_concurrency.sh`: 28 passed, 0 failed
+  - `test_quota_probe.sh`: 20 passed, 0 failed
+  - `test_quota_rendering.sh`: 25 passed, 0 failed
+  - `test_kimi_aliases.sh`: 31 passed, 0 failed (covers the Kimi `--help` line)
+  - Total: 149 passed, 0 failed across the four quota test files.
+- Each fix added regression tests. The I3/S1 no-`timeout`-binary test was
+  shown to fail against the unguarded code and pass against the fix.
+- Full `run-all.sh` suite at `dafd231`: exit 0, `Test files: 91 passed: 91 failed: 0`.
+  Captured from a single clean run; no test file failed.
+
+### Known remaining gaps (not fixed in 1.30.1)
+
+- The Kimi `auth_state` is presence-based only. A Kimi account whose refresh
+  token has expired still reports `ok`. This is by design: the Kimi
+  credentials shape does not expose a refresh-token expiry, and the feature
+  does not guess one.
+- Documentation gap: no file under `specs/` (including `data-model.md` and
+  the contracts) mentions `auth_state`, so the new row field is undocumented
+  there. This must be added before the release is cut or tracked as a known
+  gap.
+
 ## v1.30.0 — 2026-10-04 — `quota`/`limits`: universal usage reporting across every provider alias and native account
 
 New top-level subcommand (both names — `quota` and `limits`, deliberately
