@@ -104,7 +104,7 @@ _cma_quota_render_text() {
 # stays independently testable and readable.
 _cma_quota_render_one_row() {
   local line="$1" color_on="$2"
-  local pid aid header
+  local pid aid
   pid="$(jq -r '.provider_id // empty' <<<"$line" 2>/dev/null)"
   aid="$(jq -r '.account_id // empty' <<<"$line" 2>/dev/null)"
 
@@ -114,6 +114,22 @@ _cma_quota_render_one_row() {
   else
     local tier; tier="$(jq -r '.plan_tier // "unknown"' <<<"$line" 2>/dev/null)"
     printf '%s  (native, plan tier: %s)\n' "$aid" "$tier"
+  fi
+
+  # FR-011: a blocked account gets a distinct, unmistakable statement --
+  # shared by both the provider-account and native-account branches above
+  # (an account can be blocked regardless of row kind). Deliberately does
+  # NOT return/continue: the windows loop below still runs, so prior
+  # windows stay visible, only annotated as moot. Stated BEFORE the
+  # absence early return: a 200 with a blocked signal and zero windows
+  # arrives as account_blocked + probe_failed (known-issues T27).
+  local blocked; blocked="$(jq -r '.account_blocked // false' <<<"$line" 2>/dev/null)"
+  if [[ "$blocked" == "true" ]]; then
+    if (( color_on )); then
+      printf '  \033[31;1mACCOUNT BLOCKED\033[0m — the whole subscription is suspended; windows below are moot\n'
+    else
+      printf '  ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot\n'
+    fi
   fi
 
   local absence; absence="$(jq -r '.absence_reason // empty' <<<"$line" 2>/dev/null)"
@@ -130,20 +146,6 @@ _cma_quota_render_one_row() {
       esac
     fi
     return 0
-  fi
-
-  # FR-011: a blocked account gets a distinct, unmistakable statement --
-  # shared by both the provider-account and native-account branches above
-  # (an account can be blocked regardless of row kind). Deliberately does
-  # NOT return/continue: the windows loop below still runs, so prior
-  # windows stay visible, only annotated as moot.
-  local blocked; blocked="$(jq -r '.account_blocked // false' <<<"$line" 2>/dev/null)"
-  if [[ "$blocked" == "true" ]]; then
-    if (( color_on )); then
-      printf '  \033[31;1mACCOUNT BLOCKED\033[0m — the whole subscription is suspended; windows below are moot\n'
-    else
-      printf '  ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot\n'
-    fi
   fi
 
   local n_windows; n_windows="$(jq -r '.windows | length' <<<"$line" 2>/dev/null)"
@@ -172,11 +174,14 @@ _cma_quota_render_one_row() {
     # `tr` works identically on bash 3.2+, so it's the portable choice here.
     sev_upper="$(tr '[:lower:]' '[:upper:]' <<<"$sev")"
 
-    local resets reset_at reset_note
+    local resets reset_at reset_cadence reset_note
     resets="$(jq -r ".windows[$i].resets" <<<"$line" 2>/dev/null)"
     reset_at="$(jq -r ".windows[$i].reset_at // empty" <<<"$line" 2>/dev/null)"
+    reset_cadence="$(jq -r ".windows[$i].reset_cadence // empty" <<<"$line" 2>/dev/null)"
     if [[ "$resets" == "true" && -n "$reset_at" ]]; then
       reset_note="   (resets $reset_at)"
+    elif [[ "$resets" == "true" && -n "$reset_cadence" ]]; then
+      reset_note="   (resets $reset_cadence)"
     else
       reset_note="   (does not reset)"
     fi
@@ -3581,6 +3586,7 @@ _cma_quota_group_accounts() {
             | sed -E 's/^alias ([a-zA-Z0-9_-]+)=.*/\1/'
         )
       fi
+      # Representative: the LAST spec-bearing member in glob order; with none, the first member.
       [[ -z "$rep_pid" ]] && rep_pid="$member_pid"
       if [[ -f "$endpoints_file" ]] && jq -e --arg id "$member_pid" 'has($id)' "$endpoints_file" >/dev/null 2>&1; then
         rep_pid="$member_pid"

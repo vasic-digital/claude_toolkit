@@ -268,4 +268,70 @@ expired_block="$(echo "$out" | sed -n '/^claudeexpired/,/^$/p')"
 echo "$expired_block" | grep -q "not reported by provider" || assert_eq "contains 'not reported by provider' in claudeexpired's own block" "missing" "the base phrase must still be stated, unchanged"
 echo "$expired_block" | grep -qi "session expired" || assert_eq "contains 'session expired' in claudeexpired's own block" "missing" "the genuine auth-session-expiry must be stated distinctly, not conflated into the base phrase alone"
 
+# --- Reset cadence rendering (known-issues CADENCE-RENDER) -------------
+# A daily/monthly cap arrives as resets=true, reset_at=null,
+# reset_cadence=<label>. The text must agree with the JSON's resets:true
+# and must never print a timestamp that was not supplied.
+_cad_row() { # $1 = reset_at JSON, $2 = reset_cadence JSON
+  printf '{"provider_id":"cadprov","alias_names":["cadprov"],"windows":[{"window":"session","amount_used":1,"amount_remaining":9,"limit_total":10,"unit":"tokens","percent_remaining":90,"resets":true,"reset_at":%s,"reset_cadence":%s}],"account_blocked":false,"absence_reason":null,"data_source":"live","data_age_seconds":null}\n' "$1" "$2"
+}
+
+it "_cma_quota_render_text: a daily cadence with no reset_at renders '(resets daily)'"
+out="$(_cad_row null '"daily"' | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "(resets daily)" && ok=1 || ok=0
+assert_eq "1" "$ok" "daily cadence must render '(resets daily)', got: $out"
+echo "$out" | grep -q "does not reset" && bad=1 || bad=0
+assert_eq "0" "$bad" "a cadence-bearing window must never say 'does not reset'"
+
+it "_cma_quota_render_text: a monthly cadence with no reset_at renders '(resets monthly)'"
+out="$(_cad_row null '"monthly"' | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "(resets monthly)" && ok=1 || ok=0
+assert_eq "1" "$ok" "monthly cadence must render '(resets monthly)', got: $out"
+
+it "_cma_quota_render_text: a null cadence with no reset_at keeps '(does not reset)'"
+out="$(_cad_row null null | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "(does not reset)" && ok=1 || ok=0
+assert_eq "1" "$ok" "null cadence must keep '(does not reset)', got: $out"
+echo "$out" | grep -q "(resets" && bad=1 || bad=0
+assert_eq "0" "$bad" "null cadence must not invent a reset clause"
+
+it "_cma_quota_render_text: an absent reset_cadence key with no reset_at keeps '(does not reset)'"
+out="$(_cad_row null null | jq -c 'del(.windows[0].reset_cadence)' | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "(does not reset)" && ok=1 || ok=0
+assert_eq "1" "$ok" "absent cadence must keep '(does not reset)', got: $out"
+
+it "_cma_quota_render_text: a real reset_at timestamp still renders '(resets <timestamp>)', even with a cadence"
+out="$(_cad_row '"2026-10-06T00:00:00Z"' '"daily"' | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "(resets 2026-10-06T00:00:00Z)" && ok=1 || ok=0
+assert_eq "1" "$ok" "a supplied reset_at must win over the cadence label, got: $out"
+
+# --- Blocked account with an absence_reason (known-issues T27-blocked-hidden)
+# The F2 fix made account_blocked:true + absence_reason:probe_failed
+# reachable (a 200 with a blocked signal and zero windows). FR-011 says
+# the blocked state must still be stated.
+BLOCKED_FAILED_ROW='{"provider_id":"blkfail","alias_names":["blkfail"],"base_url":"https://api.blkfail.example/v1","windows":[],"account_blocked":true,"absence_reason":"probe_failed","absence_detail":"no interpretable usage signals","data_source":"live","data_age_seconds":null}'
+
+it "_cma_quota_render_text: account_blocked + probe_failed states BOTH 'ACCOUNT BLOCKED' and the probe failure"
+out="$(printf '%s\n' "$BLOCKED_FAILED_ROW" | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "ACCOUNT BLOCKED" && ok=1 || ok=0
+assert_eq "1" "$ok" "a blocked account must be stated even when absence_reason is set, got: $out"
+echo "$out" | grep -q "probe failed: no interpretable usage signals" && ok=1 || ok=0
+assert_eq "1" "$ok" "the probe-failure detail must still be stated, got: $out"
+
+it "_cma_quota_render_text: account_blocked:false + probe_failed does NOT say 'ACCOUNT BLOCKED'"
+out="$(printf '%s\n' "$FAILED_ROW" | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "ACCOUNT BLOCKED" && bad=1 || bad=0
+assert_eq "0" "$bad" "an unblocked failed row must not be called blocked"
+
+# --- limit_exceeded vs red share an ANSI color (known-issues F6-ansi) ---
+# The contract (FR-008/FR-013) requires the distinction to survive a
+# color-stripped reading, i.e. in words. Guards that it does.
+it "_cma_quota_render_text: red and limit_exceeded stay distinguishable with ANSI stripped"
+SEV_ROW='{"provider_id":"sevprov","alias_names":["sevprov"],"windows":[{"window":"a","amount_used":95,"amount_remaining":5,"limit_total":100,"unit":"tokens","percent_remaining":5,"resets":false,"reset_at":null},{"window":"b","amount_used":100,"amount_remaining":0,"limit_total":100,"unit":"tokens","percent_remaining":0,"resets":false,"reset_at":null}],"account_blocked":false,"absence_reason":null,"data_source":"live","data_age_seconds":null}'
+stripped="$(printf '%s\n' "$SEV_ROW" | _cma_quota_render_text --force-tty | sed $'s/\033\\[[0-9;]*m//g')"
+echo "$stripped" | grep -E '^  a ' | grep -q '\[RED\]' && ok=1 || ok=0
+assert_eq "1" "$ok" "5% window must read [RED] without color"
+echo "$stripped" | grep -E '^  b ' | grep -q '\[LIMIT_EXCEEDED\]' && ok=1 || ok=0
+assert_eq "1" "$ok" "0% window must read [LIMIT_EXCEEDED] without color"
+
 summary
