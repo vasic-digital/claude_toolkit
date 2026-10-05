@@ -58,6 +58,8 @@ cat > "$CACHE" <<'JSON'
              "models":{"f":{"id":"beta-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}}},
   "gamma":  {"env":["GAMMA_API_KEY"],"api":"https://api.gamma.ai/v1","npm":"@ai-sdk/openai-compatible",
              "models":{"g":{"id":"gamma-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}}},
+  "sarv":   {"env":["SARV_API_KEY"],"api":"https://api.sarv.ai/v1","npm":"@ai-sdk/openai-compatible",
+             "models":{"s":{"id":"sarv-105b","reasoning":true,"release_date":"2025-06-01","limit":{"context":131072,"output":131072},"cost":{"input":1,"output":5},"tool_call":true}}},
   "kimi-for-coding":{"env":["KIMI_API_KEY"],"api":"https://api.kimi.com/coding/v1","npm":"@ai-sdk/openai-compatible",
              "models":{"k":{"id":"kimi-for-coding","reasoning":true,"release_date":"2025-08-01","limit":{"context":262144},"cost":{"input":0,"output":0},"tool_call":true}}}
 }
@@ -72,6 +74,7 @@ cat > "$KEYS" <<'SH'
 export ACME_API_KEY="dummy-acme"
 export BETA_API_KEY="dummy-beta"
 export GAMMA_API_KEY="dummy-gamma"
+export SARV_API_KEY="dummy-sarv"
 export KIMI_API_KEY="dummy-kimi"
 SH
 keyaliases="$HOME/key-aliases.json"
@@ -258,6 +261,99 @@ cmp -s "$HOME/alias.before-2nd" "$ALIAS_FILE"; assert_eq 0 $? "second sync leave
 ls "$ALIAS_FILE".rejected.* >/dev/null 2>&1 && _t=1 || _t=0
 assert_eq 0 "$_t" "still no .rejected.* after the second sync"
 cma_alias_commit kimi-aXb "" keep
+
+# ===========================================================================
+# Section 2d — known-issue 36 (KIMI-LEG-config-missing): a kimi-<id> twin line
+# must never exist without the ~/.kimi-prov-<id>/config.toml it launches
+# through. Live finding: 8 twin lines with no config behind them; the live
+# verifier failed each with "the twin was emitted but its config.toml was not
+# rendered". Two producers: (a) a sync whose config render FAILED silently and
+# still emitted the twin; (b) a config deleted later while the session-refresh
+# path never removed the stale line.
+# ===========================================================================
+it "config-missing (36a): a sync whose config.toml render fails refuses the twin with a clear message"
+set_verdicts
+vsync
+grep -q '^alias kimi-beta="cma_run_kimi_provider beta"$' "$ALIAS_FILE"; assert_eq 0 $? "precondition: verified beta has its twin"
+# Make the render impossible: the per-alias config dir path is a regular file.
+rm -rf "$HOME/.kimi-prov-beta"; : > "$HOME/.kimi-prov-beta"
+_out36="$(CMA_PROVIDERS_VERIFY="$VERIFY_STUB" bash "$PROVIDERS_SH" sync --offline --keys-file "$KEYS" 2>&1)"
+assert_eq 0 $? "sync with an unrenderable kimi config still exits cleanly"
+grep -q '^alias kimi-beta=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "NO kimi-beta twin when its config.toml could not be rendered"
+grep -q '^alias beta=' "$ALIAS_FILE"; assert_eq 0 $? "base beta alias is unaffected"
+grep -q "kimi-beta.*config.toml" <<<"$_out36"; assert_eq 0 $? "sync names the refused twin and its missing config.toml"
+rm -f "$HOME/.kimi-prov-beta"
+vsync
+grep -q '^alias kimi-beta="cma_run_kimi_provider beta"$' "$ALIAS_FILE"; assert_eq 0 $? "twin returns once the config renders again"
+
+it "config-missing (36b): --refresh-aliases drops a twin line whose config.toml was deleted"
+assert_file "$HOME/.kimi-prov-beta/config.toml" "precondition: beta config exists"
+rm -f "$HOME/.kimi-prov-beta/config.toml" "$PDIR/.refresh-aliases-fingerprint"
+bash "$PROVIDERS_SH" list --refresh-aliases >/dev/null 2>&1
+grep -q '^alias kimi-beta=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "stale kimi-beta line removed when its config.toml is gone"
+grep -q '^alias beta=' "$ALIAS_FILE"; assert_eq 0 $? "base beta alias still restored by refresh"
+grep -q '^alias kimi-acme="cma_run_kimi_provider acme"$' "$ALIAS_FILE"; assert_eq 0 $? "kimi-acme twin (config present) untouched"
+vsync
+grep -q '^alias kimi-beta="cma_run_kimi_provider beta"$' "$ALIAS_FILE"; assert_eq 0 $? "sync re-renders the config and restores the twin"
+
+# ===========================================================================
+# Section 2e — known-issue 37 (KIMI-LEG-fireworks-twin): `kimi-fireworks-ai`
+# existed while its base provider `fireworks-ai` (status failed, Claude alias
+# overridden to a different name) had no Claude alias. Regression guard for the
+# 7cc067a gate: the twin of a provider with no launchable base is dropped, and
+# the twin of a verified provider exists only alongside its Claude base alias.
+# ===========================================================================
+it "fireworks-twin (37): a failed provider with an overridden alias name keeps no kimi-<id> twin"
+echo '{"gamma":{"alias":"gm"}}' > "$overrides"
+cma_alias_commit gamma "" keep 2>/dev/null
+cma_alias_commit "" 'alias kimi-gamma="cma_run_kimi_provider gamma"' keep
+grep -q '^alias kimi-gamma=' "$ALIAS_FILE"; assert_eq 0 $? "precondition: stale kimi-gamma twin seeded"
+set_verdicts "gamma failed"
+vsync; assert_eq 0 $? "sync exits cleanly"
+grep -q '^alias kimi-gamma=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "kimi-gamma twin dropped: its base provider is not launchable"
+grep -qE '^alias [A-Za-z0-9._-]+="cma_run_provider gamma"$' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "precondition of the defect shape: no Claude alias launches gamma"
+
+it "fireworks-twin (37): a verified provider's twin coexists with its Claude base alias"
+set_verdicts
+vsync; assert_eq 0 $? "sync exits cleanly"
+grep -q '^alias gm="cma_run_provider gamma"$' "$ALIAS_FILE"; assert_eq 0 $? "Claude base alias gm -> gamma present"
+grep -q '^alias kimi-gamma="cma_run_kimi_provider gamma"$' "$ALIAS_FILE"; assert_eq 0 $? "kimi-gamma twin present with its base"
+echo '{}' > "$overrides"
+cma_alias_commit gm "" keep 2>/dev/null
+vsync
+
+# ===========================================================================
+# Section 2f — known-issue 38 (KIMI-LEG-sarvam): kimi-sarvam sent max_tokens
+# 131072 (its whole context) and the backend refused it above its 128000
+# output cap. The Kimi CLI uses `max_output_size` from the model alias as its
+# hard completion cap and, absent it, falls back to max_context_size. The
+# rendered config must carry the SAME derived output cap the Claude side
+# exports (CMA_PROVIDER_MAX_OUTPUT), never the whole window.
+# ===========================================================================
+it "sarvam (38): config.toml carries max_output_size = the derived output cap, below the context"
+sc="$HOME/.kimi-prov-sarv/config.toml"
+assert_file "$sc" "sarv config.toml rendered"
+_ctx38="$(sed -n 's/^max_context_size = \([0-9]*\)$/\1/p' "$sc")"
+_out38="$(sed -n 's/^max_output_size = \([0-9]*\)$/\1/p' "$sc")"
+_env38="$( ( set -a; . "$PDIR/sarv.env"; set +a; printf '%s' "${CMA_PROVIDER_MAX_OUTPUT:-}" ) )"
+assert_eq "131072" "$_ctx38" "precondition: sarv context is the catalog 131072"
+[[ -n "$_env38" ]]; assert_eq 0 $? "precondition: sync derived an output cap for sarv"
+assert_eq "$_env38" "$_out38" "max_output_size equals the derived CMA_PROVIDER_MAX_OUTPUT"
+[[ -n "$_out38" ]] && (( _out38 < _ctx38 && _out38 <= 128000 )); assert_eq 0 $? "max_output_size ($_out38) is below the context and the 128000 cap"
+
+it "sarvam (38): unknown/oversized derived output never reaches the whole context"
+( source "$PROVIDERS_SH"; set +e
+  _cma_kimi_render_config t38a SARV_API_KEY router "https://x.invalid/v1" m "131072" ""
+  _cma_kimi_render_config t38b SARV_API_KEY router "https://x.invalid/v1" m "131072" "131072" ) >/dev/null 2>&1
+for _t38 in t38a t38b; do
+  _o="$(sed -n 's/^max_output_size = \([0-9]*\)$/\1/p' "$HOME/.kimi-prov-$_t38/config.toml" 2>/dev/null)"
+  [[ -n "$_o" ]] && (( _o < 131072 && _o <= 128000 )); assert_eq 0 $? "$_t38: max_output_size ($_o) below context and cap"
+done
+rm -rf "$HOME/.kimi-prov-t38a" "$HOME/.kimi-prov-t38b"
 
 # ===========================================================================
 # Section 3 — remove <id> tears down the twin alias + both config dirs

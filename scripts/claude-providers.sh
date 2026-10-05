@@ -2749,9 +2749,18 @@ _cma_kimi_twin_alias() {
   case "$id" in *[!A-Za-z0-9._-]*) return 1 ;; esac
   local twin="kimi-$id"
   local want; want="$(printf 'alias %s="cma_run_kimi_provider %s"' "$twin" "$id")"
+  # The twin also REQUIRES its rendered config (known-issue 36,
+  # KIMI-LEG-config-missing): cma_run_kimi_provider launches through
+  # ~/.kimi-prov-<id>/config.toml and refuses without it, so a line with no
+  # config behind it is a silently broken alias. A verified provider whose
+  # config is absent (render failed, or deleted later) is refused with a clear
+  # message and falls through to the drop branch below.
   if [[ "$(cma_status_read "$id")" == "verified" ]]; then
-    cma_alias_commit "$twin" "$want" keep 2>/dev/null || return 1
-    return 0
+    if [[ -f "$HOME/.kimi-prov-$id/config.toml" ]]; then
+      cma_alias_commit "$twin" "$want" keep 2>/dev/null || return 1
+      return 0
+    fi
+    cma_warn "refusing kimi twin '$twin': $HOME/.kimi-prov-$id/config.toml is missing (run 'claude-providers sync' to render it)"
   fi
   # Not verified: drop ONLY a line this toolkit wrote. A user-authored
   # definition of the same name (anything other than the exact canonical twin
@@ -2792,7 +2801,7 @@ _cma_kimi_twin_reconcile() {
     | LC_ALL=C sort -u \
     | while IFS= read -r tid; do
         [[ -n "$tid" ]] || continue
-        [[ "$(cma_status_read "$tid")" == "verified" ]] && continue
+        [[ "$(cma_status_read "$tid")" == "verified" && -f "$HOME/.kimi-prov-$tid/config.toml" ]] && continue
         _cma_kimi_twin_alias "$tid" || cma_warn "could not drop stale twin alias 'kimi-$tid'"
       done
   return 0
@@ -2903,10 +2912,13 @@ _cma_pi_render_config() {
 # Written 0600/0700 via umask + temp + atomic rename. `kc-*` ids render no
 # config (they are the Claude-over-Kimi names and have no kimi twin).
 _cma_kimi_render_config() {
-  local id="$1" keyvar="$2" transport="$3" base="$4" strong="$5" ctx="${6:-}"
+  local id="$1" keyvar="$2" transport="$3" base="$4" strong="$5" ctx="${6:-}" max_out="${7:-}"
   case "$id" in ''|kc-*|kimi-*) return 0 ;; esac
   local kdir="$HOME/.kimi-prov-$id"
-  ( umask 077; mkdir -p "$kdir" )
+  ( umask 077; mkdir -p "$kdir" ) 2>/dev/null || {
+    cma_warn "kimi config: cannot create $kdir — $kdir/config.toml not rendered"
+    return 1
+  }
   # WIRE SELECTION — from the TRANSPORT, not from what the URL happens to spell.
   #
   # The kimi CLI dispatches on `type`, and each wire's SDK builds its path
@@ -2958,6 +2970,21 @@ _cma_kimi_render_config() {
   fi
   [[ "$transport" == "router" && -z "$api_key" ]] && cma_warn "kimi config: '$id' key empty — config.toml will carry an empty api_key"
   [[ -n "$ctx" && "$ctx" != "null" ]] || ctx="128000"
+  # OUTPUT CAP (known-issue 38, KIMI-LEG-sarvam). The Kimi CLI's completion
+  # budget is `max_output_size` on the model alias; ABSENT it, the CLI falls
+  # back to max_context_size and sends the WHOLE window as max_tokens (measured:
+  # kimi-sarvam sent 131072 = its context and the backend refused it above its
+  # 128000 output cap). So the cap is always written, from the SAME derived
+  # output cap the Claude side exports (providers_resolve.derive_limits ->
+  # CMA_PROVIDER_MAX_OUTPUT), which is carved strictly below the context and
+  # never above the 128000 CLI ceiling. Only when that value is unknown or
+  # unusable does this fall back — to derive_limits' own last-resort carve,
+  # half the window, under the same ceiling — never to the window itself.
+  local out_cap=128000
+  case "$max_out" in ''|null|*[!0-9]*|0) max_out="$(( ctx / 2 ))" ;; esac
+  (( max_out >= ctx )) && max_out="$(( ctx / 2 ))"
+  (( max_out > out_cap )) && max_out="$out_cap"
+  (( max_out >= 1 )) || max_out=1
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma-kimi.XXXXXX")"
   # `default_model` MUST be written BEFORE any `[table]` header. TOML has no
   # "close this table" syntax: once a `[table]` header opens, every following
@@ -2986,9 +3013,14 @@ _cma_kimi_render_config() {
     printf 'provider = "%s"\n' "$id"
     printf 'model = "%s"\n' "$strong"
     printf 'max_context_size = %s\n' "$ctx"
+    printf 'max_output_size = %s\n' "$max_out"
     printf 'capabilities = [ "tool_use", "thinking" ]\n'
   } > "$tmp"
-  ( umask 077; mv -f "$tmp" "$kdir/config.toml" ) 2>/dev/null
+  if ! ( umask 077; mv -f "$tmp" "$kdir/config.toml" ) 2>/dev/null; then
+    rm -f "$tmp"
+    cma_warn "kimi config: could not write $kdir/config.toml — kimi-$id twin will be refused"
+    return 1
+  fi
   return 0
 }
 
@@ -3156,7 +3188,7 @@ cmd_sync() {
     # cma_status_write (operator decision "Gate on verification").
     # Excluded ids (kc-*, kimi-*) are a no-op.
     if (( KIMI_ALIASES )); then
-      _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
+      _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" "$max_out" || true
     fi
 
     # Pi CLI twin (v1.28.0): `pi-<id>` = Pi CLI over the SAME backend.
@@ -3330,9 +3362,10 @@ cmd_helixllm_export() {
     # status record is `verified`; until then this call is a no-op/drop and the
     # session-refresh path restores the line once a sync verifies it.
     # Excluded ids (kc-*, kimi-*) are a no-op.
+    # Config FIRST: the twin gate requires the rendered config.toml.
     if (( KIMI_ALIASES )); then
+      _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" "$max_out" || true
       _cma_kimi_twin_alias "$pid" || true
-      _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
     fi
 
     # Pi CLI twin — mirrors the Kimi twin logic for Pi CLI agent.
@@ -4057,7 +4090,7 @@ cmd_sync_multi() {
       # The twin LINE is emitted after the status write below (gate on
       # verification); only the config is rendered here.
       if (( KIMI_ALIASES )); then
-        _cma_kimi_render_config "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$alias_ctx" || true
+        _cma_kimi_render_config "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$alias_ctx" "$alias_max" || true
       fi
 
       # Pi CLI twin for multi aliases: one pi-<aname> alias + config.toml
@@ -4619,6 +4652,13 @@ if (( REFRESH_ALIASES )); then
       # `helixllm-export --apply`), which is the only writer of that file, and
       # both then restore the twin here on the next shell start.
       if (( KIMI_ALIASES )) && [[ -f "$HOME/.kimi-prov-$_rid/config.toml" ]]; then
+        _cma_kimi_twin_alias "$_rid" 2>/dev/null || true
+      elif (( KIMI_ALIASES )) && grep -qxF "alias kimi-$_rid=\"cma_run_kimi_provider $_rid\"" "$ALIAS_FILE" 2>/dev/null; then
+        # Known-issue 36: the config is gone but a canonical twin line remains.
+        # Never restore here, only DROP — the gate inside _cma_kimi_twin_alias
+        # refuses the config-less twin and removes the toolkit-written line.
+        # Guarded by the exact-line grep so a settled file stays a zero-write
+        # no-op on every shell start.
         _cma_kimi_twin_alias "$_rid" 2>/dev/null || true
       fi
       if (( PI_ALIASES )) && [[ -f "$HOME/.pi-prov-$_rid/models.json" ]]; then
