@@ -2,6 +2,101 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.2 — 2026-10-05 — `quota`/`limits` patch: review and known-issues fixes
+
+Patch release for `quota`/`limits`. It continues the v1.30.1 patch by fixing
+the remaining findings of the post-release review and of the known-issues
+register. Each fix was made under the subagent-driven TDD and independent-review
+discipline: a fresh implementer, a fresh reviewer, and a scoped re-review after
+any fix round. Known limitations are listed explicitly below.
+
+### Fixed
+
+- **T028 — quota test reached the real network on a cache miss.** The test
+  ran against the tracked endpoints file, which names a real host. It now runs
+  against an isolated loopback copy, and a guard refuses any probe to a
+  non-loopback host.
+
+- **Account de-duplication by key value.** Accounts that hold the same secret
+  under different variable names are now grouped by a SHA-256 digest of the
+  value plus base URL. The value and the digest are never printed, traced, or
+  written. Empty or undefined keys never merge. Kimi OAuth aliases still group
+  by variable name and base URL, because they share one subscription token.
+
+- **Kimi session end rule (operator decision).** A Kimi session is reported as
+  `session_expired` only when the refresh token's JWT `exp` has passed. Access
+  token expiry is a normal refresh and is never a failure. An unparseable
+  refresh token degrades to `ok`.
+
+- **TLS error surfaced in probe failure detail.** A certificate or handshake
+  failure now reports the real TLS error text, with the probe's own key and
+  URL query redacted, instead of the generic "connection failed or timed out".
+
+- **Kimi twin aliases emitted only for verified providers.** A `kimi-<id>`
+  twin is written only when the provider's status is `verified`, matching the
+  Claude alias gate. Stale twin lines for unverified, failed, or removed
+  providers are removed on sync. User-authored lines that share a twin's name
+  are never removed. A dotted provider id is matched literally.
+
+- **Release gate fails closed on malformed quota output.** The release gate and
+  the run-proof quota leg now fail when the quota output is not valid JSON, has
+  the wrong shape, has non-object rows, or has every provider probe failed. Each
+  count is checked before any comparison.
+
+- **Proof tree untracked.** Volatile proof output moved to a git-ignored folder.
+  Only three curated files remain tracked. Proof writers now publish atomically.
+  The captured LAN address is redacted at capture time. The LAN address remains
+  in git history, which is not rewritten.
+
+- **Hard probe deadline without coreutils.** When the `timeout` binary is absent,
+  a stdlib watchdog bounds a probe at its deadline and returns the existing
+  `probe_failed` shape.
+
+- **Lock-wait clamp.** The quota cache lock wait is clamped to at least the
+  stale-lock grace plus one second, so a stale lock is always broken. The busy
+  warning reports the observed elapsed time.
+
+- **Pipefail-unsafe pipes.** 42 `echo | grep -q` and `printf | grep -q` pipes
+  across six test files were converted to here-strings. A pipefail SIGPIPE
+  could falsely fail them.
+
+- **Strengthened quota tests.** Weak assertions were replaced with ones that
+  fail against deliberately broken code: `--fresh` handling, probe-run
+  counting, Claude `expiresAt` ignored, Kimi auth state, the cache-write race,
+  and the blocked-account line.
+
+### Known limitations
+
+- **Kimi-leg failures (known-failing, documented).** Some Kimi-leg checks fail
+  for environment reasons: providers out of credit (HTTP 402) and local backends
+  at their context limits (HTTP 413 and 400). These are recorded as known-failing
+  and do not block this release. They are not passes.
+
+- **HawkScan not run.** The HawkScan DAST run was not executed: `HAWK_API_KEY`
+  is not set on this host and no application is running. Security scanning for
+  this release is limited to the independent code reviews and the test suite.
+
+- **Native usage windows not available.** Claude and Kimi OAuth subscriptions
+  expose no documented usage endpoint, so native accounts show authentication
+  state only, with no usage windows. A Kimi usage probe that would confirm an
+  undocumented endpoint has not been run; it requires a fresh Kimi login.
+
+- **Claude session expiry.** Claude session expiry is derived from
+  `refreshTokenExpiresAt` in `.credentials.json`. The access-token `expiresAt`
+  is not used.
+
+- **OpenRouter uncapped keys.** An uncapped OpenRouter key reports no limit, so
+  no usage window can be shown for it.
+
+- **Cache-version bump deferred.** The probe cache schema version was not
+  bumped. Stale empty entries are rejected by the cache filter instead, so
+  existing caches are repaired without a version change.
+
+### Earlier release
+
+The v1.30.1 patch and its de-duplication correction are described in the
+v1.30.1 section above. That section is unchanged.
+
 ## v1.30.1 — 2026-10-05 — `quota`/`limits` patch: post-release review fixes
 
 Patch release for `quota`/`limits` (introduced in v1.30.0). An independent
