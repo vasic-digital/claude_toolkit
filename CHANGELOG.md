@@ -50,6 +50,11 @@ were backed up to scratch before removal. The test is now gated behind
 - Kimi-leg failures from out-of-credit providers (HTTP 402) and local-backend
   context limits are documented as known-failing and do not block this release.
 
+- Commit trailer mismatch: earlier commits in the v1.30.0 to v1.30.2 review batches
+  carry a `Co-Authored-By: Claude Opus 5.5` trailer (2 commits in 7078213..HEAD).
+  Commit history cannot be rewritten, so the trailers remain; from the operator
+  decision onward, commits use `Claude Sonnet 5`.
+
 ## v1.30.2 — 2026-10-05 — `quota`/`limits` patch: review and known-issues fixes
 
 Patch release for `quota`/`limits`. It continues the v1.30.1 patch by fixing
