@@ -3504,49 +3504,95 @@ CMA_SHARED_ITEMS=(
 cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
 
 # _cma_quota_group_accounts: one JSON object per line, one per distinct
-# real Provider Account (data-model.md §2). alias_names covers every
-# $ALIAS_FILE line that launches this SAME provider id, across every
-# family wrapper (cma_run_provider / cma_run_kimi_provider /
-# cma_run_pi_provider) -- this is the real cross-family sharing
-# mechanism; there is never a second .env file for the same id.
+# REAL account (data-model.md §2). Two dedup axes, both real:
+# (a) cross-family alias sharing -- multiple $ALIAS_FILE lines
+#     launching the SAME .env file via different family wrappers
+#     (cma_run_provider / cma_run_kimi_provider / cma_run_pi_provider);
+# (b) same-credential multi-instance sharing -- multiple SEPARATE .env
+#     files (different CMA_PROVIDER_ID, since cma_provider_write_env
+#     always makes the filename equal the id) carrying the IDENTICAL
+#     CMA_PROVIDER_KEYVAR + CMA_PROVIDER_BASE_URL (e.g. openrouter/
+#     openrouter2/openrouter3 from a --multi sync or repeated add --
+#     T038-independent-review finding C2, confirmed live: 5 real .env
+#     files, 1 real key, used to render as 5 rows with 4 false
+#     "not reported by provider" statuses).
+# Grouped by (keyvar, base_url) -- NEVER on an empty/missing keyvar,
+# which proves nothing about shared identity (falls back to the pid
+# itself as a unique key, preserving today's 1:1 behavior for a
+# provider with no keyvar on record). Bash-3.2-safe: plain indexed
+# arrays + linear search, no associative arrays.
 _cma_quota_group_accounts() {
   local pdir; pdir="$(cma_providers_dir)"
   [[ -d "$pdir" ]] || return 0
   compgen -G "$pdir"/*.env >/dev/null 2>&1 || return 0
 
-  # CMA_QUOTA_ENDPOINTS_FILE override (T029): same documented rationale as
-  # claude-providers.sh's CMA_PROVIDERS_KEY_ALIASES / CMA_PROVIDERS_OVERRIDES
-  # -- lets the hermetic test suite point this lookup at an isolated sandbox
-  # copy instead of the TRACKED scripts/providers/quota-endpoints.json, which
-  # documents only real external endpoints (no test may dial them).
   local endpoints_file="${CMA_QUOTA_ENDPOINTS_FILE:-${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json}"
-  local f pid base names_json spec_present
+  local f pid base keyvar dedup_key
+
+  local -a _dk=() _db=() _dp=()
 
   for f in "$pdir"/*.env; do
     [[ -f "$f" ]] || continue
-    # Isolated sourcing so nothing from the env file leaks into this
-    # process (the same convention cma_provider_write_env's callers use,
-    # e.g. scripts/claude-providers.sh:3340).
     # shellcheck disable=SC1090
     pid="$( ( unset CMA_PROVIDER_ID; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_ID:-}" ) )"
     base="$( ( unset CMA_PROVIDER_BASE_URL; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_BASE_URL:-}" ) )"
+    keyvar="$( ( unset CMA_PROVIDER_KEYVAR; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_KEYVAR:-}" ) )"
     [[ -n "$pid" ]] || continue
 
-    names_json="[]"
-    if [[ -f "${ALIAS_FILE:-}" ]]; then
-      names_json="$(
-        grep -E "^alias [a-zA-Z0-9_-]+=\"cma_run_(provider|kimi_provider|pi_provider) ${pid}\"\$" "$ALIAS_FILE" 2>/dev/null \
-          | sed -E 's/^alias ([a-zA-Z0-9_-]+)=.*/\1/' \
-          | jq -R . | jq -s .
-      )"
+    if [[ -n "$keyvar" ]]; then
+      dedup_key="${keyvar}|${base}"
+    else
+      dedup_key="__nokey__|${pid}"
     fi
 
+    local _found=0 _i
+    for (( _i = 0; _i < ${#_dk[@]}; _i++ )); do
+      if [[ "${_dk[$_i]}" == "$dedup_key" ]]; then
+        _dp[$_i]+=" $pid"
+        _found=1
+        break
+      fi
+    done
+    if (( ! _found )); then
+      _dk+=("$dedup_key")
+      _db+=("$base")
+      _dp+=("$pid")
+    fi
+  done
+
+  local group_idx member_pid names_json spec_present rep_pid
+  local -a all_names
+  for (( group_idx = 0; group_idx < ${#_dk[@]}; group_idx++ )); do
+    base="${_db[$group_idx]}"
+    rep_pid=""
+    all_names=()
+    for member_pid in ${_dp[$group_idx]}; do
+      if [[ -f "${ALIAS_FILE:-}" ]]; then
+        while IFS= read -r _name; do
+          [[ -n "$_name" ]] || continue
+          all_names+=("$_name")
+        done < <(
+          grep -E "^alias [a-zA-Z0-9_-]+=\"cma_run_(provider|kimi_provider|pi_provider) ${member_pid}\"\$" "$ALIAS_FILE" 2>/dev/null \
+            | sed -E 's/^alias ([a-zA-Z0-9_-]+)=.*/\1/'
+        )
+      fi
+      [[ -z "$rep_pid" ]] && rep_pid="$member_pid"
+      if [[ -f "$endpoints_file" ]] && jq -e --arg id "$member_pid" 'has($id)' "$endpoints_file" >/dev/null 2>&1; then
+        rep_pid="$member_pid"
+      fi
+    done
+
+    if (( ${#all_names[@]} > 0 )); then
+      names_json="$(printf '%s\n' "${all_names[@]}" | jq -R . | jq -s .)"
+    else
+      names_json="[]"
+    fi
     spec_present="false"
-    if [[ -f "$endpoints_file" ]] && jq -e --arg id "$pid" 'has($id)' "$endpoints_file" >/dev/null 2>&1; then
+    if [[ -f "$endpoints_file" ]] && jq -e --arg id "$rep_pid" 'has($id)' "$endpoints_file" >/dev/null 2>&1; then
       spec_present="true"
     fi
 
-    jq -nc --arg pid "$pid" --arg base "$base" --argjson names "$names_json" --argjson present "$spec_present" \
+    jq -nc --arg pid "$rep_pid" --arg base "$base" --argjson names "$names_json" --argjson present "$spec_present" \
       '{provider_id: $pid, alias_names: $names, base_url: $base, endpoint_spec_present: $present}'
   done
 }

@@ -327,6 +327,34 @@ assert_eq "1" "$count" "exactly one record for the deepseek provider account"
 names="$(echo "$out" | jq -r 'select(.provider_id=="deepseek") | .alias_names[]' | sort | tr '\n' ',')"
 assert_eq "deepseek,kimi-deepseek," "$names" "alias_names covers both the bare and the kimi-twin alias"
 
+# --- C2 fix: same-credential multi-instance dedup axis (T038-independent-review) ----
+#
+# The deepseek test above proves the CROSS-FAMILY axis (one .env file, multiple
+# alias lines). This test proves the OTHER axis: multiple SEPARATE .env files
+# (different CMA_PROVIDER_ID, since cma_provider_write_env always makes the
+# filename equal the id) sharing the IDENTICAL CMA_PROVIDER_KEYVAR +
+# CMA_PROVIDER_BASE_URL -- the real openrouter/openrouter2/openrouter3/.../
+# openrouter5 shape confirmed live on this host (5 real .env files, 1 real
+# key, used to render as 5 rows with 4 false "not reported by provider"
+# statuses before this fix).
+
+it "_cma_quota_group_accounts dedupes multiple .env files sharing the same keyvar+base_url (same-credential multi-instance axis)"
+cma_provider_write_env sharedkey1 SHARED_TEST_KEY router \
+  "https://api.sharedtest.example/v1" model1 model1 \
+  "$HOME/.claude-prov-sharedkey1" 128000 8192 sharedkey1
+cma_provider_write_env sharedkey2 SHARED_TEST_KEY router \
+  "https://api.sharedtest.example/v1" model2 model2 \
+  "$HOME/.claude-prov-sharedkey2" 128000 8192 sharedkey2
+cat >> "$ALIAS_FILE" <<'EOF'
+alias sharedkey1="cma_run_provider sharedkey1"
+alias sharedkey2="cma_run_provider sharedkey2"
+EOF
+out="$(_cma_quota_group_accounts)"
+count="$(echo "$out" | jq -r 'select(.base_url=="https://api.sharedtest.example/v1")' | jq -s 'length')"
+assert_eq "1" "$count" "two .env files sharing the same keyvar+base_url must collapse into ONE row"
+names="$(echo "$out" | jq -r 'select(.base_url=="https://api.sharedtest.example/v1") | .alias_names | sort | join(",")')"
+assert_eq "sharedkey1,sharedkey2" "$names" "the merged row's alias_names must list BOTH distinct .env-backed ids"
+
 # --- T014: failing test for _cma_quota_list_native_accounts (not yet implemented) ----
 #
 # Task 14 introduces the NOT-YET-EXISTING bash function _cma_quota_list_native_accounts.
