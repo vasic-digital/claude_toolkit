@@ -56,6 +56,8 @@ cat > "$CACHE" <<'JSON'
                        "s":{"id":"acme-small","reasoning":false,"release_date":"2024-01-01","limit":{"context":32000},"cost":{"input":0.1,"output":0.4},"tool_call":true}}},
   "beta":   {"env":["BETA_API_KEY"],"api":"https://api.beta.ai/v1","npm":"@ai-sdk/openai-compatible",
              "models":{"f":{"id":"beta-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}}},
+  "gamma":  {"env":["GAMMA_API_KEY"],"api":"https://api.gamma.ai/v1","npm":"@ai-sdk/openai-compatible",
+             "models":{"g":{"id":"gamma-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}}},
   "kimi-for-coding":{"env":["KIMI_API_KEY"],"api":"https://api.kimi.com/coding/v1","npm":"@ai-sdk/openai-compatible",
              "models":{"k":{"id":"kimi-for-coding","reasoning":true,"release_date":"2025-08-01","limit":{"context":262144},"cost":{"input":0,"output":0},"tool_call":true}}}
 }
@@ -69,6 +71,7 @@ KEYS="$HOME/api_keys.sh"
 cat > "$KEYS" <<'SH'
 export ACME_API_KEY="dummy-acme"
 export BETA_API_KEY="dummy-beta"
+export GAMMA_API_KEY="dummy-gamma"
 export KIMI_API_KEY="dummy-kimi"
 SH
 keyaliases="$HOME/key-aliases.json"
@@ -82,6 +85,24 @@ JSON
 export CMA_PROVIDERS_KEY_ALIASES="$keyaliases"
 export CMA_PROVIDERS_OVERRIDES="$overrides"
 export CMA_PROVIDERS_LEGACY_RENAMES="$legacy"
+
+# Stub verifier (CMA_PROVIDERS_VERIFY is the documented override knob): prints
+# the verdict named for --provider in $VERDICTS ("<id> <verdict>" lines),
+# default `verified`. --offline (always passed below) skips the semantic layer,
+# so this stub's verdict IS the status the sync records. No network, no keys.
+VERDICTS="$HOME/verdicts.txt"; : > "$VERDICTS"
+VERIFY_STUB="$HOME/verify-stub.sh"
+cat > "$VERIFY_STUB" <<'SH'
+#!/usr/bin/env bash
+p=""
+while [ $# -gt 0 ]; do case "$1" in --provider) p="$2"; shift 2 ;; *) shift ;; esac; done
+v="$(awk -v p="$p" '$1==p {print $2}' "$VERDICTS" 2>/dev/null)"
+echo "${v:-verified}"
+SH
+chmod +x "$VERIFY_STUB"
+export VERDICTS
+set_verdicts() { printf '%s\n' "$@" > "$VERDICTS"; }
+vsync() { CMA_PROVIDERS_VERIFY="$VERIFY_STUB" bash "$PROVIDERS_SH" sync --offline --keys-file "$KEYS" "$@" >/dev/null 2>&1; }
 
 # The wrapper is invoked as a SUBPROCESS exactly like test_providers.sh, so the
 # twin/config emission is tested through the real dispatch path rather than by
@@ -105,8 +126,28 @@ assert_eq 0 "$_t" "no kimi-acme twin with --no-kimi-aliases"
 # ===========================================================================
 # Section 2 — plain sync: twins + config.toml for every non-kc-*/kimi-* id
 # ===========================================================================
+# ===========================================================================
+# Section 1b — operator decision "Gate on verification": a kimi-<id> twin is
+# emitted ONLY for a provider whose status record is `verified` (the same
+# status.json record the Claude alias launch gate reads via cma_status_read).
+# ===========================================================================
+it "gate: a failed or unverified provider gets NO kimi-<id> twin after sync"
+set_verdicts "beta unverified" "gamma failed"
+vsync; assert_eq 0 $? "mixed-verdict sync exits cleanly"
+assert_eq "unverified" "$(cma_status_read beta)" "precondition: beta recorded unverified"
+assert_eq "failed" "$(cma_status_read gamma)" "precondition: gamma recorded failed"
+grep -q '^alias kimi-beta=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "no kimi-beta twin for an UNVERIFIED provider"
+grep -q '^alias kimi-gamma=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "no kimi-gamma twin for a FAILED provider"
+
+it "gate: a verified provider gets its kimi-<id> twin after sync"
+assert_eq "verified" "$(cma_status_read acme)" "precondition: acme recorded verified"
+grep -q '^alias kimi-acme="cma_run_kimi_provider acme"$' "$ALIAS_FILE"; assert_eq 0 $? "kimi-acme twin emitted for the VERIFIED provider"
+
 it "sync emits kimi-<id> twins and config.toml for every real provider"
-bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+set_verdicts
+vsync
 sync_rc=$?
 assert_eq 0 "$sync_rc" "plain sync exits cleanly"
 grep -q '^alias kimi-acme="cma_run_kimi_provider acme"$' "$ALIAS_FILE"; assert_eq 0 $? "kimi-acme twin -> cma_run_kimi_provider acme"
@@ -136,6 +177,37 @@ grep -q '^api_key = "dummy-beta"$' "$bt"; assert_eq 0 $? "beta api_key resolved 
 
 it "no kimi config dir for the kc-* id"
 [[ ! -d "$HOME/.kimi-prov-kc-for-coding" ]]; assert_eq 0 $? "kc-for-coding renders no config (no kimi twin)"
+
+# ===========================================================================
+# Section 2b — reconcile: a twin that is no longer emitted (provider demoted
+# from verified, or gone entirely) has its stale kimi-<id> line removed by
+# sync, through cma_alias_commit; a second sync then changes nothing.
+# ===========================================================================
+it "reconcile: stale kimi-<id> lines for unverified/failed/removed providers are dropped; 2nd sync is a no-op"
+grep -q '^alias kimi-beta=' "$ALIAS_FILE"; assert_eq 0 $? "precondition: kimi-beta twin exists (beta was verified)"
+grep -q '^alias kimi-gamma=' "$ALIAS_FILE"; assert_eq 0 $? "precondition: kimi-gamma twin exists (gamma was verified)"
+# A twin whose provider no longer exists at all (no key, no catalog entry, no
+# status record) — the shape of the stale lines found in a real alias file.
+cma_alias_commit "" 'alias kimi-ghost="cma_run_kimi_provider ghost"' keep
+grep -q '^alias kimi-ghost=' "$ALIAS_FILE"; assert_eq 0 $? "precondition: stale kimi-ghost line seeded"
+set_verdicts "beta unverified" "gamma failed"
+vsync; assert_eq 0 $? "demoting sync exits cleanly"
+grep -q '^alias kimi-beta=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "stale kimi-beta line removed (beta now unverified)"
+grep -q '^alias kimi-gamma=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "stale kimi-gamma line removed (gamma now failed)"
+grep -q '^alias kimi-ghost=' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "stale kimi-ghost line removed (provider gone)"
+grep -q '^alias kimi-acme="cma_run_kimi_provider acme"$' "$ALIAS_FILE"; assert_eq 0 $? "verified kimi-acme twin kept"
+grep -q '^alias beta=' "$ALIAS_FILE"; assert_eq 0 $? "base beta alias untouched by twin reconciliation"
+ls "$ALIAS_FILE".rejected.* >/dev/null 2>&1 && _t=1 || _t=0
+assert_eq 0 "$_t" "no rejected alias render (committer gate accepted every drop)"
+_sum1="$(cksum < "$ALIAS_FILE")"
+_ino1="$(ls -i "$ALIAS_FILE" | awk '{print $1}')"
+vsync; assert_eq 0 $? "second sync exits cleanly"
+assert_eq "$_sum1" "$(cksum < "$ALIAS_FILE")" "second sync leaves the alias file byte-identical"
+assert_eq "$_ino1" "$(ls -i "$ALIAS_FILE" | awk '{print $1}')" "second sync performed no rename onto the alias file"
+set_verdicts
 
 # ===========================================================================
 # Section 3 — remove <id> tears down the twin alias + both config dirs

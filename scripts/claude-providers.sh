@@ -68,8 +68,11 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 : "${CMA_SYNC_MULTI:=1}"
 : "${CMA_SYNC_INCLUDE_PAID:=0}"
 # Per-provider Kimi Code twin aliases (`kimi-<id>` -> `cma_run_kimi_provider`).
-# On by default; --no-kimi-aliases turns emission off for a run (existing twins
-# are only ever removed by `remove`/`prune`, never silently dropped).
+# On by default; --no-kimi-aliases turns emission AND twin reconciliation off for
+# a run (existing twins are then left exactly as they are). With it on, a twin
+# exists ONLY for a provider whose status record is `verified` (operator
+# decision "Gate on verification"): see _cma_kimi_twin_alias and
+# _cma_kimi_twin_reconcile.
 : "${KIMI_ALIASES:=1}"
 # Per-provider Pi CLI twin aliases (`pi-<id>` -> `cma_run_pi_provider`), mirrors
 # KIMI_ALIASES immediately above. Root-caused via an independent deterministic-
@@ -2728,6 +2731,14 @@ cmd_migrate_names() {
 # never get a kimi-kc-* twin; legacy kimi-* ids are being vacated so never get
 # a kimi-kimi-* twin either (they migrate to kc-*). Excluded ids still return 0
 # (absence is the contract, not an error).
+#
+# GATE ON VERIFICATION (operator decision): the twin line is emitted ONLY when
+# the provider's status record is `verified` — read through cma_status_read, the
+# SAME status.json reader the Claude alias launch gate uses (no second reader).
+# Any other status (unverified, failed, orphaned, pending/absent) RECONCILES
+# instead: an existing kimi-<id> line is dropped through cma_alias_commit, whose
+# no-op guard makes the drop of an absent line a zero-write no-op. Callers must
+# therefore invoke this AFTER the run's cma_status_write for <id>, never before.
 _cma_kimi_twin_alias() {
   local id="$1"
   case "$id" in
@@ -2735,7 +2746,33 @@ _cma_kimi_twin_alias() {
   esac
   case "$id" in *[!A-Za-z0-9._-]*) return 1 ;; esac
   local twin="kimi-$id"
-  cma_alias_commit "$twin" "$(printf 'alias %s="cma_run_kimi_provider %s"' "$twin" "$id")" keep 2>/dev/null || return 1
+  if [[ "$(cma_status_read "$id")" == "verified" ]]; then
+    cma_alias_commit "$twin" "$(printf 'alias %s="cma_run_kimi_provider %s"' "$twin" "$id")" keep 2>/dev/null || return 1
+  else
+    cma_alias_commit "$twin" "" keep 2>/dev/null || return 1
+  fi
+  return 0
+}
+
+# Reconcile every kimi-<id> twin line already in $ALIAS_FILE against the gate
+# above. The per-record call only reaches ids the CURRENT run resolved; a twin
+# whose provider was removed, orphaned, or renamed away is reached by nobody,
+# and that is how stale `kimi-` lines accumulated in a real alias file with
+# nothing ever reconciling them. Only lines of the exact canonical twin shape
+# (`alias kimi-X="cma_run_kimi_provider X"`, same X both sides) are considered —
+# the kimiN account aliases and any hand-written line are never touched. Every
+# drop goes through _cma_kimi_twin_alias -> cma_alias_commit; a settled file
+# yields zero writes (idempotent: a second sync changes nothing).
+_cma_kimi_twin_reconcile() {
+  [[ -f "$ALIAS_FILE" ]] || return 0
+  local tid
+  sed -n 's/^alias kimi-\([A-Za-z0-9._-]*\)="cma_run_kimi_provider \1"$/\1/p' "$ALIAS_FILE" \
+    | LC_ALL=C sort -u \
+    | while IFS= read -r tid; do
+        [[ -n "$tid" ]] || continue
+        [[ "$(cma_status_read "$tid")" == "verified" ]] && continue
+        _cma_kimi_twin_alias "$tid" || cma_warn "could not drop stale twin alias 'kimi-$tid'"
+      done
   return 0
 }
 
@@ -3080,6 +3117,8 @@ cmd_sync() {
       # stderr-prose regex mapper is now only a fallback for a verifier
       # implementation that predates the layer-file protocol.
       cma_status_write "$pid" failed "$model" "${_vlayer:-$(cma_verify_failing_layer "$_vreason")}"
+      # Gate on verification: a failed provider keeps no kimi-<id> twin.
+      (( KIMI_ALIASES )) && { _cma_kimi_twin_alias "$pid" || true; }
       n_disabled=$((n_disabled+1))
       continue
     fi
@@ -3089,12 +3128,12 @@ cmd_sync() {
     cma_provider_write_alias "$alias" "$pid"
 
     # Kimi Code twin (v1.27.0): `kimi-<id>` = Kimi CLI over the SAME backend.
-    # Emission is independent of verify status (the launch gate in lib.sh is
-    # the single status.json gate for both twins). Excluded ids (kc-*, kimi-*)
-    # are a no-op. Config.toml is the file the Kimi CLI actually reads at
-    # launch — render it here so a bare sync produces a usable kimi alias.
+    # Config.toml is the file the Kimi CLI actually reads at launch — render it
+    # here so a bare sync produces a usable kimi alias. The twin ALIAS LINE is
+    # gated on verification and is therefore emitted below, after this run's
+    # cma_status_write (operator decision "Gate on verification").
+    # Excluded ids (kc-*, kimi-*) are a no-op.
     if (( KIMI_ALIASES )); then
-      _cma_kimi_twin_alias "$pid" || true
       _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
     fi
 
@@ -3140,6 +3179,9 @@ cmd_sync() {
       flayer="${_vlayer:-unknown}"
     fi
     cma_status_write "$pid" "$vstatus" "$model" "$flayer"
+    # Twin line AFTER the status write: emitted only when that status is
+    # `verified`, dropped (stale-line reconciliation) otherwise.
+    (( KIMI_ALIASES )) && { _cma_kimi_twin_alias "$pid" || true; }
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
   done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
@@ -3149,6 +3191,9 @@ cmd_sync() {
   # warned about — never silently left trusting a stale 'verified' forever.
   # Skipped under --dry-run (nothing else in a dry-run sync is written either).
   (( DRY_RUN )) || cma_demote_orphans "$resolved_ids"
+  # Reconcile stale kimi-<id> twin lines (removed/orphaned/no-longer-verified
+  # providers) — after the orphan demotion so a just-orphaned id is dropped too.
+  if (( ! DRY_RUN )) && (( KIMI_ALIASES )); then _cma_kimi_twin_reconcile; fi
 
   cma_log "sync done: $n_created active, $n_disabled disabled (failed verify), $n_skipped not-resolved"
   cma_log "reload your shell or: source $ALIAS_FILE"
@@ -3258,9 +3303,11 @@ cmd_helixllm_export() {
     # absence here was the whole defect: an exported record got a `claude` alias
     # and no `kimi-` twin, so `kimi-<id>` simply did not exist for any model that
     # arrived through the export path — while the two other paths produced twins
-    # normally, making the gap look like an intermittent one. Emission is
-    # independent of verify status; the launch gate in lib.sh is the single
-    # status.json gate for both twins. Excluded ids (kc-*, kimi-*) are a no-op.
+    # normally, making the gap look like an intermittent one. The twin LINE is
+    # gated on verification (operator decision): it appears only once <id>'s
+    # status record is `verified`; until then this call is a no-op/drop and the
+    # session-refresh path restores the line once a sync verifies it.
+    # Excluded ids (kc-*, kimi-*) are a no-op.
     if (( KIMI_ALIASES )); then
       _cma_kimi_twin_alias "$pid" || true
       _cma_kimi_render_config "$pid" "$keyvar" "$transport" "$base" "$model" "$ctx_limit" || true
@@ -3985,8 +4032,9 @@ cmd_sync_multi() {
       # Kimi Code twin for multi aliases: one kimi-<aname> alias + config.toml
       # per generated Claude alias (same shared status gate; excluded kc-*/kimi-*
       # ids are a no-op). Only the strong model is forwarded on the Kimi side.
+      # The twin LINE is emitted after the status write below (gate on
+      # verification); only the config is rendered here.
       if (( KIMI_ALIASES )); then
-        _cma_kimi_twin_alias "$aname" || true
         _cma_kimi_render_config "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$alias_ctx" || true
       fi
 
@@ -4010,6 +4058,7 @@ cmd_sync_multi() {
       else
         cma_status_write "$aname" unverified "$strong" existence
       fi
+      (( KIMI_ALIASES )) && { _cma_kimi_twin_alias "$aname" || true; }
 
       cma_log "  alias '$aname': strong=$strong fast=$ffast [$alias_transport]"
       n_created=$((n_created+1))
@@ -4018,6 +4067,7 @@ cmd_sync_multi() {
 
   done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
+  if (( ! DRY_RUN )) && (( KIMI_ALIASES )); then _cma_kimi_twin_reconcile; fi
   cma_log "multi-sync done: $n_created aliases created across all providers"
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
