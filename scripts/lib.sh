@@ -3565,7 +3565,7 @@ _cma_quota_group_accounts() {
     fi
   done
 
-  local group_idx member_pid names_json spec_present rep_pid
+  local group_idx member_pid names_json spec_present rep_pid _name
   local -a all_names
   for (( group_idx = 0; group_idx < ${#_dk[@]}; group_idx++ )); do
     base="${_db[$group_idx]}"
@@ -3634,7 +3634,9 @@ _cma_quota_list_native_accounts() {
       refresh_exp="$(jq -r '.claudeAiOauth.refreshTokenExpiresAt // empty' "$d/.credentials.json" 2>/dev/null)" || refresh_exp=""
       if [[ "$refresh_exp" =~ ^[0-9]+$ ]]; then
         now_ms=$(( $(date +%s) * 1000 ))
-        (( refresh_exp < now_ms )) && auth_state="session_expired"
+        # 10# forces decimal: a leading-zero string ("0999") would
+        # otherwise be read as octal and print a base error to stderr.
+        (( 10#$refresh_exp < now_ms )) && auth_state="session_expired"
       fi
       # A non-numeric/missing refreshTokenExpiresAt with a credentials
       # file present stays "ok" -- never guess a failure from an

@@ -424,6 +424,48 @@ out_auth="$(_cma_quota_list_native_accounts)"
 auth_nosignin="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudeauthnosignin")) | .auth_state')"
 assert_eq "not_signed_in" "$auth_nosignin" "a missing .credentials.json file yields auth_state=not_signed_in"
 
+# --- B1 release gate: C1 octal noise + C2 loop-variable leak -----------------
+#
+# C1: a numeric-looking refreshTokenExpiresAt STRING with a leading zero
+# ("0999") passed the ^[0-9]+$ guard and was then read by (( )) as an
+# octal literal, printing `((: 0999: value too great for base` to the
+# user's stderr. The compare must force decimal (10#). Each fixture runs
+# in a subshell with its OWN mktemp HOME so the extra account dirs never
+# reach the shared sandbox the end-to-end cmd_quota tests below reuse.
+# stderr is captured separately from stdout and must be EMPTY.
+
+_b1_native_probe() {   # $1 = refreshTokenExpiresAt JSON value; prints "<auth_state>\n<stderr bytes>"
+  local b1_home; b1_home="$(mktemp -d "${TMPDIR:-/tmp}/cma-test.b1.XXXXXX")"
+  mkdir -p "$b1_home/.claude-b1octal"
+  printf '{}\n' > "$b1_home/.claude-b1octal/.claude.json"
+  printf '{"claudeAiOauth": {"refreshTokenExpiresAt": %s}}\n' "$1" > "$b1_home/.claude-b1octal/.credentials.json"
+  (
+    export HOME="$b1_home"
+    out="$(_cma_quota_list_native_accounts 2>"$b1_home/stderr")"
+    echo "$out" | jq -r 'select(.account_id=="b1octal") | .auth_state'
+    wc -c < "$b1_home/stderr" | tr -d ' '
+    cat "$b1_home/stderr" >&2
+  )
+  rm -rf "$b1_home"
+}
+
+it "_cma_quota_list_native_accounts: leading-zero refreshTokenExpiresAt (\"0999\") prints NOTHING to stderr (C1 octal noise)"
+b1_res="$(_b1_native_probe '"0999"')"
+assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "a leading-zero numeric string must not leak an arithmetic-base error to stderr"
+
+it "_cma_quota_list_native_accounts: leading-zero FUTURE refreshTokenExpiresAt is read as decimal -> auth_state=ok, stderr empty"
+b1_res="$(_b1_native_probe '"09999999999999"')"
+assert_eq "ok" "$(echo "$b1_res" | sed -n 1p)" "a leading-zero future expiry (decimal 9999999999999 ms) yields auth_state=ok"
+assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "and nothing is printed to stderr"
+
+# C2: `while IFS= read -r _name` in _cma_quota_group_accounts did not
+# declare _name local, so it leaked into the CALLER's scope. Run in a
+# subshell so the probe cannot pollute this file's own scope either; the
+# deepseek fixture above guarantees the read loop actually executes.
+it "_cma_quota_group_accounts does NOT leak its loop variable _name into the caller (C2)"
+b1_leak="$( unset _name; _cma_quota_group_accounts >/dev/null 2>&1; if declare -p _name >/dev/null 2>&1; then echo leaked; else echo clean; fi )"
+assert_eq "clean" "$b1_leak" "_name must be function-local, unset in the caller after the call"
+
 # --- T022: end-to-end cmd_quota() wiring tests -------------------------------
 #
 # T022 wires cmd_quota() to actually call _cma_quota_probe_all (T017) and
