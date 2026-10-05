@@ -4127,8 +4127,18 @@ print(json.dumps(rec) if rec else '')
     else
       (
         set +e
-        result="$(timeout "$(( timeout + 1 ))" python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
-          --spec-file "$spec_file" --api-key-env "$keyvar" --timeout "$timeout" 2>/dev/null)"
+        # Outer OS-level backstop (I3): coreutils `timeout` is absent on stock
+        # macOS, so probe for it and fall back to the bare call unchanged --
+        # an unguarded `timeout` would exit 127 on every live probe there and
+        # degrade all of them to probe_failed. Same guard shape as the llmctl
+        # probes above (`command -v timeout`). Python args are identical.
+        if command -v timeout >/dev/null 2>&1; then
+          result="$(timeout "$(( timeout + 1 ))" python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
+            --spec-file "$spec_file" --api-key-env "$keyvar" --timeout "$timeout" 2>/dev/null)"
+        else
+          result="$(python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
+            --spec-file "$spec_file" --api-key-env "$keyvar" --timeout "$timeout" 2>/dev/null)"
+        fi
         [[ -n "$result" ]] || result='{"windows":[],"account_blocked":false,"absence_reason":"probe_failed","absence_detail":"quota probe subprocess produced no output","http_status":null}'
         windows="$(jq -c '.windows // []' <<<"$result" 2>/dev/null)" || windows="[]"
         blocked="$(jq -c '.account_blocked // false' <<<"$result" 2>/dev/null)" || blocked="false"
@@ -4243,7 +4253,7 @@ cmd_quota() {
           cma_err "--timeout requires a value"
           return 1
         fi
-        if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        if [[ ! "$2" =~ ^[1-9][0-9]*$ ]]; then
           cma_err "--timeout requires a positive integer (got: $2)"
           return 1
         fi

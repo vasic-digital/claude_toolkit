@@ -818,4 +818,91 @@ assert_eq "1" "$rc_nan" "--timeout with a non-numeric value must return 1, not b
 echo "$out_nan" | grep -qi "timeout.*positive integer"
 assert_eq "0" "$?" "the error message must clearly name --timeout as requiring a positive integer"
 
+# Fix round 1 (independent review): the regex is now ^[1-9][0-9]*$ so that
+# "positive integer" is literally true -- 0 is rejected (not positive), and
+# a leading-zero value like 08 is rejected (it would be read as octal by
+# $(( timeout + 1 ))  and fail with "value too great for base").
+
+it "S1 (fix round 1): --timeout 0 returns 1 with the positive-integer error"
+out_zero="$(cmd_quota --timeout 0 2>&1)"
+rc_zero=$?
+assert_eq "1" "$rc_zero" "--timeout 0 must return 1 -- zero is not a positive integer"
+echo "$out_zero" | grep -qi "timeout.*positive integer"
+assert_eq "0" "$?" "--timeout 0 must produce the same positive-integer error message"
+
+it "S1 (fix round 1): --timeout 08 returns 1 with the positive-integer error (leading zero, would be octal)"
+out_08="$(cmd_quota --timeout 08 2>&1)"
+rc_08=$?
+assert_eq "1" "$rc_08" "--timeout 08 must return 1 -- leading zero is rejected, never read as octal"
+echo "$out_08" | grep -qi "timeout.*positive integer"
+assert_eq "0" "$?" "--timeout 08 must produce the same positive-integer error message"
+
+# --- Fix round 1 (blocker): live probe must work WITHOUT a `timeout` binary --
+#
+# Stock macOS ships no coreutils `timeout`. The live-probe branch used to
+# call `timeout ...` unconditionally, so there every live probe exited 127
+# and degraded to probe_failed. The fix falls back to the bare python3 call
+# when `command -v timeout` fails. This test proves that path: PATH is
+# narrowed to a dir holding symlinks to python3/jq/date/mktemp only (no
+# timeout), and a stub quota_probe.py (via LIB_DIR) returns a successful
+# window. The result must be a real live success, not probe_failed.
+
+it "blocker (fix round 1): live probe with NO timeout binary on PATH still yields a real result, not probe_failed"
+nt_bin="$HOME/.quota-notimeout-bin"
+nt_lib="$HOME/.quota-notimeout-lib"
+mkdir -p "$nt_bin" "$nt_lib"
+# Symlink EVERY executable from the standard system dirs EXCEPT `timeout`,
+# so the narrowed PATH is identical to the normal one minus exactly one tool
+# (guessing a minimal allowlist missed tools the orchestration needs).
+for d in /usr/bin /bin; do
+  [[ -d "$d" ]] || continue
+  for f in "$d"/*; do
+    b="$(basename "$f")"
+    [[ "$b" == "timeout" || -e "$nt_bin/$b" ]] && continue
+    [[ -x "$f" && -f "$f" ]] && ln -s "$f" "$nt_bin/$b"
+  done
+done
+nt_timeout_visible=0; PATH="$nt_bin" command -v timeout >/dev/null 2>&1 && nt_timeout_visible=1
+assert_eq "0" "$nt_timeout_visible" "precondition: the timeout binary must be genuinely unresolvable on the narrowed PATH (otherwise this test proves nothing)"
+
+cat > "$nt_lib/quota_probe.py" <<'PYEOF'
+import json, sys
+def load_quota_cache(path):
+    return {}
+def save_quota_cache(path, data):
+    return None
+if __name__ == "__main__":
+    print(json.dumps({"windows": [{"window": "subscription", "amount_used": 20,
+        "amount_remaining": 80, "limit_total": 100, "unit": "credits",
+        "percent_remaining": 80.0, "resets": False, "reset_at": None}],
+        "account_blocked": False, "absence_reason": None, "http_status": 200}))
+PYEOF
+
+nt_pdir="$(cma_providers_dir)"; mkdir -p "$nt_pdir"
+cma_provider_write_env quota-notimeout-fixture NOTIMEOUT_API_KEY router \
+  "http://127.0.0.1:1" quota-notimeout-fixture/test-model quota-notimeout-fixture/test-model \
+  "$HOME/.claude-prov-quota-notimeout-fixture" 128000 8192 quota-notimeout-fixture
+echo "alias quota-notimeout-fixture=\"cma_run_provider quota-notimeout-fixture\"" >> "$ALIAS_FILE"
+nt_spec="$HOME/.quota-notimeout-spec.json"
+jq -n '{"quota-notimeout-fixture": {url: "http://127.0.0.1:1/", auth: "bearer",
+  windows: [ { window: "subscription", signals: [ { path: [], type: "unit_literal", value: "credits" } ] } ]}}' > "$nt_spec"
+
+old_path_nt="$PATH"
+export PATH="$nt_bin"
+export LIB_DIR="$nt_lib"
+export CMA_QUOTA_ENDPOINTS_FILE="$nt_spec"
+nt_out="$(_cma_quota_probe_all 1 "" "quota-notimeout-fixture" 2>&1)"
+nt_rc=$?
+unset CMA_QUOTA_ENDPOINTS_FILE LIB_DIR
+export PATH="$old_path_nt"
+
+nt_row="$(echo "$nt_out" | jq -c 'select(.provider_id=="quota-notimeout-fixture")' 2>/dev/null)"
+nt_reason="$(echo "$nt_row" | jq -r '.absence_reason' 2>/dev/null)"
+nt_src="$(echo "$nt_row" | jq -r '.data_source' 2>/dev/null)"
+nt_amt="$(echo "$nt_row" | jq -r '.windows[0].amount_remaining' 2>/dev/null)"
+assert_eq "0" "$nt_rc" "the probe orchestration must complete cleanly with no timeout binary"
+assert_eq "null" "$nt_reason" "with no timeout binary the live probe must NOT degrade to probe_failed (absence_reason must be null)"
+assert_eq "live" "$nt_src" "the row must come from the live probe path (data_source=live)"
+assert_eq "80" "$nt_amt" "the stubbed probe's real window value must round-trip through the no-timeout fallback"
+
 summary
