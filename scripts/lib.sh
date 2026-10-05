@@ -3672,14 +3672,50 @@ _cma_quota_list_native_accounts() {
     # found no tier/rate-limit/plan field anywhere in either tree.
     # Honest null, never guessed, per research.md §7.
     #
-    # auth_state: No Kimi-family refresh-token-expiry field exists in
-    # the real credentials shape (confirmed: access_token, expires_at,
-    # expires_in, refresh_token, scope, token_type -- no separate
-    # refresh-expiry). Honest signal: presence vs. absence of a
-    # credentials file, never a guessed expiry check this data doesn't
-    # support (T038-independent-review finding C1).
+    # auth_state (operator decision D2): the real credentials shape is
+    # access_token, expires_at, expires_in, refresh_token, scope,
+    # token_type. The session ends ONLY when the refresh_token JWT's own
+    # `exp` claim has passed. access_token / expires_at are NEVER read:
+    # access-token expiry is a routine refresh (the server answers 401 to
+    # the stale access token), not a failure. No credentials file ->
+    # not_signed_in. An undecodable token or a non-canonical/non-numeric
+    # exp -> "ok" (never guess a failure from an unparseable field). With
+    # several credentials files, session_expired requires EVERY one to
+    # carry a parseable past exp. The token itself is never printed:
+    # it stays inside the command substitution and reaches python3 on
+    # stdin, which prints only the integer exp (or nothing).
     auth_state="ok"
-    compgen -G "$d/credentials/*.json" >/dev/null 2>&1 || auth_state="not_signed_in"
+    if ! compgen -G "$d/credentials/*.json" >/dev/null 2>&1; then
+      auth_state="not_signed_in"
+    else
+      local cred kimi_exp kimi_now kimi_all_past=1
+      kimi_now="$(date +%s)"
+      for cred in "$d"/credentials/*.json; do
+        kimi_exp="$(
+          _rt="$(jq -r '.refresh_token // empty' "$cred" 2>/dev/null)" || _rt=""
+          [[ -n "$_rt" ]] || exit 0
+          printf '%s' "$_rt" | python3 -c '
+import sys, json, base64
+try:
+    parts = sys.stdin.read().strip().split(".")
+    seg = parts[1]
+    seg += "=" * (-len(seg) % 4)
+    exp = json.loads(base64.urlsafe_b64decode(seg.encode("ascii")).decode("utf-8")).get("exp")
+    if isinstance(exp, int) and not isinstance(exp, bool):
+        print(exp)
+except Exception:
+    pass
+' 2>/dev/null
+        )" || kimi_exp=""
+        # Canonical integers only, as in the Claude branch; 10# forces decimal.
+        if [[ "$kimi_exp" =~ ^(0|[1-9][0-9]*)$ ]] && (( 10#$kimi_exp < kimi_now )); then
+          :
+        else
+          kimi_all_past=0
+        fi
+      done
+      (( kimi_all_past )) && auth_state="session_expired"
+    fi
     jq -nc --arg id "$account_id" --arg auth "$auth_state" \
       '{account_id: $id, family: "kimi", plan_tier: null, auth_state: $auth}'
   done < <(cma_detect_kimi_accounts)

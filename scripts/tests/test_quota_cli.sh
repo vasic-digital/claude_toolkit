@@ -471,6 +471,76 @@ b1_res="$(_b1_native_probe '"1000"')"
 assert_eq "session_expired" "$(echo "$b1_res" | sed -n 1p)" "a canonical past expiry must still yield auth_state=session_expired"
 assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "and nothing is printed to stderr"
 
+# --- Operator decision D2: Kimi session ends ONLY on refresh-token expiry ----
+#
+# A Kimi credentials/*.json carries access_token, expires_at, expires_in,
+# refresh_token, scope, token_type. The access token expires routinely and
+# is refreshed; its expiry is NEVER a session failure. The session ends only
+# when the refresh_token JWT's own `exp` claim has passed. An undecodable
+# refresh token or a non-canonical/non-numeric exp stays "ok" (never guess
+# a failure from an unparseable field). Each fixture runs in a subshell with
+# its OWN mktemp HOME (never the real ~/.kimi-code-*); stderr must be empty.
+# Tokens are unsigned JWTs built here; their contents are fixture data only.
+
+_d2_b64url() { base64 | tr -d '\n=' | tr '+/' '-_'; }
+_d2_jwt() {   # $1 = raw payload text (may be invalid JSON on purpose)
+  printf '%s.%s.%s' \
+    "$(printf '%s' '{"alg":"none","typ":"JWT"}' | _d2_b64url)" \
+    "$(printf '%s' "$1" | _d2_b64url)" \
+    "sig"
+}
+_d2_kimi_probe() {   # $1 = refresh_token string ("" = no credentials file), $2 = access expires_at; prints "<auth_state>\n<stderr bytes>"
+  local d2_home; d2_home="$(mktemp -d "${TMPDIR:-/tmp}/cma-test.d2.XXXXXX")"
+  mkdir -p "$d2_home/.kimi-code-d2kimi/credentials"
+  printf 'x = 1\n' > "$d2_home/.kimi-code-d2kimi/config.toml"
+  if [[ -n "$1" ]]; then
+    jq -nc --arg rt "$1" --argjson ea "$2" \
+      '{access_token:"fixture-access", expires_at:$ea, expires_in:900, refresh_token:$rt, scope:"kimi-code", token_type:"Bearer"}' \
+      > "$d2_home/.kimi-code-d2kimi/credentials/kimi-code.json"
+  fi
+  (
+    export HOME="$d2_home"
+    out="$(_cma_quota_list_native_accounts 2>"$d2_home/stderr")"
+    echo "$out" | jq -r 'select(.family=="kimi" and .account_id=="d2kimi") | .auth_state'
+    wc -c < "$d2_home/stderr" | tr -d ' '
+  )
+  rm -rf "$d2_home"
+}
+d2_now="$(date +%s)"
+d2_future=$(( d2_now + 198 * 3600 ))
+d2_past=$(( d2_now - 86400 ))
+
+it "D2 Kimi: refresh exp in the FUTURE -> auth_state=ok"
+d2_res="$(_d2_kimi_probe "$(_d2_jwt "{\"exp\":$d2_future}")" "$d2_future")"
+assert_eq "ok" "$(echo "$d2_res" | sed -n 1p)" "a future refresh-token exp yields auth_state=ok"
+assert_eq "0" "$(echo "$d2_res" | sed -n 2p)" "and nothing is printed to stderr"
+
+it "D2 Kimi: refresh exp in the PAST (access token also expired) -> session_expired"
+d2_res="$(_d2_kimi_probe "$(_d2_jwt "{\"exp\":$d2_past}")" "$d2_past")"
+assert_eq "session_expired" "$(echo "$d2_res" | sed -n 1p)" "a past refresh-token exp yields auth_state=session_expired"
+assert_eq "0" "$(echo "$d2_res" | sed -n 2p)" "and nothing is printed to stderr"
+
+it "D2 Kimi: refresh exp in the PAST but access token FUTURE -> session_expired (refresh-only decision)"
+d2_res="$(_d2_kimi_probe "$(_d2_jwt "{\"exp\":$d2_past}")" "$d2_future")"
+assert_eq "session_expired" "$(echo "$d2_res" | sed -n 1p)" "a future access token must not mask a past refresh-token exp"
+
+it "D2 Kimi: access token EXPIRED, refresh exp FUTURE -> ok (false-negative guard)"
+d2_res="$(_d2_kimi_probe "$(_d2_jwt "{\"exp\":$d2_future}")" "$d2_past")"
+assert_eq "ok" "$(echo "$d2_res" | sed -n 1p)" "an expired access token is a normal refresh, never a session failure"
+assert_eq "0" "$(echo "$d2_res" | sed -n 2p)" "and nothing is printed to stderr"
+
+it "D2 Kimi: no credentials file -> not_signed_in"
+d2_res="$(_d2_kimi_probe "" 0)"
+assert_eq "not_signed_in" "$(echo "$d2_res" | sed -n 1p)" "a missing credentials file yields auth_state=not_signed_in"
+
+it "D2 Kimi: malformed JWT / non-numeric exp / leading-zero exp -> ok, empty stderr"
+for d2_tok in "not-a-jwt" "a.%%%.b" "$(_d2_jwt '{"exp":"abc"}')" "$(_d2_jwt '{"exp":"0999"}')" \
+              "$(_d2_jwt '{"exp":0999}')" "$(_d2_jwt '{"exp":-5}')" "$(_d2_jwt '{"sub":"x"}')" "$(_d2_jwt '[1,2]')"; do
+  d2_res="$(_d2_kimi_probe "$d2_tok" "$d2_past")"
+  assert_eq "ok" "$(echo "$d2_res" | sed -n 1p)" "an unparseable refresh token / exp degrades to auth_state=ok"
+  assert_eq "0" "$(echo "$d2_res" | sed -n 2p)" "an unparseable refresh token / exp leaves stderr empty"
+done
+
 # C2: `while IFS= read -r _name` in _cma_quota_group_accounts did not
 # declare _name local, so it leaked into the CALLER's scope. Run in a
 # subshell so the probe cannot pollute this file's own scope either; the
