@@ -193,10 +193,9 @@ re-review after any fix round.
   token has expired still reports `ok`. This is by design: the Kimi
   credentials shape does not expose a refresh-token expiry, and the feature
   does not guess one.
-- Documentation gap: The auth-expiry gap was fixed in v1.30.1 with the
-  `auth_state` field, but no file under `specs/` (including `data-model.md` and
-  the contracts) documents it. This must be added before the release is cut or tracked as a known
-  gap.
+- Documentation gap, closed: the `auth_state` field is documented in
+  `specs/002-provider-usage-command/data-model.md` and the contract, added in
+  the same release as the field itself.
 
 ## v1.30.0 — 2026-10-04 — `quota`/`limits`: universal usage reporting across every provider alias and native account
 
