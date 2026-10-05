@@ -4022,6 +4022,49 @@ cmd_sync_multi() {
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
 
+# --- quota-cache merge lock (known-issues B-orchestrator) --------------------
+# REUSES lib.sh's _cma_alias_lock_acquire/_cma_alias_lock_release -- the
+# project's one non-test exclusive-lock primitive (flock(1) where present,
+# otherwise an atomic mkdir(2) lock with in-place, breaker-guarded stale
+# breaking; macOS ships no flock). It is not re-implemented here: a second
+# copy would have to re-learn every hazard documented above that helper.
+#
+# The helper keys its lock on dirname "$ALIAS_FILE" and reads its wait from
+# CMA_ALIAS_LOCK_WAIT. Both are shadowed with `local` for the duration of the
+# acquire (bash dynamic scoping makes the helper see the shadows), so:
+#   - the lock lives in its OWN directory next to the cache
+#     (<cache dir>/quota-cache.lock.d/), never contending with alias-file
+#     writes -- the session hook's wait-0 alias refresh must not be skipped
+#     because a `quota` run happened to be merging;
+#   - the wait is bounded by CMA_QUOTA_CACHE_LOCK_WAIT (seconds, default 10;
+#     0 = fail fast). The helper returns 1 on timeout; it never exits.
+# Release needs neither shadow: the helper records the lock path and mode in
+# its own globals at acquire time.
+#
+# The helper is single-slot (one lock per process, re-entrant by depth). A
+# caller that already holds the ALIAS lock would merely re-enter it rather
+# than take this one, so that case is refused (returns 1 -> save skipped)
+# instead of silently running the merge unserialized.
+_cma_quota_cache_lock_wait() {
+  case "${CMA_QUOTA_CACHE_LOCK_WAIT:-}" in
+    ''|*[!0-9]*) printf '10\n' ;;
+    *)           printf '%s\n' "$CMA_QUOTA_CACHE_LOCK_WAIT" ;;
+  esac
+}
+
+_cma_quota_cache_lock_acquire() {
+  local cache_file="$1"
+  (( ${_cma_alias_lock_depth:-0} == 0 )) || return 1
+  local ALIAS_FILE CMA_ALIAS_LOCK_WAIT
+  ALIAS_FILE="$(dirname "$cache_file")/quota-cache.lock.d/lock-scope"
+  CMA_ALIAS_LOCK_WAIT="$(_cma_quota_cache_lock_wait)"
+  _cma_alias_lock_acquire
+}
+
+_cma_quota_cache_lock_release() {
+  _cma_alias_lock_release
+}
+
 # _cma_quota_probe_all: bounded-concurrency probe orchestration across
 # every provider-account group (T015) and every native account (T016).
 # Reuses the EXACT batch pattern from detect_llmctl_records
@@ -4108,6 +4151,18 @@ print(json.dumps(rec) if rec else '')
           cached=""
         fi
       fi
+      # Windows guard (known-issues F2-stale-cache-replay, B-orchestrator):
+      # only a SUCCESSFUL probe is cache-worthy, and a success always carries
+      # at least one window (windows-XOR-absence_reason). The replay below
+      # hardcodes absence_reason:null, so a windowless record would come out
+      # as a row with neither windows nor a reason -- rendered blank. The
+      # quota_probe.py loader drops such records today, but this branch must
+      # not depend on whichever loader LIB_DIR pairs it with: re-check here
+      # and treat a windowless record as a miss, forcing a live re-probe.
+      if [[ -n "$cached" ]] && \
+         ! jq -e '(.windows | type) == "array" and (.windows | length) > 0' <<<"$cached" >/dev/null 2>&1; then
+        cached=""
+      fi
     fi
 
     local keyvar=""
@@ -4191,8 +4246,22 @@ print(json.dumps(rec) if rec else '')
   # own real _cached_at timestamp (bug #1 -- the old code never wrote one
   # per-record, only a whole-file one, so the bash read side's age
   # computation always resolved to "now - 0").
+  #
+  # "Single writer" above holds WITHIN one run only. Two concurrent `quota`
+  # runs each execute this load->merge->save cycle, and save_quota_cache's
+  # temp+rename makes each WRITE atomic without serializing the CYCLE: both
+  # load the same snapshot, and the later save silently drops the earlier
+  # run's records (known-issues B-orchestrator lost-update race, reproduced
+  # deterministically by test_quota_cli.sh). The cycle therefore runs under
+  # an exclusive lock (_cma_quota_cache_lock_acquire). The wait is bounded;
+  # on timeout this run's save is SKIPPED with a warning -- never performed
+  # unlocked, never a hang. The rows printed below are unaffected either way:
+  # they come from the per-row files, not from the cache.
   if compgen -G "$tmpdir/cache"/*.json >/dev/null 2>&1; then
-    python3 -c "
+    if ! _cma_quota_cache_lock_acquire "$cache_file"; then
+      cma_warn "quota cache lock busy for $(_cma_quota_cache_lock_wait)s -- this run's results were NOT saved to the quota cache (rows shown are still live)"
+    else
+      python3 -c "
 import sys, json, glob, time
 sys.path.insert(0, sys.argv[1])
 import quota_probe as qp
@@ -4212,7 +4281,10 @@ for f in sorted(glob.glob(sys.argv[3] + '/*.json')):
     rec['_cached_at'] = now  # per-record timestamp (fixes bug #1)
     data['providers'][pid] = rec
 qp.save_quota_cache(cache_file, data)
-" "$lib_dir" "$cache_file" "$tmpdir/cache" 2>/dev/null
+" "$lib_dir" "$cache_file" "$tmpdir/cache" 2>/dev/null || true
+      # `|| true` above: a failed merge must still reach this release.
+      _cma_quota_cache_lock_release
+    fi
   fi
 
   local nline

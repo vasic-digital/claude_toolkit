@@ -964,6 +964,152 @@ assert_eq "null" "$nt_reason" "with no timeout binary the live probe must NOT de
 assert_eq "live" "$nt_src" "the row must come from the live probe path (data_source=live)"
 assert_eq "80" "$nt_amt" "the stubbed probe's real window value must round-trip through the no-timeout fallback"
 
+# --- B-orchestrator: lost-update race in the cache merge pass ----------------
+#
+# _cma_quota_probe_all's merge pass is a read-modify-write of the SHARED
+# quota cache (load -> merge this run's records -> save). Two concurrent
+# `quota` runs that both load before either saves resolve last-writer-wins
+# and one run's records vanish. save_quota_cache's temp+rename (B-probe)
+# makes each WRITE atomic; it does not serialize the CYCLE.
+#
+# Deterministic, not statistical: a stub quota_probe.py (via LIB_DIR) sleeps
+# INSIDE load_quota_cache, so without a lock both runs are guaranteed to load
+# the same empty snapshot before either saves. With the lock, the second
+# run's load happens after the first run's save. Two DIFFERENT providers, one
+# per run, so a lost record cannot be re-derived by the other run.
+bo_lib="$HOME/.quota-bo-lib"
+mkdir -p "$bo_lib"
+cat > "$bo_lib/quota_probe.py" <<'PYEOF'
+import json, os, sys, time
+def load_quota_cache(path):
+    try:
+        with open(path) as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {"_cache_version": 1, "providers": {}}
+    if not isinstance(d, dict):
+        d = {"_cache_version": 1, "providers": {}}
+    s = os.environ.get("BO_LOAD_SLEEP")
+    if s:
+        time.sleep(float(s))
+    return d
+def save_quota_cache(path, data):
+    data["_cache_version"] = 1
+    data["_cached_at"] = time.time()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".bo.tmp." + str(os.getpid())
+    with open(tmp, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, path)
+if __name__ == "__main__":
+    pid = sys.argv[sys.argv.index("--provider-id") + 1]
+    print(json.dumps({"provider_id": pid, "windows": [{"window": "subscription",
+        "amount_used": 1, "amount_remaining": 9, "limit_total": 10, "unit": "credits",
+        "percent_remaining": 90.0, "resets": False, "reset_at": None}],
+        "account_blocked": False, "absence_reason": None, "http_status": 200}))
+PYEOF
+bo_spec="$HOME/.quota-bo-spec.json"
+echo '{}' > "$bo_spec"
+bo_pdir="$(cma_providers_dir)"; mkdir -p "$bo_pdir"
+for bo_p in quota-race-a quota-race-b quota-f2-fixture; do
+  cma_provider_write_env "$bo_p" "BO_KEY_${bo_p//-/_}" router "http://127.0.0.1:1" \
+    "$bo_p/test-model" "$bo_p/test-model" "$HOME/.claude-prov-$bo_p" 128000 8192 "$bo_p"
+  printf 'alias %s="cma_run_provider %s"\n' "$bo_p" "$bo_p" >> "$ALIAS_FILE"
+  jq --arg p "$bo_p" '. + {($p): {url: "http://127.0.0.1:1/", auth: "bearer",
+    windows: [ { window: "subscription", signals: [ { path: [], type: "unit_literal", value: "credits" } ] } ]}}' \
+    "$bo_spec" > "$bo_spec.tmp" && mv "$bo_spec.tmp" "$bo_spec"
+done
+bo_cache="$HOME/.local/share/claude-multi-account/quota-cache.json"
+bo_lockdir="$(dirname "$bo_cache")/quota-cache.lock.d"
+
+# _bo_race BACKEND_LABEL: two concurrent --fresh runs, one provider each.
+_bo_race() {
+  rm -f "$bo_cache"
+  ( _cma_quota_probe_all 1 "" quota-race-a >/dev/null 2>&1 ) &
+  local ra=$!
+  ( _cma_quota_probe_all 1 "" quota-race-b >/dev/null 2>&1 ) &
+  local rb=$!
+  wait "$ra"; wait "$rb"
+  jq -c '.providers | keys' "$bo_cache" 2>/dev/null
+}
+
+export LIB_DIR="$bo_lib" CMA_QUOTA_ENDPOINTS_FILE="$bo_spec" BO_LOAD_SLEEP=1
+
+it "B-orchestrator race: two concurrent quota runs each keep their own cache record (default lock backend)"
+bo_keys="$(_bo_race)"
+assert_eq '["quota-race-a","quota-race-b"]' "$bo_keys" \
+  "both concurrent runs' records must survive the merge (got $bo_keys) -- last-writer-wins lost one"
+
+it "B-orchestrator race: same guarantee on the portable mkdir backend (macOS has no flock)"
+export CMA_ALIAS_LOCK_NO_FLOCK=1
+bo_keys="$(_bo_race)"
+unset CMA_ALIAS_LOCK_NO_FLOCK
+assert_eq '["quota-race-a","quota-race-b"]' "$bo_keys" \
+  "both records must survive under the mkdir lock backend too (got $bo_keys)"
+
+it "B-orchestrator race: a held cache lock is waited on for a BOUNDED time, then the save is skipped with a warning (never hangs)"
+unset BO_LOAD_SLEEP
+rm -f "$bo_cache"
+# Hold the quota-cache lock with a LIVE foreign pid on the mkdir backend --
+# deterministic, no timing race: the lock is held before the run starts and
+# its holder is alive for the whole run, so it can never be broken as stale.
+# The holder is started DETACHED (inside a reaped subshell), never as a job
+# of this shell: _cma_quota_probe_all's bare `wait` runs inside the caller's
+# $(...) subshell, which inherits this shell's job table, and a live job
+# there makes that `wait` spin until the job exits (observed: 99% CPU, hung).
+bo_holder="$( (sleep 30 </dev/null >/dev/null 2>&1 & printf '%s' "$!") )"
+mkdir -p "$bo_lockdir/.aliases.lockdir"
+printf '%s\n' "$bo_holder" > "$bo_lockdir/.aliases.lockdir/pid"
+export CMA_ALIAS_LOCK_NO_FLOCK=1 CMA_QUOTA_CACHE_LOCK_WAIT=1
+bo_t0="$(date +%s)"
+bo_out="$(_cma_quota_probe_all 1 "" quota-race-a 2>"$HOME/.quota-bo-stderr")"
+bo_rc=$?
+bo_elapsed=$(( $(date +%s) - bo_t0 ))
+unset CMA_ALIAS_LOCK_NO_FLOCK CMA_QUOTA_CACHE_LOCK_WAIT
+kill "$bo_holder" 2>/dev/null
+rm -rf "$bo_lockdir/.aliases.lockdir"
+assert_eq "0" "$bo_rc" "a busy cache lock must not fail the command"
+bo_fast=0; (( bo_elapsed <= 8 )) && bo_fast=1
+assert_eq "1" "$bo_fast" "the lock wait must be bounded by CMA_QUOTA_CACHE_LOCK_WAIT (elapsed ${bo_elapsed}s)"
+bo_saved=0; [[ -f "$bo_cache" ]] && bo_saved=1
+assert_eq "0" "$bo_saved" "on lock timeout the save must be SKIPPED, never written unlocked"
+bo_warned=0; grep -q 'quota cache lock' "$HOME/.quota-bo-stderr" 2>/dev/null && bo_warned=1
+assert_eq "1" "$bo_warned" "a skipped save must be announced on stderr, not silent"
+bo_src="$(echo "$bo_out" | jq -r 'select(.provider_id=="quota-race-a") | .data_source' 2>/dev/null)"
+assert_eq "live" "$bo_src" "the row itself must still be reported from the live probe"
+
+# --- B-orchestrator: F2 cached-branch windows guard -------------------------
+#
+# The cached branch replayed whatever record the loader handed it, so a
+# windowless record (the pre-F2 v1.30.0 shape: windows:[] + absence_reason
+# null) became data_source:"cached" with NO windows and NO absence reason --
+# a row violating the windows-XOR-absence_reason invariant that renders blank.
+# quota_probe.py's load filter now drops such records, but the orchestrator
+# must not depend on every loader it may be paired with (LIB_DIR override,
+# version skew): it re-checks the invariant itself before replaying. The stub
+# loader above deliberately does NOT filter, which is exactly that pairing.
+it "B-orchestrator F2: a cached record with no windows is NOT replayed; the orchestrator re-probes live"
+bo_now="$(date +%s)"
+jq -n --argjson now "$bo_now" '{_cache_version: 1, _cached_at: $now, providers: {
+  "quota-f2-fixture": {provider_id: "quota-f2-fixture", windows: [], account_blocked: false,
+                       absence_reason: null, http_status: 200, _cached_at: $now}}}' > "$bo_cache"
+bo_row="$(_cma_quota_probe_all 0 "" quota-f2-fixture 2>/dev/null | jq -c 'select(.provider_id=="quota-f2-fixture")')"
+bo_f2_src="$(echo "$bo_row" | jq -r '.data_source')"
+bo_f2_nwin="$(echo "$bo_row" | jq -r '.windows | length')"
+assert_eq "live" "$bo_f2_src" "a windowless cached record must force a live re-probe, never be replayed as cached (row: $bo_row)"
+assert_eq "1" "$bo_f2_nwin" "the re-probed row carries the live probe's real window"
+
+it "B-orchestrator F2: a cached record WITH windows is still replayed (guard is not over-broad)"
+jq -n --argjson now "$bo_now" '{_cache_version: 1, _cached_at: $now, providers: {
+  "quota-f2-fixture": {provider_id: "quota-f2-fixture", account_blocked: false, absence_reason: null,
+    windows: [{window:"subscription", amount_used:3, amount_remaining:7, limit_total:10, unit:"credits",
+               percent_remaining:70.0, resets:false, reset_at:null}], http_status: 200, _cached_at: $now}}}' > "$bo_cache"
+bo_row="$(_cma_quota_probe_all 0 "" quota-f2-fixture 2>/dev/null | jq -c 'select(.provider_id=="quota-f2-fixture")')"
+assert_eq "cached" "$(echo "$bo_row" | jq -r '.data_source')" "a valid cached record must still be served from cache"
+assert_eq "7" "$(echo "$bo_row" | jq -r '.windows[0].amount_remaining')" "the cached window value round-trips"
+
+unset LIB_DIR CMA_QUOTA_ENDPOINTS_FILE BO_LOAD_SLEEP
+
 it "claude-providers --help includes the quota subcommand documentation (I5)"
 help_output="$(bash "$SCRIPTS_DIR/claude-providers.sh" --help 2>&1)"
 echo "$help_output" | grep -q "quota" && found=1 || found=0
