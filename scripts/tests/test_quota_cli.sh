@@ -1581,10 +1581,17 @@ class H(BaseHTTPRequestHandler):
         with open(os.path.join(home, "stub.mode")) as f:
             mode = f.read().strip()
         if mode == "401":
-            body, code = {"error": "unauthorized"}, 401
+            raw, code = json.dumps({"error": "unauthorized"}).encode(), 401
+        elif mode.startswith("ratio:"):
+            # A raw JSON token (e.g. NaN, 25, null, "0.25", true) spliced
+            # verbatim into BOTH windows' used_ratio -- written by hand so a
+            # non-standard token like NaN reaches the client unchanged.
+            tok = mode[len("ratio:"):]
+            raw = ('{"usages":{"limit_5h":{"used_ratio":%s,"reset_time":"2026-10-05T17:00:00Z"},'
+                   '"limit_7d":{"used_ratio":%s,"reset_time":"2026-10-10T00:00:00Z"}}}' % (tok, tok)).encode()
+            code = 200
         else:
-            body, code = OK_BODY, 200
-        raw = json.dumps(body).encode()
+            raw, code = json.dumps(OK_BODY).encode(), 200
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
@@ -1656,6 +1663,46 @@ assert_eq "0" "$kn_ref" "no refresh/oauth/token endpoint was hit"
 assert_eq "GET /coding/v1/usages auth=access" "$(cat "$kn_home/stub.log" 2>/dev/null)" "the single request was the usages GET with the access token"
 echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
 assert_eq "0" "$kn_leak" "the access token never appears in output"
+
+# Fail closed on an unusable used_ratio (review fix of c3a94cf): a ratio that
+# is out of [0, 1.0001], non-finite, or not a real number must NEVER render a
+# window -- no clamping (clamping 25 to 1 would fabricate limit_exceeded).
+_kn_ratio_case() {   # $1 = raw JSON token, $2 = expected absence_detail ("" = do not check)
+  rm -f "$kn_home/stub.log"; printf 'ratio:%s\n' "$1" > "$kn_home/stub.mode"
+  kn_out="$(_kn_probe)"
+  kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+  assert_eq "1" "$([[ -n "$kn_row" ]] && echo 1 || echo 0)" "used_ratio $1: a kn1 row is emitted"
+  assert_eq "0" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio $1: NO window rendered"
+  assert_eq "probe_failed" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "used_ratio $1: absence_reason probe_failed"
+  if [[ -n "$2" ]]; then
+    assert_eq "$2" "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "used_ratio $1: exact absence_detail"
+  fi
+}
+kn_range_detail="Kimi usage returned an out-of-range or non-finite used_ratio"
+it "Kimi native: used_ratio 25 (out of range) renders no window, probe_failed"
+_kn_ratio_case '25' "$kn_range_detail"
+it "Kimi native: used_ratio -0.5 (negative) renders no window, probe_failed"
+_kn_ratio_case '-0.5' "$kn_range_detail"
+it "Kimi native: used_ratio 1000 (out of range) renders no window, probe_failed"
+_kn_ratio_case '1000' "$kn_range_detail"
+it "Kimi native: used_ratio NaN (non-finite) renders no window, probe_failed"
+_kn_ratio_case 'NaN' "$kn_range_detail"
+it "Kimi native: used_ratio null renders no window, probe_failed"
+_kn_ratio_case 'null' ""
+it "Kimi native: used_ratio \"0.25\" (string) renders no window, probe_failed"
+_kn_ratio_case '"0.25"' ""
+it "Kimi native: used_ratio true (bool) renders no window, probe_failed"
+_kn_ratio_case 'true' ""
+
+it "Kimi native: valid used_ratio 0.25 and 1.0 still render their windows"
+rm -f "$kn_home/stub.log"; printf 'ratio:0.25\n' > "$kn_home/stub.mode"
+kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio 0.25: two windows"
+assert_eq "75,75" "$(echo "$kn_row" | jq -r '[.windows[].percent_remaining] | join(",")' 2>/dev/null)" "used_ratio 0.25: percent_remaining 75"
+printf 'ratio:1.0\n' > "$kn_home/stub.mode"
+kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio 1.0: two windows"
+assert_eq "0,0" "$(echo "$kn_row" | jq -r '[.windows[].percent_remaining] | join(",")' 2>/dev/null)" "used_ratio 1.0: percent_remaining 0"
 
 kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null
 rm -rf "$kn_home"

@@ -19,6 +19,7 @@ and should go stale faster than the credit cache's model-selection concern
 
 import argparse
 import json
+import math
 import os
 import re
 import ssl
@@ -347,6 +348,19 @@ def probe_provider(provider_id, spec, api_key, timeout):
 KIMI_USAGE_BASE_URL_DEFAULT = "https://api.kimi.com/coding/v1"
 KIMI_AUTH_EXPIRED_DETAIL = "Kimi access token expired: run `kimi login` to refresh"
 _KIMI_WINDOWS = (("limit_5h", "subscription_5h", "5h"), ("limit_7d", "subscription_7d", "7d"))
+KIMI_RATIO_RANGE_DETAIL = "Kimi usage returned an out-of-range or non-finite used_ratio"
+# used_ratio is a fraction; anything above 1 by more than float noise is not
+# a reading of this window. It is REJECTED, never clamped: clamping 25 to 1
+# would fabricate a limit-exceeded window the provider never reported.
+_KIMI_RATIO_MAX = 1.0001
+
+
+def _kimi_ratio_out_of_range(ratio):
+    """True when ratio is a real (non-bool) number that is non-finite or
+    outside [0, _KIMI_RATIO_MAX] -- a numeric value that must not render."""
+    if isinstance(ratio, bool) or not isinstance(ratio, (int, float)):
+        return False
+    return not math.isfinite(ratio) or ratio < 0 or ratio > _KIMI_RATIO_MAX
 
 
 def _kimi_access_token(account_dir):
@@ -382,6 +396,8 @@ def resolve_kimi_window(name, cadence, entry):
         return None
     ratio = entry.get("used_ratio")
     if isinstance(ratio, bool) or not isinstance(ratio, (int, float)):
+        return None
+    if _kimi_ratio_out_of_range(ratio):
         return None
     def _num(x):
         # Float noise (0.07*100 = 7.000000000000001) is rounded off, and a
@@ -440,11 +456,17 @@ def probe_kimi_native(account_dir, timeout, base_url=None):
 
     usages = body.get("usages")
     windows = []
+    bad_ratio = False
     if isinstance(usages, dict):
         for key, name, cadence in _KIMI_WINDOWS:
-            w = resolve_kimi_window(name, cadence, usages.get(key))
+            entry = usages.get(key)
+            w = resolve_kimi_window(name, cadence, entry)
             if w is not None:
                 windows.append(w)
+            elif isinstance(entry, dict) and _kimi_ratio_out_of_range(entry.get("used_ratio")):
+                bad_ratio = True
+    if not windows and bad_ratio:
+        return _absent("probe_failed", KIMI_RATIO_RANGE_DETAIL, status)
     if not windows:
         return _absent("probe_failed",
                        "Kimi usages endpoint responded but no interpretable usage windows were found", status)
