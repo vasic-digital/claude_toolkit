@@ -1578,6 +1578,10 @@ class H(BaseHTTPRequestHandler):
         tag = "access" if auth == expect else ("none" if auth is None else "other")
         with open(os.path.join(home, "stub.log"), "a") as f:
             f.write("%s %s auth=%s\n" % (self.command, self.path, tag))
+        # order.log is SHARED with the stubbed kimi binary, so the relative
+        # order of "CLI refresh" and "usages GET" is observable in one file.
+        with open(os.path.join(home, "order.log"), "a") as f:
+            f.write("GET %s\n" % self.path)
         with open(os.path.join(home, "stub.mode")) as f:
             mode = f.read().strip()
         if mode == "401":
@@ -1617,9 +1621,25 @@ done
 kn_port="$(cat "$kn_home/stub.port" 2>/dev/null)"
 assert_eq "1" "$([[ "$kn_port" =~ ^[0-9]+$ ]] && echo 1 || echo 0)" "precondition: the loopback usages stub is listening"
 
+# A STUBBED kimi binary is placed first on PATH for every _kn_probe: the real
+# Kimi CLI must never run in tests (it would talk to the network and write
+# into a real ~/.kimi-code*). The stub records its arguments and the
+# KIMI_CODE_HOME it was given into the fixture's order.log, writes NOTHING
+# else, and exits with the code in kimi.mode ("ok" -> 0, anything else -> 1).
+mkdir -p "$kn_home/bin"
+cat > "$kn_home/bin/kimi" <<KIMIEOF
+#!/bin/sh
+printf 'KIMI home=%s args=%s\n' "\${KIMI_CODE_HOME:-}" "\$*" >> "$kn_home/order.log"
+[ "\$(cat "$kn_home/kimi.mode" 2>/dev/null)" = "ok" ] && exit 0
+exit 1
+KIMIEOF
+chmod +x "$kn_home/bin/kimi"
+printf 'ok\n' > "$kn_home/kimi.mode"
+
 _kn_probe() {   # runs the native-row probe for kn1 under the fixture HOME; prints stdout+stderr
   (
     export HOME="$kn_home"
+    export PATH="$kn_home/bin:$PATH"
     export CMA_KIMI_USAGE_BASE_URL="http://127.0.0.1:$kn_port/coding/v1"
     _cma_quota_probe_all 1 "" "kn1" 2>&1
   )
@@ -1703,6 +1723,44 @@ printf 'ratio:1.0\n' > "$kn_home/stub.mode"
 kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
 assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio 1.0: two windows"
 assert_eq "0,0" "$(echo "$kn_row" | jq -r '[.windows[].percent_remaining] | join(",")' 2>/dev/null)" "used_ratio 1.0: percent_remaining 0"
+
+# --- Operator decision: let the Kimi CLI renew its token before probing ----
+# Immediately BEFORE the usages GET, the toolkit runs the Kimi CLI's OWN
+# launch-time refresh invocation (`kimi -p hi --output-format text`, the same
+# one cma_run_provider uses) ONCE, scoped to the account via KIMI_CODE_HOME.
+# The toolkit itself never reads refresh_token and never calls a token/OAuth
+# endpoint; renewal is entirely the CLI's business.
+it "Kimi native: the CLI refresh runs exactly ONCE, account-scoped, BEFORE the usages GET"
+rm -f "$kn_home/stub.log" "$kn_home/order.log"; printf 'ok\n' > "$kn_home/stub.mode"; printf 'ok\n' > "$kn_home/kimi.mode"
+kn_out="$(_kn_probe)"
+assert_eq "KIMI home=$kn_acct args=-p hi --output-format text
+GET /coding/v1/usages" "$(cat "$kn_home/order.log" 2>/dev/null)" "order: one CLI refresh (launch invocation, account home) then one usages GET"
+assert_eq "1" "$(grep -c '^KIMI ' "$kn_home/order.log" 2>/dev/null)" "the CLI refresh ran exactly once"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "the probe still yields its two windows after the refresh"
+grep -qF "$kn_refresh" "$kn_home/order.log" 2>/dev/null && kn_rt=1 || kn_rt=0
+assert_eq "0" "$kn_rt" "the refresh_token value is never handed to the CLI"
+echo "$kn_out" | grep -qF "$kn_refresh" && kn_rt=1 || kn_rt=0
+assert_eq "0" "$kn_rt" "the refresh_token value never appears in output"
+grep -qiE 'refresh|oauth|token' "$kn_home/stub.log" 2>/dev/null && kn_ref=1 || kn_ref=0
+assert_eq "0" "$kn_ref" "the toolkit hit no refresh/oauth/token endpoint itself"
+# Static half: the native Kimi dispatch block in _cma_quota_probe_all never
+# names refresh_token (the auth_state classifier upstream is out of scope).
+kn_blk="$(awk '/Kimi native accounts that are signed in report/{f=1} f{print} f&&/^      continue$/{exit}' "$SCRIPTS_DIR/claude-providers.sh")"
+assert_eq "1" "$([[ -n "$kn_blk" ]] && echo 1 || echo 0)" "precondition: the native Kimi dispatch block was located"
+echo "$kn_blk" | grep -vE '^[[:space:]]*#' | grep -q 'refresh_token' && kn_rt=1 || kn_rt=0
+assert_eq "0" "$kn_rt" "the native Kimi dispatch block's CODE (comments excluded) never references refresh_token"
+
+it "Kimi native: a FAILED CLI refresh still runs the probe; a 401 is still auth_expired"
+rm -f "$kn_home/stub.log" "$kn_home/order.log"; printf '401\n' > "$kn_home/stub.mode"; printf 'fail\n' > "$kn_home/kimi.mode"
+kn_out="$(_kn_probe)"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "KIMI home=$kn_acct args=-p hi --output-format text
+GET /coding/v1/usages" "$(cat "$kn_home/order.log" 2>/dev/null)" "failed refresh: still one refresh attempt then one usages GET"
+assert_eq "auth_expired" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "failed refresh + 401 -> auth_expired"
+assert_eq 'Kimi access token expired: run `kimi login` to refresh' "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "exact detail unchanged"
+assert_eq "GET /coding/v1/usages auth=access" "$(cat "$kn_home/stub.log" 2>/dev/null)" "exactly one usages GET, no retry"
+printf 'ok\n' > "$kn_home/kimi.mode"
 
 kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null
 rm -rf "$kn_home"
