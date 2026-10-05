@@ -3532,26 +3532,38 @@ cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; 
 #     T038-independent-review finding C2, confirmed live: 5 real .env
 #     files, 1 real key, used to render as 5 rows with 4 false
 #     "not reported by provider" statuses).
-# Grouped by (sha256 digest of the key VALUE, base_url) -- operator
-# decision "merge by key value": differently named variables holding the
-# same secret are one account. NEVER on an empty/missing/unreadable key,
-# which proves nothing about shared identity (falls back to the pid
-# itself as a unique key, 1:1). The value and its digest are never
-# printed, logged, written, or emitted. Bash-3.2-safe: plain indexed
-# arrays + linear search, no associative arrays.
+# Grouped by (opaque ordinal of the key VALUE's sha256 digest, base_url)
+# -- operator decision "merge by key value": differently named variables
+# holding the same secret are one account. NEVER on an empty/missing/
+# unreadable key, which proves nothing about shared identity (falls back
+# to the pid itself as a unique key, 1:1). EXCEPTION: the Kimi Code OAuth
+# sentinel keyvar (_CMA_KIMICODE_OAUTH_) has no keys-file value by design;
+# every alias carrying it shares one OAuth subscription token, so those
+# group by (keyvar name, base_url) as before. Secret handling: the whole
+# grouping loop runs with xtrace suspended (restored only after it ends);
+# the value exists only inside the hashing subshell; each distinct digest
+# is mapped at once to an in-memory ordinal (dg:1, dg:2, ...) and only that
+# ordinal enters the dedup key, so neither the value nor the digest is
+# printed, traced, logged, written, or emitted. Bash-3.2-safe: plain
+# indexed arrays + linear search, no associative arrays.
 _cma_quota_group_accounts() {
   local pdir; pdir="$(cma_providers_dir)"
   [[ -d "$pdir" ]] || return 0
   compgen -G "$pdir"/*.env >/dev/null 2>&1 || return 0
 
   local endpoints_file="${CMA_QUOTA_ENDPOINTS_FILE:-${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json}"
-  local f pid base keyvar dedup_key digest _xt _i
+  local f pid base keyvar dedup_key digest ordinal _xt _i _j
   local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
 
-  # _hk/_hd: per-call keyvar -> digest memo (bash-3.2: parallel arrays), so
+  # _hk/_ho: per-call keyvar -> ordinal memo (bash-3.2: parallel arrays), so
   # the keys file is sourced once per distinct keyvar, not once per .env.
-  local -a _dk=() _db=() _dp=() _hk=() _hd=()
+  # _dg: distinct digests seen; a digest's ordinal is its 1-based index.
+  # None of these is ever printed; _dg is touched only with xtrace off.
+  local -a _dk=() _db=() _dp=() _hk=() _ho=() _dg=()
 
+  # xtrace stays OFF for the entire grouping loop (hash, ordinal map, and
+  # dedup-key comparison) and is restored only after the loop ends.
+  _xt=0; case $- in *x*) _xt=1; set +x ;; esac
   for f in "$pdir"/*.env; do
     [[ -f "$f" ]] || continue
     # shellcheck disable=SC1090
@@ -3565,16 +3577,17 @@ _cma_quota_group_accounts() {
     # same key are one real account. The value is resolved the way the
     # launcher resolves it (keys file sourced, then indirect expansion) and
     # hashed INSIDE a subshell; it is piped to the hasher via the printf
-    # builtin, so it never reaches argv, a file, or any log. Only the digest
-    # leaves the subshell, is kept in memory for grouping, and is never
-    # emitted. xtrace is suspended so `set -x` cannot echo the digest either.
-    # An empty/unreadable value, an invalid keyvar name, or no hasher gives
-    # an empty digest, which falls back to the per-pid key (never merges).
-    digest=""
-    if [[ "$keyvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-      _xt=0; case $- in *x*) _xt=1; set +x ;; esac
+    # builtin, so it never reaches argv, a file, or any log. The digest is
+    # mapped at once to an opaque ordinal and cleared; only the ordinal
+    # enters the dedup key. An empty/unreadable value, an invalid keyvar
+    # name, or no hasher gives no ordinal -> per-pid key (never merges).
+    ordinal=""
+    if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
+      # OAuth sentinel: one subscription token behind every such alias.
+      ordinal="kv:${keyvar}"
+    elif [[ "$keyvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
       for (( _i = 0; _i < ${#_hk[@]}; _i++ )); do
-        [[ "${_hk[$_i]}" == "$keyvar" ]] && { digest="${_hd[$_i]}"; break; }
+        [[ "${_hk[$_i]}" == "$keyvar" ]] && { ordinal="${_ho[$_i]}"; break; }
       done
       if (( _i >= ${#_hk[@]} )); then
         digest="$( (
@@ -3591,14 +3604,20 @@ _cma_quota_group_accounts() {
             printf '%s' "$_v" | python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' 2>/dev/null
           fi
         ) 2>/dev/null | awk 'NR==1{print $1}' )"
-        [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || digest=""
-        _hk+=("$keyvar"); _hd+=("$digest")
+        if [[ "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+          for (( _j = 0; _j < ${#_dg[@]}; _j++ )); do
+            [[ "${_dg[$_j]}" == "$digest" ]] && break
+          done
+          (( _j >= ${#_dg[@]} )) && _dg+=("$digest")
+          ordinal="dg:$(( _j + 1 ))"
+        fi
+        digest=""
+        _hk+=("$keyvar"); _ho+=("$ordinal")
       fi
-      (( _xt )) && set -x
     fi
 
-    if [[ -n "$digest" ]]; then
-      dedup_key="dg:${digest}|${base}"
+    if [[ -n "$ordinal" ]]; then
+      dedup_key="${ordinal}|${base}"
     else
       dedup_key="__nokey__|${pid}"
     fi
@@ -3617,6 +3636,8 @@ _cma_quota_group_accounts() {
       _dp+=("$pid")
     fi
   done
+  _dg=(); digest=""
+  (( _xt )) && set -x
 
   local group_idx member_pid names_json spec_present rep_pid _name
   local -a all_names

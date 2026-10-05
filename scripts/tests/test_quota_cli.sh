@@ -423,6 +423,49 @@ done
 unset _v _d _o
 assert_eq "0" "$leaks" "secret values and their digests must never be emitted"
 
+it "merge-by-value: under set -x, the xtrace stream carries NO key value and NO key digest"
+# Security review of e22e001: the digest was traced once xtrace came back on.
+# Run the grouping with xtrace ON, capture ONLY the trace (stderr), and count
+# hits for every fake value and its sha256 digest. Counts only -- nothing
+# secret is ever interpolated into a message.
+qx_trace="$HOME/.quota-xtrace.log"
+( set -x; _cma_quota_group_accounts >/dev/null ) 2>"$qx_trace"
+qx_lines="$(wc -l < "$qx_trace" | tr -d ' ')"
+qx_nonvacuous=0; (( qx_lines > 0 )) && qx_nonvacuous=1
+assert_eq "1" "$qx_nonvacuous" "the trace must be non-empty (xtrace really was on)"
+qx_vhits=0; qx_dhits=0
+for _v in "$qv_same" "$qv_diff" 'fake-qtest-sharedkey-value-0000'; do
+  _d="$(printf '%s' "$_v" | { sha256sum 2>/dev/null || shasum -a 256; } | awk '{print $1}')"
+  _n="$(grep -c -F -e "$_v" "$qx_trace" 2>/dev/null)"; qx_vhits=$((qx_vhits + ${_n:-0}))
+  _n="$(grep -c -F -e "$_d" "$qx_trace" 2>/dev/null)"; qx_dhits=$((qx_dhits + ${_n:-0}))
+done
+unset _v _d _n
+assert_eq "0" "$qx_vhits" "xtrace hits for fake key VALUES must be zero"
+assert_eq "0" "$qx_dhits" "xtrace hits for fake key DIGESTS must be zero"
+rm -f "$qx_trace"
+
+it "Kimi OAuth sentinel: kc-style aliases on ONE subscription (same base_url) collapse to one row; another base_url stays separate"
+# _CMA_KIMICODE_OAUTH_ has no keys-file value by design (the token is the
+# OAuth subscription), so value-grouping would split N models into N rows.
+# Sentinel rule: group by (keyvar name, base_url), as before C2's value change.
+qk_base='https://api.kimi-oauth.example/coding/v1'
+qk_other='https://api.kimi-oauth-other.example/coding/v1'
+for _qk in qkc1:"$qk_base" qkc2:"$qk_base" qkc3:"$qk_other"; do
+  cma_provider_write_env "${_qk%%:*}" _CMA_KIMICODE_OAUTH_ router "${_qk#*:}" m m \
+    "$HOME/.claude-prov-${_qk%%:*}" 128000 8192 "${_qk%%:*}"
+  printf 'alias %s="cma_run_provider %s"\n' "${_qk%%:*}" "${_qk%%:*}" >> "$ALIAS_FILE"
+done
+qk_out="$(_cma_quota_group_accounts 2>/dev/null)"
+qk_same="$(echo "$qk_out" | jq -c 'select(.base_url=="'"$qk_base"'")' 2>/dev/null | jq -s 'length')"
+assert_eq "1" "$qk_same" "two sentinel aliases on the same base_url are one account"
+qk_names="$(echo "$qk_out" | jq -r 'select(.base_url=="'"$qk_base"'") | .alias_names | sort | join(",")' 2>/dev/null)"
+assert_eq "qkc1,qkc2" "$qk_names" "the merged sentinel row lists both aliases"
+qk_sep="$(echo "$qk_out" | jq -c 'select(.base_url=="'"$qk_other"'")' 2>/dev/null | jq -s 'length')"
+assert_eq "1" "$qk_sep" "a sentinel alias on a different base_url stays its own row"
+for _q in qkc1 qkc2 qkc3; do rm -f "$(cma_providers_dir)/$_q.env"; done
+grep -v -E '^alias qkc[123]=' "$ALIAS_FILE" > "$ALIAS_FILE.tmp" && mv "$ALIAS_FILE.tmp" "$ALIAS_FILE"
+unset _qk
+
 # Remove these fixtures so later fleet-wide assertions see the same set as before.
 for _q in qvalpha qvbeta qvgamma qempty1 qempty2 qmiss1 qmiss2; do
   rm -f "$(cma_providers_dir)/$_q.env"
