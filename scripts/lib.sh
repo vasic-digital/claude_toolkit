@@ -3532,10 +3532,12 @@ cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; 
 #     T038-independent-review finding C2, confirmed live: 5 real .env
 #     files, 1 real key, used to render as 5 rows with 4 false
 #     "not reported by provider" statuses).
-# Grouped by (keyvar, base_url) -- NEVER on an empty/missing keyvar,
+# Grouped by (sha256 digest of the key VALUE, base_url) -- operator
+# decision "merge by key value": differently named variables holding the
+# same secret are one account. NEVER on an empty/missing/unreadable key,
 # which proves nothing about shared identity (falls back to the pid
-# itself as a unique key, preserving today's 1:1 behavior for a
-# provider with no keyvar on record). Bash-3.2-safe: plain indexed
+# itself as a unique key, 1:1). The value and its digest are never
+# printed, logged, written, or emitted. Bash-3.2-safe: plain indexed
 # arrays + linear search, no associative arrays.
 _cma_quota_group_accounts() {
   local pdir; pdir="$(cma_providers_dir)"
@@ -3543,9 +3545,12 @@ _cma_quota_group_accounts() {
   compgen -G "$pdir"/*.env >/dev/null 2>&1 || return 0
 
   local endpoints_file="${CMA_QUOTA_ENDPOINTS_FILE:-${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json}"
-  local f pid base keyvar dedup_key
+  local f pid base keyvar dedup_key digest _xt _i
+  local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
 
-  local -a _dk=() _db=() _dp=()
+  # _hk/_hd: per-call keyvar -> digest memo (bash-3.2: parallel arrays), so
+  # the keys file is sourced once per distinct keyvar, not once per .env.
+  local -a _dk=() _db=() _dp=() _hk=() _hd=()
 
   for f in "$pdir"/*.env; do
     [[ -f "$f" ]] || continue
@@ -3555,8 +3560,45 @@ _cma_quota_group_accounts() {
     keyvar="$( ( unset CMA_PROVIDER_KEYVAR; set +e; . "$f" >/dev/null 2>&1; printf '%s' "${CMA_PROVIDER_KEYVAR:-}" ) )"
     [[ -n "$pid" ]] || continue
 
-    if [[ -n "$keyvar" ]]; then
-      dedup_key="${keyvar}|${base}"
+    # Dedup on a sha256 DIGEST of the secret VALUE (operator decision
+    # "merge by key value"): two differently named variables holding the
+    # same key are one real account. The value is resolved the way the
+    # launcher resolves it (keys file sourced, then indirect expansion) and
+    # hashed INSIDE a subshell; it is piped to the hasher via the printf
+    # builtin, so it never reaches argv, a file, or any log. Only the digest
+    # leaves the subshell, is kept in memory for grouping, and is never
+    # emitted. xtrace is suspended so `set -x` cannot echo the digest either.
+    # An empty/unreadable value, an invalid keyvar name, or no hasher gives
+    # an empty digest, which falls back to the per-pid key (never merges).
+    digest=""
+    if [[ "$keyvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      _xt=0; case $- in *x*) _xt=1; set +x ;; esac
+      for (( _i = 0; _i < ${#_hk[@]}; _i++ )); do
+        [[ "${_hk[$_i]}" == "$keyvar" ]] && { digest="${_hd[$_i]}"; break; }
+      done
+      if (( _i >= ${#_hk[@]} )); then
+        digest="$( (
+          set +e +u +x
+          # shellcheck disable=SC1090
+          [[ -f "$keysf" ]] && { set -a; . "$keysf" >/dev/null 2>&1; set +a; }
+          _v="${!keyvar:-}"
+          [[ -n "$_v" ]] || exit 0
+          if command -v sha256sum >/dev/null 2>&1; then
+            printf '%s' "$_v" | sha256sum 2>/dev/null
+          elif command -v shasum >/dev/null 2>&1; then
+            printf '%s' "$_v" | shasum -a 256 2>/dev/null
+          elif command -v python3 >/dev/null 2>&1; then
+            printf '%s' "$_v" | python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' 2>/dev/null
+          fi
+        ) 2>/dev/null | awk 'NR==1{print $1}' )"
+        [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || digest=""
+        _hk+=("$keyvar"); _hd+=("$digest")
+      fi
+      (( _xt )) && set -x
+    fi
+
+    if [[ -n "$digest" ]]; then
+      dedup_key="dg:${digest}|${base}"
     else
       dedup_key="__nokey__|${pid}"
     fi

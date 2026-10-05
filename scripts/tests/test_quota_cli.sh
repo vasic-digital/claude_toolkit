@@ -339,6 +339,16 @@ assert_eq "deepseek,kimi-deepseek," "$names" "alias_names covers both the bare a
 # statuses before this fix).
 
 it "_cma_quota_group_accounts dedupes multiple .env files sharing the same keyvar+base_url (same-credential multi-instance axis)"
+# Operator decision "merge by key value": grouping is on a digest of the
+# secret VALUE, so the shared keyvar must actually resolve to a (clearly
+# fake) value -- an empty/unreadable key never merges. The keys file is a
+# sandbox file, pinned explicitly so an operator-exported CMA_KEYS_FILE can
+# never point this test at the real keys file.
+export CMA_KEYS_FILE="$HOME/.quota-test-keys.sh"
+cat > "$CMA_KEYS_FILE" <<'EOF'
+export SHARED_TEST_KEY='fake-qtest-sharedkey-value-0000'
+EOF
+chmod 600 "$CMA_KEYS_FILE"
 cma_provider_write_env sharedkey1 SHARED_TEST_KEY router \
   "https://api.sharedtest.example/v1" model1 model1 \
   "$HOME/.claude-prov-sharedkey1" 128000 8192 sharedkey1
@@ -354,6 +364,71 @@ count="$(echo "$out" | jq -r 'select(.base_url=="https://api.sharedtest.example/
 assert_eq "1" "$count" "two .env files sharing the same keyvar+base_url must collapse into ONE row"
 names="$(echo "$out" | jq -r 'select(.base_url=="https://api.sharedtest.example/v1") | .alias_names | sort | join(",")')"
 assert_eq "sharedkey1,sharedkey2" "$names" "the merged row's alias_names must list BOTH distinct .env-backed ids"
+
+# --- Operator decision: merge same-secret accounts by key VALUE -------------
+#
+# Two differently NAMED key variables holding the SAME secret are ONE real
+# account, so they must render as ONE row; the dedup key is a sha256 digest
+# of the value (plus base_url), never the variable name. Security contract
+# asserted below: neither the value nor its digest ever appears in any
+# output. Every fixture value is clearly fake. Assertion messages never
+# interpolate a value or a digest -- only counts are compared.
+qv_same='fake-qtest-secret-SAME-0001'
+qv_diff='fake-qtest-secret-DIFF-0002'
+cat >> "$CMA_KEYS_FILE" <<EOF
+export QTEST_KEY_ALPHA='$qv_same'
+export QTEST_KEY_BETA='$qv_same'
+export QTEST_KEY_GAMMA='$qv_diff'
+export QTEST_KEY_EMPTY=''
+EOF
+qv_base='https://api.samesecret.example/v1'
+qe_base='https://api.emptysecret.example/v1'
+for _qv in alpha:QTEST_KEY_ALPHA beta:QTEST_KEY_BETA gamma:QTEST_KEY_GAMMA; do
+  cma_provider_write_env "qv${_qv%%:*}" "${_qv#*:}" router "$qv_base" m m \
+    "$HOME/.claude-prov-qv${_qv%%:*}" 128000 8192 "qv${_qv%%:*}"
+  printf 'alias qv%s="cma_run_provider qv%s"\n' "${_qv%%:*}" "${_qv%%:*}" >> "$ALIAS_FILE"
+done
+# Empty value (same keyvar name in both) and an unreadable (defined nowhere) key.
+for _qe in qempty1:QTEST_KEY_EMPTY qempty2:QTEST_KEY_EMPTY qmiss1:QTEST_KEY_UNDEFINED_X qmiss2:QTEST_KEY_UNDEFINED_X; do
+  cma_provider_write_env "${_qe%%:*}" "${_qe#*:}" router "$qe_base" m m \
+    "$HOME/.claude-prov-${_qe%%:*}" 128000 8192 "${_qe%%:*}"
+done
+qv_out="$(_cma_quota_group_accounts 2>&1)"
+
+it "merge-by-value: two DIFFERENT keyvar names holding the SAME value + same base_url collapse to ONE row"
+qv_n="$(echo "$qv_out" | jq -c 'select(.base_url=="'"$qv_base"'") | select(.alias_names | index("qvalpha"))' 2>/dev/null | jq -s 'length')"
+assert_eq "1" "$qv_n" "same secret under two names must be one row"
+qv_names="$(echo "$qv_out" | jq -r 'select(.base_url=="'"$qv_base"'") | select(.alias_names | index("qvalpha")) | .alias_names | sort | join(",")' 2>/dev/null)"
+assert_eq "qvalpha,qvbeta" "$qv_names" "the merged row lists both same-secret aliases and nothing else"
+
+it "merge-by-value: a DIFFERENT value on the same base_url stays a separate row"
+qv_total="$(echo "$qv_out" | jq -c 'select(.base_url=="'"$qv_base"'")' 2>/dev/null | jq -s 'length')"
+assert_eq "2" "$qv_total" "same-secret pair (1 row) + different-secret account (1 row)"
+
+it "merge-by-value: an EMPTY or UNREADABLE key never merges with anything (per-pid fallback)"
+qe_total="$(echo "$qv_out" | jq -c 'select(.base_url=="'"$qe_base"'")' 2>/dev/null | jq -s 'length')"
+assert_eq "4" "$qe_total" "two empty-valued + two undefined-key accounts must stay four rows"
+
+it "merge-by-value: no key VALUE and no key DIGEST appears in the grouping output or the --json render"
+printf '{}\n' > "$HOME/.quota-empty-endpoints.json"
+qv_json="$(CMA_QUOTA_ENDPOINTS_FILE="$HOME/.quota-empty-endpoints.json" cmd_quota --json 2>&1)"
+leaks=0
+for _v in "$qv_same" "$qv_diff" 'fake-qtest-sharedkey-value-0000'; do
+  _d="$(printf '%s' "$_v" | { sha256sum 2>/dev/null || shasum -a 256; } | awk '{print $1}')"
+  for _o in "$qv_out" "$qv_json"; do
+    case "$_o" in *"$_v"*) leaks=$((leaks + 1)) ;; esac
+    [[ -n "$_d" ]] && case "$_o" in *"$_d"*) leaks=$((leaks + 1)) ;; esac
+  done
+done
+unset _v _d _o
+assert_eq "0" "$leaks" "secret values and their digests must never be emitted"
+
+# Remove these fixtures so later fleet-wide assertions see the same set as before.
+for _q in qvalpha qvbeta qvgamma qempty1 qempty2 qmiss1 qmiss2; do
+  rm -f "$(cma_providers_dir)/$_q.env"
+done
+grep -v -E '^alias qv(alpha|beta|gamma)=' "$ALIAS_FILE" > "$ALIAS_FILE.tmp" && mv "$ALIAS_FILE.tmp" "$ALIAS_FILE"
+unset _q _qv _qe
 
 # --- T014: failing test for _cma_quota_list_native_accounts (not yet implemented) ----
 #
@@ -667,6 +742,46 @@ grep -qi "does not exist" <<<"$out3" || assert_eq "contains 'does not exist'" "m
 # non-vacuous "stub observed real traffic" proof survives unchanged; only
 # the network-touching live-probe subprocess is removed from the picture.
 
+# --- T028 isolation (register item: hermetic T028) -------------------------
+# FIRST thing in the block: point every quota spec lookup at an ISOLATED
+# sandbox copy. It keeps openrouter's entry (T028 needs a spec-present
+# provider) but rewrites its url to a loopback stub (port 1 refuses
+# instantly), so even a cache miss cannot reach the real openrouter.ai. Later
+# blocks that swap in their own fixture file restore THIS one afterwards
+# (never `unset`, which would silently fall back to the tracked file).
+t028_spec="$HOME/.quota-t028-endpoints.json"
+jq '{openrouter: (.openrouter | .url = "http://127.0.0.1:1/api/v1/key" | .doc = "stub (T028 isolated copy)")}' \
+  "$SCRIPTS_DIR/providers/quota-endpoints.json" > "$t028_spec"
+export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"
+
+# --- T028 network guard (register item: hermetic T028) ---------------------
+#
+# Forensics found a real-network fallthrough: this block used the TRACKED
+# quota-endpoints.json (openrouter -> https://openrouter.ai), and the cache
+# check that keeps the probe on the CACHED branch swallows its own errors
+# (2>/dev/null). Any cache miss -- including a failed `import quota_probe`
+# -- fell through to a LIVE probe of the real host. The guard below makes
+# that impossible to miss: the python3 stub refuses to run quota_probe.py
+# against a spec file naming any non-loopback host and records a violation
+# instead, and the effective endpoints file is checked directly.
+t028_guard_log="$HOME/.quota-t028-network-guard.log"
+: > "$t028_guard_log"
+t028_guard_check="$HOME/.quota-t028-guard-check.sh"
+cat > "$t028_guard_check" <<'GUARDEOF'
+#!/usr/bin/env bash
+# usage: guard-check SPEC_FILE -- prints the count of url fields whose host is
+# NOT a loopback stub; prints nothing (=> treated as a violation) if unreadable.
+jq -r '[.. | objects | .url? | select(type == "string")
+        | select(test("^https?://(127\\.0\\.0\\.1|localhost)(:[0-9]+)?(/|$)") | not)]
+       | length' "$1" 2>/dev/null
+GUARDEOF
+chmod +x "$t028_guard_check"
+t028_effective_spec() { printf '%s' "${CMA_QUOTA_ENDPOINTS_FILE:-${LIB_DIR:-${SCRIPTS_DIR:-}}/providers/quota-endpoints.json}"; }
+
+it "T028 hermetic: the effective quota-endpoints file names ONLY loopback stub hosts (no real host reachable on a cache miss)"
+t028_nonstub="$("$t028_guard_check" "$(t028_effective_spec)")"
+assert_eq "0" "${t028_nonstub:-unreadable}" "every endpoint url T028 can probe must be a loopback stub, never a real host"
+
 it "T028 setup: openrouter provider fixture (HAS a quota-endpoints.json entry)"
 pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
 cma_provider_write_env openrouter OPENROUTER_API_KEY router \
@@ -712,11 +827,47 @@ assert_eq "1" "$found" "a real python3 binary must be found on PATH before the s
 stub_dir="$HOME/.quota-stub-bin"
 stub_log="$HOME/.quota-stub-python3.log"
 : > "$stub_log"
-sandbox_stub "$stub_dir/python3" <<STUBEOF
+# NETWORK GUARD: any quota_probe.py invocation (the ONLY subprocess that
+# opens a socket) whose --spec-file names a non-loopback host is refused
+# here -- logged to $t028_guard_log and exited 97 BEFORE the real
+# interpreter runs, so a regression can never actually dial the real host.
+t028_install_stub() {
+  sandbox_stub "$stub_dir/python3" <<STUBEOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$stub_log"
+case "\$*" in
+  *quota_probe.py*)
+    _spec=""; _prev=""
+    for _a in "\$@"; do [[ "\$_prev" == "--spec-file" ]] && _spec="\$_a"; _prev="\$_a"; done
+    _bad="\$("$t028_guard_check" "\$_spec")"
+    if [[ "\$_bad" != "0" ]]; then
+      printf 'NETWORK-GUARD: live probe refused, spec %s names %s non-stub host(s)\n' "\$_spec" "\${_bad:-unreadable}" >> "$t028_guard_log"
+      exit 97
+    fi
+    ;;
+esac
 exec "$real_python3" "\$@"
 STUBEOF
+}
+t028_install_stub
+
+it "T028: the cache-check import works and returns openrouter's seeded record (fails LOUDLY -- a silent failure here is exactly what fell through to a live probe)"
+t028_cc_err="$HOME/.quota-t028-cachecheck.err"
+t028_cc_out="$(python3 -c "
+import sys, json
+sys.path.insert(0, sys.argv[1])
+import quota_probe as qp
+data = qp.load_quota_cache(sys.argv[2])
+rec = data.get('providers', {}).get(sys.argv[3])
+print(json.dumps(rec) if rec else '')
+" "${LIB_DIR:-${SCRIPTS_DIR:-}}" "$cache_file" openrouter 2>"$t028_cc_err")"
+t028_cc_rc=$?
+if (( t028_cc_rc != 0 )) || [[ -z "$t028_cc_out" ]]; then
+  printf 'T028 FATAL: cache-check python failed (rc=%s); the probe below would fall through to a live probe. stderr:\n' "$t028_cc_rc" >&2
+  cat "$t028_cc_err" >&2
+fi
+assert_eq "0" "$t028_cc_rc" "the cache-check python one-liner must exit 0 (import quota_probe + load_quota_cache)"
+assert_eq "openrouter" "$(jq -r '.provider_id // empty' <<<"$t028_cc_out" 2>/dev/null)" "the cache check must return the seeded openrouter record"
 
 old_path="$PATH"
 export PATH="$stub_dir:$PATH"
@@ -762,6 +913,27 @@ or_live_calls="$(grep -c -- '--provider-id openrouter' "$stub_log" 2>/dev/null)"
 [[ -z "$or_live_calls" ]] && or_live_calls=0
 assert_eq "0" "$or_live_calls" "the live-probe subprocess (the only one that would touch the real network) must never be launched when a fresh cache record exists"
 
+it "T028 network guard: a FORCED cache miss (fresh=1) for openrouter launches the live probe, and it never targets a non-stub host"
+# The fallthrough path, exercised on purpose: fresh=1 skips the cache, so
+# _cma_quota_probe_all launches quota_probe.py for openrouter exactly as a
+# failed cache check would. The guard stub refuses (exit 97 + log line) if
+# the spec it is handed names any real host; with isolation in place the
+# probe runs against the loopback stub and fails fast, hermetically.
+: > "$stub_log"
+t028_install_stub
+export PATH="$stub_dir:$PATH"
+t028_forced_out="$(_cma_quota_probe_all 1 "1" openrouter 2>&1)"
+export PATH="$old_path"
+rm -rf "$stub_dir"
+t028_live_calls="$(grep -c -- '--provider-id openrouter' "$stub_log" 2>/dev/null)"
+[[ -z "$t028_live_calls" ]] && t028_live_calls=0
+t028_live_ok=0; (( t028_live_calls >= 1 )) && t028_live_ok=1
+assert_eq "1" "$t028_live_ok" "the forced miss must really reach the live-probe subprocess (guard is non-vacuous)"
+t028_violations="$(grep -c 'NETWORK-GUARD' "$t028_guard_log" 2>/dev/null)"
+[[ -z "$t028_violations" ]] && t028_violations=0
+assert_eq "0" "$t028_violations" "no quota_probe.py call in T028 may target a non-stub (real) host"
+assert_eq "probe_failed" "$(echo "$t028_forced_out" | jq -r 'select(.provider_id=="openrouter") | .absence_reason' 2>/dev/null)" "the loopback stub refuses, so the forced live probe reports probe_failed"
+
 # --- T029: a real absence_detail for probe_failed results -------------------
 #
 # A real gap: `absence_detail` is required (by this task's spec) to be a
@@ -788,8 +960,8 @@ assert_eq "0" "$or_live_calls" "the live-probe subprocess (the only one that wou
 # rationale as this file's own existing CMA_PROVIDERS_KEY_ALIASES /
 # CMA_PROVIDERS_OVERRIDES overrides a few lines up ("so the hermetic test
 # suite can point them at sandbox copies -- otherwise a sync inside a test
-# would rewrite the TRACKED repo files"). The override is exported only for
-# the single probe call below and unset immediately after.
+# would rewrite the TRACKED repo files"). The override is swapped in only for
+# the single probe call below, then restored to T028's isolated copy.
 #
 # REVIEW ROUND 1 FIX: the first version of this fixture slurped ALL of the
 # real file's entries (including openrouter's genuine
@@ -843,7 +1015,7 @@ assert_file "$pdir/quota-fixture-unreachable.env" "quota-fixture-unreachable.env
 it "a probe_failed result has a non-empty absence_detail distinct from not_reported_by_provider"
 export CMA_QUOTA_ENDPOINTS_FILE="$quota_fixture_file"
 t029_out="$(_cma_quota_probe_all 1 "1" "quota-fixture-unreachable")"
-unset CMA_QUOTA_ENDPOINTS_FILE
+export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation, never the tracked file
 t029_result="$(echo "$t029_out" | jq -c 'select(.provider_id=="quota-fixture-unreachable")')"
 t029_reason="$(echo "$t029_result" | jq -r '.absence_reason')"
 t029_detail="$(echo "$t029_result" | jq -r '.absence_detail // empty')"
@@ -1022,7 +1194,7 @@ export LIB_DIR="$nt_lib"
 export CMA_QUOTA_ENDPOINTS_FILE="$nt_spec"
 nt_out="$(_cma_quota_probe_all 1 "" "quota-notimeout-fixture" 2>&1)"
 nt_rc=$?
-unset CMA_QUOTA_ENDPOINTS_FILE LIB_DIR
+unset LIB_DIR; export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation
 export PATH="$old_path_nt"
 
 nt_row="$(echo "$nt_out" | jq -c 'select(.provider_id=="quota-notimeout-fixture")' 2>/dev/null)"
@@ -1228,7 +1400,7 @@ bo_row="$(_cma_quota_probe_all 0 "" quota-f2-fixture 2>/dev/null | jq -c 'select
 assert_eq "cached" "$(echo "$bo_row" | jq -r '.data_source')" "a valid cached record must still be served from cache"
 assert_eq "7" "$(echo "$bo_row" | jq -r '.windows[0].amount_remaining')" "the cached window value round-trips"
 
-unset LIB_DIR CMA_QUOTA_ENDPOINTS_FILE BO_LOAD_SLEEP
+unset LIB_DIR BO_LOAD_SLEEP; export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation
 
 it "claude-providers --help includes the quota subcommand documentation (I5)"
 help_output="$(bash "$SCRIPTS_DIR/claude-providers.sh" --help 2>&1)"
