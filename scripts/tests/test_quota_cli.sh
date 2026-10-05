@@ -542,7 +542,7 @@ assert_eq "0" "$n2" "rows must be empty for an unknown alias (currently returns 
 
 it "cmd_quota this-alias-does-not-exist-xyz123 (text mode): states plainly the alias does not exist"
 out3="$(cmd_quota this-alias-does-not-exist-xyz123 2>&1)"
-echo "$out3" | grep -qi "does not exist" || assert_eq "contains 'does not exist'" "missing" "FR-003: never silent, never a bare crash (currently prints the full unscoped fleet report instead)"
+grep -qi "does not exist" <<<"$out3" || assert_eq "contains 'does not exist'" "missing" "FR-003: never silent, never a bare crash (currently prints the full unscoped fleet report instead)"
 
 # --- T028: no-probe-attempt test for a no-endpoint-spec provider ------------
 #

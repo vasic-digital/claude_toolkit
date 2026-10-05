@@ -75,26 +75,26 @@ if (( HAVE_PY )); then
   it "model_verify.py --help exits 0 and documents its flags"
   help_out="$(python3 "$MODEL_VERIFY" --help 2>&1)"; rc=$?
   assert_eq 0 "$rc" "--help exit 0"
-  echo "$help_out" | grep -q -- "--provider"; assert_eq 0 $? "--help lists --provider"
-  echo "$help_out" | grep -q -- "--endpoint"; assert_eq 0 $? "--help lists --endpoint"
+  grep -q -- "--provider" <<<"$help_out"; assert_eq 0 $? "--help lists --provider"
+  grep -q -- "--endpoint" <<<"$help_out"; assert_eq 0 $? "--help lists --endpoint"
 
   it "model_verify.py errors (exit 2) when required args are missing"
   missing="$( (unset CMA_PROBE_KEY; python3 "$MODEL_VERIFY") 2>&1 )"; rc=$?
   assert_eq 2 "$rc" "argparse exit 2 on missing required args"
-  echo "$missing" | grep -qi "required\|--provider\|--endpoint"; assert_eq 0 $? "usage names the required args"
+  grep -qi "required\|--provider\|--endpoint" <<<"$missing"; assert_eq 0 $? "usage names the required args"
 
   it "model_verify.py exits 1 without CMA_PROBE_KEY (key check precedes any HTTP)"
   nokey="$( (unset CMA_PROBE_KEY; python3 "$MODEL_VERIFY" \
              --provider x --endpoint http://127.0.0.1 --no-cache --models foo) 2>&1 )"; rc=$?
   assert_eq 1 "$rc" "exit 1 when CMA_PROBE_KEY unset"
-  echo "$nokey" | grep -q "CMA_PROBE_KEY"; assert_eq 0 $? "error names CMA_PROBE_KEY"
+  grep -q "CMA_PROBE_KEY" <<<"$nokey"; assert_eq 0 $? "error names CMA_PROBE_KEY"
 
   it "model_verify.py exits 1 when key is set but no models and no catalog"
   # Returns at model selection, before the ThreadPoolExecutor — so still no HTTP.
   nomodels="$( CMA_PROBE_KEY=dummy-not-real python3 "$MODEL_VERIFY" \
                --provider x --endpoint http://127.0.0.1 --no-cache 2>&1 )"; rc=$?
   assert_eq 1 "$rc" "exit 1 with no models/catalog"
-  echo "$nomodels" | grep -q "no models specified"; assert_eq 0 $? "error: no models specified"
+  grep -q "no models specified" <<<"$nomodels"; assert_eq 0 $? "error: no models specified"
 
   it "normalize_endpoint_for_probe maps /anthropic -> /v1, leaves /v1/... alone"
   assert_eq "https://api.x.com/v1" \
@@ -225,7 +225,7 @@ it "providers-verify.sh rejects an unknown arg (exit 2, names it on stderr)"
 # Arg parsing happens before any strategy, so this is deterministic on every host.
 bogus="$(bash "$PROVIDERS_VERIFY" --bogus-flag 2>&1)"; rc=$?
 assert_eq 2 "$rc" "unknown arg exit 2"
-echo "$bogus" | grep -q "unknown arg"; assert_eq 0 $? "stderr names the unknown arg"
+grep -q "unknown arg" <<<"$bogus"; assert_eq 0 $? "stderr names the unknown arg"
 
 # Run against a COPY inside the sandbox so the script's VERIFIER_BIN resolves
 # relative to $HOME (where no submodules/LLMsVerifier exists) — making strategy 1
@@ -249,7 +249,7 @@ assert_eq 2 "$rc" "offline still 'unverified' (no probe attempted)"
 assert_eq "unverified" "$ofout" "offline path yields 'unverified'"
 
 it "providers-verify.sh never echoes the key value to stdout or stderr"
-echo "$ofout" | grep -q "not-a-real-secret"; assert_eq 1 $? "secret absent from stdout"
+grep -q "not-a-real-secret" <<<"$ofout"; assert_eq 1 $? "secret absent from stdout"
 assert_file_not_contains "$HOME/of.err" "not-a-real-secret" "secret absent from stderr"
 
 # ---------------------------------------------------------------------------

@@ -41,19 +41,19 @@ printf '{"name":"groq"}\n' > "$HOME/${ACCOUNT_PREFIX}prov-groq/.claude.json"
 detected="$(cma_detect_accounts)"
 
 it "real accounts are still detected"
-echo "$detected" | grep -q "${ACCOUNT_PREFIX}acct1$" ; assert_eq 0 $? "acct1 detected"
-echo "$detected" | grep -q "${ACCOUNT_PREFIX}acct2$" ; assert_eq 0 $? "acct2 detected"
+grep -q "${ACCOUNT_PREFIX}acct1$" <<<"$detected" ; assert_eq 0 $? "acct1 detected"
+grep -q "${ACCOUNT_PREFIX}acct2$" <<<"$detected" ; assert_eq 0 $? "acct2 detected"
 
 it "provider-alias dirs are excluded from detection"
-echo "$detected" | grep -q "prov-deepseek" ; assert_eq 1 $? "prov-deepseek excluded"
-echo "$detected" | grep -q "prov-groq" ;     assert_eq 1 $? "prov-groq excluded"
+grep -q "prov-deepseek" <<<"$detected" ; assert_eq 1 $? "prov-deepseek excluded"
+grep -q "prov-groq" <<<"$detected" ;     assert_eq 1 $? "prov-groq excluded"
 
 it "detection count is exactly the real accounts (no provider leakage)"
 n="$(echo "$detected" | grep -c .)"
 assert_eq "2" "$n" "exactly 2 detected accounts"
 
 it "shared dir is never counted as an account"
-echo "$detected" | grep -q -- "-shared" ; assert_eq 1 $? "shared excluded"
+grep -q -- "-shared" <<<"$detected" ; assert_eq 1 $? "shared excluded"
 
 # ---------------------------------------------------------------------------
 # Section 2 — providers_resolve.py against a deterministic fixture catalog
@@ -972,7 +972,7 @@ assert_symlink_to "$HOME/.claude-prov-xiaomi/plugins" "$SHARED_DIR/plugins" "xia
 
 it "xiaomi provider dir excluded from account detection"
 det="$(cma_detect_accounts)"
-echo "$det" | grep -q "prov-xiaomi" ; assert_eq 1 $? "prov-xiaomi excluded from detection"
+grep -q "prov-xiaomi" <<<"$det" ; assert_eq 1 $? "prov-xiaomi excluded from detection"
 
 it "opencode env file created with router transport + zen/v1 base + pinned models"
 assert_file "$PDIR/opencode.env" "opencode env"
@@ -996,14 +996,14 @@ assert_symlink_to "$HOME/.claude-prov-opencode/plugins" "$SHARED_DIR/plugins" "o
 
 it "opencode provider dir excluded from account detection"
 det="$(cma_detect_accounts)"
-echo "$det" | grep -q "prov-opencode" ; assert_eq 1 $? "prov-opencode excluded from detection"
+grep -q "prov-opencode" <<<"$det" ; assert_eq 1 $? "prov-opencode excluded from detection"
 
 it "the existing claudeN alias is untouched"
 grep -q '^alias claude1=' "$ALIAS_FILE" ; assert_eq 0 $? "claude1 still present"
 
 it "provider dirs remain excluded from account detection after sync"
 det="$(cma_detect_accounts)"
-echo "$det" | grep -q "prov-acme" ; assert_eq 1 $? "prov-acme excluded"
+grep -q "prov-acme" <<<"$det" ; assert_eq 1 $? "prov-acme excluded"
 
 it "no secret values leaked into env files or alias file"
 grep -rq "dummy-acme\|dummy-beta\|dummy-mistral\|dummy-xiaomi\|dummy-zen" "$PDIR" "$ALIAS_FILE" ; assert_eq 1 $? "no key values present"
@@ -1021,16 +1021,16 @@ it "list family splits by status: list=verified, list-all=all, list-faulty=fault
 # Section 3 synced with --no-verify, so every provider is 'unverified'.
 # list (verified-only) hides them; list-all + list-faulty show them.
 la_out="$(bash "$PROVIDERS_SH" list-all 2>/dev/null)"
-echo "$la_out" | grep -q "acme"; assert_eq 0 $? "list-all shows unverified acme"
+grep -q "acme" <<<"$la_out"; assert_eq 0 $? "list-all shows unverified acme"
 lf_out="$(bash "$PROVIDERS_SH" list-faulty 2>/dev/null)"
-echo "$lf_out" | grep -q "acme"; assert_eq 0 $? "list-faulty shows unverified acme"
+grep -q "acme" <<<"$lf_out"; assert_eq 0 $? "list-faulty shows unverified acme"
 l_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
-echo "$l_out" | grep -q "acme" && _seen=1 || _seen=0
+grep -q "acme" <<<"$l_out" && _seen=1 || _seen=0
 assert_eq 0 "$_seen" "list (verified-only) hides unverified acme"
 # Mark acme verified -> now it appears under list and disappears from list-faulty.
 cma_status_write acme verified acme-big ""
 l_out2="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
-echo "$l_out2" | grep -q "acme"; assert_eq 0 $? "list shows acme once verified"
+grep -q "acme" <<<"$l_out2"; assert_eq 0 $? "list shows acme once verified"
 lf_out2="$(bash "$PROVIDERS_SH" list-faulty 2>/dev/null)"
 echo "$lf_out2" | grep -q "acme" && _seen2=1 || _seen2=0
 assert_eq 0 "$_seen2" "list-faulty hides acme once verified"
@@ -1069,8 +1069,8 @@ if command -v zsh >/dev/null 2>&1; then
     echo "RC=$?"' 2>&1)"
   z_prov="$(printf '%s\n' "$z_out" | sed -n 's/^PROV=//p')"
   assert_eq "$ALIAS_FILE" "$z_prov" "zsh provenance: cma_run_provider came from the sandbox alias file"
-  echo "$z_out" | grep -qi 'bad substitution' ; assert_eq 1 $? "no zsh bad substitution"
-  echo "$z_out" | grep -q 'RC=0' ; assert_eq 0 $? "wrapper exits 0 under zsh"
+  grep -qi 'bad substitution' <<<"$z_out" ; assert_eq 1 $? "no zsh bad substitution"
+  grep -q 'RC=0' <<<"$z_out" ; assert_eq 0 $? "wrapper exits 0 under zsh"
 else
   it "zsh smoke test (skipped — zsh not installed)"
   _pass "zsh not present; bash path covered elsewhere"
@@ -2225,7 +2225,7 @@ grep -qi 'not pruned' <<<"$_beta_line"; assert_eq 0 $? "unresolved orphan is exp
 grep -q -- '--unresolved' <<<"$_beta_line"; assert_eq 0 $? "unresolved orphan's line tells the operator about --unresolved"
 
 it "prune --dry-run never flags acme, a provider that still resolves"
-echo "$_dry_out" | grep -qw 'acme'; assert_eq 1 $? "acme (still resolves) never appears in prune --dry-run output"
+grep -qw 'acme' <<<"$_dry_out"; assert_eq 1 $? "acme (still resolves) never appears in prune --dry-run output"
 
 it "prune --dry-run: dry-run changes nothing for either class"
 _before_alpha_status="$(cma_status_read orphan-alpha)"
@@ -2240,7 +2240,7 @@ it "prune --dry-run --unresolved previews pruning BOTH classes together"
 _dry_both="$(bash "$PROVIDERS_SH" prune --dry-run --unresolved --offline --keys-file "$KEYS" 2>&1)"
 grep 'orphan-alpha' <<<"$_dry_both" | grep -q 'would prune'; assert_eq 0 $? "status-only still would-prune under --unresolved"
 grep 'orphan-beta' <<<"$_dry_both" | grep -q 'would prune'; assert_eq 0 $? "unresolved orphan also would-prune with --unresolved"
-echo "$_dry_both" | grep -qw 'acme'; assert_eq 1 $? "acme still never appears, even with --unresolved"
+grep -qw 'acme' <<<"$_dry_both"; assert_eq 1 $? "acme still never appears, even with --unresolved"
 
 it "plain prune removes the status-only orphan for real but leaves the unresolved orphan alone"
 _real_out="$(bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" 2>&1)"

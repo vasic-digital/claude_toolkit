@@ -116,9 +116,9 @@ assert_eq 0 "$ord" "pull (line $pull_n) ran before push (line $push_n)"
 it "cma_run EXECUTION: project-scoped hook resolution code present in wrapper"
 # Extract the cma_run body from the alias file (same technique as test_claude.sh)
 _cma_b="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-echo "$_cma_b" | grep -qF '_cma_hook_root'; assert_eq 0 $? "cma_run has project-scoped hook resolution (_cma_hook_root marker)"
-echo "$_cma_b" | grep -qF 'git rev-parse'; assert_eq 0 $? "cma_run resolves git toplevel for project-local hook"
-echo "$_cma_b" | grep -qF '.claude-cwd-hook'; assert_eq 0 $? "cma_run checks for .claude-cwd-hook in git toplevel"
+grep -qF '_cma_hook_root' <<<"$_cma_b"; assert_eq 0 $? "cma_run has project-scoped hook resolution (_cma_hook_root marker)"
+grep -qF 'git rev-parse' <<<"$_cma_b"; assert_eq 0 $? "cma_run resolves git toplevel for project-local hook"
+grep -qF '.claude-cwd-hook' <<<"$_cma_b"; assert_eq 0 $? "cma_run checks for .claude-cwd-hook in git toplevel"
 # Reset order_log for remaining test
 : > "$order_log"
 

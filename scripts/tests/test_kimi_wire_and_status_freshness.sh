@@ -346,13 +346,13 @@ else
   else
     _pass "a stale verdict does NOT render like a fresh one"
   fi
-  echo "$_stale_row" | grep -qi 'stale'; assert_eq 0 $? "the stale row is marked stale"
-  echo "$_fresh_row" | grep -qi 'stale' && _m=1 || _m=0
+  grep -qi 'stale' <<<"$_stale_row"; assert_eq 0 $? "the stale row is marked stale"
+  grep -qi 'stale' <<<"$_fresh_row" && _m=1 || _m=0
   assert_eq 0 "$_m" "the fresh row is NOT marked stale (no blanket marking)"
   # The age itself must be shown, not merely a boolean.
-  echo "$_stale_row" | grep -qE '[0-9]+[smhd]'; assert_eq 0 $? "the stale row shows a concrete age"
-  echo "$_fresh_row" | grep -qE '[0-9]+[smhd]'; assert_eq 0 $? "the fresh row shows a concrete age"
-  echo "$LIST_OUT" | head -1 | grep -q 'CHECKED'; assert_eq 0 $? "the header names the age column"
+  grep -qE '[0-9]+[smhd]' <<<"$_stale_row"; assert_eq 0 $? "the stale row shows a concrete age"
+  grep -qE '[0-9]+[smhd]' <<<"$_fresh_row"; assert_eq 0 $? "the fresh row shows a concrete age"
+  grep -q 'CHECKED' <<<"$(echo "$LIST_OUT" | head -1)"; assert_eq 0 $? "the header names the age column"
 fi
 
 it "a record with no checked_at reports an UNKNOWN age, never a fresh one (§11.4.6)"
