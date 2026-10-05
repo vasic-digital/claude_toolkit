@@ -466,6 +466,17 @@ fi
 #                 other alias-emitting path
 # ===========================================================================
 it "helixllm-export --apply emits a kimi twin alias + config for every record it writes"
+# FIXTURE (verified-only twins, 7cc067a): a kimi-<id> twin line exists ONLY for
+# a provider whose status record is `verified`. So the ids this export will
+# write are discovered first (export WITHOUT --apply lists them and modifies
+# nothing but the sandboxed catalogue), and each is recorded `verified` through
+# lib.sh's own cma_status_write BEFORE the command under test runs — the test
+# therefore exercises the real gate rather than an ungated emission.
+PLANNED_IDS="$(bash "$PROVIDERS_SH" helixllm-export --offline --keys-file "$KEYS" 2>/dev/null \
+               | awk '/^  [A-Za-z0-9._-]+[[:space:]]/ {print $1}' | LC_ALL=C sort -u)"
+{ echo "--- ids planned by helixllm-export (pre-seeded verified) ---"; echo "$PLANNED_IDS"; } >> "$PROOF" 2>&1
+for _pid in $PLANNED_IDS; do cma_status_write "$_pid" verified "" ""; done
+unset _pid
 bash "$PROVIDERS_SH" helixllm-export --apply --offline --keys-file "$KEYS" >>"$PROOF" 2>&1
 _apply_rc=$?
 assert_eq 0 "$_apply_rc" "helixllm-export --apply exits cleanly"
@@ -480,6 +491,13 @@ if (( _n_exported == 0 )); then
   _fail "precondition: --apply wrote no records at all" "nothing to assert a twin against"
 else
   _pass "--apply wrote $_n_exported provider record(s)"
+  # Fixture integrity: every id --apply wrote was pre-seeded `verified`, so a
+  # missing twin below is a real emission defect, never an unseeded fixture.
+  _unseeded=0
+  for _eid in $EXPORTED_IDS; do
+    [[ "$(cma_status_read "$_eid")" == "verified" ]] || _unseeded=$((_unseeded+1))
+  done
+  assert_eq 0 "$_unseeded" "fixture: every exported id's status record is verified before the twin check"
   _missing_alias=0 _missing_cfg=0
   for _eid in $EXPORTED_IDS; do
     grep -q "^alias kimi-$_eid=" "$ALIAS_FILE" 2>/dev/null || _missing_alias=$((_missing_alias+1))
@@ -507,6 +525,10 @@ _ref_id="$(printf '%s\n' $EXPORTED_IDS | head -1)"
 if [[ -z "$_ref_id" ]]; then
   _fail "precondition: no exported id to rebuild" "section 2 wrote nothing"
 else
+  # FIXTURE: the twin is gated on a `verified` status record, so record it
+  # verified (lib.sh's cma_status_write) before the commands under test run.
+  cma_status_write "$_ref_id" verified "" ""
+  assert_eq "verified" "$(cma_status_read "$_ref_id")" "fixture: '$_ref_id' status is verified before the rebuild"
   bash "$PROVIDERS_SH" helixllm-export --apply --offline --keys-file "$KEYS" >>"$PROOF" 2>&1
   grep -q "^alias kimi-$_ref_id=" "$ALIAS_FILE" 2>/dev/null
   _pre=$?
