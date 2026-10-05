@@ -551,15 +551,80 @@ assert_eq "" "$_missing_summary" "no test file is missing its summary call"
 # though the pattern IS present. Whether it trips depends on how early the
 # match lands, so it is a latent coin-flip that changes as bodies grow.
 # Use a here-string (`grep -q PAT <<<"$body"`) instead: no pipe, no SIGPIPE.
-it "no assertion reads \$? from a printf|grep pipeline (SIGPIPE gives 141, not 0)"
+#
+# Two shapes carry the hazard, and the guard must recognise both:
+#   S1  printf … | grep -q PAT; assert_eq 0 $? …     (status read on the next
+#                                                    command)
+#   S2  echo "$out" | grep -q PAT || assert_eq …     (status read by `||`)
+# S2 is the same race through a different operator: under `set -o pipefail`
+# (which these files set) the `||` sees the pipeline status, so a SIGPIPE'd
+# echo yields 141 and the assert fires on a body that DOES contain PAT.
+# Reproduced: a NEEDLE-first body of 500k lines gave 20/20 false failures for
+# both shapes and 0/20 for the here-string form.
+_SIGPIPE_RE='(printf|echo)[^|]*\|[[:space:]]*grep[^;]*(;|\|\|)[[:space:]]*assert'
+# _sigpipe_scan FILE — 0 when FILE (comment lines ignored) has a hazard line.
 # grep -v '^[[:space:]]*#' first: this file documents the bad pattern in a
 # comment above, and the guard must not match its own explanation.
+# Captured, then matched from a here-string — NOT `grep -v … | grep -q`: under
+# pipefail that pipe is itself the race this guard exists to catch (grep -q
+# exits on an early match, the upstream grep is SIGPIPE'd, the 141 reads as
+# "no hit"), so a piped scan silently skips exactly the large files.
+_sigpipe_scan() {
+  local _body
+  _body="$(grep -vE '^[[:space:]]*#' "$1")"
+  grep -qE "$_SIGPIPE_RE" <<<"$_body"
+}
+
+# Fixtures are ASSEMBLED at runtime ($_G stands for the grep word) so the
+# offending lines never appear literally in this file — the sweep below scans
+# this file too, and a literal fixture would make it flag itself.
+_G='grep'
+_sp_dir="$SANDBOX_HOME/sigpipe_fixtures"; mkdir -p "$_sp_dir"
+printf '%s\n' "printf '%s\\n' \"\$body\" | $_G -q PAT; assert_eq 0 \$? \"m\"" > "$_sp_dir/s1_printf_semicolon.sh"
+printf '%s\n' "echo \"\$out\" | $_G -qi PAT || assert_eq \"has PAT\" \"missing\" \"m\"" > "$_sp_dir/s2_echo_oror.sh"
+{
+  printf '%s\n' "$_G -q PAT <<<\"\$out\" || assert_eq \"has PAT\" \"missing\" \"m\""
+  printf '%s\n' "n=\"\$(echo \"\$out\" | jq -r .x)\"; assert_eq 1 \"\$n\" \"m\""
+  printf '%s\n' "# echo \"\$out\" | $_G -q PAT || assert_eq a b c   (prose in a comment)"
+} > "$_sp_dir/good_herestring.sh"
+
+it "GUARD: the SIGPIPE guard flags shape S1 (printf piped to grep, then a separate assert)"
+cond=1; _sigpipe_scan "$_sp_dir/s1_printf_semicolon.sh" && cond=0
+assert_eq 0 "$cond" "S1 fixture: $(cat "$_sp_dir/s1_printf_semicolon.sh")"
+
+it "GUARD: the SIGPIPE guard flags shape S2 (echo piped to grep, assert behind an or-list)"
+cond=1; _sigpipe_scan "$_sp_dir/s2_echo_oror.sh" && cond=0
+assert_eq 0 "$cond" "S2 fixture: $(cat "$_sp_dir/s2_echo_oror.sh")"
+
+# The guard's OWN plumbing is exposed to the same race: a `grep -v | grep -q`
+# under pipefail returns 141 once the match lands early in a file larger than
+# the pipe buffer, and a 141 reads as "no hit". Observed: test_quota_cli.sh's
+# S2 line was silently skipped that way. Plant one hazard line at the top of a
+# >64 KiB body so a piped implementation would miss it.
+{
+  printf '%s\n' "echo \"\$out\" | $_G -q PAT || assert_eq \"has PAT\" \"missing\" \"m\""
+  _i=0; while (( _i < 4000 )); do
+    printf 'filler_line_%05d="padding the body past the pipe buffer"\n' "$_i"; _i=$((_i + 1))
+  done
+} > "$_sp_dir/s2_large_early.sh"
+
+it "GUARD: the SIGPIPE guard flags an early hazard line in a file larger than the pipe buffer"
+_sp_size="$(wc -c < "$_sp_dir/s2_large_early.sh" | tr -d ' ')"
+cond=1; (( _sp_size > 65536 )) && cond=0
+assert_eq 0 "$cond" "fixture really exceeds the 64 KiB pipe buffer ($_sp_size bytes)"
+cond=1; _sigpipe_scan "$_sp_dir/s2_large_early.sh" && cond=0
+assert_eq 0 "$cond" "large-file hazard is detected (the guard must not SIGPIPE itself)"
+
+it "GUARD: the SIGPIPE guard does NOT flag the here-string form, a non-grep pipe, or a comment"
+cond=0; _sigpipe_scan "$_sp_dir/good_herestring.sh" && cond=1
+assert_eq 0 "$cond" "compliant fixture is clean (not a match-everything regex)"
+
+it "no assertion reads \$? from a printf|grep pipeline (SIGPIPE gives 141, not 0)"
 _sigpipe_hits=""; _sigpipe_seen=0
 for _tf in "$TESTS_DIR"/test_*.sh; do
   [[ -f "$_tf" ]] || continue
   _sigpipe_seen=$((_sigpipe_seen + 1))
-  if grep -vE '^[[:space:]]*#' "$_tf" \
-     | grep -qE "printf[^|]*\|[[:space:]]*grep[^;]*;[[:space:]]*assert"; then
+  if _sigpipe_scan "$_tf"; then
     _sigpipe_hits="$_sigpipe_hits $(basename "$_tf")"
   fi
 done

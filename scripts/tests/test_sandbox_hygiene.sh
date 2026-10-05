@@ -142,7 +142,40 @@ scan_bin_writes() {
 # '/^cma_run\(\) ?\{/'. None of those are calls. Removing quoted spans is what
 # separates a command word from a mention; stripping full-line comments alone
 # is not enough here (unlike scanners (a)/(b), whose noise IS comments).
-_strip_quotes() { sed -e 's/"[^"]*"//g' -e "s/'[^']*'//g"; }
+#
+# It is a left-to-right lexer, not a pair of regexes, because a regex pairing
+# `"[^"]*"` treats a backslash-escaped \" as a span TERMINATOR. Bash does not:
+# inside "…" a \" is a literal quote and the span continues. Mis-pairing then
+# shifts every later quote by one, which fails in both directions — prose
+# inside an echoed alias line gets EXPOSED as a call, and a real call after an
+# odd number of \" gets SWALLOWED into a bogus span (a hidden violation). The
+# lexer follows bash's rules for the three cases that matter here:
+#   outside quotes  \x is an escaped char (so \" does NOT open a span); " and '
+#                   open a span.
+#   inside "…"      \x is an escaped char (\" and \\ both stay in the span);
+#                   only an unescaped " closes it.
+#   inside '…'      no escapes at all; the next ' closes it.
+# An unterminated span runs to end of line and is dropped, as before. Nested
+# "$( … "…" … )" is still not modelled (LIMITS item 4 below).
+_strip_quotes() {
+  awk '{
+    s = $0; out = ""; st = 0; n = length(s); i = 1
+    while (i <= n) {
+      ch = substr(s, i, 1)
+      if (st == 0) {
+        if (ch == "\\") { out = out substr(s, i, 2); i += 2; continue }
+        if (ch == "\"") st = 1
+        else if (ch == "'"'"'") st = 2
+        else out = out ch
+      } else if (st == 1) {
+        if (ch == "\\") { i += 2; continue }
+        if (ch == "\"") st = 0
+      } else if (ch == "'"'"'") st = 0
+      i++
+    }
+    print out
+  }'
+}
 
 # scan_wrapper_provenance FILE... — flag a test that CALLS cma_run /
 # cma_run_provider but never asserts which file defined it.
@@ -421,6 +454,49 @@ assert_eq "" "$good_prov_hits" "identical calls are clean once assert_fn_from is
 it "GUARD: the provenance scanner ignores prose (test names, asserts, awk, comments)"
 prose_hits="$(scan_wrapper_provenance "$FIXTURES/prose_only.sh")"
 assert_eq "" "$prose_hits" "mentions of the wrapper name are not calls"
+
+# Backslash-escaped double quotes (\") inside a "…" span. The span does NOT end
+# at \" — bash keeps it as a literal quote — so a quote-stripper that treats \"
+# as a terminator mis-pairs every quote after it, in BOTH directions:
+#   esc_alias_echo   an alias line echoed into a file. Every name is prose.
+#                    Mis-pairing EXPOSES it as a call (false positive).
+#   esc_then_call    a span holding an ODD number of \" followed by a REAL call.
+#                    Mis-pairing swallows the call into a bogus span (false
+#                    negative) — the dangerous half: a real call hides.
+#                    Line 3 is the escaped-BACKSLASH case (\\ then a real ")
+#                    so the fix cannot simply treat every \" as literal.
+#   esc_quoted_prose the call text lives wholly inside one "…" span alongside
+#                    escaped quotes — genuinely quoted prose, not a call.
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'echo "alias x=\\"%s_provider x\\"" >> "$F"\n' "$R"
+} > "$FIXTURES/esc_alias_echo.sh"
+
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'echo "a \\" quote" ; %s_provider foo "x"\n' "$R"
+  printf 'echo "dir\\\\" ; %s -p "y"\n' "$R"
+} > "$FIXTURES/esc_then_call.sh"
+
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'it "say \\"%s_provider acme\\" to launch; then %s \\"x\\" works"\n' "$R" "$R"
+  printf 'printf "%%s\\n" "run \\"%s -p hi\\" (prose)" > "$f"\n' "$R"
+} > "$FIXTURES/esc_quoted_prose.sh"
+
+it "GUARD: an escaped-quote alias echo is NOT flagged as a wrapper call"
+esc_alias_hits="$(scan_wrapper_provenance "$FIXTURES/esc_alias_echo.sh")"
+assert_eq "" "$esc_alias_hits" "\\\" inside a \"…\" span does not end the span"
+
+it "GUARD: a REAL unguarded call after an escaped quote on the same line IS flagged"
+esc_call_hits="$(scan_wrapper_provenance "$FIXTURES/esc_then_call.sh")"
+esc_call_count="$(printf '%s' "$esc_call_hits" | grep -c . || true)"
+assert_eq 2 "$esc_call_count" "both real calls survive quote-stripping (odd \\\" count, and \\\\ before a closing quote)"
+[[ "$esc_call_count" == 2 ]] || printf '    scanner output|\n%s\n' "$esc_call_hits"
+
+it "GUARD: a wrapper name inside a quoted span with escaped quotes is prose, not a call"
+esc_prose_hits="$(scan_wrapper_provenance "$FIXTURES/esc_quoted_prose.sh")"
+assert_eq "" "$esc_prose_hits" "quoted text carrying \\\"…\\\" is still quoted text"
 
 it "GUARD: the provenance scanner skips verify_*.sh (live inheritance is by design)"
 cp "$FIXTURES/bad_prov.sh" "$FIXTURES/verify_prov_live.sh"

@@ -1056,7 +1056,8 @@ rm -f "$bo_cache"
 # The holder is started DETACHED (inside a reaped subshell), never as a job
 # of this shell: _cma_quota_probe_all's bare `wait` runs inside the caller's
 # $(...) subshell, which inherits this shell's job table, and a live job
-# there makes that `wait` spin until the job exits (observed: 99% CPU, hung).
+# there makes that `wait` spin indefinitely -- an unbounded hang, not a
+# wait-for-the-job delay (observed: 99% CPU, never returned).
 bo_holder="$( (sleep 30 </dev/null >/dev/null 2>&1 & printf '%s' "$!") )"
 mkdir -p "$bo_lockdir/.aliases.lockdir"
 printf '%s\n' "$bo_holder" > "$bo_lockdir/.aliases.lockdir/pid"
