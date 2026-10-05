@@ -180,13 +180,19 @@ spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/qu
 qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
 
 cache_path = home_dir + "/roundtrip-quota-cache.json"
-real_data = {"providers": {"openrouter": {"amount_remaining": 52.68, "limit_total": 100.0}}}
+# The real cached-record shape the orchestrator writes (a successful
+# probe_provider() result): a windowless record is no longer replayable
+# (known-issues F2-stale-cache-replay), so the fixture carries its window.
+real_data = {"providers": {"openrouter": {"provider_id": "openrouter", "windows": [
+    {"window": "subscription", "amount_used": 47.32, "amount_remaining": 52.68, "limit_total": 100.0,
+     "unit": "credits", "percent_remaining": 52.68, "resets": False, "reset_at": None}],
+    "account_blocked": False, "absence_reason": None, "http_status": 200}}}
 
 qp.save_quota_cache(cache_path, real_data)
 back = qp.load_quota_cache(cache_path)
 
-assert back["providers"]["openrouter"]["amount_remaining"] == 52.68, back
-assert back["providers"]["openrouter"]["limit_total"] == 100.0, back
+assert back["providers"]["openrouter"]["windows"][0]["amount_remaining"] == 52.68, back
+assert back["providers"]["openrouter"]["windows"][0]["limit_total"] == 100.0, back
 assert back["_cache_version"] == qp.QUOTA_CACHE_VERSION, back
 PY
 assert_eq 0 $? "save_quota_cache + load_quota_cache round-trip real provider data intact"
@@ -571,7 +577,7 @@ assert result["reset_at"] == "2026-10-06T00:00:00Z", result
 PY
 assert_eq 0 $? "resolve_window resolves resets=True and reset_at from a direct ISO-8601 reset_at signal"
 
-it "probe_provider: real openrouter spec resolves correctly against a response carrying limit_reset (reset_cadence is inert)"
+it "probe_provider: real openrouter spec resolves correctly against a response carrying limit_reset (reset_cadence label)"
 python3 - "$SCRIPTS_DIR" <<'PY'
 import sys, importlib.util, json
 
@@ -603,7 +609,7 @@ assert window["amount_remaining"] == 40, window
 assert window["limit_total"] == 100, window
 assert window["unit"] == "credits", window
 PY
-assert_eq 0 $? "probe_provider resolves the real openrouter spec correctly against a response carrying limit_reset, without crashing on the inert reset_cadence signal"
+assert_eq 0 $? "probe_provider resolves the real openrouter spec correctly against a response carrying limit_reset, without crashing on the reset_cadence signal"
 
 it "resolve_window: limit_total == 0 resolves percent_remaining=0.0 instead of raising ZeroDivisionError"
 python3 - "$SCRIPTS_DIR" <<'PY'
@@ -637,5 +643,313 @@ assert result is not None, f"expected a real window, got None"
 assert result["percent_remaining"] == 0.0, f"expected percent_remaining=0.0, got {result['percent_remaining']!r}"
 PY
 assert_eq 0 $? "resolve_window returns percent_remaining=0.0 for limit_total=0 instead of raising ZeroDivisionError"
+
+# --- known-issues B-probe ----------------------------------------------------
+# Every block below loads the REAL scripts/quota_probe.py exactly like the
+# tests above (model_verify first, so quota_probe's `from model_verify import`
+# binds to this instance). Scratch files live under the sandbox $HOME only.
+
+it "T17b-crossprocess-race: concurrent writer PROCESSES never expose a truncated cache file to a reader"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, os, subprocess, time
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+cache_dir = home_dir + "/race-cache"
+cache_path = cache_dir + "/quota-cache.json"
+# A payload large enough (~100 KB) that a truncate-then-write is observable.
+payload = {"providers": {f"p{i}": {"provider_id": f"p{i}", "windows": [
+    {"window": "subscription", "amount_used": i, "amount_remaining": 1, "limit_total": i + 1,
+     "unit": "credits", "percent_remaining": 1.0, "resets": False, "reset_at": None}]}
+    for i in range(400)}}
+qp.save_quota_cache(cache_path, json.loads(json.dumps(payload)))
+
+writer = (
+    "import sys, json; sys.path.insert(0, sys.argv[1]); import quota_probe as qp\n"
+    "data = json.loads(sys.argv[3])\n"
+    "for _ in range(120):\n"
+    "    qp.save_quota_cache(sys.argv[2], json.loads(json.dumps(data)))\n"
+)
+procs = [subprocess.Popen([sys.executable, "-c", writer, scripts_dir, cache_path, json.dumps(payload)])
+         for _ in range(3)]
+reads = bad = 0
+deadline = time.time() + 120
+while any(p.poll() is None for p in procs) and time.time() < deadline:
+    reads += 1
+    try:
+        with open(cache_path) as f:
+            json.load(f)
+    except (OSError, json.JSONDecodeError):
+        bad += 1
+for p in procs:
+    p.wait(timeout=60)
+    assert p.returncode == 0, f"writer process failed rc={p.returncode}"
+print(f"reads={reads} incomplete_reads={bad}")
+assert reads > 0, "reader never observed the file while writers ran"
+assert bad == 0, f"{bad} of {reads} reads saw a truncated/partial cache file"
+leftovers = [n for n in os.listdir(cache_dir) if n != "quota-cache.json"]
+assert leftovers == [], f"temp files left behind: {leftovers}"
+PY
+assert_eq 0 $? "no reader ever sees a truncated quota cache while 3 writer processes save concurrently (atomic temp+os.replace)"
+
+it "T17b-crossprocess-race: a write that dies mid-dump leaves the previous cache intact and no temp file behind"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, os
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+cache_dir = home_dir + "/crash-cache"
+cache_path = cache_dir + "/quota-cache.json"
+good = {"providers": {"openrouter": {"provider_id": "openrouter", "windows": [
+    {"window": "subscription", "amount_used": 1, "amount_remaining": 9, "limit_total": 10,
+     "unit": "credits", "percent_remaining": 90.0, "resets": False, "reset_at": None}]}}}
+qp.save_quota_cache(cache_path, good)
+before = open(cache_path).read()
+
+real_dump = qp.json.dump
+def dying_dump(obj, fp, **kw):
+    fp.write('{"_cache_version": ')  # partial bytes, then the process "dies"
+    raise RuntimeError("simulated crash mid-write")
+qp.json.dump = dying_dump
+try:
+    qp.save_quota_cache(cache_path, {"providers": {}})
+    raise AssertionError("save_quota_cache swallowed the simulated crash")
+except RuntimeError:
+    pass
+finally:
+    qp.json.dump = real_dump
+
+after = open(cache_path).read()
+assert after == before, "the live cache file was modified by a failed write"
+json.loads(after)
+leftovers = [n for n in os.listdir(cache_dir) if n != "quota-cache.json"]
+assert leftovers == [], f"temp files left behind after a failed write: {leftovers}"
+PY
+assert_eq 0 $? "a crashed save_quota_cache never truncates the live cache and cleans its temp file"
+
+it "F2-stale-cache-replay: a cached record with no windows (pre-F2 empty row) is never replayed"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, time
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+now = time.time()
+good_window = {"window": "subscription", "amount_used": 1, "amount_remaining": 9, "limit_total": 10,
+               "unit": "credits", "percent_remaining": 90.0, "resets": False, "reset_at": None}
+cache_path = home_dir + "/stale-replay-cache.json"
+# Exactly the v1.30.0-era poisoned record from the register row: version 1,
+# fresh timestamp, windows:[] with absence_reason:null.
+with open(cache_path, "w") as f:
+    json.dump({"_cache_version": 1, "_cached_at": now, "providers": {
+        "openrouter": {"provider_id": "openrouter", "windows": [], "absence_reason": None,
+                       "http_status": 200, "_cached_at": now},
+        "failedprov": {"provider_id": "failedprov", "windows": [], "absence_reason": "probe_failed",
+                       "http_status": 500, "_cached_at": now},
+        "notalist": {"provider_id": "notalist", "windows": None, "_cached_at": now},
+        "goodprov": {"provider_id": "goodprov", "windows": [good_window], "absence_reason": None,
+                     "http_status": 200, "_cached_at": now},
+    }}, f)
+
+data = qp.load_quota_cache(cache_path)
+provs = data["providers"]
+assert "openrouter" not in provs, f"empty pre-F2 row was replayed: {provs.get('openrouter')!r}"
+assert "failedprov" not in provs, f"a failed (windowless) row was replayed: {provs.get('failedprov')!r}"
+assert "notalist" not in provs, f"a malformed windows field was replayed: {provs.get('notalist')!r}"
+assert provs.get("goodprov", {}).get("windows") == [good_window], f"a valid record was lost: {provs!r}"
+PY
+assert_eq 0 $? "load_quota_cache drops windowless cached records (the pre-F2 empty row) and keeps valid ones"
+
+it "I2-residual-cadence: a daily/monthly reset_cadence label reports resets=true, reset_at=null, reset_cadence=<label>"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    window_spec = json.load(f)["openrouter"]["windows"][0]
+
+for cadence in ("daily", "monthly"):
+    body = {"data": {"limit": 10, "limit_remaining": 4, "usage": 6, "limit_reset": cadence}}
+    r = qp.resolve_window(window_spec, body)
+    assert r is not None, cadence
+    assert r["resets"] is True, (cadence, r)
+    assert r["reset_at"] is None, f"a cadence label must never become an invented timestamp: {r!r}"
+    assert r["reset_cadence"] == cadence, (cadence, r)
+PY
+assert_eq 0 $? "daily and monthly cadence labels set resets=true with an honest null reset_at and a reset_cadence field"
+
+it "I2-residual-cadence: a null / \"null\" / absent cadence still reports resets=false (does not reset)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    window_spec = json.load(f)["openrouter"]["windows"][0]
+
+for label, data in (("json-null", {"limit_reset": None}), ("string-null", {"limit_reset": "null"}),
+                    ("empty", {"limit_reset": ""}), ("absent", {}), ("non-string", {"limit_reset": 7})):
+    body = {"data": dict({"limit": 10, "limit_remaining": 4, "usage": 6}, **data)}
+    r = qp.resolve_window(window_spec, body)
+    assert r is not None, label
+    assert r["resets"] is False, (label, r)
+    assert r["reset_at"] is None, (label, r)
+    assert r.get("reset_cadence") is None, (label, r)
+PY
+assert_eq 0 $? "a null, \"null\", empty, non-string or absent cadence keeps resets=false and reset_cadence=null"
+
+it "I2-residual-cadence: a real reset timestamp still wins over a cadence label (reset_at stays a real ISO-8601 value)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+window_spec = {"window": "daily", "signals": [
+    {"path": ["d", "used"], "type": "amount_used"},
+    {"path": ["d", "remaining"], "type": "amount_remaining"},
+    {"path": ["d", "limit"], "type": "limit_total"},
+    {"path": [], "type": "unit_literal", "value": "requests"},
+    {"path": ["d", "reset_at"], "type": "reset_at"},
+    {"path": ["d", "cadence"], "type": "reset_cadence"},
+]}
+body = {"d": {"used": 1, "remaining": 9, "limit": 10, "reset_at": "2026-10-06T00:00:00Z", "cadence": "daily"}}
+r = qp.resolve_window(window_spec, body)
+assert r["resets"] is True, r
+assert r["reset_at"] == "2026-10-06T00:00:00Z", r
+assert r["reset_cadence"] == "daily", r
+PY
+assert_eq 0 $? "a genuine reset_at timestamp is preserved when a cadence label is also present"
+
+it "F1-no-hermetic-guard: main() never lets a host-wide CMA_PROVIDER_CA_CERT reach the probe's TLS trust"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, io, contextlib, os
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# A real, readable (non-CA) file under the sandbox: if it leaked into
+# model_verify.ca_ssl_context(), that function would consult it.
+ca_path = home_dir + "/host-wide-unrelated-ca.pem"
+with open(ca_path, "w") as f:
+    f.write("not a certificate\n")
+os.environ["CMA_PROVIDER_CA_CERT"] = ca_path
+
+seen = {}
+def capturing_http_get_json(url, headers, timeout):
+    seen["env"] = os.environ.get("CMA_PROVIDER_CA_CERT")
+    seen["ctx"] = mv.ca_ssl_context()  # exactly what the real http_get_json passes to urlopen
+    return (200, {"data": {"limit_remaining": 52.68, "limit": 100.0, "usage": 47.32}})
+qp.http_get_json = capturing_http_get_json
+
+spec_path = home_dir + "/f1-guard-quota-endpoints.json"
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+with open(spec_path, "w") as f:
+    json.dump({"openrouter": catalog["openrouter"]}, f)
+
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+    rc = qp.main(["--provider-id", "openrouter", "--spec-file", spec_path, "--timeout", "3"])
+assert rc == 0, rc
+assert "env" in seen, "the probe never reached http_get_json -- guard would be vacuous"
+assert seen["env"] is None, f"CMA_PROVIDER_CA_CERT leaked into the probe: {seen['env']!r}"
+assert seen["ctx"] is None, "ca_ssl_context() built a custom-CA context instead of system defaults"
+assert json.loads(buf.getvalue())["absence_reason"] is None
+PY
+assert_eq 0 $? "a probe run through main() with CMA_PROVIDER_CA_CERT set uses system TLS defaults, never the host-wide CA"
+
+it "F1-docstring: probe_provider documents the CMA_PROVIDER_CA_CERT precondition for in-process callers"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+doc = qp.probe_provider.__doc__ or ""
+assert "CMA_PROVIDER_CA_CERT" in doc, doc
+assert "main()" in doc, doc
+PY
+assert_eq 0 $? "probe_provider's docstring names the CMA_PROVIDER_CA_CERT precondition that main() enforces"
+
+it "T17a-main-notfound: main() with a provider id absent from the spec prints not_reported_by_provider and never probes"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, io, contextlib
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+calls = {"n": 0}
+def counting(*a, **k):
+    calls["n"] += 1
+    return (200, {})
+qp.http_get_json = counting
+
+spec_path = home_dir + "/notfound-quota-endpoints.json"
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+with open(spec_path, "w") as f:
+    json.dump({"openrouter": catalog["openrouter"]}, f)
+
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    rc = qp.main(["--provider-id", "ghost-provider", "--spec-file", spec_path])
+assert rc == 0, rc
+parsed = json.loads(buf.getvalue())
+assert parsed == {"provider_id": "ghost-provider", "windows": [], "account_blocked": False,
+                  "absence_reason": "not_reported_by_provider", "http_status": None}, parsed
+assert calls["n"] == 0, f"http_get_json called {calls['n']} times for an unknown provider"
+PY
+assert_eq 0 $? "main() reports not_reported_by_provider for an id missing from the spec, with zero HTTP calls"
 
 summary

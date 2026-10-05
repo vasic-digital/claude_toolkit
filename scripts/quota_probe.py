@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone, timedelta
 
@@ -57,6 +58,18 @@ def _first_signal_value(signals, type_name, body):
             except ValueError:
                 continue
             return raw
+        if type_name == "reset_cadence":
+            # A cadence LABEL ("daily", "monthly"), never a timestamp: walk
+            # the raw value (it is a string, so _dig() would discard it) and
+            # accept only a non-empty string other than a literal "null".
+            # JSON null / absent / non-string all mean "no cadence reported".
+            raw = _walk(body, sig.get("path") or [])
+            if not isinstance(raw, str):
+                continue
+            label = raw.strip()
+            if not label or label.lower() == "null":
+                continue
+            return label
         val = _dig(body, sig.get("path") or [])
         if val is None:
             continue
@@ -84,6 +97,7 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
     unit = _first_signal_value(signals, "unit_literal", body)
     reset_at_direct = _first_signal_value(signals, "reset_at", body)
     reset_in_seconds = _first_signal_value(signals, "reset_in_seconds", body)
+    reset_cadence = _first_signal_value(signals, "reset_cadence", body)
 
     # Derivation (rule 2): if exactly 2 of the 3 core values are present,
     # derive the third.
@@ -118,7 +132,12 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
     else:
         percent_remaining = 100 * amount_remaining / limit_total
 
-    # Reset handling (rule 5).
+    # Reset handling (rule 5). reset_at is ONLY ever a real ISO-8601
+    # timestamp (computed from reset_in_seconds or read directly). A
+    # cadence label ("daily", "monthly") proves the cap resets but says
+    # nothing about WHEN, so it sets resets=True with reset_at=None and is
+    # carried verbatim in reset_cadence -- a timestamp is never invented
+    # from it (known-issues I2-residual-cadence).
     if reset_in_seconds is not None:
         reset_at = (
             datetime.now(timezone.utc) + timedelta(seconds=reset_in_seconds)
@@ -126,6 +145,9 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
         resets = True
     elif reset_at_direct is not None:
         reset_at = reset_at_direct
+        resets = True
+    elif reset_cadence is not None:
+        reset_at = None
         resets = True
     else:
         reset_at = None
@@ -140,6 +162,7 @@ def resolve_window(window_spec: dict, body: dict) -> dict | None:
         "percent_remaining": percent_remaining,
         "resets": resets,
         "reset_at": reset_at,
+        "reset_cadence": reset_cadence,
     }
 
 
@@ -165,7 +188,16 @@ def resolve_account_blocked(provider_spec, body):
 def probe_provider(provider_id, spec, api_key, timeout):
     """Live-probe one quota-endpoints.json provider entry. Returns a dict:
     {provider_id, windows: [...], account_blocked: bool,
-     absence_reason: str|None, http_status: int|None}."""
+     absence_reason: str|None, http_status: int|None}.
+
+    TLS precondition: the HTTP call goes through model_verify.http_get_json,
+    whose ca_ssl_context() trusts ONLY the CA named by CMA_PROVIDER_CA_CERT
+    when that variable is set. This function does NOT clear it. main()
+    removes CMA_PROVIDER_CA_CERT from the environment before probing (the
+    quota endpoints are public HTTPS hosts); an in-process caller that
+    invokes probe_provider() directly must clear it the same way, or a
+    host-wide value set for an unrelated self-signed endpoint makes every
+    public-HTTPS probe fail verification."""
     url = spec.get("url")
     if not url:
         return {
@@ -230,18 +262,52 @@ def load_quota_cache(path):
     ts = data.get("_cached_at")
     if not isinstance(ts, (int, float)) or time.time() - ts > QUOTA_CACHE_TTL_SECONDS:
         return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
-    data.setdefault("providers", {})
+    providers = data.get("providers")
+    if not isinstance(providers, dict):
+        providers = {}
+    # Only a SUCCESSFUL probe is ever cache-worthy, and a successful probe
+    # always carries at least one window (the windows-XOR-absence_reason
+    # invariant). A record with no windows is either a pre-F2 empty row
+    # cached under v1.30.0 (windows:[] with absence_reason:null) or some
+    # other non-success; replaying it renders a blank row for up to the
+    # full TTL (known-issues F2-stale-cache-replay). Drop it so the caller
+    # re-probes live instead.
+    data["providers"] = {
+        pid: rec for pid, rec in providers.items()
+        if isinstance(rec, dict) and isinstance(rec.get("windows"), list) and rec["windows"]
+    }
     return data
 
 
 def save_quota_cache(path, data):
+    """Write the quota cache atomically: dump to a temp file in the SAME
+    directory, fsync it, then os.replace() it over `path`. A concurrent
+    reader therefore sees either the complete previous file or the complete
+    new one, never a truncated one, and a write that dies mid-dump leaves
+    the previous cache untouched (known-issues T17b-crossprocess-race).
+    This does not serialize concurrent read-modify-write cycles: two
+    writers that loaded the same snapshot still resolve last-writer-wins."""
     if not path:
         return
     data["_cache_version"] = QUOTA_CACHE_VERSION
     data["_cached_at"] = time.time()
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix="." + os.path.basename(path) + ".", suffix=".tmp", dir=directory
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def main(argv=None):
