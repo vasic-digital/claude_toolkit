@@ -210,6 +210,41 @@ assert_eq "$_ino1" "$(ls -i "$ALIAS_FILE" | awk '{print $1}')" "second sync perf
 set_verdicts
 
 # ===========================================================================
+# Section 2c — reconciliation must never delete what it did not write, and
+# must drop exactly the named twin (review of 7cc067a).
+# ===========================================================================
+it "reconcile: a USER-AUTHORED kimi-<id> line for an unverified/failed provider survives byte-identical"
+cma_alias_commit "" 'alias kimi-beta="my own beta command"' keep
+cma_alias_commit "" 'alias kimi-gamma="my own gamma command"' keep
+grep -qxF 'alias kimi-beta="my own beta command"' "$ALIAS_FILE"; assert_eq 0 $? "precondition: user kimi-beta line seeded"
+grep -qxF 'alias kimi-gamma="my own gamma command"' "$ALIAS_FILE"; assert_eq 0 $? "precondition: user kimi-gamma line seeded"
+set_verdicts "beta unverified" "gamma failed"
+vsync; assert_eq 0 $? "sync with user-authored twin-named lines exits cleanly"
+grep -qxF 'alias kimi-beta="my own beta command"' "$ALIAS_FILE"; assert_eq 0 $? "user kimi-beta line survives byte-identical (beta unverified)"
+grep -qxF 'alias kimi-gamma="my own gamma command"' "$ALIAS_FILE"; assert_eq 0 $? "user kimi-gamma line survives byte-identical (gamma failed)"
+# Test-only cleanup so later sections start from the toolkit-managed state.
+cma_alias_commit kimi-beta "" keep; cma_alias_commit kimi-gamma "" keep
+set_verdicts
+
+it "reconcile: a dotted id drops ONLY its own literal twin line (no regex over-match, no rejected render)"
+cma_alias_commit "" 'alias kimi-a.b="cma_run_kimi_provider a.b"' keep
+cma_alias_commit "" 'alias kimi-aXb="victim"' keep
+grep -qxF 'alias kimi-a.b="cma_run_kimi_provider a.b"' "$ALIAS_FILE"; assert_eq 0 $? "precondition: stale kimi-a.b line seeded"
+grep -qxF 'alias kimi-aXb="victim"' "$ALIAS_FILE"; assert_eq 0 $? "precondition: victim kimi-aXb line seeded"
+vsync; assert_eq 0 $? "sync exits cleanly"
+grep -qxF 'alias kimi-a.b="cma_run_kimi_provider a.b"' "$ALIAS_FILE" && _t=1 || _t=0
+assert_eq 0 "$_t" "stale kimi-a.b twin line removed"
+grep -qxF 'alias kimi-aXb="victim"' "$ALIAS_FILE"; assert_eq 0 $? "victim kimi-aXb line survives byte-identical"
+ls "$ALIAS_FILE".rejected.* >/dev/null 2>&1 && _t=1 || _t=0
+assert_eq 0 "$_t" "no .rejected.* alias render written"
+cp "$ALIAS_FILE" "$HOME/alias.before-2nd"
+vsync; assert_eq 0 $? "second sync exits cleanly"
+cmp -s "$HOME/alias.before-2nd" "$ALIAS_FILE"; assert_eq 0 $? "second sync leaves the alias file identical (cmp)"
+ls "$ALIAS_FILE".rejected.* >/dev/null 2>&1 && _t=1 || _t=0
+assert_eq 0 "$_t" "still no .rejected.* after the second sync"
+cma_alias_commit kimi-aXb "" keep
+
+# ===========================================================================
 # Section 3 — remove <id> tears down the twin alias + both config dirs
 # ===========================================================================
 it "claude-providers remove acme backs up the twin + kimi config dir"

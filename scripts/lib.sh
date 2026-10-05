@@ -3207,7 +3207,11 @@ _cma_alias_render() {
     addname="$(printf '%s\n' "$add" | awk -F'[ =]+' '{print $2}')"
   fi
   if [[ -n "$drop" && "$drop" != "$addname" ]]; then
-    grep -v -E "^alias[[:space:]]+${drop}=" "$carry" > "$carry.d" || true
+    # The drop name is a LITERAL alias name, never a pattern: escape ERE
+    # metacharacters so e.g. `kimi-a.b` cannot also drop `kimi-aXb` (which the
+    # gate then rejects, leaving the stale line forever + a .rejected.* per run).
+    local drop_re; drop_re="$(printf '%s' "$drop" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
+    grep -v -E "^alias[[:space:]]+${drop_re}=" "$carry" > "$carry.d" || true
     command mv -f "$carry.d" "$carry"
   fi
 

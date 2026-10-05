@@ -169,7 +169,9 @@ Options:
   --multi              with sync: run ONLY the per-model multi-alias phase
 --kimi-aliases       emit the Kimi Code twin aliases (kimi-<id>) + config.toml
                         for every provider alias (default ON; harmless no-op for
-                        kc-*/kimi-* ids). Env: KIMI_ALIASES=0
+                        kc-*/kimi-* ids). Twin alias lines are emitted ONLY for
+                        providers whose status is verified; stale toolkit-written
+                        twins are removed. Env: KIMI_ALIASES=0
   --no-kimi-aliases    skip Kimi twin emission for this run (does not remove
                         already-emitted twins)
   --pi-aliases         emit the Pi CLI twin aliases (pi-<id>) + config.toml
@@ -2746,11 +2748,27 @@ _cma_kimi_twin_alias() {
   esac
   case "$id" in *[!A-Za-z0-9._-]*) return 1 ;; esac
   local twin="kimi-$id"
+  local want; want="$(printf 'alias %s="cma_run_kimi_provider %s"' "$twin" "$id")"
   if [[ "$(cma_status_read "$id")" == "verified" ]]; then
-    cma_alias_commit "$twin" "$(printf 'alias %s="cma_run_kimi_provider %s"' "$twin" "$id")" keep 2>/dev/null || return 1
-  else
-    cma_alias_commit "$twin" "" keep 2>/dev/null || return 1
+    cma_alias_commit "$twin" "$want" keep 2>/dev/null || return 1
+    return 0
   fi
+  # Not verified: drop ONLY a line this toolkit wrote. A user-authored
+  # definition of the same name (anything other than the exact canonical twin
+  # line, matched as a fixed-string whole line) is never deleted — when one is
+  # present the name is left entirely untouched and the operator is warned.
+  [[ -f "$ALIAS_FILE" ]] || return 0
+  grep -qxF -- "$want" "$ALIAS_FILE" || {
+    if awk -v p="alias $twin=" 'index($0, p) == 1 { f = 1 } END { exit !f }' "$ALIAS_FILE"; then
+      cma_warn "leaving user-authored '$twin' alias untouched (provider '$id' is not verified)"
+    fi
+    return 0
+  }
+  if awk -v p="alias $twin=" -v w="$want" 'index($0, p) == 1 && $0 != w { f = 1 } END { exit !f }' "$ALIAS_FILE"; then
+    cma_warn "leaving '$twin' untouched: a user-authored definition shares its name (provider '$id' is not verified)"
+    return 0
+  fi
+  cma_alias_commit "$twin" "" keep 2>/dev/null || return 1
   return 0
 }
 
