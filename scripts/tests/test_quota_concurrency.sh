@@ -612,4 +612,66 @@ done
 it "scenario (e): all 8 concurrently-probed providers survive in the on-disk cache, across $RACE_TRIALS trials (zero records lost)"
 assert_eq "1" "$race_all_ok" "every trial has all 8/8 providers present in the real cache file on disk${race_detail:+ -- failures: $race_detail}"
 
+# =============================================================================
+# Scenario (f): a concurrent READER never sees a torn cache write (known-
+# issues T17b-race-test-weak / T17b-crossprocess-race).
+#
+# Scenario (e) cannot prove the cross-process race: within one run there is a
+# single writer, and it inspects the file only after the writer is done, so it
+# stays green against a save_quota_cache that truncates the file in place and
+# dumps into it. The real exposure is the cached-branch read, which is NOT
+# under the cache lock: another `quota` run can load the file WHILE a save is
+# in flight. A non-atomic save leaves a window in which the file is empty or
+# half-written; the loader then degrades to an empty cache and the reader
+# silently loses every record.
+#
+# The real save_quota_cache / load_quota_cache from the isolated copy are
+# hammered from two processes: a writer saving a large (multi-MB, so each
+# dump spans many write syscalls) cache repeatedly, and a reader loading it in
+# a tight loop until the writer finishes. Every load must return the sentinel
+# record. The reader's load count is asserted too, so a reader that never
+# overlapped the writer cannot pass vacuously.
+# =============================================================================
+
+torn_out="$(
+python3 - "$ISO_LIB_DIR" "$HOME/torn-cache/quota-cache.json" <<'PYEOF'
+import os, sys, time
+sys.path.insert(0, sys.argv[1])
+import quota_probe as qp
+path = sys.argv[2]
+win = [{"window": "daily", "amount_used": 1, "amount_remaining": 9, "limit_total": 10,
+        "unit": "requests", "percent_remaining": 90.0, "resets": False, "reset_at": None}]
+def payload():
+    provs = {"sentinel": {"provider_id": "sentinel", "windows": win, "_cached_at": time.time()}}
+    for i in range(6000):
+        provs["pad%05d" % i] = {"provider_id": "pad%05d" % i, "windows": win,
+                                "note": "x" * 200, "_cached_at": time.time()}
+    return {"providers": provs}
+qp.save_quota_cache(path, payload())   # the file exists and is whole before the reader starts
+child = os.fork()
+if child == 0:
+    for _ in range(25):
+        qp.save_quota_cache(path, payload())
+    os._exit(0)
+loads = torn = 0
+while True:
+    done = os.waitpid(child, os.WNOHANG)[0] != 0
+    d = qp.load_quota_cache(path)
+    loads += 1
+    if "sentinel" not in d.get("providers", {}):
+        torn += 1
+    if done:
+        break
+print(loads, torn)
+PYEOF
+)"
+torn_loads="${torn_out% *}"; torn_count="${torn_out#* }"
+
+it "scenario (f): the reader genuinely overlapped the writer (non-vacuous)"
+torn_overlap=0; [[ "$torn_loads" =~ ^[0-9]+$ ]] && (( torn_loads >= 20 )) && torn_overlap=1
+assert_eq "1" "$torn_overlap" "the reader must complete many loads while the writer runs (got loads='$torn_loads')"
+
+it "scenario (f): a concurrent reader NEVER observes a torn cache write (atomic temp+rename save)"
+assert_eq "0" "$torn_count" "every concurrent load must return the sentinel record; $torn_count of $torn_loads loads saw an empty or half-written cache"
+
 summary

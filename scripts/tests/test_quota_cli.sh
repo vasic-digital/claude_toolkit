@@ -274,6 +274,8 @@ assert_eq "0" "$?" "--json output parses as valid JSON"
 it "cmd_quota --fresh: flag accepted, pipeline still completes cleanly"
 out="$(cmd_quota --fresh 2>&1)"; rc=$?
 assert_eq "0" "$rc" "--fresh parsed and forwarded to _cma_quota_probe_all without error"
+# Exit code only: that --fresh is what changes behaviour is pinned by the
+# T22-flag-specificity tests near the end of this file (cache vs live probe).
 
 it "cmd_quota --timeout 30: flag + value accepted, pipeline still completes cleanly"
 out="$(cmd_quota --timeout 30 2>&1)"; rc=$?
@@ -535,6 +537,28 @@ out_auth="$(_cma_quota_list_native_accounts)"
 auth_expired="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudeauthexpired")) | .auth_state')"
 assert_eq "session_expired" "$auth_expired" "a past refreshTokenExpiresAt yields auth_state=session_expired"
 
+# Register item C1-expiresAt-untested: the decision to IGNORE expiresAt (the
+# access token, refreshed routinely) was documented above but never pinned.
+# Both fixtures carry BOTH fields, set to OPPOSITE sides of now, so a reader
+# that consulted expiresAt -- alone or in addition -- gets the wrong answer.
+it "_cma_quota_list_native_accounts: an EXPIRED expiresAt with a FUTURE refreshTokenExpiresAt is auth_state=ok (access token ignored)"
+dir_acc_exp="$(make_account claudeaccexp)"
+cat > "$dir_acc_exp/.credentials.json" <<EOF
+{"claudeAiOauth": {"expiresAt": $past_ms, "refreshTokenExpiresAt": $future_ms}}
+EOF
+out_auth="$(_cma_quota_list_native_accounts)"
+auth_acc_exp="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudeaccexp")) | .auth_state')"
+assert_eq "ok" "$auth_acc_exp" "an expired access token (expiresAt) is a routine refresh, never a session failure"
+
+it "_cma_quota_list_native_accounts: a FUTURE expiresAt does not mask a PAST refreshTokenExpiresAt (session_expired)"
+dir_ref_exp="$(make_account claudereffexp)"
+cat > "$dir_ref_exp/.credentials.json" <<EOF
+{"claudeAiOauth": {"expiresAt": $future_ms, "refreshTokenExpiresAt": $past_ms}}
+EOF
+out_auth="$(_cma_quota_list_native_accounts)"
+auth_ref_exp="$(echo "$out_auth" | jq -r 'select(.account_id | endswith("claudereffexp")) | .auth_state')"
+assert_eq "session_expired" "$auth_ref_exp" "a live access token must not hide an expired refresh token"
+
 it "_cma_quota_list_native_accounts: auth_state=not_signed_in when .credentials.json is absent entirely"
 dir_nosignin="$(make_account claudeauthnosignin)"
 rm -f "$dir_nosignin/.credentials.json"
@@ -730,7 +754,8 @@ assert_eq "0" "$n2" "rows must be empty for an unknown alias (currently returns 
 
 it "cmd_quota this-alias-does-not-exist-xyz123 (text mode): states plainly the alias does not exist"
 out3="$(cmd_quota this-alias-does-not-exist-xyz123 2>&1)"
-grep -qi "does not exist" <<<"$out3" || assert_eq "contains 'does not exist'" "missing" "FR-003: never silent, never a bare crash (currently prints the full unscoped fleet report instead)"
+grep -qi "does not exist" <<<"$out3" && dne=1 || dne=0
+assert_eq "1" "$dne" "FR-003: the unknown alias is stated plainly ('does not exist'), never silent, never a bare crash"
 
 # --- T028: no-probe-attempt test for a no-endpoint-spec provider ------------
 #
@@ -1208,12 +1233,18 @@ nt_timeout_visible=0; PATH="$nt_bin" command -v timeout >/dev/null 2>&1 && nt_ti
 assert_eq "0" "$nt_timeout_visible" "precondition: the timeout binary must be genuinely unresolvable on the narrowed PATH (otherwise this test proves nothing)"
 
 cat > "$nt_lib/quota_probe.py" <<'PYEOF'
-import json, sys
+import json, os, sys
 def load_quota_cache(path):
     return {}
 def save_quota_cache(path, data):
     return None
 if __name__ == "__main__":
+    # Invocation log (register item I3-data_source-assert): proof that the
+    # live probe subprocess genuinely RAN, independent of the row it yields.
+    log = os.environ.get("NT_PROBE_LOG")
+    if log:
+        with open(log, "a") as f:
+            f.write(sys.argv[sys.argv.index("--provider-id") + 1] + "\n")
     print(json.dumps({"windows": [{"window": "subscription", "amount_used": 20,
         "amount_remaining": 80, "limit_total": 100, "unit": "credits",
         "percent_remaining": 80.0, "resets": False, "reset_at": None}],
@@ -1235,18 +1266,25 @@ old_path_nt="$PATH"
 export PATH="$nt_bin"
 export LIB_DIR="$nt_lib"
 export CMA_QUOTA_ENDPOINTS_FILE="$nt_spec"
+export NT_PROBE_LOG="$HOME/.quota-notimeout-probe.log"
+rm -f "$NT_PROBE_LOG"
 nt_out="$(_cma_quota_probe_all 1 "" "quota-notimeout-fixture" 2>&1)"
 nt_rc=$?
-unset LIB_DIR; export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation
+unset LIB_DIR NT_PROBE_LOG; export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation
 export PATH="$old_path_nt"
 
 nt_row="$(echo "$nt_out" | jq -c 'select(.provider_id=="quota-notimeout-fixture")' 2>/dev/null)"
 nt_reason="$(echo "$nt_row" | jq -r '.absence_reason' 2>/dev/null)"
-nt_src="$(echo "$nt_row" | jq -r '.data_source' 2>/dev/null)"
 nt_amt="$(echo "$nt_row" | jq -r '.windows[0].amount_remaining' 2>/dev/null)"
 assert_eq "0" "$nt_rc" "the probe orchestration must complete cleanly with no timeout binary"
 assert_eq "null" "$nt_reason" "with no timeout binary the live probe must NOT degrade to probe_failed (absence_reason must be null)"
-assert_eq "live" "$nt_src" "the row must come from the live probe path (data_source=live)"
+# data_source=live alone does NOT discriminate (register item
+# I3-data_source-assert): the orchestrator stamps "live" on EVERY row of the
+# live branch, including the probe_failed row it synthesizes when the probe
+# subprocess never ran or printed nothing. The probe's own invocation log is
+# the discriminating signal: exactly one run, for exactly this provider.
+nt_runs="$(grep -cx 'quota-notimeout-fixture' "$HOME/.quota-notimeout-probe.log" 2>/dev/null)"
+assert_eq "1" "${nt_runs:-0}" "the live probe subprocess must actually have RUN exactly once for this provider with no timeout binary (invocation log), not merely produced a data_source=live row"
 assert_eq "80" "$nt_amt" "the stubbed probe's real window value must round-trip through the no-timeout fallback"
 
 # --- B-orchestrator: lost-update race in the cache merge pass ----------------
@@ -1288,6 +1326,10 @@ def save_quota_cache(path, data):
     os.replace(tmp, path)
 if __name__ == "__main__":
     pid = sys.argv[sys.argv.index("--provider-id") + 1]
+    log = os.environ.get("BO_PROBE_LOG")
+    if log:
+        with open(log, "a") as f:
+            f.write(pid + "\n")
     print(json.dumps({"provider_id": pid, "windows": [{"window": "subscription",
         "amount_used": 1, "amount_remaining": 9, "limit_total": 10, "unit": "credits",
         "percent_remaining": 90.0, "resets": False, "reset_at": None}],
@@ -1432,6 +1474,7 @@ bo_row="$(_cma_quota_probe_all 0 "" quota-f2-fixture 2>/dev/null | jq -c 'select
 bo_f2_src="$(echo "$bo_row" | jq -r '.data_source')"
 bo_f2_nwin="$(echo "$bo_row" | jq -r '.windows | length')"
 assert_eq "live" "$bo_f2_src" "a windowless cached record must force a live re-probe, never be replayed as cached (row: $bo_row)"
+f7_f2_row="$bo_row"   # kept for the F7 all-rows invariant check below
 assert_eq "1" "$bo_f2_nwin" "the re-probed row carries the live probe's real window"
 
 it "B-orchestrator F2: a cached record WITH windows is still replayed (guard is not over-broad)"
@@ -1442,6 +1485,54 @@ jq -n --argjson now "$bo_now" '{_cache_version: 1, _cached_at: $now, providers: 
 bo_row="$(_cma_quota_probe_all 0 "" quota-f2-fixture 2>/dev/null | jq -c 'select(.provider_id=="quota-f2-fixture")')"
 assert_eq "cached" "$(echo "$bo_row" | jq -r '.data_source')" "a valid cached record must still be served from cache"
 assert_eq "7" "$(echo "$bo_row" | jq -r '.windows[0].amount_remaining')" "the cached window value round-trips"
+
+# --- F7-orchestrator-invariant: windows XOR absence_reason on EVERY real row --
+# The cached-replay guard above checks the invariant for one hand-built
+# record. This checks it across every row _cma_quota_probe_all actually
+# produced in this file -- not-reported, probe_failed, live, cached, native,
+# batched, no-timeout, and the F2 re-probe -- so a regression in ANY branch
+# (cached replay, live, synthesized failure, native) that emits a row with
+# both or neither is caught. The row count is asserted too, so an empty
+# capture cannot pass vacuously.
+it "F7: every row _cma_quota_probe_all produced in this file has windows XOR absence_reason"
+f7_rows="$(printf '%s\n' "$probe_out" "$t029_out" "$batch_out" "$nt_out" "$bo_out" "$f7_f2_row" \
+  | jq -c 'select(type=="object")' 2>/dev/null)"
+f7_total="$(printf '%s\n' "$f7_rows" | grep -c .)"
+f7_bad="$(printf '%s\n' "$f7_rows" | jq -c 'select((((.windows // []) | length) > 0) == (.absence_reason != null))' 2>/dev/null)"
+f7_ok=0; (( f7_total >= 10 )) && f7_ok=1
+assert_eq "1" "$f7_ok" "the invariant sweep must cover a real population of rows (got $f7_total), never pass on an empty capture"
+assert_eq "" "$f7_bad" "no row may carry both windows and an absence_reason, or neither"
+
+# --- T22-flag-specificity: --fresh is the thing that changes behaviour ------
+# The T012 test near the top of this file only shows `cmd_quota --fresh`
+# exits 0, which a parser that silently DROPS the flag also does. Here the
+# SAME fixture is queried twice through the real cmd_quota entry point, and
+# the flag is the only difference between the two calls: a fresh, windowed
+# cache record (amount_remaining 7) is on disk, and the stub live probe
+# reports amount_remaining 9 and logs every invocation. Without --fresh the
+# cached value must be served and the probe must NOT run; with --fresh the
+# probe must run exactly once and its live value must be served.
+it "T22: cmd_quota WITHOUT --fresh serves the cached record and never launches the probe"
+jq -n --argjson now "$(date +%s)" '{_cache_version: 1, _cached_at: $now, providers: {
+  "quota-f2-fixture": {provider_id: "quota-f2-fixture", account_blocked: false, absence_reason: null,
+    windows: [{window:"subscription", amount_used:3, amount_remaining:7, limit_total:10, unit:"credits",
+               percent_remaining:70.0, resets:false, reset_at:null}], http_status: 200, _cached_at: $now}}}' > "$bo_cache"
+export BO_PROBE_LOG="$HOME/.quota-t22-probe.log"
+rm -f "$BO_PROBE_LOG"
+t22_plain="$(cmd_quota quota-f2-fixture --json 2>/dev/null)"
+t22_plain_runs="$(grep -cx 'quota-f2-fixture' "$BO_PROBE_LOG" 2>/dev/null)"
+assert_eq "cached" "$(echo "$t22_plain" | jq -r '.rows[0].data_source' 2>/dev/null)" "no --fresh: the row is served from the cache"
+assert_eq "7" "$(echo "$t22_plain" | jq -r '.rows[0].windows[0].amount_remaining' 2>/dev/null)" "no --fresh: the CACHED value (7) is shown"
+assert_eq "0" "${t22_plain_runs:-0}" "no --fresh: the live probe subprocess never ran"
+
+it "T22: cmd_quota WITH --fresh bypasses the same cached record and launches the probe exactly once"
+rm -f "$BO_PROBE_LOG"
+t22_fresh="$(cmd_quota quota-f2-fixture --json --fresh 2>/dev/null)"
+t22_fresh_runs="$(grep -cx 'quota-f2-fixture' "$BO_PROBE_LOG" 2>/dev/null)"
+assert_eq "live" "$(echo "$t22_fresh" | jq -r '.rows[0].data_source' 2>/dev/null)" "--fresh: the row comes from a live probe, not the cache"
+assert_eq "9" "$(echo "$t22_fresh" | jq -r '.rows[0].windows[0].amount_remaining' 2>/dev/null)" "--fresh: the LIVE value (9) is shown, not the cached 7"
+assert_eq "1" "${t22_fresh_runs:-0}" "--fresh: the live probe subprocess ran exactly once for this provider"
+unset BO_PROBE_LOG
 
 unset LIB_DIR BO_LOAD_SLEEP; export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation
 

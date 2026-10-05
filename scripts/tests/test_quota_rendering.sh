@@ -22,6 +22,16 @@ make_sandbox
 source "$SCRIPTS_DIR/lib.sh"
 set +e   # lib.sh sets -e; the harness asserts on failures, so relax it.
 
+# _has FLAGS PATTERN TEXT MSG -- a positive "text contains pattern" check that
+# logs a [PASS] line when it holds and a [FAIL] line when it does not (known-
+# issues C1-rendering-count). The older `grep -q ... || assert_eq ...` shape
+# logged only on failure, so the summary's pass count silently omitted every
+# positive check that held: a green count did not mean they had run.
+_has() {
+  if grep $1 -- "$2" <<<"$3"; then _pass "$4"
+  else _fail "$4" "pattern '$2' not found"; fi
+}
+
 it "_cma_quota_severity(100) is green"
 out="$(_cma_quota_severity 100)"
 assert_eq "green" "$out" "100% remaining is green"
@@ -66,6 +76,7 @@ assert_eq 1 $? "NO_COLOR set forces color off even on a real tty"
 unset NO_COLOR
 
 it "_cma_quota_color_enabled: non-tty -> OFF regardless of NO_COLOR"
+# NO_COLOR is unset on purpose: with it unset, non-tty is the ONLY reason left for color to be off.
 unset NO_COLOR
 _cma_quota_color_enabled --force-no-tty
 assert_eq 1 $? "non-tty forces color off even with NO_COLOR unset"
@@ -103,7 +114,7 @@ lines="$(grep -c 'session\|weekly\|subscription' <<<"$out")"
 assert_eq "4" "$lines" "4 total window lines across all 4 rows (1+0+2+1)"
 
 it "_cma_quota_render_text states the native row is not reported by provider"
-grep -q "not reported by provider" <<<"$out" || assert_eq "contains" "missing" "native row's absence must be stated in words"
+_has -q "not reported by provider" "$out" "native row's absence must be stated in words"
 
 it "_cma_quota_render_text shows both severities for the two-window row on separate lines"
 echo "$out" | grep -qi "green" && echo "$out" | grep -qi "red" \
@@ -119,8 +130,8 @@ echo "$out_noc" | grep -qi "green" && echo "$out_noc" | grep -qi "red" \
 assert_eq "1" "$ok2" "severity words still present in plain-text mode (FR-013)"
 
 it "_cma_quota_render_text states the cached row is cached and discloses its age (42)"
-grep -q "cached" <<<"$out" || assert_eq "contains cached" "missing" "cached row must say so"
-grep -q "42" <<<"$out" || assert_eq "contains 42" "missing" "cached row must disclose its numeric age (FR-012)"
+_has -q "cached" "$out" "cached row must say so"
+_has -q "42" "$out" "cached row must disclose its numeric age (FR-012)"
 
 # --- _cma_quota_render_json (T020, RED — function does not exist yet; it
 # lands in T021). Reuses the SAME FIXTURE array defined above (T018), per
@@ -198,10 +209,10 @@ out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_text --f
 block="$(echo "$out" | sed -n '/^blockedprov/,/^$/p')"
 
 it "_cma_quota_render_text: a blocked account shows a distinct ACCOUNT BLOCKED statement"
-grep -qi "account blocked" <<<"$block" || assert_eq "contains 'account blocked' in blockedprov's own block" "missing" "FR-011: distinct statement required"
+_has -qi "account blocked" "$block" "FR-011: distinct statement required"
 
 it "_cma_quota_render_text: a blocked account's windows are STILL shown, not hidden"
-grep -q "session" <<<"$block" || assert_eq "contains blockedprov's own window line" "missing" "prior windows must remain visible, only annotated as moot -- scoped to THIS row, not any other row in the combined output"
+_has -q "session" "$block" "prior windows must remain visible, only annotated as moot -- scoped to THIS row, not any other row in the combined output"
 
 it "_cma_quota_render_json: account_blocked field is true for the blocked row"
 json_out="$(printf '%s\n' "${FIXTURE[@]}" "$BLOCKED_ROW" | _cma_quota_render_json)"
@@ -230,7 +241,7 @@ out="$(printf '%s\n' "${FIXTURE[@]}" "$FAILED_ROW" | _cma_quota_render_text --fo
 # FIXTURE) must say "not reported by provider" -- scoped to ITS OWN
 # block, not the whole combined stream.
 not_reported_block="$(echo "$out" | sed -n '/^claude1/,/^$/p')"
-grep -q "not reported by provider" <<<"$not_reported_block" || assert_eq "contains 'not reported by provider' in claude1's own block" "missing" "not_reported_by_provider row must still say so"
+_has -q "not reported by provider" "$not_reported_block" "not_reported_by_provider row must still say so"
 
 # The probe_failed row's block (failedprov) must say "probe failed" PLUS
 # its real absence_detail text, and must NEVER say "not reported by
@@ -239,8 +250,8 @@ grep -q "not reported by provider" <<<"$not_reported_block" || assert_eq "contai
 # would trivially pass here regardless of failedprov's own block,
 # since claude1's block already contains that exact phrase.
 failed_block="$(echo "$out" | sed -n '/^failedprov/,/^$/p')"
-grep -qi "probe failed" <<<"$failed_block" || assert_eq "contains 'probe failed' in failedprov's own block" "missing" "probe_failed must render a distinct phrase"
-grep -q "connection failed or timed out" <<<"$failed_block" || assert_eq "contains the real absence_detail in failedprov's own block" "missing" "the real absence_detail text must appear, not a placeholder"
+_has -qi "probe failed" "$failed_block" "probe_failed must render a distinct phrase"
+_has -q "connection failed or timed out" "$failed_block" "the real absence_detail text must appear, not a placeholder"
 echo "$failed_block" | grep -q "not reported by provider" && bad=1 || bad=0
 assert_eq "0" "$bad" "probe_failed's own block must NEVER say 'not reported by provider' -- the exact confusion FR-009 forbids"
 
@@ -265,8 +276,8 @@ EXPIRED_ROW='{"account_id":"claudeexpired","family":"claude","plan_tier":"defaul
 it "_cma_quota_render_text: a session_expired native account states BOTH 'not reported by provider' AND 'session expired' in its own block"
 out="$(printf '%s\n' "${FIXTURE[@]}" "$EXPIRED_ROW" | _cma_quota_render_text --force-no-tty)"
 expired_block="$(echo "$out" | sed -n '/^claudeexpired/,/^$/p')"
-grep -q "not reported by provider" <<<"$expired_block" || assert_eq "contains 'not reported by provider' in claudeexpired's own block" "missing" "the base phrase must still be stated, unchanged"
-grep -qi "session expired" <<<"$expired_block" || assert_eq "contains 'session expired' in claudeexpired's own block" "missing" "the genuine auth-session-expiry must be stated distinctly, not conflated into the base phrase alone"
+_has -q "not reported by provider" "$expired_block" "the base phrase must still be stated, unchanged"
+_has -qi "session expired" "$expired_block" "the genuine auth-session-expiry must be stated distinctly, not conflated into the base phrase alone"
 
 # --- Reset cadence rendering (known-issues CADENCE-RENDER) -------------
 # A daily/monthly cap arrives as resets=true, reset_at=null,
