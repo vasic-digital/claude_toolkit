@@ -4429,16 +4429,8 @@ qp.save_quota_cache(cache_file, data)
     # Kimi native accounts that are signed in report their 5h/7d windows from
     # the usages endpoint (quota_probe.py --kimi-native-dir). Only the account
     # DIR crosses into python: the access token is read there and never
-    # appears on argv, in the environment, or in any output. The toolkit has
-    # NO refresh flow of its own: it never reads refresh_token and never calls
-    # a token/OAuth endpoint. Instead (operator decision "let the CLI refresh
-    # before probing") it runs the Kimi CLI's OWN launch-time refresh
-    # invocation -- the same `kimi -p "hi" --output-format text` that
-    # cma_run_provider (lib.sh) and detect_kimicode_record use -- ONCE,
-    # scoped to this account via KIMI_CODE_HOME, bounded by `timeout 20`, and
-    # failure-tolerant. Without `timeout` (stock macOS) the refresh is skipped
-    # rather than run unbounded. Either way the probe then runs; an access
-    # token the CLI could not renew comes back as absence_reason auth_expired.
+    # appears on argv, in the environment, or in any output. No refresh flow:
+    # an expired access token comes back as absence_reason auth_expired.
     # Not cached: the per-provider quota cache is keyed by provider_id.
     local nfamily nauth naid
     nfamily="$(jq -r '.family // empty' <<<"$nline" 2>/dev/null)"
@@ -4446,10 +4438,6 @@ qp.save_quota_cache(cache_file, data)
     naid="$(jq -r '.account_id // empty' <<<"$nline" 2>/dev/null)"
     if [[ "$nfamily" == "kimi" && "$nauth" == "ok" && -n "$naid" ]]; then
       local kdir="$HOME/${KIMI_ACCOUNT_PREFIX:-.kimi-code-}$naid" kres
-      if command -v kimi >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
-        KIMI_CODE_HOME="$kdir" timeout 20 kimi -p "hi" --output-format text \
-          </dev/null >/dev/null 2>&1 || true
-      fi
       if command -v timeout >/dev/null 2>&1; then
         kres="$(timeout "$(( timeout + 1 ))" python3 "$lib_dir/quota_probe.py" \
           --kimi-native-dir "$kdir" --timeout "$timeout" 2>/dev/null)"
