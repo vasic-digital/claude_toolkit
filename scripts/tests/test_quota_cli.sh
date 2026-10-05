@@ -449,13 +449,26 @@ _b1_native_probe() {   # $1 = refreshTokenExpiresAt JSON value; prints "<auth_st
   rm -rf "$b1_home"
 }
 
-it "_cma_quota_list_native_accounts: leading-zero refreshTokenExpiresAt (\"0999\") prints NOTHING to stderr (C1 octal noise)"
+# B1 ruling: a leading-zero string is NOT a canonical number, so it is an
+# unparseable field -- and an unparseable field never yields a guessed
+# failure. It must degrade to auth_state=ok, never session_expired.
+it "_cma_quota_list_native_accounts: leading-zero refreshTokenExpiresAt (\"0999\") is unparseable -> auth_state=ok, NOTHING on stderr (C1)"
 b1_res="$(_b1_native_probe '"0999"')"
+assert_eq "ok" "$(echo "$b1_res" | sed -n 1p)" "a non-canonical (leading-zero) expiry is unparseable and must degrade to auth_state=ok"
 assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "a leading-zero numeric string must not leak an arithmetic-base error to stderr"
 
-it "_cma_quota_list_native_accounts: leading-zero FUTURE refreshTokenExpiresAt is read as decimal -> auth_state=ok, stderr empty"
+it "_cma_quota_list_native_accounts: a long leading-zero refreshTokenExpiresAt (\"09999999999999\") leaves stderr empty"
 b1_res="$(_b1_native_probe '"09999999999999"')"
-assert_eq "ok" "$(echo "$b1_res" | sed -n 1p)" "a leading-zero future expiry (decimal 9999999999999 ms) yields auth_state=ok"
+assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "a leading-zero value must never reach arithmetic, so nothing is printed to stderr"
+
+it "_cma_quota_list_native_accounts: canonical FUTURE refreshTokenExpiresAt (9999999999999) -> auth_state=ok"
+b1_res="$(_b1_native_probe '9999999999999')"
+assert_eq "ok" "$(echo "$b1_res" | sed -n 1p)" "a canonical future expiry yields auth_state=ok"
+assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "and nothing is printed to stderr"
+
+it "_cma_quota_list_native_accounts: canonical PAST refreshTokenExpiresAt (\"1000\") still -> session_expired (gate keeps the real expiry path)"
+b1_res="$(_b1_native_probe '"1000"')"
+assert_eq "session_expired" "$(echo "$b1_res" | sed -n 1p)" "a canonical past expiry must still yield auth_state=session_expired"
 assert_eq "0" "$(echo "$b1_res" | sed -n 2p)" "and nothing is printed to stderr"
 
 # C2: `while IFS= read -r _name` in _cma_quota_group_accounts did not

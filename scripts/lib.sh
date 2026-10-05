@@ -3632,10 +3632,12 @@ _cma_quota_list_native_accounts() {
     else
       local refresh_exp now_ms
       refresh_exp="$(jq -r '.claudeAiOauth.refreshTokenExpiresAt // empty' "$d/.credentials.json" 2>/dev/null)" || refresh_exp=""
-      if [[ "$refresh_exp" =~ ^[0-9]+$ ]]; then
+      # Canonical integers only: a leading-zero string ("0999") is not a
+      # canonical number, so it is treated as unparseable (stays "ok")
+      # and never reaches arithmetic, where it would be read as octal.
+      if [[ "$refresh_exp" =~ ^(0|[1-9][0-9]*)$ ]]; then
         now_ms=$(( $(date +%s) * 1000 ))
-        # 10# forces decimal: a leading-zero string ("0999") would
-        # otherwise be read as octal and print a base error to stderr.
+        # 10# forces decimal as defence in depth.
         (( 10#$refresh_exp < now_ms )) && auth_state="session_expired"
       fi
       # A non-numeric/missing refreshTokenExpiresAt with a credentials
