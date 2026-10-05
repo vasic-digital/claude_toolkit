@@ -93,17 +93,25 @@ if [[ ! -d "$PDIR_LIVE" ]] || ! compgen -G "$PDIR_LIVE/*.env" >/dev/null 2>&1; t
   echo "SKIP: no provider aliases installed — quota live leg skipped (native accounts alone still exercise the code path, but this leg needs at least one configured alias to be meaningful)" | tee "$QUOTA_LOG"
   quota_rc=0
 else
-  qout="$(bash "$SCRIPTS_DIR/claude-providers.sh" quota --json 2>&1)"
+  # stdout (the JSON) and stderr (diagnostics) are kept APART: merging them
+  # made any stderr line part of the document under validation. The content
+  # check is the release gate's own (claude-release-gate.sh
+  # --check-quota-json), so a fleet where every provider probe failed is a
+  # FAIL here too, not a pass on rc + "valid JSON" alone (F5-gate-shallow).
+  qjson="$(mktemp "${TMPDIR:-/tmp}/cma-proof-quota-json.XXXXXX")"
+  qerr="$(mktemp "${TMPDIR:-/tmp}/cma-proof-quota-err.XXXXXX")"
+  bash "$SCRIPTS_DIR/claude-providers.sh" quota --json >"$qjson" 2>"$qerr"
   quota_rc=$?
-  printf '%s\n' "$qout" | tee "$QUOTA_LOG" >/dev/null
-  if (( quota_rc == 0 )); then
-    if printf '%s' "$qout" | jq -e . >/dev/null 2>&1; then
-      echo "PASS: claude-providers quota --json produced valid JSON" | tee -a "$QUOTA_LOG"
-    else
-      echo "FAIL: claude-providers quota --json did not produce valid JSON" | tee -a "$QUOTA_LOG"
-      quota_rc=1
-    fi
+  { cat "$qjson"; [[ -s "$qerr" ]] && { echo "--- stderr ---"; cat "$qerr"; }; } > "$QUOTA_LOG"
+  if (( quota_rc != 0 )); then
+    echo "FAIL: claude-providers quota --json exited $quota_rc" | tee -a "$QUOTA_LOG"
+  elif qmsg="$(bash "$SCRIPTS_DIR/claude-release-gate.sh" --check-quota-json "$qjson")"; then
+    echo "PASS: claude-providers quota --json: $qmsg" | tee -a "$QUOTA_LOG"
+  else
+    echo "FAIL: $qmsg" | tee -a "$QUOTA_LOG"
+    quota_rc=1
   fi
+  rm -f "$qjson" "$qerr"
 fi
 
 echo

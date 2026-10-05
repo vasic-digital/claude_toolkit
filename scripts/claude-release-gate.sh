@@ -34,8 +34,12 @@
 #                       a SKIP, never a release FAIL — the kimi capability is
 #                       validated to the extent the host can support it.
 #   2.6 quota live    : claude-providers quota --json against this host's
-#                       REAL installed state, asserting rc=0, valid JSON, and
-#                       the correct top-level shape. MANDATORY (fail-closed,
+#                       REAL installed state, asserting rc=0, valid JSON on
+#                       STDOUT (stderr is kept apart, never parsed), the
+#                       correct top-level shape, at least one provider_account
+#                       row, and that NOT every provider probe failed — a
+#                       fleet where no probe succeeded is a FAIL, not a pass
+#                       (known-issues F5-gate-shallow). MANDATORY (fail-closed,
 #                       not opt-in) — claude-providers is always present on
 #                       any host able to run this gate at all.
 #   3. providers scan : claude-verify-providers            (opt-in:
@@ -44,6 +48,10 @@
 # Usage:
 #   claude-release-gate.sh [--provider <id>] [--kimi-gate-provider <id|off>] \
 #                          [--skip-suite] [--verify-providers]
+#   claude-release-gate.sh --check-quota-json <file>
+#       Run ONLY the layer-2.6 content check on a saved `quota --json` stdout
+#       document and exit 0/1 (shared with scripts/tests/run-proof.sh so the
+#       two gates cannot drift apart).
 #
 # Provider selection: --provider, else $CMA_GATE_PROVIDER, else helixagent.
 # The provider must exist and be verified; a missing/broken gate provider is
@@ -63,6 +71,7 @@ PROVIDER="${CMA_GATE_PROVIDER:-helixagent}"
 KIMI_GATE="${CMA_KIMI_GATE_PROVIDER:-kimi-deepseek}"
 SKIP_SUITE=0
 VERIFY_PROVIDERS=0
+CHECK_QUOTA_JSON=""
 usage() {
   sed -n '2,/^set -uo pipefail$/p' "${BASH_SOURCE[0]}" | sed -E 's/^# ?//'
 }
@@ -73,6 +82,7 @@ while [ $# -gt 0 ]; do
     --kimi-gate-provider) KIMI_GATE="${2:-kimi-deepseek}"; shift 2 ;;
     --skip-suite) SKIP_SUITE=1; shift ;;
     --verify-providers) VERIFY_PROVIDERS=1; shift ;;
+    --check-quota-json) CHECK_QUOTA_JSON="${2:?--check-quota-json needs a file}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'claude-release-gate: unknown arg %s\n' "$1" >&2; exit 2 ;;
   esac
@@ -80,6 +90,44 @@ done
 
 log()  { printf '[release-gate] %s\n' "$*" >&2; }
 fail() { printf '[release-gate] FAIL: %s\n[release-gate] DO NOT RELEASE.\n' "$*" >&2; exit 1; }
+
+# cma_gate_quota_check FILE — the layer-2.6 content check on a `quota --json`
+# STDOUT document. Prints the reason and returns 1 on any failure. Exit code +
+# valid JSON + top-level keys alone are NOT the real condition: a fleet where
+# every probe fails still produces all three (each failed probe degrades to a
+# row with absence_reason "probe_failed"), so the leg must also prove that at
+# least one provider_account row exists and that not every one of them failed.
+# native_account rows never probe anything ("not_reported_by_provider" by
+# construction), so they cannot satisfy the leg on their own.
+cma_gate_quota_check() {
+  local f="$1" keys n_prov n_failed
+  if ! jq -e . "$f" >/dev/null 2>&1; then
+    echo "claude-providers quota --json did not produce valid JSON on stdout"; return 1
+  fi
+  keys="$(jq -Sc 'keys' "$f" 2>/dev/null)"
+  if [ "$keys" != '["generated_at","rows","scoped_to","unknown_alias"]' ]; then
+    echo "claude-providers quota --json top-level shape mismatch: got keys $keys"; return 1
+  fi
+  if ! jq -e '.rows | type == "array"' "$f" >/dev/null 2>&1; then
+    echo "claude-providers quota --json: .rows is not an array"; return 1
+  fi
+  n_prov="$(jq '[.rows[] | select(.kind == "provider_account")] | length' "$f")"
+  n_failed="$(jq '[.rows[] | select(.kind == "provider_account" and .absence_reason == "probe_failed")] | length' "$f")"
+  if [ "$n_prov" -eq 0 ]; then
+    echo "claude-providers quota --json has no provider_account rows — no provider was probed at all"; return 1
+  fi
+  if [ "$n_failed" -eq "$n_prov" ]; then
+    echo "every provider quota probe failed ($n_failed/$n_prov provider_account rows are probe_failed) — the quota path is not working"; return 1
+  fi
+  echo "valid JSON, correct top-level shape, $((n_prov - n_failed))/$n_prov provider probes answered"
+  return 0
+}
+
+if [ -n "$CHECK_QUOTA_JSON" ]; then
+  [ -f "$CHECK_QUOTA_JSON" ] || { echo "no such file: $CHECK_QUOTA_JSON"; exit 1; }
+  cma_gate_quota_check "$CHECK_QUOTA_JSON"
+  exit $?
+fi
 
 # ── Layer 1: sandbox suite ──────────────────────────────────────────────────
 if [ "$SKIP_SUITE" -eq 1 ]; then
@@ -220,25 +268,29 @@ fi
 
 # ── Layer 2.6: quota/limits live leg ────────────────────────────────────────
 log "layer 2.6: LIVE quota/limits leg (claude-providers quota --json) …"
-_qout="$(bash -c '
+# STDOUT and STDERR are captured APART: merging them (2>&1) made any stderr
+# diagnostic part of the "JSON" and the leg could not tell noise from a broken
+# document. The installed claude-providers is used, as in layer 2's refresh.
+_qerr="$(mktemp "${TMPDIR:-/tmp}/cma-gate-quota-err.XXXXXX")"
+_qjson="$(mktemp "${TMPDIR:-/tmp}/cma-gate-quota-json.XXXXXX")"
+bash -c '
   set +eu
   source "$1"
-  claude-providers quota --json 2>&1
-' _ "$ALIAS_FILE")"
+  "$HOME/.local/bin/claude-providers" quota --json
+' _ "$ALIAS_FILE" >"$_qjson" 2>"$_qerr"
 _qrc=$?
 if [ "$_qrc" -ne 0 ]; then
-  printf '%s\n' "$_qout" | tail -10 >&2
+  tail -10 "$_qerr" >&2
+  rm -f "$_qerr" "$_qjson"
   fail "claude-providers quota --json exited $_qrc"
 fi
-if ! printf '%s' "$_qout" | jq -e . >/dev/null 2>&1; then
-  printf '%s\n' "$_qout" | tail -10 >&2
-  fail "claude-providers quota --json did not produce valid JSON"
+if ! _qmsg="$(cma_gate_quota_check "$_qjson")"; then
+  tail -10 "$_qjson" >&2; tail -10 "$_qerr" >&2
+  rm -f "$_qerr" "$_qjson"
+  fail "$_qmsg"
 fi
-_qkeys="$(printf '%s' "$_qout" | jq -Sc 'keys')"
-if [ "$_qkeys" != '["generated_at","rows","scoped_to","unknown_alias"]' ]; then
-  fail "claude-providers quota --json top-level shape mismatch: got keys $_qkeys"
-fi
-log "layer 2.6: quota/limits LIVE leg GREEN (valid JSON, correct top-level shape)"
+rm -f "$_qerr" "$_qjson"
+log "layer 2.6: quota/limits LIVE leg GREEN ($_qmsg)"
 
 # ── Layer 3 (opt-in): full provider/model verification ──────────────────────
 if [ "$VERIFY_PROVIDERS" -eq 1 ]; then

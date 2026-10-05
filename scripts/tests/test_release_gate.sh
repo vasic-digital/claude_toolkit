@@ -64,10 +64,33 @@ EOF
 # The gate refreshes aliases via the INSTALLED claude-providers; stub it.
 # sandbox_stub, not a bare redirect: in a real $HOME this name is a symlink
 # into the repo and `>` would write THROUGH it into production.
+# It also answers `quota --json` (layer 2.6) from $FAKE_QUOTA_JSON on stdout,
+# optional $FAKE_QUOTA_STDERR noise on stderr, and exit $FAKE_QUOTA_RC — so
+# the quota leg is driven from fixtures and never probes a real endpoint.
 sandbox_stub "$HOME/.local/bin/claude-providers" <<'STUB'
 #!/usr/bin/env bash
+if [ "${1:-}" = "quota" ]; then
+  [ -n "${FAKE_QUOTA_STDERR:-}" ] && printf '%s\n' "$FAKE_QUOTA_STDERR" >&2
+  printf '%s\n' "${FAKE_QUOTA_JSON:-}"
+  exit "${FAKE_QUOTA_RC:-0}"
+fi
 exit 0
 STUB
+
+# Quota fixtures (contract shape: quota-limits-cli-contract.md).
+_qrow() { # KIND NAME ABSENCE  (ABSENCE "" -> null with one window)
+  if [ -z "$3" ]; then
+    printf '{"kind":"%s","display_name":"%s","absence_reason":null,"windows":[{"window":"subscription","amount_remaining":5}]}' "$1" "$2"
+  else
+    printf '{"kind":"%s","display_name":"%s","absence_reason":"%s","windows":[]}' "$1" "$2" "$3"
+  fi
+}
+_qdoc() { printf '{"generated_at":"2026-10-05T00:00:00Z","scoped_to":null,"unknown_alias":false,"rows":[%s]}' "$1"; }
+Q_HEALTHY="$(_qdoc "$(_qrow provider_account gateprov '')","$(_qrow provider_account gatenative probe_failed)","$(_qrow native_account claude1 not_reported_by_provider)")"
+Q_ALL_FAILED="$(_qdoc "$(_qrow provider_account gateprov probe_failed)","$(_qrow provider_account gatenative probe_failed)","$(_qrow native_account claude1 not_reported_by_provider)")"
+Q_NO_ROWS="$(_qdoc '')"
+Q_NATIVE_ONLY="$(_qdoc "$(_qrow native_account claude1 not_reported_by_provider)")"
+export FAKE_QUOTA_JSON="$Q_HEALTHY"
 
 # The stale GLOBAL config (pre-isolation layout). Never rewritten by any case:
 # the decoy a pre-fix gate would read instead of the per-alias one.
@@ -78,7 +101,9 @@ printf '{"Providers":[],"Router":{"default":"deepseek,deepseek-v4-pro","backgrou
 # run_gate PROVIDER [FAKE_ROUTE] -> sets $GATE_OUT, $GATE_RC in the caller.
 GATE_OUT=""; GATE_RC=0
 run_gate() {
-  GATE_OUT="$( FAKE_ROUTE="${2:-}" bash "$GATE" --skip-suite --provider "$1" 2>&1 )"
+  # $HOME/.local/bin first on PATH: the stubbed claude-providers must win over
+  # any real one on the host PATH (a real one would probe real endpoints).
+  GATE_OUT="$( PATH="$HOME/.local/bin:$PATH" FAKE_ROUTE="${2:-}" bash "$GATE" --skip-suite --provider "$1" 2>&1 )"
   GATE_RC=$?
 }
 
@@ -111,5 +136,72 @@ it "native provider: no ccr route exists and none is demanded"
 run_gate gatenative ''
 assert_eq 0 "$GATE_RC" "gate GREEN for a native provider with no ccr config at all"
 grep -q 'sink-side route' <<<"$GATE_OUT"; assert_eq 1 $? "no route read is even attempted for native transport"
+
+# ===========================================================================
+# (d) layer 2.6: every provider probe FAILED -> the gate must FAIL.
+#     F5-gate-shallow: the leg used to check only rc + valid JSON + top-level
+#     keys, so a fleet where no probe succeeded was reported GREEN.
+# ===========================================================================
+it "quota leg: a fleet where EVERY provider probe failed FAILS the gate"
+FAKE_QUOTA_JSON="$Q_ALL_FAILED" run_gate gatenative ''
+assert_eq 1 "$GATE_RC" "gate FAILS when every provider_account row is probe_failed"
+grep -q 'every provider quota probe failed' <<<"$GATE_OUT"; assert_eq 0 $? "the failure names the all-probes-failed condition"
+grep -q 'ALL LAYERS GREEN' <<<"$GATE_OUT"; assert_eq 1 $? "no release verdict is printed"
+
+it "quota leg: zero rows (nothing exercised) FAILS the gate"
+FAKE_QUOTA_JSON="$Q_NO_ROWS" run_gate gatenative ''
+assert_eq 1 "$GATE_RC" "gate FAILS on an empty rows array"
+grep -q 'no provider_account rows' <<<"$GATE_OUT"; assert_eq 0 $? "the failure names the missing provider rows"
+
+it "quota leg: native rows only (no provider exercised) FAILS the gate"
+FAKE_QUOTA_JSON="$Q_NATIVE_ONLY" run_gate gatenative ''
+assert_eq 1 "$GATE_RC" "gate FAILS when no provider_account row exists"
+
+it "quota leg: a non-zero quota exit still FAILS the gate"
+FAKE_QUOTA_RC=3 run_gate gatenative ''
+assert_eq 1 "$GATE_RC" "gate FAILS when quota --json exits non-zero"
+grep -q 'exited 3' <<<"$GATE_OUT"; assert_eq 0 $? "the failure names the exit code"
+
+# ===========================================================================
+# (e) layer 2.6: stderr noise must not be parsed as part of the JSON.
+# ===========================================================================
+it "quota leg: stderr diagnostics do not corrupt the JSON the gate validates"
+FAKE_QUOTA_STDERR="warning: cache refresh slow" run_gate gatenative ''
+assert_eq 0 "$GATE_RC" "gate GREEN: valid stdout JSON + stderr noise"
+grep -q 'quota/limits LIVE leg GREEN' <<<"$GATE_OUT"; assert_eq 0 $? "the quota leg reports GREEN"
+
+# ===========================================================================
+# (f) run-proof.sh quota leg — the SAME source text, executed against stubs.
+#     Extracted between its own banner and the next leg's banner, so the test
+#     runs exactly what run-proof.sh runs.
+# ===========================================================================
+PROOF_SH="${CMA_RUN_PROOF_BIN:-$TESTS_DIR/run-proof.sh}"
+QUOTA_BLOCK="$(awk '/^echo "==> live quota\/limits verification/{on=1} /^echo "==> constitution/{on=0} on' "$PROOF_SH")"
+STUB_SCRIPTS="$HOME/stub-scripts"; mkdir -p "$STUB_SCRIPTS" "$HOME/proof-out"
+cp "$HOME/.local/bin/claude-providers" "$STUB_SCRIPTS/claude-providers.sh"
+ln -sf "$GATE" "$STUB_SCRIPTS/claude-release-gate.sh"
+PROOF_OUT=""; PROOF_RC=""
+run_proof_quota() {
+  PROOF_OUT="$( SCRIPTS_DIR="$STUB_SCRIPTS" PDIR_LIVE="$PDIR" PROOF_DIR="$HOME/proof-out" \
+    bash -c 'set -uo pipefail; eval "$1"; printf "QUOTA_RC=%s\n" "$quota_rc"' _ "$QUOTA_BLOCK" 2>&1 )"
+  PROOF_RC="$(sed -nE 's/^QUOTA_RC=([0-9]+)$/\1/p' <<<"$PROOF_OUT")"
+}
+
+it "run-proof quota leg: block extracted from run-proof.sh"
+[ -n "$QUOTA_BLOCK" ]; assert_eq 0 $? "the quota leg source text was found"
+
+it "run-proof quota leg: a fleet where EVERY provider probe failed is a FAIL"
+FAKE_QUOTA_JSON="$Q_ALL_FAILED" run_proof_quota
+assert_eq 1 "$PROOF_RC" "quota_rc=1 when every provider_account row is probe_failed"
+grep -q '^FAIL:' "$HOME/proof-out/47-quota-live.log"; assert_eq 0 $? "the proof log records a FAIL line"
+
+it "run-proof quota leg: healthy JSON with stderr noise is a PASS"
+FAKE_QUOTA_STDERR="warning: cache refresh slow" run_proof_quota
+assert_eq 0 "$PROOF_RC" "quota_rc=0 for valid stdout JSON with a succeeding probe"
+grep -q '^PASS:' "$HOME/proof-out/47-quota-live.log"; assert_eq 0 $? "the proof log records a PASS line"
+
+it "run-proof quota leg: zero provider rows is a FAIL"
+FAKE_QUOTA_JSON="$Q_NO_ROWS" run_proof_quota
+assert_eq 1 "$PROOF_RC" "quota_rc=1 when nothing was probed"
 
 summary
