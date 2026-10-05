@@ -762,7 +762,9 @@ for n in 1 2 3 4 5; do
     "https://example.invalid/quota-batch-fixture-$n" "quota-batch-fixture-$n/test-model" \
     "quota-batch-fixture-$n/test-model" "$HOME/.claude-prov-quota-batch-fixture-$n" \
     128000 8192 "quota-batch-fixture-$n"
-  echo "alias quota-batch-fixture-$n=\"cma_run_provider quota-batch-fixture-$n\"" >> "$ALIAS_FILE"
+  cat >> "$ALIAS_FILE" <<EOF
+alias quota-batch-fixture-$n="cma_run_provider quota-batch-fixture-$n"
+EOF
 done
 assert_file "$pdir/quota-batch-fixture-5.env" "5th fake provider account fixture written"
 
@@ -882,7 +884,9 @@ nt_pdir="$(cma_providers_dir)"; mkdir -p "$nt_pdir"
 cma_provider_write_env quota-notimeout-fixture NOTIMEOUT_API_KEY router \
   "http://127.0.0.1:1" quota-notimeout-fixture/test-model quota-notimeout-fixture/test-model \
   "$HOME/.claude-prov-quota-notimeout-fixture" 128000 8192 quota-notimeout-fixture
-echo "alias quota-notimeout-fixture=\"cma_run_provider quota-notimeout-fixture\"" >> "$ALIAS_FILE"
+cat >> "$ALIAS_FILE" <<EOF
+alias quota-notimeout-fixture="cma_run_provider quota-notimeout-fixture"
+EOF
 nt_spec="$HOME/.quota-notimeout-spec.json"
 jq -n '{"quota-notimeout-fixture": {url: "http://127.0.0.1:1/", auth: "bearer",
   windows: [ { window: "subscription", signals: [ { path: [], type: "unit_literal", value: "credits" } ] } ]}}' > "$nt_spec"
