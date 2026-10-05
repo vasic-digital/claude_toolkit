@@ -864,8 +864,11 @@ it "T028 setup: openrouter's quota cache is pre-seeded with a fresh, non-expired
 cache_file="$HOME/.local/share/claude-multi-account/quota-cache.json"
 mkdir -p "$(dirname "$cache_file")"
 now_ts="$(date +%s)"
+# Seed the CURRENT cache version (2). A stale version is rejected wholesale
+# by load_quota_cache, which would turn this cached-branch test into a live
+# probe; the cache-check assertion below fails loudly if the two ever drift.
 jq -n --argjson now "$now_ts" '{
-  _cache_version: 1,
+  _cache_version: 2,
   _cached_at: $now,
   providers: {
     openrouter: {

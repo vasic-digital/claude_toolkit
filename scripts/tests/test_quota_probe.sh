@@ -755,10 +755,11 @@ now = time.time()
 good_window = {"window": "subscription", "amount_used": 1, "amount_remaining": 9, "limit_total": 10,
                "unit": "credits", "percent_remaining": 90.0, "resets": False, "reset_at": None}
 cache_path = home_dir + "/stale-replay-cache.json"
-# Exactly the v1.30.0-era poisoned record from the register row: version 1,
-# fresh timestamp, windows:[] with absence_reason:null.
+# The v1.30.0-era poisoned record shape from the register row (fresh
+# timestamp, windows:[] with absence_reason:null), stamped with the CURRENT
+# version so the windows filter -- not the version gate -- is what drops it.
 with open(cache_path, "w") as f:
-    json.dump({"_cache_version": 1, "_cached_at": now, "providers": {
+    json.dump({"_cache_version": qp.QUOTA_CACHE_VERSION, "_cached_at": now, "providers": {
         "openrouter": {"provider_id": "openrouter", "windows": [], "absence_reason": None,
                        "http_status": 200, "_cached_at": now},
         "failedprov": {"provider_id": "failedprov", "windows": [], "absence_reason": "probe_failed",
@@ -1140,5 +1141,44 @@ assert r["absence_detail"] == "HTTP 503", r
 assert r["http_status"] == 503, r
 PY
 assert_eq 0 $? "timeout / refused / (0,{}) give 'connection failed or timed out'; 503 gives 'HTTP 503'"
+
+it "cache-version bump: a record stamped with the OLD version (1) is ignored; the CURRENT version is served"
+python3 - "$SCRIPTS_DIR" "$HOME" <<'PY'
+import sys, importlib.util, json, time
+
+scripts_dir, home_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+now = time.time()
+window = {"window": "subscription", "amount_used": 1, "amount_remaining": 9, "limit_total": 10,
+          "unit": "credits", "percent_remaining": 90.0, "resets": False, "reset_at": None}
+rec = {"provider_id": "openrouter", "windows": [window], "absence_reason": None,
+       "http_status": 200, "_cached_at": now}
+
+def seed(version):
+    p = home_dir + "/version-gate-cache-v%s.json" % version
+    with open(p, "w") as f:
+        json.dump({"_cache_version": version, "_cached_at": now, "providers": {"openrouter": rec}}, f)
+    return qp.load_quota_cache(p)
+
+old = seed(1)
+assert "openrouter" not in old["providers"], \
+    "a version-1 record (pre-bump) was served as a cached row: %r" % old["providers"].get("openrouter")
+assert old == {"_cache_version": qp.QUOTA_CACHE_VERSION, "providers": {}}, old
+
+# True == 1 and 2.0 == 2 in Python: the gate must compare type as well as value.
+for bogus in (0, 999, str(qp.QUOTA_CACHE_VERSION), None, True, float(qp.QUOTA_CACHE_VERSION)):
+    got = seed(bogus)
+    assert got["providers"] == {}, "version %r was accepted: %r" % (bogus, got)
+
+cur = seed(qp.QUOTA_CACHE_VERSION)
+assert cur["providers"].get("openrouter", {}).get("windows") == [window], cur
+PY
+assert_eq 0 $? "load_quota_cache rejects a version-1 (and any non-current) record and serves a current-version one"
 
 summary

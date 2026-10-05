@@ -93,7 +93,12 @@ def _tls_failure_detail(exc, url, api_key):
         text = text[:_TLS_DETAIL_MAX] + "..."
     return f"TLS error (certificate/handshake failed): {text}"
 
-QUOTA_CACHE_VERSION = 1
+# v2: bumped so every record cached under v1 (which includes the pre-F2
+# windowless rows of v1.30.0) is invalidated wholesale on upgrade, rather
+# than relying only on the per-record windows filter in load_quota_cache.
+# load_quota_cache accepts ONLY this exact integer; any other value is
+# treated as an empty cache.
+QUOTA_CACHE_VERSION = 2
 QUOTA_CACHE_TTL_SECONDS = 21600  # 6 hours = CREDIT_CACHE_TTL_SECONDS (86400) / 4 —
 # quota data is operator-facing and should go stale faster than the
 # credit cache's model-selection concern (research.md §4).
@@ -335,7 +340,10 @@ def load_quota_cache(path):
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
-    if not isinstance(data, dict) or data.get("_cache_version") != QUOTA_CACHE_VERSION:
+    version = data.get("_cache_version") if isinstance(data, dict) else None
+    # type() not isinstance(): a bool is an int subclass and True == 1, so
+    # only an exact int equal to the current version is accepted.
+    if type(version) is not int or version != QUOTA_CACHE_VERSION:
         return {"_cache_version": QUOTA_CACHE_VERSION, "providers": {}}
     ts = data.get("_cached_at")
     if not isinstance(ts, (int, float)) or time.time() - ts > QUOTA_CACHE_TTL_SECONDS:
