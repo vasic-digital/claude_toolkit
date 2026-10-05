@@ -85,6 +85,7 @@ blended across windows).
 | `severity` | enum: `green` \| `yellow` \| `red` \| `limit_exceeded` | Derived from `percent_remaining` by the exact FR-008 scale; `limit_exceeded` when `amount_remaining <= 0` regardless of the percentage math (so a provider reporting a NEGATIVE remaining, e.g. after overage, still classifies correctly rather than producing an undefined or incorrectly-colored percentage) |
 | `resets` | boolean | Whether this window has a reset at all |
 | `reset_at` | ISO-8601 timestamp \| `null` | Required (non-null) when `resets == true`; `null` when `resets == false` — the two fields together make "does this reset, and when" answerable without a sentinel value doing double duty (e.g. a `0`/empty-string reset_at that could be mistaken for "resets immediately" rather than "never resets") |
+| `reset_cadence` | string \| `null` | A cadence label (e.g. `"daily"`, `"monthly"`), returned when the provider reports a reset schedule that repeats on a fixed cadence rather than at an absolute time; `null` when `resets == false` or when the provider reports an absolute `reset_at` instead — the two reset fields (`reset_at` and `reset_cadence`) together indicate whether the reset is absolute, cadence-based, or does not occur |
 
 **Boundary rule (mechanically tested, ties to plan.md's TDD requirement)**:
 `percent_remaining == 30` is green (the FR-008 scale is `30%–100%` green,
