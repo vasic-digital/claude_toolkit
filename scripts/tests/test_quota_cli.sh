@@ -1312,15 +1312,15 @@ def load_quota_cache(path):
         with open(path) as f:
             d = json.load(f)
     except (OSError, ValueError):
-        d = {"_cache_version": 1, "providers": {}}
+        d = {"_cache_version": 2, "providers": {}}
     if not isinstance(d, dict):
-        d = {"_cache_version": 1, "providers": {}}
+        d = {"_cache_version": 2, "providers": {}}
     s = os.environ.get("BO_LOAD_SLEEP")
     if s:
         time.sleep(float(s))
     return d
 def save_quota_cache(path, data):
-    data["_cache_version"] = 1
+    data["_cache_version"] = 2
     data["_cached_at"] = time.time()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".bo.tmp." + str(os.getpid())
@@ -1470,7 +1470,7 @@ assert_eq "0" "$n2_saved" "a refused lock still skips the save (got cache file p
 # loader above deliberately does NOT filter, which is exactly that pairing.
 it "B-orchestrator F2: a cached record with no windows is NOT replayed; the orchestrator re-probes live"
 bo_now="$(date +%s)"
-jq -n --argjson now "$bo_now" '{_cache_version: 1, _cached_at: $now, providers: {
+jq -n --argjson now "$bo_now" '{_cache_version: 2, _cached_at: $now, providers: {
   "quota-f2-fixture": {provider_id: "quota-f2-fixture", windows: [], account_blocked: false,
                        absence_reason: null, http_status: 200, _cached_at: $now}}}' > "$bo_cache"
 bo_row="$(_cma_quota_probe_all 0 "" quota-f2-fixture 2>/dev/null | jq -c 'select(.provider_id=="quota-f2-fixture")')"
@@ -1481,7 +1481,7 @@ f7_f2_row="$bo_row"   # kept for the F7 all-rows invariant check below
 assert_eq "1" "$bo_f2_nwin" "the re-probed row carries the live probe's real window"
 
 it "B-orchestrator F2: a cached record WITH windows is still replayed (guard is not over-broad)"
-jq -n --argjson now "$bo_now" '{_cache_version: 1, _cached_at: $now, providers: {
+jq -n --argjson now "$bo_now" '{_cache_version: 2, _cached_at: $now, providers: {
   "quota-f2-fixture": {provider_id: "quota-f2-fixture", account_blocked: false, absence_reason: null,
     windows: [{window:"subscription", amount_used:3, amount_remaining:7, limit_total:10, unit:"credits",
                percent_remaining:70.0, resets:false, reset_at:null}], http_status: 200, _cached_at: $now}}}' > "$bo_cache"
@@ -1516,7 +1516,7 @@ assert_eq "" "$f7_bad" "no row may carry both windows and an absence_reason, or 
 # cached value must be served and the probe must NOT run; with --fresh the
 # probe must run exactly once and its live value must be served.
 it "T22: cmd_quota WITHOUT --fresh serves the cached record and never launches the probe"
-jq -n --argjson now "$(date +%s)" '{_cache_version: 1, _cached_at: $now, providers: {
+jq -n --argjson now "$(date +%s)" '{_cache_version: 2, _cached_at: $now, providers: {
   "quota-f2-fixture": {provider_id: "quota-f2-fixture", account_blocked: false, absence_reason: null,
     windows: [{window:"subscription", amount_used:3, amount_remaining:7, limit_total:10, unit:"credits",
                percent_remaining:70.0, resets:false, reset_at:null}], http_status: 200, _cached_at: $now}}}' > "$bo_cache"
