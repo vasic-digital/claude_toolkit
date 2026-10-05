@@ -68,6 +68,14 @@ echo "Kimi/llmctl live integration: $(date)" | tee -a "$EV"
 # ---------------------------------------------------------------------------
 _skip() { echo "SKIP: $1" | tee -a "$EV"; cma_proof_commit "$EV" "$EV_FINAL"; summary; exit 0; }
 
+# OPT-IN GATE. This file reads the real alias file/status.json and launches the
+# real kimi CLI through ~/.kimi-prov-llmctl-small, which writes real Kimi CLI
+# artifacts (logs, sessions) into the operator's HOME. run-all.sh runs every
+# test_*.sh, so without this gate an ordinary suite run touched host state.
+# Nothing above this line reads or writes HOME (only string assignments and the
+# repo-local, git-ignored proof/volatile evidence file).
+[[ "${CMA_LIVE_TESTS:-0}" == 1 ]] || _skip "live host-state test: set CMA_LIVE_TESTS=1 to run against real state"
+
 command -v jq   >/dev/null 2>&1 || _skip "jq is required"
 command -v curl >/dev/null 2>&1 || _skip "curl is required"
 
