@@ -4425,6 +4425,36 @@ qp.save_quota_cache(cache_file, data)
     fi
     outfile="$tmpdir/$(printf '%06d' "$idx").json"
     idx=$(( idx + 1 ))
+
+    # Kimi native accounts that are signed in report their 5h/7d windows from
+    # the usages endpoint (quota_probe.py --kimi-native-dir). Only the account
+    # DIR crosses into python: the access token is read there and never
+    # appears on argv, in the environment, or in any output. No refresh flow:
+    # an expired access token comes back as absence_reason auth_expired.
+    # Not cached: the per-provider quota cache is keyed by provider_id.
+    local nfamily nauth naid
+    nfamily="$(jq -r '.family // empty' <<<"$nline" 2>/dev/null)"
+    nauth="$(jq -r '.auth_state // empty' <<<"$nline" 2>/dev/null)"
+    naid="$(jq -r '.account_id // empty' <<<"$nline" 2>/dev/null)"
+    if [[ "$nfamily" == "kimi" && "$nauth" == "ok" && -n "$naid" ]]; then
+      local kdir="$HOME/${KIMI_ACCOUNT_PREFIX:-.kimi-code-}$naid" kres
+      if command -v timeout >/dev/null 2>&1; then
+        kres="$(timeout "$(( timeout + 1 ))" python3 "$lib_dir/quota_probe.py" \
+          --kimi-native-dir "$kdir" --timeout "$timeout" 2>/dev/null)"
+      else
+        kres="$(python3 "$lib_dir/quota_probe.py" \
+          --kimi-native-dir "$kdir" --timeout "$timeout" 2>/dev/null)"
+      fi
+      [[ -n "$kres" ]] && jq -e 'type == "object"' <<<"$kres" >/dev/null 2>&1 || \
+        kres='{"windows":[],"absence_reason":"probe_failed","absence_detail":"quota probe subprocess produced no output"}'
+      jq -c --argjson r "$kres" '. + {windows:($r.windows // []), account_blocked:false,
+                absence_reason:($r.absence_reason // null),
+                absence_detail:($r.absence_detail // null),
+                data_source:"live", data_age_seconds:null}' \
+        <<<"$nline" > "$outfile" 2>/dev/null
+      continue
+    fi
+
     jq -c '. + {windows:[], account_blocked:false,
                 absence_reason:"not_reported_by_provider", absence_detail:null,
                 data_source:null, data_age_seconds:null}' \

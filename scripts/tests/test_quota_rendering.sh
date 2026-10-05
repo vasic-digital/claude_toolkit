@@ -369,4 +369,15 @@ out="$(printf '%s\n' "$BLOCKED_ROW" | _cma_quota_render_text --force-tty | sed $
 echo "$out" | grep -q "ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot" && ok=1 || ok=0
 assert_eq "1" "$ok" "colour: blocked row with windows keeps the moot annotation, got: $out"
 
+
+# --- Kimi native auth_expired row (usages endpoint answered 401) -----------
+# The native row's absence_detail carries the operator instruction; the text
+# renderer must show it rather than the generic "not reported by provider".
+it "_cma_quota_render_text: a native auth_expired row shows its detail, not 'not reported by provider'"
+KN_EXPIRED_ROW='{"account_id":"kn1","family":"kimi","plan_tier":null,"auth_state":"ok","windows":[],"account_blocked":false,"absence_reason":"auth_expired","absence_detail":"Kimi access token expired: run `kimi login` to refresh","data_source":null,"data_age_seconds":null}'
+out="$(printf '%s\n' "$KN_EXPIRED_ROW" | _cma_quota_render_text --no-color)"
+_has -qF 'Kimi access token expired: run `kimi login` to refresh' "$out" "auth_expired row renders its detail, got: $out"
+echo "$out" | grep -q "not reported by provider" && bad=1 || bad=0
+assert_eq "0" "$bad" "auth_expired row must not claim the provider does not report, got: $out"
+
 summary

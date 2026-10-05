@@ -1539,6 +1539,127 @@ unset BO_PROBE_LOG
 
 unset LIB_DIR BO_LOAD_SLEEP; export CMA_QUOTA_ENDPOINTS_FILE="$t028_spec"   # restore T028 isolation
 
+# --- Kimi native usage windows (the /coding/v1/usages endpoint) -------------
+#
+# A signed-in Kimi native account reports two rolling windows, read from the
+# usages endpoint's `usages.limit_5h` / `usages.limit_7d` objects (integer
+# used_ratio + string reset_time). Hermetic: its OWN mktemp HOME with a FAKE
+# credential file (never the real ~/.kimi-code-*), and a loopback stub that
+# CMA_KIMI_USAGE_BASE_URL points at. The stub records each request's method,
+# path, and whether the bearer equalled the fake ACCESS token -- never the
+# token itself. No refresh flow exists: a 401 is reported as auth_expired and
+# the stub must see exactly ONE request.
+kn_home="$(mktemp -d "${TMPDIR:-/tmp}/cma-test.kn.XXXXXX")"
+kn_acct="$kn_home/.kimi-code-kn1"
+mkdir -p "$kn_acct/credentials"
+printf 'x = 1\n' > "$kn_acct/config.toml"
+kn_access="fixture-kimi-access-DO-NOT-PRINT-7f3a"
+kn_refresh="$(_d2_jwt "{\"exp\":$(( $(date +%s) + 198 * 3600 ))}")"
+jq -nc --arg at "$kn_access" --arg rt "$kn_refresh" \
+  '{access_token:$at, expires_at:1, expires_in:900, refresh_token:$rt, scope:"kimi-code", token_type:"Bearer"}' \
+  > "$kn_acct/credentials/kimi-code.json"
+
+cat > "$kn_home/stub.py" <<'PYEOF'
+import json, os, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+home = sys.argv[1]
+expect = "Bearer " + os.environ["KN_EXPECT_ACCESS"]
+OK_BODY = {
+    "usages": {
+        "limit_5h": {"used_ratio": 0.25, "reset_time": "2026-10-05T17:00:00Z"},
+        "limit_7d": {"used_ratio": 1, "reset_time": "2026-10-10T00:00:00Z"},
+    },
+    "usage": {"limit": "100", "used": "25", "remaining": "75", "resetTime": "2026-10-05T17:00:00Z"},
+    "limits": [{"window": {"duration": "300"}, "detail": {"limit": "100", "remaining": "75"}}],
+}
+class H(BaseHTTPRequestHandler):
+    def _handle(self):
+        auth = self.headers.get("Authorization")
+        tag = "access" if auth == expect else ("none" if auth is None else "other")
+        with open(os.path.join(home, "stub.log"), "a") as f:
+            f.write("%s %s auth=%s\n" % (self.command, self.path, tag))
+        with open(os.path.join(home, "stub.mode")) as f:
+            mode = f.read().strip()
+        if mode == "401":
+            body, code = {"error": "unauthorized"}, 401
+        else:
+            body, code = OK_BODY, 200
+        raw = json.dumps(body).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+    do_GET = _handle
+    do_POST = _handle
+    def log_message(self, *a):
+        pass
+srv = HTTPServer(("127.0.0.1", 0), H)
+with open(os.path.join(home, "stub.port.tmp"), "w") as f:
+    f.write(str(srv.server_address[1]))
+os.replace(os.path.join(home, "stub.port.tmp"), os.path.join(home, "stub.port"))
+srv.serve_forever()
+PYEOF
+printf 'ok\n' > "$kn_home/stub.mode"
+KN_EXPECT_ACCESS="$kn_access" python3 "$kn_home/stub.py" "$kn_home" </dev/null >/dev/null 2>&1 &
+kn_stub_pid=$!
+for _kn_i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  [[ -s "$kn_home/stub.port" ]] && break
+  sleep 0.25
+done
+kn_port="$(cat "$kn_home/stub.port" 2>/dev/null)"
+assert_eq "1" "$([[ "$kn_port" =~ ^[0-9]+$ ]] && echo 1 || echo 0)" "precondition: the loopback usages stub is listening"
+
+_kn_probe() {   # runs the native-row probe for kn1 under the fixture HOME; prints stdout+stderr
+  (
+    export HOME="$kn_home"
+    export CMA_KIMI_USAGE_BASE_URL="http://127.0.0.1:$kn_port/coding/v1"
+    _cma_quota_probe_all 1 "" "kn1" 2>&1
+  )
+}
+
+it "Kimi native: a signed-in account with the documented usages shape yields TWO windows (subscription_5h, subscription_7d)"
+rm -f "$kn_home/stub.log"; printf 'ok\n' > "$kn_home/stub.mode"
+kn_out="$(_kn_probe)"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "two windows reported"
+assert_eq "subscription_5h,subscription_7d" "$(echo "$kn_row" | jq -r '[.windows[].window] | join(",")' 2>/dev/null)" "window names"
+assert_eq "null" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "no absence_reason on a successful probe"
+assert_eq "75" "$(echo "$kn_row" | jq -r '.windows[0].percent_remaining' 2>/dev/null)" "5h: percent_remaining = 100 - 0.25*100"
+assert_eq "0" "$(echo "$kn_row" | jq -r '.windows[1].percent_remaining' 2>/dev/null)" "7d: integer used_ratio 1 -> percent_remaining 0"
+assert_eq "2026-10-05T17:00:00Z" "$(echo "$kn_row" | jq -r '.windows[0].reset_at' 2>/dev/null)" "5h: reset_at from reset_time"
+assert_eq "2026-10-10T00:00:00Z" "$(echo "$kn_row" | jq -r '.windows[1].reset_at' 2>/dev/null)" "7d: reset_at from reset_time"
+assert_eq "true" "$(echo "$kn_row" | jq -r '.windows[0].resets' 2>/dev/null)" "5h: resets=true"
+assert_eq "access" "$(sed -n 1p "$kn_home/stub.log" 2>/dev/null | sed 's/.*auth=//')" "the request carried the CURRENT access token as bearer"
+assert_eq "GET /coding/v1/usages" "$(sed -n 1p "$kn_home/stub.log" 2>/dev/null | sed 's/ auth=.*//')" "exactly the usages endpoint was requested"
+echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
+assert_eq "0" "$kn_leak" "the access token never appears in output"
+
+it "Kimi native windows render through the existing severity path (text + json)"
+kn_txt="$(printf '%s\n' "$kn_row" | _cma_quota_render_text --no-color)"
+echo "$kn_txt" | grep -E '^  subscription_5h ' | grep -q '\[GREEN\]' && kn_ok=1 || kn_ok=0
+assert_eq "1" "$kn_ok" "5h at 75% left renders [GREEN], got: $kn_txt"
+echo "$kn_txt" | grep -E '^  subscription_7d ' | grep -q '\[LIMIT_EXCEEDED\]' && kn_ok=1 || kn_ok=0
+assert_eq "1" "$kn_ok" "7d at 0% left renders [LIMIT_EXCEEDED], got: $kn_txt"
+assert_eq "green,limit_exceeded" "$(printf '%s\n' "$kn_row" | _cma_quota_render_json | jq -r '[.rows[0].windows[].severity] | join(",")' 2>/dev/null)" "json severity per window"
+
+it "Kimi native: a 401 yields auth_expired with the exact detail and makes NO refresh call (one request only)"
+rm -f "$kn_home/stub.log"; printf '401\n' > "$kn_home/stub.mode"
+kn_out="$(_kn_probe)"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "auth_expired" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "401 -> absence_reason auth_expired"
+assert_eq 'Kimi access token expired: run `kimi login` to refresh' "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "exact detail"
+assert_eq "0" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "no windows on 401"
+assert_eq "1" "$(wc -l < "$kn_home/stub.log" 2>/dev/null | tr -d ' ')" "exactly ONE request reached the stub (no retry, no refresh)"
+grep -qiE 'refresh|oauth|token' "$kn_home/stub.log" 2>/dev/null && kn_ref=1 || kn_ref=0
+assert_eq "0" "$kn_ref" "no refresh/oauth/token endpoint was hit"
+assert_eq "GET /coding/v1/usages auth=access" "$(cat "$kn_home/stub.log" 2>/dev/null)" "the single request was the usages GET with the access token"
+echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
+assert_eq "0" "$kn_leak" "the access token never appears in output"
+
+kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null
+rm -rf "$kn_home"
+
 it "claude-providers --help includes the quota subcommand documentation (I5)"
 help_output="$(bash "$SCRIPTS_DIR/claude-providers.sh" --help 2>&1)"
 echo "$help_output" | grep -q "quota" && found=1 || found=0

@@ -329,6 +329,129 @@ def probe_provider(provider_id, spec, api_key, timeout):
     }
 
 
+# --- Kimi native accounts: the /coding/v1/usages endpoint ---------------------
+#
+# A signed-in Kimi Code account's subscription windows are read from
+# GET {base}/usages, whose `usages` object carries `limit_5h` and `limit_7d`,
+# each with a numeric `used_ratio` and a string `reset_time`. (The parallel
+# `usage` object and `limits` list carry string fields and are NOT read.)
+#
+# NO REFRESH FLOW, by design: the probe reads the CURRENT access token from
+# the account's credentials file and makes exactly ONE GET. The access token
+# expires routinely and the `kimi` CLI refreshes it; when it has lapsed the
+# endpoint answers 401 and this reports auth_expired with an instruction to
+# run `kimi login` -- it never reads refresh_token and never calls any token
+# or OAuth endpoint. The token and the response body stay in-process: only
+# the derived window numbers and reset timestamps leave this function.
+
+KIMI_USAGE_BASE_URL_DEFAULT = "https://api.kimi.com/coding/v1"
+KIMI_AUTH_EXPIRED_DETAIL = "Kimi access token expired: run `kimi login` to refresh"
+_KIMI_WINDOWS = (("limit_5h", "subscription_5h", "5h"), ("limit_7d", "subscription_7d", "7d"))
+
+
+def _kimi_access_token(account_dir):
+    """The CURRENT access_token from the account's credentials file, or "".
+    Prefers credentials/kimi-code.json, else the first *.json (sorted) that
+    carries a non-empty access_token. refresh_token is never read."""
+    cdir = os.path.join(account_dir, "credentials")
+    try:
+        names = sorted(n for n in os.listdir(cdir) if n.endswith(".json"))
+    except OSError:
+        return ""
+    if "kimi-code.json" in names:
+        names.remove("kimi-code.json")
+        names.insert(0, "kimi-code.json")
+    for name in names:
+        try:
+            with open(os.path.join(cdir, name)) as f:
+                tok = json.load(f).get("access_token")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(tok, str) and tok.strip():
+            return tok.strip()
+    return ""
+
+
+def resolve_kimi_window(name, cadence, entry):
+    """One Kimi `usages.limit_*` object -> a Usage Window dict in the same
+    shape resolve_window() returns, or None when used_ratio is unusable.
+    used_ratio is a fraction of the window's quota, so the window is
+    expressed in percent: limit_total 100, percent_remaining
+    100 - used_ratio*100."""
+    if not isinstance(entry, dict):
+        return None
+    ratio = entry.get("used_ratio")
+    if isinstance(ratio, bool) or not isinstance(ratio, (int, float)):
+        return None
+    def _num(x):
+        # Float noise (0.07*100 = 7.000000000000001) is rounded off, and a
+        # whole value is emitted as an int so it renders as "75", not "75.0".
+        x = round(float(x), 4)
+        return int(x) if x.is_integer() else x
+    used = _num(ratio * 100)
+    remaining = _num(100 - ratio * 100)
+    reset_at = None
+    raw = entry.get("reset_time")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+            reset_at = raw.strip()
+        except ValueError:
+            reset_at = None
+    return {
+        "window": name,
+        "amount_used": used,
+        "amount_remaining": remaining,
+        "limit_total": 100,
+        "unit": "percent",
+        "percent_remaining": remaining,
+        # A rolling 5h/7d window always resets; when reset_time is not a
+        # parseable timestamp the cadence label (taken from the provider's
+        # own key name) is carried instead of an invented timestamp.
+        "resets": True,
+        "reset_at": reset_at,
+        "reset_cadence": None if reset_at else cadence,
+    }
+
+
+def probe_kimi_native(account_dir, timeout, base_url=None):
+    """Probe one Kimi native account's usages endpoint. Returns
+    {windows, account_blocked, absence_reason, absence_detail, http_status}."""
+    def _absent(reason, detail, status):
+        return {"windows": [], "account_blocked": False, "absence_reason": reason,
+                "absence_detail": detail, "http_status": status}
+
+    token = _kimi_access_token(account_dir)
+    if not token:
+        return _absent("probe_failed", "no Kimi access token found in the account's credentials", None)
+    base = (base_url or os.environ.get("CMA_KIMI_USAGE_BASE_URL") or KIMI_USAGE_BASE_URL_DEFAULT).rstrip("/")
+    url = base + "/usages"
+    try:
+        status, body = http_get_json(url, {"Authorization": f"Bearer {token}"}, timeout)
+    except (ssl.SSLError, URLError) as e:
+        reason = e.reason if isinstance(e, URLError) else e
+        if not isinstance(reason, ssl.SSLError):
+            raise
+        return _absent("probe_failed", _tls_failure_detail(e, url, token), 0)
+    if status == 401:
+        return _absent("auth_expired", KIMI_AUTH_EXPIRED_DETAIL, 401)
+    if status != 200 or not isinstance(body, dict):
+        return _absent("probe_failed", f"HTTP {status}" if status else "connection failed or timed out", status)
+
+    usages = body.get("usages")
+    windows = []
+    if isinstance(usages, dict):
+        for key, name, cadence in _KIMI_WINDOWS:
+            w = resolve_kimi_window(name, cadence, usages.get(key))
+            if w is not None:
+                windows.append(w)
+    if not windows:
+        return _absent("probe_failed",
+                       "Kimi usages endpoint responded but no interpretable usage windows were found", status)
+    return {"windows": windows, "account_blocked": False, "absence_reason": None,
+            "absence_detail": None, "http_status": status}
+
+
 def load_quota_cache(path):
     """Read the quota cache, honouring the same version+TTL gate the
     credit cache applies. A rejected cache comes back empty, never
@@ -406,11 +529,48 @@ def main(argv=None):
     # by design, for its own original use case -- T038 review finding F1).
     os.environ.pop("CMA_PROVIDER_CA_CERT", None)
     ap = argparse.ArgumentParser(description="Probe one provider's quota/limits")
-    ap.add_argument("--provider-id", required=True)
-    ap.add_argument("--spec-file", required=True)
+    ap.add_argument("--provider-id")
+    ap.add_argument("--spec-file")
     ap.add_argument("--api-key-env", default="")
+    ap.add_argument("--kimi-native-dir", default="",
+                    help="probe a Kimi native account dir's usages endpoint instead of a provider")
     ap.add_argument("--timeout", type=float, default=3.0)
     args = ap.parse_args(argv)
+
+    if args.kimi_native_dir:
+        # Same hard-deadline guarantee as the provider path below: exactly
+        # one JSON line, whichever of probe / deadline finishes first.
+        deadline = args.timeout + 2.0
+        k_lock = threading.Lock()
+        k_emitted = []
+
+        def _k_emit(payload):
+            with k_lock:
+                if k_emitted:
+                    return False
+                k_emitted.append(True)
+                print(json.dumps(payload), flush=True)
+                return True
+
+        def _k_deadline():
+            if _k_emit({"windows": [], "account_blocked": False,
+                        "absence_reason": "probe_failed",
+                        "absence_detail": f"probe exceeded its hard deadline of {deadline:g}s",
+                        "http_status": None}):
+                os._exit(0)
+
+        k_timer = threading.Timer(deadline, _k_deadline)
+        k_timer.daemon = True
+        k_timer.start()
+        try:
+            k_result = probe_kimi_native(args.kimi_native_dir, args.timeout)
+        finally:
+            k_timer.cancel()
+        _k_emit(k_result)
+        return 0
+
+    if not args.provider_id or not args.spec_file:
+        ap.error("--provider-id and --spec-file are required unless --kimi-native-dir is given")
 
     try:
         with open(args.spec_file) as f:

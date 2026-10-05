@@ -143,6 +143,11 @@ _cma_quota_render_one_row() {
     if [[ "$absence" == "probe_failed" ]]; then
       local detail; detail="$(jq -r '.absence_detail // "unknown error"' <<<"$line" 2>/dev/null)"
       printf '  —   probe failed: %s\n' "$detail"
+    elif [[ "$absence" == "auth_expired" ]]; then
+      # Native Kimi usages probe answered 401: the access token lapsed. The
+      # detail carries the operator instruction (`kimi login`).
+      local adetail; adetail="$(jq -r '.absence_detail // "access token expired"' <<<"$line" 2>/dev/null)"
+      printf '  —   %s\n' "$adetail"
     else
       local auth_state; auth_state="$(jq -r '.auth_state // empty' <<<"$line" 2>/dev/null)"
       case "$auth_state" in
