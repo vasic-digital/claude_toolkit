@@ -20,13 +20,78 @@ and should go stale faster than the credit cache's model-selection concern
 import argparse
 import json
 import os
+import re
+import ssl
 import sys
 import threading
 import tempfile
 import time
 from datetime import datetime, timezone, timedelta
+from urllib.error import HTTPError, URLError
 
-from model_verify import _dig, _walk, _dig_bool, http_get_json  # noqa: F401 (re-exported for later tasks)
+import model_verify as _mv
+from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
+
+
+def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT):
+    """quota_probe's own GET-JSON call: model_verify.http_get_json's exact
+    semantics (same Request, same urlopen, same ca_ssl_context(), same
+    (status, body) return), with ONE difference -- a TLS failure is RE-RAISED
+    instead of being folded into (0, {}).
+
+    Operator decision "Surface the real error": model_verify.http_get_json
+    swallows ssl.SSLError (an OSError) and URLError(reason=SSLError) into the
+    same (0, {}) an outage produces, so a bad certificate was reported as
+    "connection failed or timed out". model_verify.py is deliberately NOT
+    changed (other flows depend on its contract); probe_provider() catches the
+    re-raised TLS error and records its text in absence_detail. Every non-TLS
+    failure still returns (0, {}) exactly as before.
+
+    Request / urlopen / ca_ssl_context are looked up on the model_verify
+    module at call time, so a test that stubs model_verify.urlopen drives this
+    real path offline."""
+    req = _mv.Request(url, headers=headers or {}, method="GET")
+    try:
+        with _mv.urlopen(req, timeout=timeout, context=_mv.ca_ssl_context()) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            return resp.status, json.loads(raw)
+    except HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode("utf-8", errors="replace"))
+        except Exception:
+            return e.code, {}
+    except ssl.SSLError:
+        raise
+    except URLError as e:
+        if isinstance(e.reason, ssl.SSLError):
+            raise
+        return 0, {}
+    except (OSError, TimeoutError):
+        return 0, {}
+
+
+_TLS_DETAIL_MAX = 300
+
+
+def _tls_failure_detail(exc, url, api_key):
+    """absence_detail for a TLS failure: names it as TLS and carries the real
+    exception text, with the API key and any URL query string redacted (the
+    text comes from the ssl layer, which today never embeds either -- this is
+    a defence, not an observed leak)."""
+    err = exc.reason if isinstance(exc, URLError) else exc
+    text = getattr(err, "strerror", None)
+    if not isinstance(text, str) or not text:
+        args = getattr(err, "args", ())
+        text = args[0] if len(args) == 1 and isinstance(args[0], str) else str(err)
+    if api_key:
+        text = text.replace(api_key, "<redacted>")
+    if url and "?" in url:
+        text = text.replace(url, url.split("?", 1)[0] + "?<redacted>")
+    text = re.sub(r"\?[^\s'\")]+", "?<redacted>", text)
+    text = " ".join(text.split())
+    if len(text) > _TLS_DETAIL_MAX:
+        text = text[:_TLS_DETAIL_MAX] + "..."
+    return f"TLS error (certificate/handshake failed): {text}"
 
 QUOTA_CACHE_VERSION = 1
 QUOTA_CACHE_TTL_SECONDS = 21600  # 6 hours = CREDIT_CACHE_TTL_SECONDS (86400) / 4 —
@@ -191,8 +256,9 @@ def probe_provider(provider_id, spec, api_key, timeout):
     {provider_id, windows: [...], account_blocked: bool,
      absence_reason: str|None, http_status: int|None}.
 
-    TLS precondition: the HTTP call goes through model_verify.http_get_json,
-    whose ca_ssl_context() trusts ONLY the CA named by CMA_PROVIDER_CA_CERT
+    TLS precondition: the HTTP call goes through this module's http_get_json
+    (model_verify.http_get_json's semantics, TLS errors re-raised so their
+    real text reaches absence_detail), whose ca_ssl_context() trusts ONLY the CA named by CMA_PROVIDER_CA_CERT
     when that variable is set. This function does NOT clear it. main()
     removes CMA_PROVIDER_CA_CERT from the environment before probing (the
     quota endpoints are public HTTPS hosts); an in-process caller that
@@ -214,7 +280,18 @@ def probe_provider(provider_id, spec, api_key, timeout):
     else:
         headers = {(spec.get("auth_header") or "Authorization"): api_key}
 
-    status, body = http_get_json(url, headers, timeout)
+    try:
+        status, body = http_get_json(url, headers, timeout)
+    except (ssl.SSLError, URLError) as e:
+        reason = e.reason if isinstance(e, URLError) else e
+        if not isinstance(reason, ssl.SSLError):
+            raise
+        return {
+            "provider_id": provider_id, "windows": [], "account_blocked": False,
+            "absence_reason": "probe_failed",
+            "absence_detail": _tls_failure_detail(e, url, api_key),
+            "http_status": 0,
+        }
     if status != 200 or not isinstance(body, dict):
         detail = f"HTTP {status}" if status else "connection failed or timed out"
         return {

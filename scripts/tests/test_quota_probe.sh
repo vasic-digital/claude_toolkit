@@ -1008,4 +1008,137 @@ assert_eq "1" "$(printf '%s\n' "$qp_out" | grep -c .)" "exactly one JSON line on
 assert_eq "null|52.68" "$(jq -r '"\(.absence_reason)|\(.windows[0].amount_remaining)"' <<<"$qp_out" 2>/dev/null)" \
   "the live windowed result is emitted unchanged (got: $qp_out)"
 
+# --- Operator decision "Surface the real error": TLS failures -------------
+#
+# model_verify.http_get_json swallows every URLError/OSError (ssl.SSLError
+# included) into (0, {}), so a bad certificate used to read as the generic
+# "connection failed or timed out" -- indistinguishable from an outage.
+# model_verify.py is deliberately NOT changed (other flows depend on it);
+# quota_probe.py captures the TLS error in its own HTTP call path instead.
+# The probe_failed JSON shape stays exactly the same: only absence_detail
+# changes, and only for a TLS failure.
+
+it "probe_provider: a TLS error raised by the HTTP call surfaces its real text in absence_detail"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json, ssl
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+def raising(*a, **k):
+    raise ssl.SSLError("certificate verify failed: self signed certificate")
+qp.http_get_json = raising
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    entry = json.load(f)["openrouter"]
+
+result = qp.probe_provider("openrouter", entry, "fake-key", 3.0)
+
+assert sorted(result) == ["absence_detail", "absence_reason", "account_blocked", "http_status", "provider_id", "windows"], result
+assert result["absence_reason"] == "probe_failed", result
+assert result["windows"] == [] and result["account_blocked"] is False, result
+assert result["http_status"] == 0, result
+d = result["absence_detail"]
+assert "certificate verify failed" in d, d
+assert "self signed certificate" in d, d
+assert "TLS" in d, d
+assert "fake-key" not in d, d
+PY
+assert_eq 0 $? "absence_detail names the TLS failure and carries the real ssl.SSLError text"
+
+it "probe_provider: a real urlopen TLS failure (URLError wrapping SSLCertVerificationError) is not reported as a generic outage"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json, ssl
+from urllib.error import URLError
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# Stub at the lowest seam (urlopen) so the REAL request path runs, offline.
+# The error text deliberately embeds the key and a query secret to prove
+# neither is echoed into absence_detail.
+seen = {}
+def fake_urlopen(req, timeout=None, context=None):
+    seen["called"] = True
+    raise URLError(ssl.SSLCertVerificationError(
+        1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: "
+           "self signed certificate (_ssl.c:1006) sk-SECRET-KEY "
+           "https://quota.example/v1/key?token=QSECRET"))
+mv.urlopen = fake_urlopen
+
+entry = {"url": "https://quota.example/v1/key?token=QSECRET", "auth": "bearer", "windows": []}
+result = qp.probe_provider("openrouter", entry, "sk-SECRET-KEY", 3.0)
+
+assert seen.get("called"), "the stubbed urlopen was never reached"
+assert sorted(result) == ["absence_detail", "absence_reason", "account_blocked", "http_status", "provider_id", "windows"], result
+assert result["absence_reason"] == "probe_failed", result
+assert result["http_status"] == 0, result
+d = result["absence_detail"]
+assert d != "connection failed or timed out", d
+assert "certificate verify failed" in d, d
+assert "TLS" in d, d
+assert "sk-SECRET-KEY" not in d, d
+assert "QSECRET" not in d, d
+PY
+assert_eq 0 $? "a urlopen-level TLS failure yields a TLS-specific absence_detail with no key or query secret"
+
+it "probe_provider: non-TLS failures (timeout, connection refused, 5xx) keep their existing detail strings (guard)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json, socket
+from urllib.error import URLError
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+entry = {"url": "https://quota.example/v1/key", "auth": "bearer", "windows": []}
+
+# 1) plain timeout at the urlopen seam (real request path).
+def timeout_urlopen(req, timeout=None, context=None):
+    raise socket.timeout("timed out")
+mv.urlopen = timeout_urlopen
+r = qp.probe_provider("x", entry, "k", 3.0)
+assert r["absence_detail"] == "connection failed or timed out", r
+assert r["http_status"] == 0, r
+
+# 2) connection refused wrapped in URLError (non-SSL reason).
+def refused_urlopen(req, timeout=None, context=None):
+    raise URLError(ConnectionRefusedError(111, "Connection refused"))
+mv.urlopen = refused_urlopen
+r = qp.probe_provider("x", entry, "k", 3.0)
+assert r["absence_detail"] == "connection failed or timed out", r
+
+# 3) the existing (0, {}) contract from a stubbed http_get_json.
+qp.http_get_json = lambda *a, **k: (0, {})
+r = qp.probe_provider("x", entry, "k", 3.0)
+assert r["absence_detail"] == "connection failed or timed out", r
+
+# 4) 5xx keeps "HTTP <status>".
+qp.http_get_json = lambda *a, **k: (503, {})
+r = qp.probe_provider("x", entry, "k", 3.0)
+assert r["absence_detail"] == "HTTP 503", r
+assert r["http_status"] == 503, r
+PY
+assert_eq 0 $? "timeout / refused / (0,{}) give 'connection failed or timed out'; 503 gives 'HTTP 503'"
+
 summary
