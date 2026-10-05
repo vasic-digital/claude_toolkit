@@ -2,6 +2,54 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.3 — 2026-10-05 — `quota`/`limits` patch: Kimi-leg fixes, live-test gating, doc corrections
+
+Patch release on top of v1.30.2. It closes the remaining known-issues register
+items that were still open, and it records one incident honestly.
+
+### Fixed
+
+- Kimi-leg config-missing refusal: a verified provider's `kimi-<id>` twin is
+  refused when its `config.toml` is missing, with a warning naming the file.
+  Reconcile drops only toolkit-written lines (commit 54e3da8).
+- Kimi output cap: `config.toml` always writes `max_output_size`, taken from the
+  derived output cap and clamped below the context and to at most 128000. This
+  stops `kimi-sarvam` sending `max_tokens` above its provider cap (commit 54e3da8).
+- Twin requires its base provider to exist (commit 54e3da8).
+- The live Kimi integration test is gated behind `CMA_LIVE_TESTS=1`, so
+  `run-all.sh` never writes real host state (commit 7c3500e).
+- `reset_cadence` is documented in the signal-type table (commit c6299c3).
+- The native-account example now shows `endpoint_spec_present`, the 13.6 percent
+  severity label is corrected to yellow, and the v1.30.1 documentation note is
+  corrected: the `auth_state` field is documented in the specs (commits 19fd98c, 4f22cdf).
+- The known-issues register was re-reconciled against HEAD; rows that were already
+  fixed by earlier commits are now recorded as fixed with their evidence.
+
+### Incident (disclosed)
+
+A live, non-hermetic Kimi test, `test_kimi_llmctl_integration.sh`, ran during
+verification and wrote one session directory and some index and log lines into
+the operator's real `~/.kimi-prov-llmctl-small` state at 19:33. Config, aliases
+and status were not changed. The operator decided to remove those artifacts; they
+were backed up to scratch before removal. The test is now gated behind
+`CMA_LIVE_TESTS=1` (commit 7c3500e).
+
+### Testing and validation
+
+- Full `run-all.sh` suite: exit 0; 92 of 92 test files passed, 0 failed, 1 skipped by prerequisite (the live Kimi test, gated behind CMA_LIVE_TESTS=1): the full suite log has no EXIT line yet.
+- The gated live test is skipped by default and was verified to leave host state
+  byte-identical on the skip path.
+
+### Known limitations (not fixed)
+
+- The Kimi usage probe requires a fresh Kimi login; the stored access token has
+  expired. Kimi usage windows are therefore not yet verified.
+- Native usage windows for Claude and Kimi are unsupported: neither exposes a
+  documented usage endpoint.
+- HawkScan was not run: `HAWK_API_KEY` is not set and no application is running.
+- Kimi-leg failures from out-of-credit providers (HTTP 402) and local-backend
+  context limits are documented as known-failing and do not block this release.
+
 ## v1.30.2 — 2026-10-05 — `quota`/`limits` patch: review and known-issues fixes
 
 Patch release for `quota`/`limits`. It continues the v1.30.1 patch by fixing
