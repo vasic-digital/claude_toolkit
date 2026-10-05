@@ -59,7 +59,7 @@ claude1  (native, plan tier: default_claude_max_20x)
   —   not reported by provider
 
 helixagent  (alias: helixagent)
-  session   198,204 / 229,376 tokens used (31,172 left, 13.6% left)   [RED]
+  session   198,204 / 229,376 tokens used (31,172 left, 13.6% left)   [YELLOW]
   (probe failed for window: weekly — connection timed out after 4s)
 ```
 
@@ -116,6 +116,7 @@ data-model.md §5 field-for-field:
       "plan_tier": "default_claude_max_20x",
       "auth_state": "ok",
       "account_blocked": false,
+      "endpoint_spec_present": false,
       "data_source": null,
       "data_age_seconds": null,
       "absence_reason": "not_reported_by_provider",
