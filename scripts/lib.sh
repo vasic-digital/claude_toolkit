@@ -123,12 +123,18 @@ _cma_quota_render_one_row() {
   # windows stay visible, only annotated as moot. Stated BEFORE the
   # absence early return: a 200 with a blocked signal and zero windows
   # arrives as account_blocked + probe_failed (known-issues T27).
+  # The "windows below are moot" clause is only stated when windows ARE
+  # below: a zero-window blocked row (blocked + probe_failed) must not point
+  # at windows that do not exist (docs-batch item 6).
   local blocked; blocked="$(jq -r '.account_blocked // false' <<<"$line" 2>/dev/null)"
   if [[ "$blocked" == "true" ]]; then
+    local moot="" nwin
+    nwin="$(jq -r '(.windows // []) | length' <<<"$line" 2>/dev/null)"
+    [[ "$nwin" =~ ^[0-9]+$ ]] && (( nwin > 0 )) && moot="; windows below are moot"
     if (( color_on )); then
-      printf '  \033[31;1mACCOUNT BLOCKED\033[0m — the whole subscription is suspended; windows below are moot\n'
+      printf '  \033[31;1mACCOUNT BLOCKED\033[0m — the whole subscription is suspended%s\n' "$moot"
     else
-      printf '  ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot\n'
+      printf '  ACCOUNT BLOCKED — the whole subscription is suspended%s\n' "$moot"
     fi
   fi
 

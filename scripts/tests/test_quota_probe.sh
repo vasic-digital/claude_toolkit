@@ -952,4 +952,60 @@ assert calls["n"] == 0, f"http_get_json called {calls['n']} times for an unknown
 PY
 assert_eq 0 $? "main() reports not_reported_by_provider for an id missing from the spec, with zero HTTP calls"
 
+# --- Hard probe deadline without coreutils `timeout` (I3-residual-no-coreutils)
+# claude-providers.sh falls back to a bare `python3 quota_probe.py` when the
+# `timeout` binary is absent, so the bound must hold INSIDE the probe. The
+# driver below runs main() in its own process (the deadline ends that process
+# with os._exit), with quota_probe's bound http_get_json replaced by a call
+# that hangs for 10s -- far past --timeout 0.2 + the 2s deadline margin.
+qp_driver="$HOME/.qp-deadline-driver.py"
+cat > "$qp_driver" <<'PY'
+import sys, json, time, importlib.util
+scripts_dir, home_dir, mode = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.path.insert(0, scripts_dir)
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+if mode == "hang":
+    def hang(*a, **k):
+        time.sleep(10)
+        return (200, {"data": {"limit_remaining": 1, "limit": 2, "usage": 1}})
+    qp.http_get_json = hang
+else:
+    qp.http_get_json = lambda *a, **k: (200, {"data": {"limit_remaining": 52.68, "limit": 100.0, "usage": 47.32}})
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+spec_path = home_dir + "/deadline-quota-endpoints.json"
+with open(spec_path, "w") as f:
+    json.dump({"openrouter": catalog["openrouter"]}, f)
+sys.exit(qp.main(["--provider-id", "openrouter", "--spec-file", spec_path, "--timeout", "0.2"]))
+PY
+
+it "main(): a probe whose HTTP call hangs returns probe_failed within the hard deadline, without the timeout binary"
+qp_t0="$(date +%s)"
+qp_out="$(python3 "$qp_driver" "$SCRIPTS_DIR" "$HOME" hang 2>/dev/null)"
+qp_rc=$?
+qp_elapsed=$(( $(date +%s) - qp_t0 ))
+qp_fast=0; (( qp_elapsed <= 5 )) && qp_fast=1
+assert_eq "1" "$qp_fast" "the probe must end at its ~2.2s hard deadline, not after the 10s hang (elapsed ${qp_elapsed}s)"
+assert_eq "0" "$qp_rc" "the deadline exit status must be 0 (same as a normal probe_failed)"
+assert_eq "1" "$(printf '%s\n' "$qp_out" | grep -c .)" "exactly one JSON line on stdout (got: $qp_out)"
+assert_eq "probe_failed" "$(jq -r '.absence_reason' <<<"$qp_out" 2>/dev/null)" "absence_reason is probe_failed (got: $qp_out)"
+assert_eq '["absence_detail","absence_reason","account_blocked","http_status","provider_id","windows"]' \
+  "$(jq -c 'keys' <<<"$qp_out" 2>/dev/null)" "same key set as probe_provider's own probe_failed shape (got: $qp_out)"
+assert_eq "openrouter|0|false|null" \
+  "$(jq -r '"\(.provider_id)|\(.windows|length)|\(.account_blocked)|\(.http_status)"' <<<"$qp_out" 2>/dev/null)" \
+  "provider_id / empty windows / account_blocked false / http_status null (got: $qp_out)"
+jq -r '.absence_detail' <<<"$qp_out" 2>/dev/null | grep -q 'hard deadline' && ok=1 || ok=0
+assert_eq "1" "$ok" "absence_detail names the hard deadline (got: $qp_out)"
+
+it "main(): a fast probe is unaffected by the deadline -- normal windowed result, exactly one line"
+qp_out="$(python3 "$qp_driver" "$SCRIPTS_DIR" "$HOME" fast 2>/dev/null)"
+assert_eq "0" "$?" "fast probe exits 0"
+assert_eq "1" "$(printf '%s\n' "$qp_out" | grep -c .)" "exactly one JSON line on stdout (got: $qp_out)"
+assert_eq "null|52.68" "$(jq -r '"\(.absence_reason)|\(.windows[0].amount_remaining)"' <<<"$qp_out" 2>/dev/null)" \
+  "the live windowed result is emitted unchanged (got: $qp_out)"
+
 summary

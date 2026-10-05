@@ -4045,11 +4045,26 @@ cmd_sync_multi() {
 # caller that already holds the ALIAS lock would merely re-enter it rather
 # than take this one, so that case is refused (returns 1 -> save skipped)
 # instead of silently running the merge unserialized.
+#
+# Clamp (operator decision D8): the effective wait is never shorter than
+# CMA_ALIAS_LOCK_STALE_GRACE + 1. The mkdir backend breaks a pid-less lock
+# dir (a holder that died between mkdir and its pid write) only after GRACE
+# seconds of continuous emptiness; a shorter wait gives up first, so such a
+# stale lock would make EVERY later run skip its save. The +1 is not
+# decoration: the helper computes its deadline before it first observes the
+# dir empty, both on 1s `date +%s` ticks, so wait == GRACE can lose that race
+# by one tick and still skip the save. A fail-fast 0 is clamped too, for the
+# same reason. A wait already longer than that is left alone.
 _cma_quota_cache_lock_wait() {
+  local w=10 grace
   case "${CMA_QUOTA_CACHE_LOCK_WAIT:-}" in
-    ''|*[!0-9]*) printf '10\n' ;;
-    *)           printf '%s\n' "$CMA_QUOTA_CACHE_LOCK_WAIT" ;;
+    ''|*[!0-9]*) ;;
+    *)           w="$CMA_QUOTA_CACHE_LOCK_WAIT" ;;
   esac
+  grace="${CMA_ALIAS_LOCK_STALE_GRACE:-10}"
+  case "$grace" in ''|*[!0-9]*) grace=10 ;; esac
+  if (( 10#$w <= 10#$grace )); then w=$(( 10#$grace + 1 )); fi
+  printf '%s\n' "$w"
 }
 
 _cma_quota_cache_lock_acquire() {
@@ -4258,8 +4273,12 @@ print(json.dumps(rec) if rec else '')
   # unlocked, never a hang. The rows printed below are unaffected either way:
   # they come from the per-row files, not from the cache.
   if compgen -G "$tmpdir/cache"/*.json >/dev/null 2>&1; then
+    # N2: report the wait that actually happened. The acquire can refuse at
+    # once (caller already holds the alias lock), so the configured limit is
+    # not the elapsed time and must not be presented as one.
+    local _lock_started=$SECONDS
     if ! _cma_quota_cache_lock_acquire "$cache_file"; then
-      cma_warn "quota cache lock busy for $(_cma_quota_cache_lock_wait)s -- this run's results were NOT saved to the quota cache (rows shown are still live)"
+      cma_warn "quota cache lock not acquired after $(( SECONDS - _lock_started ))s (limit $(_cma_quota_cache_lock_wait)s) -- this run's results were NOT saved to the quota cache (rows shown are still live)"
     else
       python3 -c "
 import sys, json, glob, time

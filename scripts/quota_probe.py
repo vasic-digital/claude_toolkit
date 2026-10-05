@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import sys
+import threading
 import tempfile
 import time
 from datetime import datetime, timezone, timedelta
@@ -341,8 +342,45 @@ def main(argv=None):
         return 0
 
     api_key = os.environ.get(args.api_key_env, "") if args.api_key_env else ""
-    result = probe_provider(args.provider_id, spec, api_key, args.timeout)
-    print(json.dumps(result))
+    # Hard deadline (I3-residual-no-coreutils). claude-providers.sh wraps
+    # this script in coreutils `timeout` when present, but falls back to a
+    # bare python3 run when it is absent -- and --timeout only bounds each
+    # socket operation, not the whole probe (DNS + connect + slow read can
+    # sum past it). A daemon threading.Timer is the portable bound: no
+    # SIGALRM, no main-thread restriction, stdlib only. If it fires first it
+    # emits probe_provider's own probe_failed shape and os._exit()s; the
+    # lock guarantees exactly ONE JSON line whichever side finishes first.
+    # The +2.0s margin keeps it behind `timeout`'s own +1s kill when that
+    # binary exists, so the coreutils path is unchanged.
+    deadline = args.timeout + 2.0
+    emit_lock = threading.Lock()
+    emitted = []
+
+    def _emit_once(payload):
+        with emit_lock:
+            if emitted:
+                return False
+            emitted.append(True)
+            print(json.dumps(payload), flush=True)
+            return True
+
+    def _hard_deadline_fired():
+        if _emit_once({
+            "provider_id": args.provider_id, "windows": [], "account_blocked": False,
+            "absence_reason": "probe_failed",
+            "absence_detail": f"probe exceeded its hard deadline of {deadline:g}s",
+            "http_status": None,
+        }):
+            os._exit(0)
+
+    watchdog = threading.Timer(deadline, _hard_deadline_fired)
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        result = probe_provider(args.provider_id, spec, api_key, args.timeout)
+    finally:
+        watchdog.cancel()
+    _emit_once(result)
     return 0
 
 

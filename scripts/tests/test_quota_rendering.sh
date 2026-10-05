@@ -334,4 +334,28 @@ assert_eq "1" "$ok" "5% window must read [RED] without color"
 echo "$stripped" | grep -E '^  b ' | grep -q '\[LIMIT_EXCEEDED\]' && ok=1 || ok=0
 assert_eq "1" "$ok" "0% window must read [LIMIT_EXCEEDED] without color"
 
+# --- Blocked-line wording is conditional on windows (docs-batch item 6) ---
+# "windows below are moot" is only true when windows ARE below. A blocked
+# row with zero windows (account_blocked + probe_failed) must not point at
+# windows that do not exist. Both the plain and the colour branch.
+it "_cma_quota_render_text: a blocked row with ZERO windows does not say 'windows below are moot' (plain + colour)"
+out="$(printf '%s\n' "$BLOCKED_FAILED_ROW" | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "windows below are moot" && bad=1 || bad=0
+assert_eq "0" "$bad" "plain: zero-window blocked row must not mention windows below, got: $out"
+echo "$out" | grep -q "ACCOUNT BLOCKED — the whole subscription is suspended" && ok=1 || ok=0
+assert_eq "1" "$ok" "plain: the blocked statement itself must remain, got: $out"
+out="$(printf '%s\n' "$BLOCKED_FAILED_ROW" | _cma_quota_render_text --force-tty | sed $'s/\033\\[[0-9;]*m//g')"
+echo "$out" | grep -q "windows below are moot" && bad=1 || bad=0
+assert_eq "0" "$bad" "colour: zero-window blocked row must not mention windows below, got: $out"
+echo "$out" | grep -q "ACCOUNT BLOCKED — the whole subscription is suspended" && ok=1 || ok=0
+assert_eq "1" "$ok" "colour: the blocked statement itself must remain, got: $out"
+
+it "_cma_quota_render_text: a blocked row WITH windows still says 'windows below are moot' (plain + colour)"
+out="$(printf '%s\n' "$BLOCKED_ROW" | _cma_quota_render_text --no-color)"
+echo "$out" | grep -q "ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot" && ok=1 || ok=0
+assert_eq "1" "$ok" "plain: blocked row with windows keeps the moot annotation, got: $out"
+out="$(printf '%s\n' "$BLOCKED_ROW" | _cma_quota_render_text --force-tty | sed $'s/\033\\[[0-9;]*m//g')"
+echo "$out" | grep -q "ACCOUNT BLOCKED — the whole subscription is suspended; windows below are moot" && ok=1 || ok=0
+assert_eq "1" "$ok" "colour: blocked row with windows keeps the moot annotation, got: $out"
+
 summary

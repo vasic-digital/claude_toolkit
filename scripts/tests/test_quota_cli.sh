@@ -1132,10 +1132,15 @@ bo_holder="$( (sleep 30 </dev/null >/dev/null 2>&1 & printf '%s' "$!") )"
 mkdir -p "$bo_lockdir/.aliases.lockdir"
 printf '%s\n' "$bo_holder" > "$bo_lockdir/.aliases.lockdir/pid"
 export CMA_ALIAS_LOCK_NO_FLOCK=1 CMA_QUOTA_CACHE_LOCK_WAIT=1
+# The effective wait is clamped to more than the stale grace (D8), so the
+# grace is lowered here to keep this bounded-wait check fast. The holder is
+# LIVE, so the grace never breaks it -- only the clamp arithmetic sees it.
+bo_old_grace="$CMA_ALIAS_LOCK_STALE_GRACE"; CMA_ALIAS_LOCK_STALE_GRACE=1
 bo_t0="$(date +%s)"
 bo_out="$(_cma_quota_probe_all 1 "" quota-race-a 2>"$HOME/.quota-bo-stderr")"
 bo_rc=$?
 bo_elapsed=$(( $(date +%s) - bo_t0 ))
+CMA_ALIAS_LOCK_STALE_GRACE="$bo_old_grace"
 unset CMA_ALIAS_LOCK_NO_FLOCK CMA_QUOTA_CACHE_LOCK_WAIT
 kill "$bo_holder" 2>/dev/null
 rm -rf "$bo_lockdir/.aliases.lockdir"
@@ -1148,6 +1153,50 @@ bo_warned=0; grep -q 'quota cache lock' "$HOME/.quota-bo-stderr" 2>/dev/null && 
 assert_eq "1" "$bo_warned" "a skipped save must be announced on stderr, not silent"
 bo_src="$(echo "$bo_out" | jq -r 'select(.provider_id=="quota-race-a") | .data_source' 2>/dev/null)"
 assert_eq "live" "$bo_src" "the row itself must still be reported from the live probe"
+
+# --- D8: the quota-cache lock wait is clamped above the stale grace ---------
+# The mkdir backend breaks a pid-less lock dir only after
+# CMA_ALIAS_LOCK_STALE_GRACE seconds of continuous emptiness. A configured
+# CMA_QUOTA_CACHE_LOCK_WAIT shorter than that gives up first, so a stale
+# pid-less lock (a holder that died between mkdir and its pid write) would
+# make EVERY later run skip its save, forever.
+it "D8: _cma_quota_cache_lock_wait clamps a short wait above CMA_ALIAS_LOCK_STALE_GRACE, leaves a long one alone"
+bo_old_grace="$CMA_ALIAS_LOCK_STALE_GRACE"; CMA_ALIAS_LOCK_STALE_GRACE=10
+assert_eq "11" "$(CMA_QUOTA_CACHE_LOCK_WAIT=3 _cma_quota_cache_lock_wait)" "wait 3 < grace 10 is clamped to grace+1"
+assert_eq "11" "$(CMA_QUOTA_CACHE_LOCK_WAIT=0 _cma_quota_cache_lock_wait)" "wait 0 is clamped too (a fail-fast wait could never break a stale lock)"
+assert_eq "11" "$(CMA_QUOTA_CACHE_LOCK_WAIT=junk _cma_quota_cache_lock_wait)" "an invalid wait falls back to the default, then is clamped"
+assert_eq "30" "$(CMA_QUOTA_CACHE_LOCK_WAIT=30 _cma_quota_cache_lock_wait)" "a wait already longer than the grace is unchanged"
+CMA_ALIAS_LOCK_STALE_GRACE="$bo_old_grace"
+
+it "D8: a stale pid-less quota-cache lock is broken and the save proceeds, even with a configured wait shorter than the grace"
+rm -f "$bo_cache"
+rm -rf "$bo_lockdir/.aliases.lockdir"
+mkdir -p "$bo_lockdir/.aliases.lockdir"   # pid-less: its creator died before writing a pid
+export CMA_ALIAS_LOCK_NO_FLOCK=1 CMA_QUOTA_CACHE_LOCK_WAIT=1
+bo_old_grace="$CMA_ALIAS_LOCK_STALE_GRACE"; CMA_ALIAS_LOCK_STALE_GRACE=2
+_cma_quota_probe_all 1 "" quota-race-a >/dev/null 2>"$HOME/.quota-d8-stderr"
+CMA_ALIAS_LOCK_STALE_GRACE="$bo_old_grace"
+unset CMA_ALIAS_LOCK_NO_FLOCK CMA_QUOTA_CACHE_LOCK_WAIT
+d8_keys="$(jq -c '.providers | keys' "$bo_cache" 2>/dev/null)"
+rm -rf "$bo_lockdir/.aliases.lockdir"
+assert_eq '["quota-race-a"]' "$d8_keys" "the stale lock must be broken and this run's record saved (got '$d8_keys'; stderr: $(cat "$HOME/.quota-d8-stderr" 2>/dev/null))"
+d8_warned=0; grep -q 'quota cache lock' "$HOME/.quota-d8-stderr" 2>/dev/null && d8_warned=1
+assert_eq "0" "$d8_warned" "no 'save skipped' warning once the stale lock is recovered"
+
+# --- N2: the busy warning reports the OBSERVED wait, not the configured one --
+# A caller already holding the alias lock is refused AT ONCE (the helper is
+# single-slot). The old warning still claimed "busy for <configured>s",
+# describing a wait that never happened.
+it "N2: an immediately refused cache lock warns with the real elapsed wait, not the configured limit"
+rm -f "$bo_cache"
+( _cma_alias_lock_depth=1; _cma_quota_probe_all 1 "" quota-race-a >/dev/null 2>"$HOME/.quota-n2-stderr" )
+n2_msg="$(grep 'quota cache lock' "$HOME/.quota-n2-stderr" 2>/dev/null)"
+n2_ok=0; grep -Eq 'quota cache lock not acquired after [01]s \(limit [0-9]+s\)' <<<"$n2_msg" && n2_ok=1
+assert_eq "1" "$n2_ok" "warning must state the observed elapsed time and the limit separately (got: $n2_msg)"
+n2_bad=0; grep -q 'busy for' <<<"$n2_msg" && n2_bad=1
+assert_eq "0" "$n2_bad" "warning must not claim a configured-length wait that never happened (got: $n2_msg)"
+n2_saved=0; [[ -f "$bo_cache" ]] && n2_saved=1
+assert_eq "0" "$n2_saved" "a refused lock still skips the save (got cache file present=$n2_saved)"
 
 # --- B-orchestrator: F2 cached-branch windows guard -------------------------
 #
