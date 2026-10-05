@@ -4036,8 +4036,10 @@ cmd_sync_multi() {
 #     (<cache dir>/quota-cache.lock.d/), never contending with alias-file
 #     writes -- the session hook's wait-0 alias refresh must not be skipped
 #     because a `quota` run happened to be merging;
-#   - the wait is bounded by CMA_QUOTA_CACHE_LOCK_WAIT (seconds, default 10;
-#     0 = fail fast). The helper returns 1 on timeout; it never exits.
+#   - the wait is bounded by CMA_QUOTA_CACHE_LOCK_WAIT (seconds, default 10,
+#     clamped to at least CMA_ALIAS_LOCK_STALE_GRACE+1 = 11 by default; see
+#     D8 below; 0 does not fail fast). The helper returns 1 on timeout; it
+#     never exits.
 # Release needs neither shadow: the helper records the lock path and mode in
 # its own globals at acquire time.
 #
@@ -4054,7 +4056,10 @@ cmd_sync_multi() {
 # decoration: the helper computes its deadline before it first observes the
 # dir empty, both on 1s `date +%s` ticks, so wait == GRACE can lose that race
 # by one tick and still skip the save. A fail-fast 0 is clamped too, for the
-# same reason. A wait already longer than that is left alone.
+# same reason. A wait already longer than that is left alone. The clamp is
+# applied on the flock backend as well, where no pid-less stale lock can
+# exist (the kernel drops a dead holder's flock); there it only lengthens
+# the bound, which is harmless, and keeps one rule for both backends.
 _cma_quota_cache_lock_wait() {
   local w=10 grace
   case "${CMA_QUOTA_CACHE_LOCK_WAIT:-}" in
