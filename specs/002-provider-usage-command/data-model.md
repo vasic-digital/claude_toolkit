@@ -19,7 +19,7 @@ kinds, both satisfying this shared shape:
 | `absence_reason` | enum: `null` \| `not_reported_by_provider` \| `probe_failed` | Set only when `windows` is empty; mutually exclusive with having any window (FR-009/FR-010) |
 | `absence_detail` | string \| `null` | Human-readable cause when `absence_reason` is set (e.g. the timeout/network error text for `probe_failed`; `null` for `not_reported_by_provider`, which needs no further explanation) |
 | `account_blocked` | boolean | True only when the WHOLE account/subscription is stopped, not merely one window (FR-011) — orthogonal to `windows`/`absence_reason`: a blocked account can still have had real windows before the block, which stay reported, with this flag making the hard-stop visible alongside them |
-| `data_source` | enum: `live` \| `cached` | Per FR-012 |
+| `data_source` | enum: `live` \| `cached` \| `null` | `live` or `cached`: per FR-012. `null`: never probed (native rows, and provider rows with no endpoint spec) |
 | `data_age_seconds` | integer \| `null` | `null` when `data_source == "live"`; required (non-null) when `cached` |
 
 **Invariant (mechanically tested)**: `windows` non-empty XOR

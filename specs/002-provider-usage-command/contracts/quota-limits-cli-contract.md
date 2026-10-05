@@ -116,7 +116,7 @@ data-model.md §5 field-for-field:
       "plan_tier": "default_claude_max_20x",
       "auth_state": "ok",
       "account_blocked": false,
-      "data_source": "live",
+      "data_source": null,
       "data_age_seconds": null,
       "absence_reason": "not_reported_by_provider",
       "absence_detail": null,

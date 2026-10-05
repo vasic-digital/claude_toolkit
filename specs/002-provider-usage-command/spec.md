@@ -282,7 +282,7 @@ worded as if a genuine measurement had succeeded.
   degrade only that alias to the probe-failure status (FR-010) and MUST
   NOT delay or block the reporting of any other alias. The command's
   total wall-clock time MUST stay bounded by
-  `ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES) × per-provider timeout`
+  `ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES) × (per-provider timeout + 1)`, where the +1 second is the outer OS-level backstop each probe is wrapped in (T038-independent-review I3)
   (default `CMA_QUOTA_MAX_PARALLEL_PROBES=8`) — concurrent batches,
   not one alias at a time, and a single slow provider's delay is
   paid at most once per batch it's in, never once per alias.

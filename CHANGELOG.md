@@ -132,7 +132,8 @@ a final whole-branch review gate before this release.
 - **Account-level de-duplication**: `deepseek`/`kimi-deepseek`/
   `pi-deepseek` share one real account and one real API key; `quota`
   reports it once, listing every alias name that maps to it, never three
-  separate rows for one subscription.
+  separate rows for one subscription. Incomplete in 1.30.0: multiple `.env`
+  files sharing one key and base URL were still split; corrected in v1.30.1.
 - **Honest absence reporting**, two textually-distinct states, never
   confused with each other: `not_reported_by_provider` (no documented
   quota endpoint exists for this provider at all — no probe attempted)
