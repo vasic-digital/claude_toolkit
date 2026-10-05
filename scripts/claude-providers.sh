@@ -2759,12 +2759,16 @@ _cma_kimi_twin_alias() {
   # present the name is left entirely untouched and the operator is warned.
   [[ -f "$ALIAS_FILE" ]] || return 0
   grep -qxF -- "$want" "$ALIAS_FILE" || {
-    if awk -v p="alias $twin=" 'index($0, p) == 1 { f = 1 } END { exit !f }' "$ALIAS_FILE"; then
+    if awk -v n="$twin=" 'match($0, /^alias[[:space:]]+/) && index(substr($0, RLENGTH + 1), n) == 1 { f = 1 } END { exit !f }' "$ALIAS_FILE"; then
       cma_warn "leaving user-authored '$twin' alias untouched (provider '$id' is not verified)"
     fi
     return 0
   }
-  if awk -v p="alias $twin=" -v w="$want" 'index($0, p) == 1 && $0 != w { f = 1 } END { exit !f }' "$ALIAS_FILE"; then
+  # Same-name probe uses the SAME shape the committer's drop matches
+  # (`^alias[[:space:]]+<name>=`), so a whitespace-variant user line
+  # (`alias  kimi-X=`, `alias<TAB>kimi-X=`) counts as user-authored. The name is
+  # compared literally (index), never as a regex.
+  if awk -v n="$twin=" -v w="$want" 'match($0, /^alias[[:space:]]+/) && index(substr($0, RLENGTH + 1), n) == 1 && $0 != w { f = 1 } END { exit !f }' "$ALIAS_FILE"; then
     cma_warn "leaving '$twin' untouched: a user-authored definition shares its name (provider '$id' is not verified)"
     return 0
   fi

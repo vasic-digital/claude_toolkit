@@ -226,6 +226,21 @@ grep -qxF 'alias kimi-gamma="my own gamma command"' "$ALIAS_FILE"; assert_eq 0 $
 cma_alias_commit kimi-beta "" keep; cma_alias_commit kimi-gamma "" keep
 set_verdicts
 
+it "reconcile: a whitespace-variant USER line (alias<2 spaces>kimi-beta=) beside the canonical twin survives byte-identical"
+# Hand-edited state (the operator's own edit, simulated as a test fixture in the
+# sandbox): a two-space user definition of kimi-beta PLUS the canonical twin.
+# The guard is exercised directly — any sync-path commit first runs the
+# committer's last-wins dedupe, which collapses the two same-name lines before
+# the twin gate is ever reached.
+assert_eq "unverified" "$(cma_status_read beta)" "precondition: beta is unverified"
+printf '%s\n' 'alias  kimi-beta="my own"' 'alias kimi-beta="cma_run_kimi_provider beta"' >> "$ALIAS_FILE"
+grep -qxF 'alias  kimi-beta="my own"' "$ALIAS_FILE"; assert_eq 0 $? "precondition: two-space user kimi-beta line present"
+_sum_ws="$(cksum < "$ALIAS_FILE")"
+( source "$PROVIDERS_SH"; set +e; _cma_kimi_twin_alias beta ) >/dev/null 2>&1
+grep -qxF 'alias  kimi-beta="my own"' "$ALIAS_FILE"; assert_eq 0 $? "two-space user kimi-beta line survives"
+assert_eq "$_sum_ws" "$(cksum < "$ALIAS_FILE")" "alias file left byte-identical (name shared with a user line is untouched)"
+cma_alias_commit kimi-beta "" keep
+
 it "reconcile: a dotted id drops ONLY its own literal twin line (no regex over-match, no rejected render)"
 cma_alias_commit "" 'alias kimi-a.b="cma_run_kimi_provider a.b"' keep
 cma_alias_commit "" 'alias kimi-aXb="victim"' keep
