@@ -280,9 +280,12 @@ worded as if a genuine measurement had succeeded.
   provider concurrently rather than one at a time, with a short, bounded
   per-provider timeout. A single slow or unresponsive provider MUST
   degrade only that alias to the probe-failure status (FR-010) and MUST
-  NOT delay or block the reporting of any other alias. The command's total
-  wall-clock time MUST stay bounded by the per-provider timeout, not by
-  the number of aliases being reported on.
+  NOT delay or block the reporting of any other alias. The command's
+  total wall-clock time MUST stay bounded by
+  `ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES) × per-provider timeout`
+  (default `CMA_QUOTA_MAX_PARALLEL_PROBES=8`) — concurrent batches,
+  not one alias at a time, and a single slow provider's delay is
+  paid at most once per batch it's in, never once per alias.
 
 ### Key Entities
 
@@ -329,10 +332,11 @@ worded as if a genuine measurement had succeeded.
   read from the `--json` output, with zero tests parsing colored or
   human-formatted text to derive a pass/fail verdict.
 - **SC-008**: With one alias's provider simulated as slow/unresponsive, the
-  command's total run time is independent of how many OTHER aliases are
-  configured, and every other alias's real status is still reported
-  — demonstrating that one slow provider never blocks the rest of the
-  report.
+  command's total run time stays within
+  `ceil(N / CMA_QUOTA_MAX_PARALLEL_PROBES) × timeout` regardless of
+  N, and every other alias's real status is still reported —
+  demonstrating that one slow provider delays at most its own batch,
+  never the whole fleet linearly.
 
 ## Assumptions
 

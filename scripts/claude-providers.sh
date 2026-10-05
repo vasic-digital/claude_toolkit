@@ -4127,7 +4127,7 @@ print(json.dumps(rec) if rec else '')
     else
       (
         set +e
-        result="$(python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
+        result="$(timeout "$(( timeout + 1 ))" python3 "$lib_dir/quota_probe.py" --provider-id "$pid" \
           --spec-file "$spec_file" --api-key-env "$keyvar" --timeout "$timeout" 2>/dev/null)"
         [[ -n "$result" ]] || result='{"windows":[],"account_blocked":false,"absence_reason":"probe_failed","absence_detail":"quota probe subprocess produced no output","http_status":null}'
         windows="$(jq -c '.windows // []' <<<"$result" 2>/dev/null)" || windows="[]"
@@ -4238,7 +4238,16 @@ cmd_quota() {
     case "$1" in
       --json) json=1; shift ;;
       --fresh) fresh=1; shift ;;
-      --timeout) timeout="$2"; shift 2 ;;
+      --timeout)
+        if [[ $# -lt 2 ]]; then
+          cma_err "--timeout requires a value"
+          return 1
+        fi
+        if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+          cma_err "--timeout requires a positive integer (got: $2)"
+          return 1
+        fi
+        timeout="$2"; shift 2 ;;
       --no-color) no_color=1; shift ;;
       -*) cma_err "unknown flag: $1 (try --help)"; return 1 ;;
       *) alias_arg="$1"; shift ;;
@@ -4249,13 +4258,14 @@ cmd_quota() {
   result="$(_cma_quota_probe_all "$fresh" "$timeout" "$alias_arg")"
 
   if [[ -n "$alias_arg" ]]; then
+    local scoped_to_json; scoped_to_json="$(jq -cn --arg a "$alias_arg" '$a')"
     local n_rows=0
     if [[ -n "$result" ]]; then
       n_rows="$(jq -cs 'length' <<<"$result" 2>/dev/null)" || n_rows=0
     fi
     if [[ "$n_rows" -eq 0 ]]; then
       if (( json )); then
-        _cma_quota_render_json "\"$alias_arg\"" true <<<""
+        _cma_quota_render_json "$scoped_to_json" true <<<""
       elif (( no_color )); then
         printf 'alias "%s" does not exist\n' "$alias_arg"
       else
@@ -4264,7 +4274,7 @@ cmd_quota() {
       return 2
     fi
     if (( json )); then
-      _cma_quota_render_json "\"$alias_arg\"" false <<<"$result"
+      _cma_quota_render_json "$scoped_to_json" false <<<"$result"
     elif (( no_color )); then
       _cma_quota_render_text --no-color <<<"$result"
     else

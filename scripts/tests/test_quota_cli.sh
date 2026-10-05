@@ -739,4 +739,83 @@ assert_eq "true" "$t029_fixture_has" "absence_detail key must be present on the 
 t029_batch_has="$(echo "$probe_out" | jq -s 'map(has("absence_detail")) | all')"
 assert_eq "true" "$t029_batch_has" "absence_detail key must be present on every row across the full batch too (not_reported_by_provider, cached, and native-account rows alike)"
 
+# --- T038-independent-review I3: batching still produces every row past
+# max_parallel ----------------------------------------------------------
+#
+# The brief's ruling: _cma_quota_probe_all's bounded-concurrency batching
+# (a blocking `wait` after every CMA_QUOTA_MAX_PARALLEL_PROBES probes) is
+# a deliberate resource-safety design, NOT a bug -- the I3 fix is a
+# spec-text correction (FR-017/SC-008 now honestly describe the batched
+# ceil(N/max_parallel) bound instead of claiming independence from N) plus
+# a defensive outer `timeout` wrapper around the live-probe python3
+# subprocess. This is a regression guard proving the batching BEHAVIOR is
+# unchanged by that fix: 5 fake provider accounts, all absent from
+# quota-endpoints.json (same no-endpoint-spec shape "deepseek" already
+# establishes above -- no live-probe subprocess, no network), with
+# CMA_QUOTA_MAX_PARALLEL_PROBES forced to 2 so 5 accounts span 3 rounds
+# (2+2+1) and the blocking `wait` barrier fires twice before the loop ends.
+
+it "I3 setup: 5 fake provider accounts, all absent from quota-endpoints.json"
+pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
+for n in 1 2 3 4 5; do
+  cma_provider_write_env "quota-batch-fixture-$n" "QUOTABATCH${n}_API_KEY" router \
+    "https://example.invalid/quota-batch-fixture-$n" "quota-batch-fixture-$n/test-model" \
+    "quota-batch-fixture-$n/test-model" "$HOME/.claude-prov-quota-batch-fixture-$n" \
+    128000 8192 "quota-batch-fixture-$n"
+  echo "alias quota-batch-fixture-$n=\"cma_run_provider quota-batch-fixture-$n\"" >> "$ALIAS_FILE"
+done
+assert_file "$pdir/quota-batch-fixture-5.env" "5th fake provider account fixture written"
+
+it "I3: CMA_QUOTA_MAX_PARALLEL_PROBES=2 across 5 accounts still produces all 5 rows (batching behavior unchanged by the I3 fix)"
+batch_out="$(CMA_QUOTA_MAX_PARALLEL_PROBES=2 _cma_quota_probe_all 0 "" "" 2>&1)"
+batch_rc=$?
+assert_eq "0" "$batch_rc" "a forced max_parallel=2 batch run (3 rounds for 5 accounts) must still complete cleanly"
+batch_count=0
+for n in 1 2 3 4 5; do
+  found="$(echo "$batch_out" | jq -r --arg pid "quota-batch-fixture-$n" 'select(.provider_id==$pid) | .provider_id' 2>/dev/null)"
+  [[ "$found" == "quota-batch-fixture-$n" ]] && batch_count=$(( batch_count + 1 ))
+done
+assert_eq "5" "$batch_count" "all 5 accounts must appear in the output even though max_parallel(2) < account count(5) -- more rounds, same completeness, nothing dropped by the batching"
+
+# --- T038-independent-review I4: --json with a quote-containing alias ----
+#
+# cmd_quota used to build the --json scoped_to argument via naive string
+# interpolation ("\"$alias_arg\"") instead of proper jq encoding --
+# _cma_quota_render_json's --argjson scoped "$scoped_to" requires a VALID
+# JSON literal, so an alias name containing a literal `"` broke jq parsing
+# and produced no output + a non-zero exit instead of a clean,
+# correctly-scoped result. This proves the fix (scoped_to_json built once
+# via `jq -cn --arg a "$alias_arg" '$a'`) round-trips the exact alias
+# string, including its embedded quote, instead of breaking.
+
+it "I4: --json with an alias name containing a literal double-quote character produces valid JSON (not broken by naive string interpolation)"
+out_quote="$(cmd_quota 'foo"bar' --json 2>&1)"
+rc_quote=$?
+assert_eq "2" "$rc_quote" "an unknown alias (even one containing a literal quote) must still return 2, never crash"
+echo "$out_quote" | jq -e . >/dev/null 2>&1
+assert_eq "0" "$?" "I4 fix: --json output must be valid, parseable JSON even when alias_arg contains a literal \" character"
+scoped_quote="$(echo "$out_quote" | jq -r '.scoped_to' 2>/dev/null)"
+assert_eq 'foo"bar' "$scoped_quote" "scoped_to must carry the exact alias string, including its embedded quote, via proper jq encoding"
+
+# --- T038-independent-review S1: --timeout value/numeric validation ------
+#
+# --timeout had no guard for a missing value (crashed under nounset if
+# --timeout were the last argument) or a non-numeric value (silently
+# passed through to a confusing downstream failure). Both are now
+# rejected up front with a clear error and exit 1.
+
+it "S1: --timeout with no following argument returns 1 with a clear error, never a nounset crash"
+out_missing="$(cmd_quota --timeout 2>&1)"
+rc_missing=$?
+assert_eq "1" "$rc_missing" "--timeout with no value must return 1, not crash or hang"
+echo "$out_missing" | grep -qi "timeout.*requires a value"
+assert_eq "0" "$?" "the error message must clearly name --timeout as requiring a value"
+
+it "S1: --timeout notanumber returns 1 with a clear error"
+out_nan="$(cmd_quota --timeout notanumber 2>&1)"
+rc_nan=$?
+assert_eq "1" "$rc_nan" "--timeout with a non-numeric value must return 1, not be silently accepted"
+echo "$out_nan" | grep -qi "timeout.*positive integer"
+assert_eq "0" "$?" "the error message must clearly name --timeout as requiring a positive integer"
+
 summary
