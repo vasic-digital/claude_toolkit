@@ -52,6 +52,7 @@
           { "path": ["data", "limit_remaining"], "type": "amount_remaining", "desc": "credits left under this key's spending cap; null when the key is uncapped" },
           { "path": ["data", "limit"], "type": "limit_total", "desc": "the key's total spending cap; null when uncapped" },
           { "path": ["data", "usage"], "type": "amount_used", "desc": "credits consumed so far under this key" },
+          { "path": ["data", "limit_reset"], "type": "reset_cadence", "desc": "cadence label for when the cap resets (e.g. \"daily\", \"monthly\"), null if it never resets -- NOT a timestamp, informational only (T038-independent-review finding I2); resolve_window does not yet consume this type" },
           { "path": [], "type": "unit_literal", "value": "credits" }
         ]
       }

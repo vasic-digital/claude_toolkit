@@ -494,4 +494,115 @@ assert result is True, f"expected True (NOT active -> blocked), got {result!r}"
 PY
 assert_eq 0 $? "resolve_account_blocked handles account_blocked_negated type correctly (inverts the signal)"
 
+it "_first_signal_value resolves a reset_at ISO-8601 string signal (not routed through numeric _dig)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+signals = [{"path": ["data", "reset_at"], "type": "reset_at", "desc": "test fixture"}]
+body = {"data": {"reset_at": "2026-10-06T00:00:00Z"}}
+
+result = qp._first_signal_value(signals, "reset_at", body)
+assert result == "2026-10-06T00:00:00Z", f"expected the raw ISO-8601 string, got {result!r}"
+PY
+assert_eq 0 $? "_first_signal_value resolves a reset_at ISO-8601 string signal without routing it through numeric _dig"
+
+it "_first_signal_value rejects a malformed reset_at string (never guesses)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+signals = [{"path": ["data", "reset_at"], "type": "reset_at", "desc": "test fixture"}]
+body = {"data": {"reset_at": "not-a-date"}}
+
+result = qp._first_signal_value(signals, "reset_at", body)
+assert result is None, f"expected None for a malformed timestamp, got {result!r}"
+PY
+assert_eq 0 $? "_first_signal_value returns None for a malformed reset_at string rather than guessing"
+
+it "resolve_window sets resets=True and reset_at from a direct ISO-8601 signal (no reset_in_seconds present)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+window_spec = {
+    "window": "daily",
+    "signals": [
+        {"path": ["data", "used"], "type": "amount_used", "desc": "test"},
+        {"path": ["data", "remaining"], "type": "amount_remaining", "desc": "test"},
+        {"path": ["data", "limit"], "type": "limit_total", "desc": "test"},
+        {"path": [], "type": "unit_literal", "value": "requests"},
+        {"path": ["data", "reset_at"], "type": "reset_at", "desc": "test"},
+    ],
+}
+body = {"data": {"used": 10, "remaining": 90, "limit": 100, "reset_at": "2026-10-06T00:00:00Z"}}
+
+result = qp.resolve_window(window_spec, body)
+assert result is not None, "expected a real window, got None"
+assert result["resets"] is True, result
+assert result["reset_at"] == "2026-10-06T00:00:00Z", result
+PY
+assert_eq 0 $? "resolve_window resolves resets=True and reset_at from a direct ISO-8601 reset_at signal"
+
+it "probe_provider: real openrouter spec resolves correctly against a response carrying limit_reset (reset_cadence is inert)"
+python3 - "$SCRIPTS_DIR" <<'PY'
+import sys, importlib.util, json
+
+scripts_dir = sys.argv[1]
+sys.path.insert(0, scripts_dir)
+
+spec = importlib.util.spec_from_file_location("model_verify", scripts_dir + "/model_verify.py")
+mv = importlib.util.module_from_spec(spec); spec.loader.exec_module(mv)
+sys.modules["model_verify"] = mv
+
+spec2 = importlib.util.spec_from_file_location("quota_probe", scripts_dir + "/quota_probe.py")
+qp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(qp)
+
+# Shaped like a genuine OpenRouter /key response that includes limit_reset.
+body = {"data": {"limit": 100, "limit_remaining": 40, "usage": 60, "limit_reset": "monthly"}}
+qp.http_get_json = lambda *a, **k: (200, body)
+
+with open(scripts_dir + "/providers/quota-endpoints.json") as f:
+    catalog = json.load(f)
+entry = catalog["openrouter"]
+
+result = qp.probe_provider("openrouter", entry, "fake-key", 3.0)
+
+assert result["absence_reason"] is None, result
+assert len(result["windows"]) == 1, result
+window = result["windows"][0]
+assert window["amount_used"] == 60, window
+assert window["amount_remaining"] == 40, window
+assert window["limit_total"] == 100, window
+assert window["unit"] == "credits", window
+PY
+assert_eq 0 $? "probe_provider resolves the real openrouter spec correctly against a response carrying limit_reset, without crashing on the inert reset_cadence signal"
+
 summary

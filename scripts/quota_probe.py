@@ -43,6 +43,20 @@ def _first_signal_value(signals, type_name, body):
             if "value" in sig:
                 return sig["value"]
             continue
+        if type_name == "reset_at":
+            # reset_at is a direct ISO-8601 TIMESTAMP string, never a
+            # number -- _dig() exists only to coerce numeric fields and
+            # would wrongly discard a genuine timestamp (T038-independent-
+            # review finding I1). Validate it parses as ISO-8601; never
+            # guess at a malformed value.
+            raw = _walk(body, sig.get("path") or [])
+            if not isinstance(raw, str):
+                continue
+            try:
+                datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            return raw
         val = _dig(body, sig.get("path") or [])
         if val is None:
             continue
