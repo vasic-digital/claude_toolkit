@@ -1580,8 +1580,18 @@ class H(BaseHTTPRequestHandler):
             f.write("%s %s auth=%s\n" % (self.command, self.path, tag))
         with open(os.path.join(home, "stub.mode")) as f:
             mode = f.read().strip()
+        ctype = "application/json"
         if mode == "401":
             raw, code = json.dumps({"error": "unauthorized"}).encode(), 401
+        elif mode == "html":
+            # A 200 whose body is an HTML page (captive portal / gateway
+            # error page), not JSON.
+            raw, code, ctype = b"<html><body>Gateway</body></html>", 200, "text/html"
+        elif mode == "mixed":
+            # One valid window (5h) and one out-of-range used_ratio (7d).
+            raw = ('{"usages":{"limit_5h":{"used_ratio":0.25,"reset_time":"2026-10-05T17:00:00Z"},'
+                   '"limit_7d":{"used_ratio":25,"reset_time":"2026-10-10T00:00:00Z"}}}').encode()
+            code = 200
         elif mode.startswith("ratio:"):
             # A raw JSON token (e.g. NaN, 25, null, "0.25", true) spliced
             # verbatim into BOTH windows' used_ratio -- written by hand so a
@@ -1593,7 +1603,7 @@ class H(BaseHTTPRequestHandler):
         else:
             raw, code = json.dumps(OK_BODY).encode(), 200
         self.send_response(code)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
@@ -1655,7 +1665,9 @@ rm -f "$kn_home/stub.log"; printf '401\n' > "$kn_home/stub.mode"
 kn_out="$(_kn_probe)"
 kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
 assert_eq "auth_expired" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "401 -> absence_reason auth_expired"
-assert_eq 'Kimi access token expired: run `kimi login` to refresh' "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "exact detail"
+# Audit item A: a bare `kimi login` signs in the DEFAULT ~/.kimi-code, not
+# the account that was probed -- the detail must name the probed account home.
+assert_eq "Kimi access token expired: run \`KIMI_CODE_HOME=$kn_acct kimi login\` to refresh" "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "exact detail names the probed account home"
 assert_eq "0" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "no windows on 401"
 assert_eq "1" "$(wc -l < "$kn_home/stub.log" 2>/dev/null | tr -d ' ')" "exactly ONE request reached the stub (no retry, no refresh)"
 grep -qiE 'refresh|oauth|token' "$kn_home/stub.log" 2>/dev/null && kn_ref=1 || kn_ref=0
@@ -1714,6 +1726,59 @@ rm -f "$kn_home/stub.log"; printf 'ratio:1.0000000000001\n' > "$kn_home/stub.mod
 kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
 assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "used_ratio 1.0000000000001: two windows"
 assert_eq "0,0" "$(echo "$kn_row" | jq -r '[.windows[].percent_remaining] | join(",")' 2>/dev/null)" "used_ratio 1.0000000000001: percent_remaining 0"
+
+# Audit item B: a 200 whose body is not JSON (an HTML gateway page) must keep
+# its cause, not collapse to the generic "subprocess produced no output".
+it "Kimi native: a non-JSON 200 yields probe_failed 'Kimi usages endpoint returned non-JSON'"
+rm -f "$kn_home/stub.log"; printf 'html\n' > "$kn_home/stub.mode"
+kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "probe_failed" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "non-JSON 200: absence_reason probe_failed"
+assert_eq "Kimi usages endpoint returned non-JSON" "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "non-JSON 200: exact absence_detail"
+assert_eq "0" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "non-JSON 200: no windows"
+
+# Audit item C: one valid window plus one out-of-range used_ratio -- the valid
+# window still renders, and the omission is stated rather than silent.
+it "Kimi native: valid 5h + out-of-range 7d renders the 5h window and notes the omitted one"
+rm -f "$kn_home/stub.log"; printf 'mixed\n' > "$kn_home/stub.mode"
+kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "subscription_5h" "$(echo "$kn_row" | jq -r '[.windows[].window] | join(",")' 2>/dev/null)" "mixed: only the valid 5h window renders"
+assert_eq "75" "$(echo "$kn_row" | jq -r '.windows[0].percent_remaining' 2>/dev/null)" "mixed: 5h percent_remaining 75"
+assert_eq "null" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "mixed: no absence_reason (a window survived)"
+assert_eq "one Kimi usage window was out of range and omitted" "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "mixed: the omission is noted"
+
+# Audit item D: CMA_KIMI_USAGE_BASE_URL must not send the bearer over plain
+# http to a non-loopback host. The stub doubles as an http_proxy, so if the
+# probe DID send the request it would land in stub.log; it must not.
+it "Kimi native: a non-loopback http usage URL is refused and receives ZERO requests"
+rm -f "$kn_home/stub.log"; printf 'ok\n' > "$kn_home/stub.mode"
+# Nested ( ) like _kn_probe: a bare $( ) here inherits this shell's job table,
+# so _cma_quota_probe_all's `wait` would block on the backgrounded stub.
+kn_out="$( (
+  export HOME="$kn_home"
+  export CMA_KIMI_USAGE_BASE_URL="http://kimi-usage.example.invalid/coding/v1"
+  export http_proxy="http://127.0.0.1:$kn_port" HTTP_PROXY="http://127.0.0.1:$kn_port"
+  unset no_proxy NO_PROXY
+  _cma_quota_probe_all 1 "" "kn1" 2>&1
+) )"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "0" "$(cat "$kn_home/stub.log" 2>/dev/null | wc -l | tr -d ' ')" "non-loopback http: the stub (as proxy) recorded zero requests"
+assert_eq "probe_failed" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "non-loopback http: absence_reason probe_failed"
+assert_eq "Kimi usage endpoint must be https (loopback excepted)" "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "non-loopback http: exact absence_detail"
+echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
+assert_eq "0" "$kn_leak" "non-loopback http: the access token never appears in output"
+
+# Audit item E: subscription_5h / subscription_7d (15 chars) overflowed the
+# 12-wide window-name column, so their amounts started 3 columns right of
+# every other window's. The amount column must start at one offset for all.
+it "rendered window lines align: the amount column starts at the same offset for Kimi and other windows"
+rm -f "$kn_home/stub.log"; printf 'ok\n' > "$kn_home/stub.mode"
+kn_row="$(_kn_probe | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+kn_other='{"provider_id":"p1","family":null,"windows":[{"window":"session","amount_used":1,"amount_remaining":9,"limit_total":10,"unit":"requests","percent_remaining":90,"resets":false}],"account_blocked":false,"absence_reason":null}'
+kn_txt="$(printf '%s\n%s\n' "$kn_row" "$kn_other" | _cma_quota_render_text --no-color)"
+kn_offsets="$(printf '%s\n' "$kn_txt" | awk '/ used \/ / { match($0, /^  [^ ]+ +/); print RLENGTH }' | sort -u | tr '\n' ' ')"
+kn_nlines="$(printf '%s\n' "$kn_txt" | awk '/ used \/ /' | wc -l | tr -d ' ')"
+assert_eq "3" "$kn_nlines" "precondition: three window lines rendered, got: $kn_txt"
+assert_eq "18 " "$kn_offsets" "every window line's amount starts at the same column (prefix length 18), got: $kn_txt"
 
 kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null
 rm -rf "$kn_home"

@@ -4440,10 +4440,10 @@ qp.save_quota_cache(cache_file, data)
       local kdir="$HOME/${KIMI_ACCOUNT_PREFIX:-.kimi-code-}$naid" kres
       if command -v timeout >/dev/null 2>&1; then
         kres="$(timeout "$(( timeout + 1 ))" python3 "$lib_dir/quota_probe.py" \
-          --kimi-native-dir "$kdir" --timeout "$timeout" 2>/dev/null)"
+          --kimi-native-dir "$kdir" --kimi-login-home "$kdir" --timeout "$timeout" 2>/dev/null)"
       else
         kres="$(python3 "$lib_dir/quota_probe.py" \
-          --kimi-native-dir "$kdir" --timeout "$timeout" 2>/dev/null)"
+          --kimi-native-dir "$kdir" --kimi-login-home "$kdir" --timeout "$timeout" 2>/dev/null)"
       fi
       [[ -n "$kres" ]] && jq -e 'type == "object"' <<<"$kres" >/dev/null 2>&1 || \
         kres='{"windows":[],"absence_reason":"probe_failed","absence_detail":"quota probe subprocess produced no output"}'

@@ -197,6 +197,9 @@ _cma_quota_render_one_row() {
       reset_note="   (does not reset)"
     fi
 
+    # Window-name column is 15 wide: the longest emitted name is the Kimi
+    # native subscription_5h / subscription_7d (15 chars). At 12 they
+    # overflowed and shifted their amounts 3 columns right of every other row.
     if (( color_on )); then
       case "$sev" in
         green) colorcode=$'\033[32m' ;;
@@ -204,10 +207,10 @@ _cma_quota_render_one_row() {
         red|limit_exceeded) colorcode=$'\033[31m' ;;
         *) colorcode="" ;;
       esac
-      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   %s[%s]\033[0m%s%s\n' \
+      printf '  %-15s %s used / %s left of %s %s   (%s%% left)   %s[%s]\033[0m%s%s\n' \
         "$w" "$used" "$rem" "$total" "$unit" "$pct" "$colorcode" "$sev_upper" "$cache_note" "$reset_note"
     else
-      printf '  %-12s %s used / %s left of %s %s   (%s%% left)   [%s]%s%s\n' \
+      printf '  %-15s %s used / %s left of %s %s   (%s%% left)   [%s]%s%s\n' \
         "$w" "$used" "$rem" "$total" "$unit" "$pct" "$sev_upper" "$cache_note" "$reset_note"
     fi
   done

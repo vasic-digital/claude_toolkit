@@ -22,6 +22,7 @@ import json
 import math
 import os
 import re
+import shlex
 import ssl
 import sys
 import threading
@@ -29,6 +30,7 @@ import tempfile
 import time
 from datetime import datetime, timezone, timedelta
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 
 import model_verify as _mv
 from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
@@ -341,12 +343,21 @@ def probe_provider(provider_id, spec, api_key, timeout):
 # the account's credentials file and makes exactly ONE GET. The access token
 # expires routinely and the `kimi` CLI refreshes it; when it has lapsed the
 # endpoint answers 401 and this reports auth_expired with an instruction to
-# run `kimi login` -- it never reads refresh_token and never calls any token
+# run `KIMI_CODE_HOME=<account dir> kimi login` -- a bare `kimi login` would
+# sign in the DEFAULT ~/.kimi-code, not the probed account. It never reads refresh_token and never calls any token
 # or OAuth endpoint. The token and the response body stay in-process: only
 # the derived window numbers and reset timestamps leave this function.
 
 KIMI_USAGE_BASE_URL_DEFAULT = "https://api.kimi.com/coding/v1"
-KIMI_AUTH_EXPIRED_DETAIL = "Kimi access token expired: run `kimi login` to refresh"
+# The detail is this constant text plus the probed account's directory --
+# never anything from the credentials file or the response.
+KIMI_AUTH_EXPIRED_TEMPLATE = "Kimi access token expired: run `KIMI_CODE_HOME={home} kimi login` to refresh"
+KIMI_AUTH_EXPIRED_FALLBACK = ("Kimi access token expired: run `kimi login` with KIMI_CODE_HOME "
+                              "set to this account's directory to refresh")
+KIMI_NON_JSON_DETAIL = "Kimi usages endpoint returned non-JSON"
+KIMI_RATIO_OMITTED_NOTE = "one Kimi usage window was out of range and omitted"
+KIMI_INSECURE_URL_DETAIL = "Kimi usage endpoint must be https (loopback excepted)"
+_KIMI_LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
 _KIMI_WINDOWS = (("limit_5h", "subscription_5h", "5h"), ("limit_7d", "subscription_7d", "7d"))
 KIMI_RATIO_RANGE_DETAIL = "Kimi usage returned an out-of-range or non-finite used_ratio"
 # used_ratio is a fraction in [0, 1.0]. Anything above 1.0 by more than float
@@ -365,6 +376,32 @@ def _kimi_ratio_out_of_range(ratio):
         return False
     return (not math.isfinite(ratio) or ratio < 0
             or ratio > _KIMI_RATIO_MAX + _KIMI_RATIO_EPS)
+
+
+def kimi_auth_expired_detail(login_home):
+    """The auth_expired detail naming the account home to log in. An
+    unusable path (empty, relative, control characters, backticks) falls back
+    to a path-free instruction rather than rendering something misleading."""
+    home = login_home if isinstance(login_home, str) else ""
+    if (not home or not os.path.isabs(home) or "`" in home
+            or any(ord(c) < 32 or ord(c) == 127 for c in home)):
+        return KIMI_AUTH_EXPIRED_FALLBACK
+    return KIMI_AUTH_EXPIRED_TEMPLATE.format(home=shlex.quote(home))
+
+
+def _kimi_usage_url_allowed(url):
+    """The bearer token may only travel over https, or plain http to a
+    loopback host (local stubs). Anything else -- http to a remote host,
+    another scheme, an unparseable URL -- is refused before any request."""
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return False
+    scheme = (parts.scheme or "").lower()
+    if scheme == "https":
+        return bool(host)
+    return scheme == "http" and host in _KIMI_LOOPBACK_HOSTS
 
 
 def _kimi_access_token(account_dir):
@@ -438,27 +475,36 @@ def resolve_kimi_window(name, cadence, entry):
     }
 
 
-def probe_kimi_native(account_dir, timeout, base_url=None):
+def probe_kimi_native(account_dir, timeout, base_url=None, login_home=None):
     """Probe one Kimi native account's usages endpoint. Returns
-    {windows, account_blocked, absence_reason, absence_detail, http_status}."""
+    {windows, account_blocked, absence_reason, absence_detail, http_status}.
+    login_home is the account directory named in the auth_expired detail
+    (defaults to account_dir)."""
     def _absent(reason, detail, status):
         return {"windows": [], "account_blocked": False, "absence_reason": reason,
                 "absence_detail": detail, "http_status": status}
 
+    base = (base_url or os.environ.get("CMA_KIMI_USAGE_BASE_URL") or KIMI_USAGE_BASE_URL_DEFAULT).rstrip("/")
+    url = base + "/usages"
+    if not _kimi_usage_url_allowed(url):
+        return _absent("probe_failed", KIMI_INSECURE_URL_DETAIL, None)
     token = _kimi_access_token(account_dir)
     if not token:
         return _absent("probe_failed", "no Kimi access token found in the account's credentials", None)
-    base = (base_url or os.environ.get("CMA_KIMI_USAGE_BASE_URL") or KIMI_USAGE_BASE_URL_DEFAULT).rstrip("/")
-    url = base + "/usages"
     try:
         status, body = http_get_json(url, {"Authorization": f"Bearer {token}"}, timeout)
+    except ValueError:
+        # http_get_json parses the 2xx body with json.loads; an HTML gateway
+        # page raises JSONDecodeError (a ValueError) here. Keep the cause.
+        return _absent("probe_failed", KIMI_NON_JSON_DETAIL, None)
     except (ssl.SSLError, URLError) as e:
         reason = e.reason if isinstance(e, URLError) else e
         if not isinstance(reason, ssl.SSLError):
             raise
         return _absent("probe_failed", _tls_failure_detail(e, url, token), 0)
     if status == 401:
-        return _absent("auth_expired", KIMI_AUTH_EXPIRED_DETAIL, 401)
+        return _absent("auth_expired",
+                       kimi_auth_expired_detail(login_home if login_home else account_dir), 401)
     if status != 200 or not isinstance(body, dict):
         return _absent("probe_failed", f"HTTP {status}" if status else "connection failed or timed out", status)
 
@@ -478,8 +524,11 @@ def probe_kimi_native(account_dir, timeout, base_url=None):
     if not windows:
         return _absent("probe_failed",
                        "Kimi usages endpoint responded but no interpretable usage windows were found", status)
+    # A window rejected for range while another survived is not silent: the
+    # row still renders the valid window and carries a note in absence_detail.
     return {"windows": windows, "account_blocked": False, "absence_reason": None,
-            "absence_detail": None, "http_status": status}
+            "absence_detail": KIMI_RATIO_OMITTED_NOTE if bad_ratio else None,
+            "http_status": status}
 
 
 def load_quota_cache(path):
@@ -564,6 +613,8 @@ def main(argv=None):
     ap.add_argument("--api-key-env", default="")
     ap.add_argument("--kimi-native-dir", default="",
                     help="probe a Kimi native account dir's usages endpoint instead of a provider")
+    ap.add_argument("--kimi-login-home", default="",
+                    help="account directory named in the auth_expired detail (KIMI_CODE_HOME=<dir> kimi login)")
     ap.add_argument("--timeout", type=float, default=3.0)
     args = ap.parse_args(argv)
 
@@ -593,7 +644,8 @@ def main(argv=None):
         k_timer.daemon = True
         k_timer.start()
         try:
-            k_result = probe_kimi_native(args.kimi_native_dir, args.timeout)
+            k_result = probe_kimi_native(args.kimi_native_dir, args.timeout,
+                                         login_home=args.kimi_login_home or None)
         finally:
             k_timer.cancel()
         _k_emit(k_result)
