@@ -28,6 +28,7 @@ import sys
 import threading
 import tempfile
 import time
+import urllib.request
 from datetime import datetime, timezone, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -36,7 +37,15 @@ import model_verify as _mv
 from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
 
 
-def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT):
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuses every redirect: redirect_request returning None makes urllib
+    surface the 3xx as an HTTPError instead of re-sending the request (and
+    its Authorization header) to whatever Location names."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT, follow_redirects=True):
     """quota_probe's own GET-JSON call: model_verify.http_get_json's exact
     semantics (same Request, same urlopen, same ca_ssl_context(), same
     (status, body) return), with ONE difference -- a TLS failure is RE-RAISED
@@ -54,8 +63,19 @@ def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT):
     module at call time, so a test that stubs model_verify.urlopen drives this
     real path offline."""
     req = _mv.Request(url, headers=headers or {}, method="GET")
+    if follow_redirects:
+        def _open():
+            return _mv.urlopen(req, timeout=timeout, context=_mv.ca_ssl_context())
+    else:
+        # A token-bearing caller passes follow_redirects=False: a 3xx comes
+        # back as (status, body) via the HTTPError branch, never followed.
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=_mv.ca_ssl_context()), _NoRedirectHandler())
+
+        def _open():
+            return opener.open(req, timeout=timeout)
     try:
-        with _mv.urlopen(req, timeout=timeout, context=_mv.ca_ssl_context()) as resp:
+        with _open() as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             return resp.status, json.loads(raw)
     except HTTPError as e:
@@ -357,6 +377,7 @@ KIMI_AUTH_EXPIRED_FALLBACK = ("Kimi access token expired: run `kimi login` with 
 KIMI_NON_JSON_DETAIL = "Kimi usages endpoint returned non-JSON"
 KIMI_RATIO_OMITTED_NOTE = "one Kimi usage window was out of range and omitted"
 KIMI_INSECURE_URL_DETAIL = "Kimi usage endpoint must be https (loopback excepted)"
+KIMI_REDIRECT_DETAIL = "Kimi usage endpoint redirected; not followed"
 _KIMI_LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
 _KIMI_WINDOWS = (("limit_5h", "subscription_5h", "5h"), ("limit_7d", "subscription_7d", "7d"))
 KIMI_RATIO_RANGE_DETAIL = "Kimi usage returned an out-of-range or non-finite used_ratio"
@@ -492,7 +513,8 @@ def probe_kimi_native(account_dir, timeout, base_url=None, login_home=None):
     if not token:
         return _absent("probe_failed", "no Kimi access token found in the account's credentials", None)
     try:
-        status, body = http_get_json(url, {"Authorization": f"Bearer {token}"}, timeout)
+        status, body = http_get_json(url, {"Authorization": f"Bearer {token}"}, timeout,
+                                     follow_redirects=False)
     except ValueError:
         # http_get_json parses the 2xx body with json.loads; an HTML gateway
         # page raises JSONDecodeError (a ValueError) here. Keep the cause.
@@ -502,6 +524,10 @@ def probe_kimi_native(account_dir, timeout, base_url=None, login_home=None):
         if not isinstance(reason, ssl.SSLError):
             raise
         return _absent("probe_failed", _tls_failure_detail(e, url, token), 0)
+    if isinstance(status, int) and 300 <= status < 400:
+        # Never followed (see _NoRedirectHandler): the bearer must not travel
+        # to whatever origin a Location header names.
+        return _absent("probe_failed", KIMI_REDIRECT_DETAIL, status)
     if status == 401:
         return _absent("auth_expired",
                        kimi_auth_expired_detail(login_home if login_home else account_dir), 401)

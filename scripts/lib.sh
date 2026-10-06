@@ -145,7 +145,9 @@ _cma_quota_render_one_row() {
       printf '  —   probe failed: %s\n' "$detail"
     elif [[ "$absence" == "auth_expired" ]]; then
       # Native Kimi usages probe answered 401: the access token lapsed. The
-      # detail carries the operator instruction (`kimi login`).
+      # detail carries the operator instruction, naming the probed account:
+      # `KIMI_CODE_HOME=<account dir> kimi login` (a bare `kimi login` would
+      # sign in the default ~/.kimi-code instead).
       local adetail; adetail="$(jq -r '.absence_detail // "access token expired"' <<<"$line" 2>/dev/null)"
       printf '  —   %s\n' "$adetail"
     else
@@ -214,6 +216,17 @@ _cma_quota_render_one_row() {
         "$w" "$used" "$rem" "$total" "$unit" "$pct" "$sev_upper" "$cache_note" "$reset_note"
     fi
   done
+
+  # A window survived but the probe still recorded a note (e.g. the Kimi
+  # native probe omitted an out-of-range window): show it under the windows,
+  # in the same style as the detail line above. Rows without absence_detail
+  # print nothing extra.
+  if (( n_windows > 0 )); then
+    local wdetail; wdetail="$(jq -r '.absence_detail // empty' <<<"$line" 2>/dev/null)"
+    if [[ -n "$wdetail" ]]; then
+      printf '  —   %s\n' "$wdetail"
+    fi
+  fi
 }
 
 # _cma_quota_render_json: reads the SAME newline-delimited Reportable

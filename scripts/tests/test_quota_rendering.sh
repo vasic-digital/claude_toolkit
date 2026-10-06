@@ -374,10 +374,25 @@ assert_eq "1" "$ok" "colour: blocked row with windows keeps the moot annotation,
 # The native row's absence_detail carries the operator instruction; the text
 # renderer must show it rather than the generic "not reported by provider".
 it "_cma_quota_render_text: a native auth_expired row shows its detail, not 'not reported by provider'"
-KN_EXPIRED_ROW='{"account_id":"kn1","family":"kimi","plan_tier":null,"auth_state":"ok","windows":[],"account_blocked":false,"absence_reason":"auth_expired","absence_detail":"Kimi access token expired: run `kimi login` to refresh","data_source":null,"data_age_seconds":null}'
+KN_EXPIRED_ROW='{"account_id":"kn1","family":"kimi","plan_tier":null,"auth_state":"ok","windows":[],"account_blocked":false,"absence_reason":"auth_expired","absence_detail":"Kimi access token expired: run `KIMI_CODE_HOME=/home/u/.kimi-code-kn1 kimi login` to refresh","data_source":null,"data_age_seconds":null}'
 out="$(printf '%s\n' "$KN_EXPIRED_ROW" | _cma_quota_render_text --no-color)"
-_has -qF 'Kimi access token expired: run `kimi login` to refresh' "$out" "auth_expired row renders its detail, got: $out"
+_has -qF 'Kimi access token expired: run `KIMI_CODE_HOME=/home/u/.kimi-code-kn1 kimi login` to refresh' "$out" "auth_expired row renders its detail, got: $out"
 echo "$out" | grep -q "not reported by provider" && bad=1 || bad=0
 assert_eq "0" "$bad" "auth_expired row must not claim the provider does not report, got: $out"
+
+
+# --- Kimi native row with one window omitted (out-of-range used_ratio) -------
+# The probe keeps the valid window and records the omission in absence_detail
+# with absence_reason null. The text renderer must show that note under the
+# surviving window, not drop it (it used to render absence_detail only when
+# no window survived).
+it "_cma_quota_render_text: a row with a surviving window AND absence_detail shows the omitted-window note"
+KN_MIXED_ROW='{"account_id":"kn1","family":"kimi","plan_tier":null,"auth_state":"ok","windows":[{"window":"subscription_5h","amount_used":25,"amount_remaining":75,"limit_total":100,"unit":"percent","percent_remaining":75,"resets":true,"reset_at":"2026-10-05T17:00:00Z"}],"account_blocked":false,"absence_reason":null,"absence_detail":"one Kimi usage window was out of range and omitted","data_source":"live","data_age_seconds":null}'
+out="$(printf '%s\n' "$KN_MIXED_ROW" | _cma_quota_render_text --no-color)"
+_has -qE '^  subscription_5h +25 used / 75 left of 100 percent' "$out" "the valid 5h window still renders, got: $out"
+_has -qxF '  —   one Kimi usage window was out of range and omitted' "$out" "the omitted-window note renders as its own detail line, got: $out"
+n_win_line="$(printf '%s\n' "$out" | grep -n '^  subscription_5h ' | cut -d: -f1)"
+n_note_line="$(printf '%s\n' "$out" | grep -n 'one Kimi usage window was out of range and omitted' | cut -d: -f1)"
+assert_eq "1" "$([[ -n "$n_win_line" && -n "$n_note_line" && "$n_note_line" -gt "$n_win_line" ]] && echo 1 || echo 0)" "the note is printed UNDER the window, got: $out"
 
 summary

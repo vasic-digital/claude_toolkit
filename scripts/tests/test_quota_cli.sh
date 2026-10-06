@@ -1592,6 +1592,15 @@ class H(BaseHTTPRequestHandler):
             raw = ('{"usages":{"limit_5h":{"used_ratio":0.25,"reset_time":"2026-10-05T17:00:00Z"},'
                    '"limit_7d":{"used_ratio":25,"reset_time":"2026-10-10T00:00:00Z"}}}').encode()
             code = 200
+        elif mode.startswith("redirect:"):
+            # A 302 to ANOTHER origin (the second listener's port): the
+            # bearer must never follow it there.
+            raw, code = b"", 302
+            self.send_response(code)
+            self.send_header("Location", "http://127.0.0.1:%s/coding/v1/usages" % mode[len("redirect:"):])
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         elif mode.startswith("ratio:"):
             # A raw JSON token (e.g. NaN, 25, null, "0.25", true) spliced
             # verbatim into BOTH windows' used_ratio -- written by hand so a
@@ -1779,6 +1788,61 @@ kn_offsets="$(printf '%s\n' "$kn_txt" | awk '/ used \/ / { match($0, /^  [^ ]+ +
 kn_nlines="$(printf '%s\n' "$kn_txt" | awk '/ used \/ /' | wc -l | tr -d ' ')"
 assert_eq "3" "$kn_nlines" "precondition: three window lines rendered, got: $kn_txt"
 assert_eq "18 " "$kn_offsets" "every window line's amount starts at the same column (prefix length 18), got: $kn_txt"
+
+# Credential leak on redirect: the usages endpoint answering 3xx to ANOTHER
+# origin must never carry the bearer there. A second loopback listener on a
+# different port (a different origin, portable to macOS where 127.0.0.2 is not
+# configured) records every request and whether it carried Authorization --
+# never the header value itself.
+cat > "$kn_home/stub2.py" <<'PYEOF'
+import json, os, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+home = sys.argv[1]
+class H(BaseHTTPRequestHandler):
+    def _handle(self):
+        auth = "present" if self.headers.get("Authorization") is not None else "absent"
+        with open(os.path.join(home, "stub2.log"), "a") as f:
+            f.write("%s %s auth=%s\n" % (self.command, self.path, auth))
+        raw = json.dumps({"usages": {"limit_5h": {"used_ratio": 0.5, "reset_time": "2026-10-05T17:00:00Z"}}}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+    do_GET = _handle
+    do_POST = _handle
+    def log_message(self, *a):
+        pass
+srv = HTTPServer(("127.0.0.1", 0), H)
+with open(os.path.join(home, "stub2.port.tmp"), "w") as f:
+    f.write(str(srv.server_address[1]))
+os.replace(os.path.join(home, "stub2.port.tmp"), os.path.join(home, "stub2.port"))
+srv.serve_forever()
+PYEOF
+python3 "$kn_home/stub2.py" "$kn_home" </dev/null >/dev/null 2>&1 &
+kn_stub2_pid=$!
+for _kn_i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  [[ -s "$kn_home/stub2.port" ]] && break
+  sleep 0.25
+done
+kn_port2="$(cat "$kn_home/stub2.port" 2>/dev/null)"
+it "Kimi native: a 3xx to another origin is NOT followed and the bearer never reaches the second listener"
+assert_eq "1" "$([[ "$kn_port2" =~ ^[0-9]+$ && "$kn_port2" != "$kn_port" ]] && echo 1 || echo 0)" "precondition: the second listener is up on a different port"
+rm -f "$kn_home/stub.log" "$kn_home/stub2.log"; printf 'redirect:%s\n' "$kn_port2" > "$kn_home/stub.mode"
+kn_out="$(_kn_probe)"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+assert_eq "GET /coding/v1/usages auth=access" "$(cat "$kn_home/stub.log" 2>/dev/null)" "redirect: the first listener got the one usages GET"
+kn_r2_reqs="$(cat "$kn_home/stub2.log" 2>/dev/null | wc -l | tr -d ' ')"
+kn_r2_auth="$(grep -c 'auth=present' "$kn_home/stub2.log" 2>/dev/null || true)"
+echo "redirect evidence: second listener requests=$kn_r2_reqs authorization_headers=${kn_r2_auth:-0}"
+assert_eq "0" "${kn_r2_auth:-0}" "redirect: the second listener recorded ZERO Authorization headers"
+assert_eq "0" "$kn_r2_reqs" "redirect: the second listener recorded ZERO requests (redirect not followed)"
+assert_eq "probe_failed" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "redirect: absence_reason probe_failed"
+assert_eq "Kimi usage endpoint redirected; not followed" "$(echo "$kn_row" | jq -r '.absence_detail' 2>/dev/null)" "redirect: exact absence_detail"
+assert_eq "0" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "redirect: no windows"
+echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
+assert_eq "0" "$kn_leak" "redirect: the access token never appears in output"
+kill "$kn_stub2_pid" 2>/dev/null; wait "$kn_stub2_pid" 2>/dev/null
 
 kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null
 rm -rf "$kn_home"
