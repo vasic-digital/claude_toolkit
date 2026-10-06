@@ -2,6 +2,45 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.4 — 2026-10-06
+
+### Added
+- Kimi native usage windows: a signed-in Kimi account now reports a 5-hour and a 7-day usage window from its usages endpoint, with a reset time where the endpoint provides one. The probe makes one GET per account, never refreshes a token, and never makes a model call.
+- An account whose Kimi access token has lapsed reports `auth_expired`, naming the per-account `KIMI_CODE_HOME=<dir> kimi login` command to restore windows.
+
+### Fixed
+- A Kimi usage ratio outside [0, 1], non-finite, boolean or non-numeric is rejected rather than rendered as a made-up window. An omitted window is noted in both the text and JSON output.
+- The Kimi bearer token is never sent across a redirect, never sent to a non-https host unless the host is loopback, and never routed through an HTTP proxy when the usage URL is loopback.
+- A non-JSON usage response reports `probe_failed` with a stated cause instead of a generic failure.
+- The quota cache rejects records written under an older version (cache version 2).
+- The Kimi output-token cap is derived from the provider limits.
+
+### Known limitations (not fixed in this release)
+- Kimi usage windows appear only while the Kimi access token is valid. The probe deliberately does not refresh tokens; run `kimi login` to restore them. The Kimi CLI offers no credit-free renewal command.
+- `scripts/claude-providers.sh` (sync-time Kimi credential refresh, `detect_kimicode_record`) runs a one-prompt `kimi -p hi` call when the Kimi token has expired. This predates v1.30.4 and is a paid model call on sync. It is an open operator decision.
+- The Kimi usage ratio's unit (fraction or percentage) is unconfirmed. Out-of-range values are rejected, so an incorrect unit shows as unavailable rather than as a false figure.
+- The sarvam provider is orphaned on this host. Its config directory was removed with a backup; its status record and two alias lines remain pending an operator decision. Its 4096-token starter cap is unconfirmed.
+- The DAST security scan (HawkScan) was not run: no HAWK_API_KEY and no running application.
+- The live Kimi integration test is gated behind `CMA_LIVE_TESTS=1` and runs only when the operator opts in.
+- Earlier commits in the v1.30.0 to v1.30.2 review batches carry a `Co-Authored-By: Claude Opus 5.5` trailer. History cannot be rewritten.
+
+### Verification
+- Full `run-all.sh` suite at `958b76d`: exit 0; 92 of 92 test files passed, 0 failed, 1 skipped by prerequisite (the live Kimi test, gated).
+
+### Commits in this release
+- `16bc86a` fix(quota): bump cache version to 2; reject older records; T028 fixture seeds the new version
+- `c3a94cf` feat(quota): Kimi native usage windows (5h, 7d) via the usages endpoint; no refresh flow
+- `ac9ec09` docs(changelog): record the Opus 5.5 trailer mismatch as a known gap
+- `a29ce10` test(quota): fixtures seed the current cache version (no behaviour change)
+- `dffda50` fix(quota): fail closed on non-finite or out-of-range Kimi used_ratio (review fix)
+- `0b9acc8` feat(quota): let the Kimi CLI renew its token once before the usage probe (reuses the launch refresh)
+- `d5e6da8` Revert "feat(quota): let the Kimi CLI renew its token once before the usage probe (reuses the launch refresh)"
+- `97dbc1a` fix(quota): Kimi used_ratio upper bound is 1.0 (epsilon only), not 1.0001
+- `d26450c` docs(quota): document auth_expired and native Kimi usage probing in the contract and changelog (audit item 4)
+- `e583ad5` fix(quota): Kimi usage detail names the probed account, non-JSON and bad-ratio handling, https-only usage URL, aligned columns (audit items 5 to 9, 11)
+- `1793c46` fix(quota): never send the Kimi token across a redirect; show the omitted-window note in text; remove stale login wording
+- `958b76d` fix(quota): never send the Kimi token through a proxy when the usage URL is loopback
+
 ## v1.30.3 — 2026-10-05 — `quota`/`limits` patch: Kimi-leg fixes, live-test gating, doc corrections
 
 Patch release on top of v1.30.2. It closes the remaining known-issues register
