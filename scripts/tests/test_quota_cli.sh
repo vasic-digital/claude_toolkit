@@ -1842,6 +1842,32 @@ assert_eq "Kimi usage endpoint redirected; not followed" "$(echo "$kn_row" | jq 
 assert_eq "0" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "redirect: no windows"
 echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
 assert_eq "0" "$kn_leak" "redirect: the access token never appears in output"
+
+# Credential leak through a proxy: with http_proxy set, a loopback http
+# CMA_KIMI_USAGE_BASE_URL must bypass the proxy -- a plain-http proxy would
+# otherwise receive the bearer in cleartext. The second listener acts as the
+# proxy here (it records the absolute-URI request and whether it carried
+# Authorization); the first listener is the real usages stub.
+it "Kimi native: a loopback usage URL bypasses http_proxy; the proxy receives ZERO requests and the stub still answers"
+rm -f "$kn_home/stub.log" "$kn_home/stub2.log"; printf 'ok\n' > "$kn_home/stub.mode"
+kn_out="$( (
+  export HOME="$kn_home"
+  export CMA_KIMI_USAGE_BASE_URL="http://127.0.0.1:$kn_port/coding/v1"
+  export http_proxy="http://127.0.0.1:$kn_port2" HTTP_PROXY="http://127.0.0.1:$kn_port2"
+  unset no_proxy NO_PROXY
+  _cma_quota_probe_all 1 "" "kn1" 2>&1
+) )"
+kn_row="$(echo "$kn_out" | jq -c 'select(.family=="kimi" and .account_id=="kn1")' 2>/dev/null)"
+kn_px_reqs="$(cat "$kn_home/stub2.log" 2>/dev/null | wc -l | tr -d ' ')"
+kn_px_auth="$(grep -c 'auth=present' "$kn_home/stub2.log" 2>/dev/null || true)"
+echo "proxy evidence: proxy listener requests=$kn_px_reqs authorization_headers=${kn_px_auth:-0}"
+assert_eq "0" "$kn_px_reqs" "proxy: the proxy listener recorded ZERO requests"
+assert_eq "0" "${kn_px_auth:-0}" "proxy: the proxy listener recorded ZERO Authorization headers"
+assert_eq "GET /coding/v1/usages auth=access" "$(cat "$kn_home/stub.log" 2>/dev/null)" "proxy: the loopback stub received the usages GET directly"
+assert_eq "2" "$(echo "$kn_row" | jq -r '.windows | length' 2>/dev/null)" "proxy: the stub's normal result (two windows) is reported"
+assert_eq "null" "$(echo "$kn_row" | jq -r '.absence_reason' 2>/dev/null)" "proxy: no absence_reason"
+echo "$kn_out" | grep -qF "$kn_access" && kn_leak=1 || kn_leak=0
+assert_eq "0" "$kn_leak" "proxy: the access token never appears in output"
 kill "$kn_stub2_pid" 2>/dev/null; wait "$kn_stub2_pid" 2>/dev/null
 
 kill "$kn_stub_pid" 2>/dev/null; wait "$kn_stub_pid" 2>/dev/null

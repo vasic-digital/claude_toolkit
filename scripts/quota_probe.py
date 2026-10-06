@@ -69,8 +69,17 @@ def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT, follow_redirec
     else:
         # A token-bearing caller passes follow_redirects=False: a 3xx comes
         # back as (status, body) via the HTTPError branch, never followed.
-        opener = urllib.request.build_opener(
-            urllib.request.HTTPSHandler(context=_mv.ca_ssl_context()), _NoRedirectHandler())
+        handlers = [urllib.request.HTTPSHandler(context=_mv.ca_ssl_context()), _NoRedirectHandler()]
+        try:
+            host = (urlsplit(url).hostname or "").lower()
+        except ValueError:
+            host = ""
+        if host in _KIMI_LOOPBACK_HOSTS:
+            # A loopback URL is never proxied: with http_proxy set, a plain
+            # http request (and its bearer) would otherwise reach the proxy in
+            # cleartext. Non-loopback (https) keeps the environment proxies.
+            handlers.append(urllib.request.ProxyHandler({}))
+        opener = urllib.request.build_opener(*handlers)
 
         def _open():
             return opener.open(req, timeout=timeout)
