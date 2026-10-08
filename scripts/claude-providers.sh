@@ -2899,6 +2899,26 @@ _cma_pi_render_config() {
   rm -f "$pdir/config.toml"
 }
 
+# _cma_kimi_base_is_loopback URL — true when URL is a loopback/unspecified host
+# WITH an explicit port. Mirrors scripts/providers-verify.sh _cma_pv_is_loopback
+# (same shared host test, _cma_is_ccr_gateway from lib.sh, called with the URL's
+# own port; same fail-closed intent). Stricter on IPv6: only ::1 / :: literals.
+# Known harmless bypass: `http://evil.com\@127.0.0.1:80/` is accepted; the
+# placeholder "local" is not a secret, so no fix is needed.
+_cma_kimi_base_is_loopback() {
+  local url="${1:-}" hp port host
+  [[ -n "$url" ]] || return 1
+  hp="${url#*://}"; hp="${hp%%/*}"; hp="${hp%%\?*}"; hp="${hp%%#*}"; hp="${hp##*@}"
+  case "$hp" in
+    \[*\]:*) port="${hp##*]:}"; host="${hp%]:*}"; host="${host#[}"
+             case "$host" in ::1|::) ;; *) return 1 ;; esac ;;
+    *:*)     port="${hp##*:}" ;;
+    *)       return 1 ;;
+  esac
+  [[ "$port" =~ ^[0-9]+$ ]] || return 1
+  _cma_is_ccr_gateway "$url" "$port"
+}
+
 # Render the per-alias Kimi Code config (~/.kimi-prov-<id>/config.toml) from the
 # SYNC-time record. This function is the ONLY writer of that file: the launch
 # wrapper (lib.sh cma_run_kimi_provider) READS default_model/base_url out of it
@@ -2967,6 +2987,15 @@ _cma_kimi_render_config() {
   else
     local kf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
     [[ -f "$kf" ]] && api_key="$( set +e +u; set -a; . "$kf" 2>/dev/null; set +a; eval "printf '%s' \"\${$keyvar:-}\"" )" || true
+  fi
+  # Loopback server with an explicit port needs no real credential, but kimi
+  # 0.42.0 treats an EMPTY api_key as "no credential configured". llmctl docs
+  # prescribe the dummy key "local". Never applied to a remote base or when a
+  # real key resolved.
+  # Only llmctl-class providers (key var is the deliberately-unset LLMCTL_API_KEY,
+  # see ~2027): other loopback providers keep the clear "key empty" warning.
+  if [[ -z "$api_key" && "$keyvar" == "LLMCTL_API_KEY" ]] && _cma_kimi_base_is_loopback "$base"; then
+    api_key="local"
   fi
   [[ "$transport" == "router" && -z "$api_key" ]] && cma_warn "kimi config: '$id' key empty — config.toml will carry an empty api_key"
   [[ -n "$ctx" && "$ctx" != "null" ]] || ctx="128000"
