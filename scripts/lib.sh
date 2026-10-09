@@ -2300,6 +2300,18 @@ cma_run_provider() {
         # Reap the temp file if this shell is interrupted between creation and
         # the rename (review F6). SIGKILL cannot be caught, so a kill -9 can
         # still leave one; that is a disk-cost, never a correctness issue.
+        #
+        # NO TRAP HIJACKING. This runs inside cma_run_provider, which is a
+        # brace function reached through `alias X="cma_run_provider X"` — i.e.
+        # in the OPERATOR'S interactive shell. `trap - INT TERM` afterwards
+        # would reset INT/TERM to their defaults and silently delete whatever
+        # handler the user had installed. Save the caller's dispositions and
+        # hand them back once the temp file is gone (renamed or removed), the
+        # same save/restore pattern as the rc-file publish above
+        # (test_ccr_upstream_ca.sh pins it).
+        local _ccr_prev_int _ccr_prev_term
+        _ccr_prev_int="$(trap -p INT || true)"
+        _ccr_prev_term="$(trap -p TERM || true)"
         trap 'rm -f "$_ccr_tmp"' INT TERM
         if ( umask 077
              if [[ -n "$_ccr_sys_ca" ]]; then
@@ -2307,15 +2319,16 @@ cma_run_provider() {
              else
                cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
              fi ); then
-          trap - INT TERM
           chmod 600 "$_ccr_tmp" 2>/dev/null || true
           mv -f "$_ccr_tmp" "$_ccr_home/ca-bundle.pem" 2>/dev/null || rm -f "$_ccr_tmp"
         else
-          trap - INT TERM
           # A failed build must not leave a partial temp file behind, and must
           # not replace an existing good bundle with nothing.
           rm -f "$_ccr_tmp"
         fi
+        trap - INT TERM
+        if [[ -n "$_ccr_prev_int" ]]; then eval "$_ccr_prev_int"; fi
+        if [[ -n "$_ccr_prev_term" ]]; then eval "$_ccr_prev_term"; fi
       fi
       # The bundle carries a private upstream CA: same 600 discipline as the
       # config dir it lives in (the shell's umask is not guaranteed here).
@@ -3887,15 +3900,23 @@ cma_status_write() {
 #
 #   existence | tool_call | context | attribution | llmsverifier | preconditions
 #
-# This reader enforces that vocabulary for the FILE path and maps anything else
-# — a missing file, an empty file, an unrecognised token — to `unknown`. It NEVER
+# This reader enforces that vocabulary for the FILE path. Anything else — a
+# missing file, an empty file, an unrecognised token — is never returned as-is:
+# it falls through to the legacy reason matcher (cma_derive_layer_from_reason),
+# which yields `unknown` when the reason identifies no layer either. It NEVER
 # defaults to `existence`: absence means the layer was NOT measured, and naming a
 # specific cause instead is the exact defect this replaces (§11.4.6, §11.4.201).
+# Every persist site in claude-providers.sh (cmd_sync failed + unverified,
+# cmd_verify failed + unverified) reads the layer file through this function.
+#
+# `unknown` is the CALLER's no-layer-measured value; providers-verify.sh never
+# writes it (its own "nothing failed" value is the empty string).
 #
 # FALLBACK VOCABULARY — THE TWO SETS DIVERGE, DELIBERATELY AND EXPLICITLY.
-# When no file token is present the reason matcher below is used, and it emits
-# `tool_calling`, `sentinel`, `route`, `chat`, `chat_http` — NONE of which are in
-# the closed set above. That is not an oversight to be normalised away in one
+# When no legal file token is present the reason matcher below is used, and it
+# can emit `sentinel`, `route`, `chat`, `chat_http` — NONE of which are in the
+# closed set above (for a tool-calling reason it emits the closed-set
+# `tool_call`). That is not an oversight to be normalised away in one
 # direction: test_sync_failing_layer_attribution.sh asserts the LEGACY strings
 # and test_failing_layer_attribution.sh asserts the CLOSED set, so a
 # modern verifier is expected to write the file and every legacy caller is
@@ -3918,21 +3939,22 @@ cma_read_verify_layer() {
   cma_derive_layer_from_reason "$reason"
 }
 
+# cma_verify_failing_layer <verifier-stderr-reason> -> legacy layer token.
+# Merge reconciliation (2026-10-09, feature/006 into main): main's cmd_sync
+# failure branch keeps this name as a purely defensive `:-` default (the layer
+# is read through cma_read_verify_layer first, which never returns empty);
+# feature/006 renamed the body to cma_derive_layer_from_reason.
+# Both names stay, one implementation, so neither side's call sites break.
+cma_verify_failing_layer() { cma_derive_layer_from_reason "$@"; }
+
 # cma_derive_layer_from_reason <verifier-stderr-reason> -> legacy layer token.
 #
 # Kept for verifiers that predate CMA_VERIFY_LAYER_FILE. Its vocabulary is the
-# LEGACY one (`tool_calling`, `sentinel`, `route`, `chat`), which is NOT the
-# closed set published by providers-verify.sh:70-84 (`tool_call`, `attribution`);
-# the pair is recorded here deliberately so the divergence is visible rather
-# than silently normalised in one direction.
-# cma_verify_failing_layer <verifier-stderr-reason> -> legacy layer token.
-# Merge reconciliation (2026-10-09, feature/006 into main): main's cmd_sync
-# failure branch calls this name as the fallback when the verifier wrote no
-# layer-file token; feature/006 renamed the body to
-# cma_derive_layer_from_reason. Both names stay, one implementation, so neither
-# side's call sites break.
-cma_verify_failing_layer() { cma_derive_layer_from_reason "$@"; }
-
+# LEGACY one (`sentinel`, `route`, `chat`, `chat_http`), which is NOT the closed
+# set published by providers-verify.sh's emit() doc; it does emit the closed-set
+# `tool_call` for a tool-calling reason (see the case arm). The divergence is
+# recorded here deliberately so it is visible rather than silently normalised
+# in one direction.
 cma_derive_layer_from_reason() {
   local reason="${1:-}"
   case "$reason" in

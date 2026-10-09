@@ -83,7 +83,9 @@ VERIFIER_BIN="${CMA_VERIFIER_BIN:-$LIB_DIR/../submodules/LLMsVerifier/bin/model-
 #   ""            nothing failed (a verified verdict)
 #
 # A caller that finds this file absent or empty has learned that NO layer was
-# determined, and must record that honestly rather than assume one.
+# determined, and must record that honestly rather than assume one. The toolkit
+# records `unknown` for that case (lib.sh cma_read_verify_layer); `unknown` is a
+# CALLER-side value and is deliberately not part of this function's vocabulary.
 emit() {
   echo "$1"
   [[ -n "${2:-}" ]] && echo "providers-verify[$PROVIDER]: $2" >&2

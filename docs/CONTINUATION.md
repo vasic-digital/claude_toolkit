@@ -1,13 +1,13 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-10-03
-**Last commit:** `feat/llmctl-integration-hardening @ e1804cc` — *docs(tasks): record 4 independent-review rounds + llmctl scope-expansion status*
-**Working tree:** dirty only with regenerated proof-evidence churn (`scripts/tests/proof/*.txt`), no real pending payload
-**Active branch:** `feat/llmctl-integration-hardening` (not yet merged to `main`)
+**Last updated:** 2026-10-09
+**Last commit:** `fix/post-006-review` on top of `main @ dadd8b1` (*merge: feature/006-hardware-aware-model-management (spec-006 WS-C) into main*) — the post-merge review fixes in §6.5; the commit that carries this line cannot name its own hash, so read `git log -1` for it
+**Working tree:** clean apart from the commit above
+**Active branch:** `fix/post-006-review` (fast-forwarded onto local `main` only when its suites are green; not pushed). The `feat/llmctl-integration-hardening` state described in §0.1 is dated 2026-10-03 and has NOT been re-verified in this update.
 **Declared version:** next release is `v1.29.0` (draft `CHANGELOG.md` entry exists) — **not tagged, not released**
 **Next action:** see §0.1 below — this supersedes the rest of this file, which describes the OLD `v1.26.7` cycle (shipped long ago; this file was simply never updated after).
 
-> **§0.1 is the CURRENT state as of 2026-10-03 — trust it over everything below.** Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §6 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
+> **§0.1 is the CURRENT state as of 2026-10-03 — trust it over everything below.** Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §7 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
 
 ---
 
@@ -272,8 +272,9 @@ Design and plan artifacts, kept for provenance:
 
 An isolated work-stream (branch `feature/006-hardware-aware-model-management`,
 sibling checkout at `/home/milosvasic/Projects/helix_code_ws_006/claude-toolkit`)
-carried spec 006's WS-C: fix the five reported provider-alias issues. **`main`
-was not modified**; nothing here is tagged or released.
+carried spec 006's WS-C: fix the five reported provider-alias issues. It was
+developed without modifying `main` and was **merged into `main` on 2026-10-09**
+(`dadd8b1`); nothing here is tagged or released.
 
 ### 6.1 What the five reported issues turned out to be
 
@@ -288,14 +289,14 @@ was not modified**; nothing here is tagged or released.
 ### 6.2 Defects found beyond the reported five
 
 - **`PI_ALIASES` unbound** — the Pi twin feature evaluated `(( PI_ALIASES ))` but never gave it a default, unlike its Kimi sibling. Under `set -u` this killed `--apply` silently. Suite went **25 failed / 80 passed → 105 / 0**.
-- **`failing_layer` blanket-labelled `existence`** — the verifier already publishes the failed layer via `CMA_VERIFY_LAYER_FILE` in a closed vocabulary; two call sites wrote a literal `existence` instead and a third was missed entirely (caught by independent review). Now the file token wins, with a documented legacy reason-fallback.
+- **`failing_layer` blanket-labelled `existence`** — the verifier already publishes the failed layer via `CMA_VERIFY_LAYER_FILE` in a closed vocabulary; two call sites wrote a literal `existence` instead and a third was missed entirely (caught by independent review). The merge kept `main`'s raw file read, which dropped the closed-vocabulary check; the post-merge fixes (§6.5) restore it: every persist site reads the token through `cma_read_verify_layer`, so a legal file token wins, an off-vocabulary token falls back to the legacy reason-derived layer, and `unknown` is recorded when neither identifies one.
 - **Ambient-CA test hermeticity** — three suites failed for a reason unrelated to the code because the developer's shell exports `CMA_PROVIDER_CA_CERT`. Scrubbed centrally in `make_sandbox()`.
 
 ### 6.3 What is NOT done (honest)
 
 - **No live reproduction** for issues 2, 3 or 5. The fixes/verdicts rest on code analysis, the verifier's own published contract, and green suites — not on a live gateway run. Each forensics doc in `scripts/debugging/` names the exact command that would confirm or kill its hypothesis.
 - **The `failing_layer` vocabulary is deliberately two sets** (closed set from the file; legacy strings from the reason fallback). Both suites pin their own; reconciling them is a deliberate future change, not a drive-by simplification.
-- **F6 from the WS-C review**: the ca-bundle temp file leaks only on SIGKILL/timeout. No correctness impact; recorded, not fixed.
+- **F6 from the WS-C review**: FIXED by `8a73b51` (the temp file is reaped on INT/TERM; only an uncatchable SIGKILL can still leave one, a disk-cost with no correctness impact). The post-merge review (§6.5, I-3) found that fix reset the caller's INT/TERM traps; that is now fixed too. There is still no test that interrupts a write mid-flight and asserts the temp file is reaped — the reaping itself is covered by code reading only.
 
 ### 6.4 Evidence
 
@@ -304,6 +305,31 @@ was not modified**; nothing here is tagged or released.
 work above. Forensics records live in `scripts/debugging/`:
 `issue1_ca_bundle.md`, `issue2_session_resume.md`, `issue3_request_size.md`,
 `issue4_pi_alias.md`, `issue5_gateway_endpoint.md`, `failing_layer_attribution.md`.
+
+### 6.5 Post-merge independent review (2026-10-09) and its fixes
+
+An independent review of the merge `dadd8b1` returned **NO-GO** (0 blocking,
+3 important, 5 minor). Fixed on `fix/post-006-review`:
+
+- **I-1** — the merge kept `main`'s raw read of the layer file at `cmd_sync`
+  and `cmd_verify`, so an off-vocabulary token was persisted verbatim and the
+  legacy reason fallback applied only to one branch. Both read points now go
+  through `cma_read_verify_layer` (covers the `cmd_sync` failed + unverified
+  branches and the `cmd_verify` failed + unverified branches). Pinned by
+  `test_failing_layer_attribution.sh` L9/L9b/L10/L10b.
+- **I-2** — the multi low-score `unknown` fix (F1) and the `cmd_verify`
+  unverified-branch default had no mutation-killing test. Added L10b/L11 and
+  replaced the self-fulfilling Section-12 case in `test_providers.sh` with one
+  that drives the real `cmd_sync_multi` loop.
+- **I-3** — the F6 reaper used `trap - INT TERM`, deleting the operator's own
+  handlers (it runs in the interactive shell via the alias). It now saves
+  `trap -p` and restores it. Pinned in `test_ccr_upstream_ca.sh`; note the INT
+  half is skipped (and says so) when the suite is launched with SIGINT ignored,
+  because bash cannot trap a signal ignored on entry.
+- **Minor** — docs/comment drift (the fallback emits `tool_call`, not
+  `tool_calling`; `unknown` is the caller's no-layer value, not a verifier
+  token; the `cma_verify_failing_layer` alias is kept, not removed; the split
+  doc comment in `lib.sh`; this file's numbering and header).
 
 ---
 

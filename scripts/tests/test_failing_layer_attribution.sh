@@ -368,4 +368,116 @@ assert_eq "unverified" "$(cma_status_read beta)" "L8 status is unverified"
 assert_jq "$(cma_status_cache)" '.beta.failing_layer' "tool_call" \
   "L8 unverified verdicts are not blanket-labelled existence either"
 
+# ---------------------------------------------------------------------------
+# CLOSED VOCABULARY AT EVERY PERSIST SITE (post-merge review I-1).
+# The layer file is a contract with a CLOSED vocabulary (providers-verify.sh
+# emit() doc). A token outside it — a newer/buggy verifier, a corrupted file —
+# must never be persisted verbatim: cma_read_verify_layer maps it to the legacy
+# reason fallback, else `unknown`. Each of the four persist sites is driven:
+# cmd_sync failed, cmd_sync unverified, cmd_verify failed, cmd_verify
+# unverified. `bogus_layer` is the probe token; the needle that proves the
+# assertion can see it is L8/L3 above (a legal token IS persisted verbatim).
+# ---------------------------------------------------------------------------
+mk_stub verify-bogus-toolreason failed bogus_layer \
+  "chat probe passed but the model made no tool call (tool calling is required by Claude Code)"
+mk_stub verify-bogus-noreason failed bogus_layer \
+  "something no reason matcher recognises"
+mk_stub verify-bogus-unver-ctx unverified bogus_layer \
+  "context-inadequate: the model's window is smaller than the probe"
+mk_stub verify-bogus-unver-noreason unverified bogus_layer \
+  "something no reason matcher recognises"
+
+it "L9 cmd_sync failed: an off-vocabulary token falls back to the reason, never persisted verbatim"
+sync_with verify-bogus-toolreason >/dev/null
+assert_eq "failed" "$(cma_status_read beta)" "L9 status is failed"
+assert_jq "$(cma_status_cache)" '.beta.failing_layer' "tool_call" \
+  "L9 off-vocabulary token -> reason fallback (tool_call), not 'bogus_layer'"
+sync_with verify-bogus-noreason >/dev/null
+assert_jq "$(cma_status_cache)" '.beta.failing_layer' "unknown" \
+  "L9 off-vocabulary token + unmatched reason -> unknown"
+
+it "L9b cmd_sync unverified: an off-vocabulary token falls back to the reason"
+sync_with verify-bogus-unver-ctx >/dev/null
+assert_eq "unverified" "$(cma_status_read beta)" "L9b status is unverified"
+assert_jq "$(cma_status_cache)" '.beta.failing_layer' "context" \
+  "L9b off-vocabulary token -> reason fallback (context), not 'bogus_layer'"
+sync_with verify-bogus-unver-noreason >/dev/null
+assert_jq "$(cma_status_cache)" '.beta.failing_layer' "unknown" \
+  "L9b off-vocabulary token + unmatched reason -> unknown"
+
+verify_gamma_with() {  # verify_gamma_with STUB -> stdout of cmd_verify
+  seed_sentinel gamma gamma-x
+  CMA_PROVIDERS_VERIFY="$HOME/fakebin/$1" \
+  CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-ok" \
+    bash "$PROVIDERS_SH" verify gamma 2>/dev/null
+}
+
+it "L10 cmd_verify failed: an off-vocabulary token falls back to the reason"
+out="$(verify_gamma_with verify-bogus-toolreason)"
+assert_eq "failed" "$out" "L10 cmd_verify stdout: failed"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "tool_call" \
+  "L10 cmd_verify failed: off-vocabulary token -> reason fallback (tool_call)"
+
+it "L10b cmd_verify unverified: real token kept, off-vocabulary token and silence -> unknown"
+# Positive control first: a LEGAL token on the unverified branch IS persisted.
+out="$(verify_gamma_with verify-unver-tool)"
+assert_eq "unverified" "$out" "L10b cmd_verify stdout: unverified"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "tool_call" \
+  "L10b cmd_verify unverified: the verifier's own legal token is persisted"
+out="$(verify_gamma_with verify-bogus-unver-noreason)"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "unknown" \
+  "L10b cmd_verify unverified: off-vocabulary token + unmatched reason -> unknown"
+cat > "$HOME/fakebin/verify-silent-unver" <<'EOF'
+#!/usr/bin/env bash
+echo unverified
+EOF
+chmod +x "$HOME/fakebin/verify-silent-unver"
+out="$(verify_gamma_with verify-silent-unver)"
+assert_eq "unverified" "$out" "L10b silent verifier: stdout unverified"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "unknown" \
+  "L10b cmd_verify unverified with NO layer and NO reason -> unknown, never existence"
+
+# ---------------------------------------------------------------------------
+# MULTI LOW-SCORE PATH (post-merge review I-2 / F1). cmd_sync_multi marks an
+# alias `unverified` when its manifest strong_score is below MIN_SCORE, and a
+# SCORE identifies no layer, so the recorded layer must be `unknown`. Until now
+# no test drove this branch (the old Section-12 case in test_providers.sh wrote
+# the value itself and read it back). The model verifier and the alias
+# generator are stubbed at their documented override points
+# (CMA_PROVIDERS_MODEL_VERIFY / CMA_PROVIDERS_GENERATE) so the REAL
+# cmd_sync_multi loop is what reads the manifest and writes status.json.
+# ---------------------------------------------------------------------------
+cat > "$HOME/fakebin/model_verify_stub.py" <<'PY'
+import json, sys
+a = sys.argv
+out = a[a.index("--output") + 1]
+json.dump({"verified_count": 1, "models": [{"id": "beta-x"}]}, open(out, "w"))
+PY
+cat > "$HOME/fakebin/generate_stub.py" <<'PY'
+import json, sys
+a = sys.argv
+base = a[a.index("--base-url") + 1]
+def al(name, score):
+    return {"alias_name": name, "strong_model": "beta-x", "fast_model": "beta-x",
+            "base_url": base, "transport": "router", "context_limit": 128000,
+            "max_output": 8192, "strong_score": score}
+print(json.dumps({"alias_count": 2,
+                  "aliases": [al("betahi", 90), al("betalo", 5)]}))
+PY
+
+it "L11 cmd_sync_multi: a below-MIN_SCORE alias records unknown, an above one records no layer"
+cma_status_write betahi pending beta-x "SENTINEL-NOT-WRITTEN"
+cma_status_write betalo pending beta-x "SENTINEL-NOT-WRITTEN"
+CMA_PROVIDERS_MODEL_VERIFY="$HOME/fakebin/model_verify_stub.py" \
+CMA_PROVIDERS_GENERATE="$HOME/fakebin/generate_stub.py" \
+CMA_KEYS_FILE="$KEYS" \
+  bash "$PROVIDERS_SH" sync --multi --keys-file "$KEYS" >/dev/null 2>&1
+# Control: the high-score alias proves the stubbed manifest was really consumed.
+assert_eq "verified" "$(cma_status_read betahi)" "L11 control: high-score alias is verified"
+assert_jq "$(cma_status_cache)" '.betahi.failing_layer' "" \
+  "L11 control: a verified alias records no failing layer"
+assert_eq "unverified" "$(cma_status_read betalo)" "L11 low-score alias is unverified"
+assert_jq "$(cma_status_cache)" '.betalo.failing_layer' "unknown" \
+  "L11 low SCORE is not a layer: recorded unknown, never existence"
+
 summary

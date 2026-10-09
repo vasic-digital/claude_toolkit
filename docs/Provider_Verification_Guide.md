@@ -29,17 +29,25 @@ closed vocabulary:
 Two rules follow, and both matter when reading a status:
 
 - **`unknown` is a real answer, never a fallback to tidy away.** An absent or
-  unrecognised token means the cause was not measured. Naming a specific layer
+  unrecognised token, when the verifier's reason does not identify a layer
+  either, means the cause was not measured. Naming a specific layer
   instead is how a tool-call-incapable provider came to be recorded as a missing
   model.
 - **A low quality SCORE is not a layer.** The multi-provider sync marks an alias
   `unverified` when its manifest score is below `MIN_SCORE`; that records
   `unknown`, because a score says nothing about *which layer* failed.
 
-**Legacy callers see a different vocabulary.** When no layer file is present —
-an older verifier, or a stub in a test — the toolkit falls back to deriving the
-layer from the verifier's stderr reason, and that path emits the older strings
-(`tool_calling`, `sentinel`, `route`, `chat`, `chat_http`). This divergence is
+`unknown` is recorded by the **caller** (`claude-providers.sh`), not emitted by
+the verifier: `providers-verify.sh` writes one of the six tokens above, or an
+empty file when nothing failed. Every persist site reads the file through
+`cma_read_verify_layer`, so a token outside the six is never stored as-is.
+
+**Legacy callers see a different vocabulary.** When the layer file holds no
+legal token — an older verifier, a stub in a test, or an unrecognised value —
+the toolkit falls back to deriving the layer from the verifier's stderr reason,
+and that path can emit strings outside the closed set (`sentinel`, `route`,
+`chat`, `chat_http`; for a tool-calling reason it emits the closed-set
+`tool_call`). This divergence is
 deliberate and documented rather than silently normalised; see
 `cma_read_verify_layer` and `cma_derive_layer_from_reason` in `scripts/lib.sh`.
 If you are comparing `failing_layer` values across versions, expect the two sets.

@@ -2084,10 +2084,36 @@ assert_eq "verified" "$(cma_status_read acme2)" "multi-alias acme2 reads as veri
 assert_jq "$(cma_status_cache)" '.acme2.model' "acme-big" "multi-alias carries model name"
 assert_jq "$(cma_status_cache)" '.acme2.failing_layer' "" "verified has empty failing_layer"
 
-it "cma_status_write for multi-alias with low score -> unverified (existence)"
-cma_status_write "acme4" "unverified" "acme-tiny" "existence"
+it "cmd_sync_multi: a low-score multi-alias is persisted unverified with layer unknown"
+# This used to write `existence` itself and read it back — a tautology that
+# drove no code (post-merge review I-2). It now runs the REAL cmd_sync_multi
+# loop: the model verifier and alias generator are stubbed at their documented
+# override points so the manifest is deterministic, and the loop's own
+# score-vs-MIN_SCORE branch is what writes status.json. A SCORE identifies no
+# layer, so the honest value is `unknown`, never `existence`.
+_ms="$HOME/multi_lowscore"; mkdir -p "$_ms"
+cat > "$_ms/model_verify.py" <<'PY'
+import json, sys
+a = sys.argv
+json.dump({"verified_count": 1, "models": [{"id": "acme-tiny"}]},
+          open(a[a.index("--output") + 1], "w"))
+PY
+cat > "$_ms/generate.py" <<'PY'
+import json
+print(json.dumps({"alias_count": 1, "aliases": [{
+    "alias_name": "acme4", "strong_model": "acme-tiny", "fast_model": "acme-small",
+    "base_url": "", "transport": "native", "context_limit": 32000,
+    "max_output": 4096, "strong_score": 5}]}))
+PY
+echo 'export ACME_API_KEY="dummy-acme"' > "$_ms/keys.sh"
+cma_status_write "acme4" pending "acme-tiny" "SENTINEL-NOT-WRITTEN"
+CMA_PROVIDERS_MODEL_VERIFY="$_ms/model_verify.py" \
+CMA_PROVIDERS_GENERATE="$_ms/generate.py" \
+CMA_KEYS_FILE="$_ms/keys.sh" \
+  bash "$PROVIDERS_SH" sync --multi --keys-file "$_ms/keys.sh" >/dev/null 2>&1
 assert_eq "unverified" "$(cma_status_read acme4)" "low-score multi-alias -> unverified"
-assert_jq "$(cma_status_cache)" '.acme4.failing_layer' "existence" "low-score -> existence"
+assert_jq "$(cma_status_cache)" '.acme4.failing_layer' "unknown" \
+  "low-score multi-alias -> failing_layer unknown (a score is not a layer)"
 
 it "multi-alias gate subshells also load the wrapper from the sandbox alias file"
 # Re-asserted rather than inherited from Section 7: the alias file has been
@@ -2123,7 +2149,7 @@ CMA_PROVIDER_FAST_MODEL='acme-small'
 CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-acme4'
 ENVEOF
 mkdir -p "$HOME/.claude-prov-acme4"
-cma_status_write "acme4" "unverified" "acme-tiny" "existence"
+cma_status_write "acme4" "unverified" "acme-tiny" "unknown"
 ( CLAUDE_BIN=/usr/bin/true ACME_API_KEY=sk-test source "$ALIAS_FILE"; cma_run_provider acme4 ) >/dev/null 2>&1; _grc=$?
 assert_eq 3 "$_grc" "unverified multi-alias acme4 blocked by gate (rc 3)"
 

@@ -3189,16 +3189,24 @@ cmd_sync() {
       _vlayer_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify-layer.XXXXXX")"; : > "$_vlayer_f"
       vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; CMA_VERIFY_LAYER_FILE="$_vlayer_f" bash "$VERIFY" "${vargs[@]}" 2>"$_vreason_f" ) )" || true
       [[ -s "$_vreason_f" ]] && _vreason="$(cat "$_vreason_f")"
-      _vlayer="$(cat "$_vlayer_f" 2>/dev/null)"
+      # Read the token THROUGH the closed-vocabulary reader, never raw: a token
+      # outside providers-verify.sh's closed set must not be persisted
+      # verbatim. cma_read_verify_layer returns a legal token unchanged, else
+      # the legacy reason-derived layer, else `unknown` (post-merge review I-1;
+      # test_failing_layer_attribution.sh L9/L9b). Never empty once verify ran.
+      _vlayer="$(cma_read_verify_layer "$_vlayer_f" "$_vreason")"
       rm -f "$_vreason_f" "$_vlayer_f"
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
 
     if [[ "$vstatus" == "failed" ]]; then
       cma_warn "provider '$pid' FAILED verification — alias NOT activated${_vreason:+: $_vreason}"
-      # Authoritative layer token first (see the comment above); the
-      # stderr-prose regex mapper is now only a fallback for a verifier
-      # implementation that predates the layer-file protocol.
+      # $_vlayer is already vocabulary-checked (with the legacy reason
+      # fallback) by cma_read_verify_layer above, which never returns empty.
+      # The `:-` default below is purely defensive: a `failed` vstatus only
+      # comes from a verifier run, which always sets _vlayer (--no-verify
+      # leaves vstatus=unverified, so it never reaches this branch). If it
+      # were ever reached it degrades to `unknown` on an empty reason.
       cma_status_write "$pid" failed "$model" "${_vlayer:-$(cma_verify_failing_layer "$_vreason")}"
       # Gate on verification: a failed provider keeps no kimi-<id> twin.
       (( KIMI_ALIASES )) && { _cma_kimi_twin_alias "$pid" || true; }
@@ -3572,7 +3580,10 @@ cmd_verify() {
     local _vlayer_f; _vlayer_f="$(mktemp "${TMPDIR:-/tmp}/cma-verify-layer.XXXXXX")"; : > "$_vlayer_f"
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
               CMA_VERIFY_LAYER_FILE="$_vlayer_f" bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>"$_verr" ) )" || true
-    _vlayer="$(cat "$_vlayer_f" 2>/dev/null)"; rm -f "$_vlayer_f"
+    # Closed-vocabulary read with the legacy reason fallback, same as cmd_sync
+    # (post-merge review I-1; test_failing_layer_attribution.sh L10/L10b).
+    # The reason file is still present here; it is printed and removed below.
+    _vlayer="$(cma_read_verify_layer "$_vlayer_f" "$(cat "$_verr" 2>/dev/null || true)")"; rm -f "$_vlayer_f"
     [[ -z "$vst" ]] && vst=unverified
     if [[ "$vst" != "verified" ]] && [[ -s "$_verr" ]]; then
       while IFS= read -r _rl; do [[ -n "$_rl" ]] && cma_warn "$_rl"; done < "$_verr"
@@ -4140,7 +4151,12 @@ cmd_sync_multi() {
       # Recording `existence` here was the same defect class the cmd_sync and
       # cmd_verify sites were fixed for — this sibling was missed because no
       # test drove the multi low-score path. `unknown` is the honest value when
-      # no LAYER was measured (§11.4.6), and it is in the closed set.
+      # no LAYER was measured (§11.4.6). It is NOT one of providers-verify.sh's
+      # closed-set tokens (the verifier never writes it); it is the caller's
+      # documented no-layer value, the same one cma_read_verify_layer returns
+      # (docs/Provider_Verification_Guide.md, failing_layer table).
+      # Pinned by test_failing_layer_attribution.sh L11 and test_providers.sh
+      # Section 12, both of which drive this branch through the real loop.
       local ascore
       ascore="$(jq -r ".aliases[$i].strong_score // 0 | floor" "$manifest_out" 2>/dev/null || echo 0)"
       if (( ascore >= MIN_SCORE )); then

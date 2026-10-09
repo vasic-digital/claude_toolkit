@@ -297,4 +297,45 @@ assert_eq 0 "$(grep -q 'END CERTIFICATE' "$bundle" 2>/dev/null && echo 0 || echo
 _leftovers="$(find "$(dirname "$bundle")" -maxdepth 1 -name '.ca-bundle.pem.*' 2>/dev/null | wc -l)"
 assert_eq 0 "$_leftovers" "no temp bundle files were left behind"
 
+# --- the caller's INT/TERM traps survive the bundle write -----------------------
+# cma_run_provider is a brace function reached through `alias X="cma_run_provider
+# X"`, so it runs in the OPERATOR'S interactive shell. The ca-bundle write arms
+# a temporary INT/TERM trap to reap its temp file; it must hand back whatever
+# the caller had installed, not reset INT/TERM to their defaults with
+# `trap - INT TERM` (that silently deletes the user's own handler — the
+# "no trap hijacking" rule the library follows at its rc-file publish).
+# Each probe runs in a subshell so the test shell's own traps are untouched.
+it "router+CA: a caller's pre-existing INT/TERM traps survive the bundle write"
+# A signal that was IGNORED when this shell started cannot be trapped or reset
+# by a non-interactive bash (bash(1), SIGNALS) — e.g. under a supervisor that
+# launches the suite with SIGINT ignored, `trap '...' INT` is a silent no-op.
+# Probe trappability first so an untrappable signal is reported as a skipped
+# probe, never graded as a pass or a fail it could not have measured.
+_int_trappable="$( trap 'echo PROBE' INT; trap -p INT )"
+_tp="$( trap 'echo CALLER_INT_HANDLER' INT
+        trap 'echo CALLER_TERM_HANDLER' TERM
+        cma_run_provider testrtr >/dev/null 2>&1
+        trap -p INT; trap -p TERM )"
+if [[ "$_int_trappable" == *PROBE* ]]; then
+  case "$_tp" in
+    *CALLER_INT_HANDLER*) _pass "the caller's INT trap is still installed after the write" ;;
+    *) _fail "the bundle write clobbered the caller's INT trap" "trap -p after call: ${_tp:-<none>}" ;;
+  esac
+else
+  echo "    SKIP-CASE: SIGINT was ignored on entry to this shell; INT is untrappable here (TERM still probed)"
+fi
+case "$_tp" in
+  *CALLER_TERM_HANDLER*) _pass "the caller's TERM trap is still installed after the write" ;;
+  *) _fail "the bundle write clobbered the caller's TERM trap" "trap -p after call: ${_tp:-<none>}" ;;
+esac
+# Control: the bundle really was (re)written on this path, so the probe above
+# exercised the trap-arming branch rather than skipping it.
+_tp_bundle_ok="$(grep -c 'CMA-TEST-UPSTREAM-CA-MARKER' "$bundle" 2>/dev/null || echo 0)"
+assert_eq 1 "$_tp_bundle_ok" "control: the bundle was written on the probed path"
+# And with NO caller trap, the temporary reaper must not leak out either: the
+# disposition after the call equals the one inherited before it.
+_tp0_before="$( trap - INT TERM 2>/dev/null; trap -p INT; trap -p TERM )"
+_tp0="$( trap - INT TERM 2>/dev/null; cma_run_provider testrtr >/dev/null 2>&1; trap -p INT; trap -p TERM )"
+assert_eq "$_tp0_before" "$_tp0" "with no caller trap, the INT/TERM disposition is unchanged by the call"
+
 summary

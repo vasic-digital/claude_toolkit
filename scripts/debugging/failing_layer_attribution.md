@@ -68,6 +68,15 @@ neither of which is in the closed vocabulary. Two problems:
 
 The helper is now **obsolete**: the verifier states the layer directly.
 
+> **Superseded note (post-merge, 2026-10-09).** The body was not deleted. It
+> survives as `cma_derive_layer_from_reason` — the legacy reason fallback that
+> `cma_read_verify_layer` calls when the layer file holds no legal token — and
+> it now emits `tool_call` (not `tool_calling`). The name
+> `cma_verify_failing_layer` is **deliberately kept** as a one-line alias in
+> `scripts/lib.sh`: `main`'s `cmd_sync` calls that name, and the merge of
+> `feature/006` into `main` reconciled the two names rather than breaking
+> either side's call sites. Do not delete it on the strength of the text above.
+
 ## Fix design (in order)
 
 1. Set `CMA_VERIFY_LAYER_FILE` to a temp file at every call site that runs
@@ -79,6 +88,9 @@ The helper is now **obsolete**: the verifier states the layer directly.
    mechanisms that can disagree (the §11.4.124 investigate-before-remove step is
    satisfied: it is unreferenced once step 1 lands, and its rationale is
    superseded by the file protocol).
+   *Superseded 2026-10-09:* not done and no longer wanted — the name is a kept
+   alias for `cma_derive_layer_from_reason` (see the note under D2), and
+   `cma_read_verify_layer` is the single mechanism every persist site uses.
 4. Keep the vocabulary closed: assert membership and map anything else to
    `unknown`.
 
