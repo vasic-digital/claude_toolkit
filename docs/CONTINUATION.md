@@ -40,6 +40,8 @@ Full detail on the review rounds and llmctl findings: `specs/001-llmctl-integrat
 
 > **How to read what follows.** §1 WAS the *current* state as of 2026-07-28 — no longer true today, see §0.1 above. §2 is what remained for v1.26.7 (long since done). §3 is that cycle's evidence snapshot. §4 collects gaps AS OF THAT CYCLE. §5 is a dated archive of even-older superseded programme history.
 
+> **Merged 2026-10-09:** the spec-006 WS-C work-stream (`feature/006-hardware-aware-model-management`, last commit `6ee5288`) is merged into `main`; its record is §6 below. Its regenerated proof files were NOT re-tracked — they follow `main`'s volatile-proof policy (commit `6e2dc5c`).
+
 ---
 
 ## 0. Out-of-the-box resumption
@@ -266,6 +268,45 @@ Design and plan artifacts, kept for provenance:
 
 ---
 
-## 6. Update protocol
+## 6. spec-006 WS-C work-stream (2026-09-12 → 13)
+
+An isolated work-stream (branch `feature/006-hardware-aware-model-management`,
+sibling checkout at `/home/milosvasic/Projects/helix_code_ws_006/claude-toolkit`)
+carried spec 006's WS-C: fix the five reported provider-alias issues. **`main`
+was not modified**; nothing here is tagged or released.
+
+### 6.1 What the five reported issues turned out to be
+
+| Issue | Outcome |
+|---|---|
+| 1 · ca-bundle overwrite | **REAL DEFECT, FIXED** — the bundle was written with a truncating `cat >` while the running router read it via `SSL_CERT_FILE`. Now temp-file + `umask 077` + `chmod 600` + `rename(2)`. |
+| 2 · session resume | **ALREADY GUARDED** — `cma_existing_session_id` deliberately returns empty rather than inject `--resume` with a never-created UUID, which is exactly what causes "No conversation found". No fix; forensics recorded. |
+| 3 · 32 MB request limit | **ALREADY TESTED, NOT A DEFECT** — oversized bodies are rejected rather than OOM-killed. Raising the ceiling was the *wrong* fix. |
+| 4 · Pi alias unverified | **GATE BY DESIGN + A REAL DEFECT FOUND** — the refusal is the activation gate working (message verbatim), but validating it surfaced `PI_ALIASES` being **uninitialised**, which aborted every `helixllm-export --apply` with `unbound variable`. |
+| 5 · gateway endpoint | **CONFIGURABLE + COVERED** — the pin is overridable via `CMA_HELIXLLM_PINS_FILE`; the reported errors most likely mean the gateway was simply not running. No fix. |
+
+### 6.2 Defects found beyond the reported five
+
+- **`PI_ALIASES` unbound** — the Pi twin feature evaluated `(( PI_ALIASES ))` but never gave it a default, unlike its Kimi sibling. Under `set -u` this killed `--apply` silently. Suite went **25 failed / 80 passed → 105 / 0**.
+- **`failing_layer` blanket-labelled `existence`** — the verifier already publishes the failed layer via `CMA_VERIFY_LAYER_FILE` in a closed vocabulary; two call sites wrote a literal `existence` instead and a third was missed entirely (caught by independent review). Now the file token wins, with a documented legacy reason-fallback.
+- **Ambient-CA test hermeticity** — three suites failed for a reason unrelated to the code because the developer's shell exports `CMA_PROVIDER_CA_CERT`. Scrubbed centrally in `make_sandbox()`.
+
+### 6.3 What is NOT done (honest)
+
+- **No live reproduction** for issues 2, 3 or 5. The fixes/verdicts rest on code analysis, the verifier's own published contract, and green suites — not on a live gateway run. Each forensics doc in `scripts/debugging/` names the exact command that would confirm or kill its hypothesis.
+- **The `failing_layer` vocabulary is deliberately two sets** (closed set from the file; legacy strings from the reason fallback). Both suites pin their own; reconciling them is a deliberate future change, not a drive-by simplification.
+- **F6 from the WS-C review**: the ca-bundle temp file leaks only on SIGKILL/timeout. No correctness impact; recorded, not fixed.
+
+### 6.4 Evidence
+
+`scripts/tests/proof/` is the generated per-suite evidence. The full suite
+(`scripts/tests/run-all.sh`) was **ALL GREEN, 73/73 files** on 2026-09-13 after the
+work above. Forensics records live in `scripts/debugging/`:
+`issue1_ca_bundle.md`, `issue2_session_resume.md`, `issue3_request_size.md`,
+`issue4_pi_alias.md`, `issue5_gateway_endpoint.md`, `failing_layer_attribution.md`.
+
+---
+
+## 7. Update protocol
 
 Every commit that advances state MUST update this file in the SAME commit (§6.S / §11.4.131). The header block's **Last updated** / **Last commit** / **Working tree** lines MUST track reality. **A stale CONTINUATION is a CRITICAL DEFECT** — a hand-off document that describes a state that no longer exists is worse than no hand-off at all, because it is believed.

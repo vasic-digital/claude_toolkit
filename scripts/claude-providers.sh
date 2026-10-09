@@ -4133,14 +4133,20 @@ cmd_sync_multi() {
       # Persist verification status to the status cache so the activation
       # gate (cma_run_provider) can determine if this alias is usable.
       # Use the strong-model's verification score from the manifest; aliases
-      # with score below MIN_SCORE are marked unverified with failing_layer
-      # "existence" (mirrors the cmd_sync pattern).
+      # with score below MIN_SCORE are marked unverified.
+      #
+      # failing_layer is `unknown`, NOT `existence`: a low SCORE is a quality
+      # measurement, and it says nothing about whether the model EXISTS.
+      # Recording `existence` here was the same defect class the cmd_sync and
+      # cmd_verify sites were fixed for — this sibling was missed because no
+      # test drove the multi low-score path. `unknown` is the honest value when
+      # no LAYER was measured (§11.4.6), and it is in the closed set.
       local ascore
       ascore="$(jq -r ".aliases[$i].strong_score // 0 | floor" "$manifest_out" 2>/dev/null || echo 0)"
       if (( ascore >= MIN_SCORE )); then
         cma_status_write "$aname" verified "$strong" ""
       else
-        cma_status_write "$aname" unverified "$strong" existence
+        cma_status_write "$aname" unverified "$strong" unknown
       fi
       (( KIMI_ALIASES )) && { _cma_kimi_twin_alias "$aname" || true; }
 

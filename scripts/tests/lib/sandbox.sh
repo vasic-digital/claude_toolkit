@@ -26,6 +26,18 @@ make_sandbox() {
   export DEFAULT_DIR="$SANDBOX_HOME/.claude"
   export ACCOUNT_PREFIX=".claude-"
   export CLAUDE_BIN="/usr/bin/true"  # dummy; we never actually launch claude
+
+  # Hermeticity (fixed 2026-09-12): scrub the CALLER's CA environment. The
+  # toolkit reads CMA_PROVIDER_CA_CERT and derives SSL_CERT_FILE /
+  # NODE_EXTRA_CA_CERTS from it, so a developer shell that exports it — this
+  # host does, pointing at projects/.../helix_llm/certs/cert.pem — makes every
+  # "provider with NO CA" negative control fail for a reason unrelated to the
+  # code under test. Three suites (test_ccr_upstream_ca,
+  # test_helixllm_model_export, test_kimi_alias_file) each carried their own
+  # copy of this scrub; centralising it here means no future suite can be
+  # non-hermetic by omission. Suites that need a CA set it INLINE on the
+  # command they are testing, which this does not affect.
+  unset CMA_PROVIDER_CA_CERT SSL_CERT_FILE NODE_EXTRA_CA_CERTS
   # Point at the real vendored Go toolchain so ccr-build/proxy-build work in
   # the sandbox (the sandbox HOME doesn't have ~/.local/share/claude-go).
   if [[ -x "$CMA_REAL_HOME/.local/share/claude-go/bin/go" ]]; then

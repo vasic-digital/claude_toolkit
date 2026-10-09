@@ -45,6 +45,22 @@ SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 source "$TESTS_DIR/lib/sandbox.sh"
 make_sandbox
+
+# Hermeticity (test defect, fixed 2026-09-12): the NEGATIVE controls below
+# assert that a provider WITHOUT a configured CA exports NO CA environment at
+# all. The developer's shell may already carry any of these —
+#   CMA_PROVIDER_CA_CERT  <- the INPUT lib.sh reads
+#   SSL_CERT_FILE / NODE_EXTRA_CA_CERTS  <- the OUTPUTS lib.sh derives from it
+# — which USED to leak because make_sandbox did not scrub them. It now does
+# (centrally, 2026-09-13), so the unset below is belt-and-braces for a caller
+# that sources lib.sh without make_sandbox. Measured on this host, the caller's
+# shell exported CMA_PROVIDER_CA_CERT=/…/helix_llm/certs/cert.pem, which lib.sh
+# faithfully turned into NODE_EXTRA_CA_CERTS for a provider that had NO CA
+# configured, failing the negative control for a reason unrelated to the code
+# under test (the suite was 2 failed / 10 passed BEFORE any product change).
+# Scrub the whole family before sourcing lib.sh.
+unset CMA_PROVIDER_CA_CERT SSL_CERT_FILE NODE_EXTRA_CA_CERTS
+
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
@@ -207,5 +223,78 @@ cma_run_provider testnatno -p hi >/dev/null 2>&1
 it "native WITHOUT CA: NODE_EXTRA_CA_CERTS stays unset"
 grep -q 'NODE_EXTRA_CA_CERTS=\[\]' "$claudeenv"
 assert_eq 0 $? "claude child saw an empty NODE_EXTRA_CA_CERTS (log: $(cat "$claudeenv"))"
+
+
+# --- Issue 1 (spec 006 WS-C): the ca-bundle write must be ATOMIC -------------
+# A truncate-in-place write (`cat … > ca-bundle.pem`) keeps the SAME inode and
+# opens a window in which a concurrent reader — the running router, which reads
+# the bundle via SSL_CERT_FILE at dial time — observes an empty or half-written
+# file. That surfaces later as the very x509 failure the bundle exists to fix.
+# An atomic write (write a temp file in the SAME directory, then rename)
+# publishes a NEW inode, so no reader can ever observe a partial bundle. The
+# inode change is the observable signature of that atomicity and is
+# deterministic, unlike racing a reader against the writer.
+it "router+CA: the ca-bundle rewrite is atomic (publishes a new inode, never truncates in place)"
+inode_before="$(stat -c %i "$bundle" 2>/dev/null || stat -f %i "$bundle" 2>/dev/null || echo none)"
+cma_run_provider testrtr >/dev/null 2>&1
+inode_after="$(stat -c %i "$bundle" 2>/dev/null || stat -f %i "$bundle" 2>/dev/null || echo none)"
+# The inode comparison above proves the destination was REPLACED, but not that
+# a reader is never left without one: an unlink-then-create implementation
+# ("rm -f dest; cat > dest") also changes the inode while opening a window in
+# which the path is ABSENT (and a non-O_EXCL create briefly yields a 0-byte
+# file). A reader loop across a rewrite closes that gap — with rename(2) the
+# path always holds a COMPLETE bundle, old or new.
+_ra="$SANDBOX_HOME/atomic.reader"
+( absent=0; partial=0
+  for _i in $(seq 1 4000); do
+    if [[ ! -f "$bundle" ]]; then absent=$((absent+1)); continue; fi
+    grep -q 'CMA-TEST-UPSTREAM-CA-MARKER' "$bundle" 2>/dev/null || partial=$((partial+1))
+  done
+  printf '%s %s\n' "$absent" "$partial" > "$_ra" ) &
+_reader=$!
+for _i in 1 2 3; do cma_run_provider testrtr >/dev/null 2>&1; done
+wait "$_reader"
+read -r _absent _partial < "$_ra"
+assert_eq 0 "$_absent" "a concurrent reader never found the bundle ABSENT during a rewrite (unlink window)"
+assert_eq 0 "$_partial" "a concurrent reader never found a PARTIAL bundle during a rewrite"
+
+if [[ "$inode_after" == "none" ]]; then
+  assert_eq 0 1 "ca-bundle.pem disappeared after a rewrite"
+elif [[ "$inode_before" == "$inode_after" ]]; then
+  assert_eq 0 1 "ca-bundle.pem was rewritten IN PLACE (inode $inode_before unchanged): a concurrent reader can observe a truncated bundle — the write must be temp-file + rename"
+else
+  assert_eq 0 0 "ca-bundle rewritten atomically (inode $inode_before -> $inode_after)"
+fi
+
+
+
+# --- concurrent writers -------------------------------------------------------
+# Several writers for the SAME provider run at once. Each takes its own mktemp
+# temp file, so the last rename wins with a COMPLETE bundle.
+#
+# HONEST SCOPE: this is a BEST-EFFORT check, not the oracle for temp-file
+# uniqueness. Reverting the implementation to a shared name (`$$.$RANDOM`) was
+# tried as a paired mutation and did NOT reproduce a collision in a run — a
+# collision needs two writers to pick the same value inside a narrow window, so
+# the test cannot prove the absence of the race. The DETERMINISTIC guarantee is
+# mktemp's atomic O_EXCL creation, which is why the implementation uses it; what
+# this case adds is a check that the published bundle is complete and that no
+# temp file is left behind under real parallelism.
+it "concurrent writers leave a complete bundle and no temp files"
+( for _i in 1 2 3 4 5 6; do cma_run_provider testrtr >/dev/null 2>&1; done ) &
+_w1=$!
+( for _i in 1 2 3 4 5 6; do cma_run_provider testrtr >/dev/null 2>&1; done ) &
+_w2=$!
+( for _i in 1 2 3 4 5 6; do cma_run_provider testrtr >/dev/null 2>&1; done ) &
+_w3=$!
+wait "$_w1" "$_w2" "$_w3"
+
+_marker_count="$(grep -c 'CMA-TEST-UPSTREAM-CA-MARKER' "$bundle" 2>/dev/null || echo 0)"
+assert_eq 1 "$_marker_count" "the bundle carries the upstream CA exactly ONCE (no interleaving)"
+assert_eq 0 "$(grep -q 'END CERTIFICATE' "$bundle" 2>/dev/null && echo 0 || echo 1)" \
+  "the published bundle is COMPLETE (ends with a PEM footer)"
+# No temp files may survive the writers.
+_leftovers="$(find "$(dirname "$bundle")" -maxdepth 1 -name '.ca-bundle.pem.*' 2>/dev/null | wc -l)"
+assert_eq 0 "$_leftovers" "no temp bundle files were left behind"
 
 summary

@@ -2276,10 +2276,46 @@ cma_run_provider() {
                 /etc/ssl/cert.pem; do
         [[ -r "$_c" ]] && { _ccr_sys_ca="$_c"; break; }
       done
-      if [[ -n "$_ccr_sys_ca" ]]; then
-        cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_home/ca-bundle.pem" 2>/dev/null || true
+      # ATOMIC write (spec 006 WS-C Issue 1). Build the bundle in a temp file in
+      # the SAME directory, fix its mode, then rename it over the destination.
+      # `cat ... > ca-bundle.pem` truncated the live file in place, so a
+      # concurrent reader — the running router, which reads this via
+      # SSL_CERT_FILE at dial time — could observe an empty or half-written
+      # bundle and fail with the very x509 error this block exists to prevent.
+      # rename(2) is atomic within a filesystem, so a reader sees either the old
+      # complete bundle or the new complete bundle, never a partial one.
+      # mktemp, not "$$.$RANDOM": $$ is the PARENT shell PID, identical in every
+      # subshell of one shell, so uniqueness would rest on $RANDOM alone
+      # (~15 bits) and two concurrent writers for the SAME provider could
+      # pick the same path and interleave their output.
+      local _ccr_tmp
+      _ccr_tmp="$(mktemp "${_ccr_home}/.ca-bundle.pem.XXXXXX")" || _ccr_tmp=""
+      if [[ -z "$_ccr_tmp" ]]; then
+        # Could not create a temp file. Do NOT fall back to writing the
+        # destination directly: that reintroduces the in-place truncation this
+        # block exists to remove. Leave any existing bundle alone and let the
+        # best-effort chmod/read below decide what is usable.
+        :
       else
-        cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_home/ca-bundle.pem" 2>/dev/null || true
+        # Reap the temp file if this shell is interrupted between creation and
+        # the rename (review F6). SIGKILL cannot be caught, so a kill -9 can
+        # still leave one; that is a disk-cost, never a correctness issue.
+        trap 'rm -f "$_ccr_tmp"' INT TERM
+        if ( umask 077
+             if [[ -n "$_ccr_sys_ca" ]]; then
+               cat "$_ccr_sys_ca" "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
+             else
+               cat "$CMA_PROVIDER_CA_CERT" > "$_ccr_tmp" 2>/dev/null
+             fi ); then
+          trap - INT TERM
+          chmod 600 "$_ccr_tmp" 2>/dev/null || true
+          mv -f "$_ccr_tmp" "$_ccr_home/ca-bundle.pem" 2>/dev/null || rm -f "$_ccr_tmp"
+        else
+          trap - INT TERM
+          # A failed build must not leave a partial temp file behind, and must
+          # not replace an existing good bundle with nothing.
+          rm -f "$_ccr_tmp"
+        fi
       fi
       # The bundle carries a private upstream CA: same 600 discipline as the
       # config dir it lives in (the shell's umask is not guaranteed here).
@@ -3843,28 +3879,61 @@ cma_status_write() {
   fi
 }
 
-# cma_verify_failing_layer <verifier-stderr-reason>
-# Maps providers-verify.sh's emitted REASON to the layer that actually failed.
+# cma_read_verify_layer <layer-file> -> the layer token the VERIFIER declared.
 #
-# WHY THIS EXISTS. providers-verify.sh:59 puts the verdict on stdout and the
-# reason on STDERR. Every caller that captures only stdout has the verdict and
-# has thrown the reason away — and the two sites that then wrote a layer wrote
-# the LITERAL `existence`, for all eight of the verifier's distinct `failed`
-# reasons. Seven of those eight are not about the model existing. The damage is
-# not cosmetic: a live provider here answers a nonce prompt correctly and fails
-# only for lacking tool calling, yet its row said the model was missing, which
-# is an investigation pointed at a model that is not missing.
+# providers-verify.sh publishes the failed layer as a first-class token through
+# the file named by CMA_VERIFY_LAYER_FILE, in a CLOSED vocabulary
+# (providers-verify.sh:70-84):
 #
-# The mapping is deliberately keyed on the verifier's own phrases, so if a
-# reason is reworded this returns `unknown` rather than silently mis-filing it
-# under a neighbouring layer. Order is load-bearing: several reasons begin
-# "chat probe ..." and the more specific class must win.
+#   existence | tool_call | context | attribution | llmsverifier | preconditions
 #
-# `unknown` is a real answer, not a fallback to be tidied away (§11.4.6,
-# §11.4.201). An unrecognised or absent reason means the cause was not
-# measured; saying so is correct, and naming a specific cause instead is the
-# exact defect this function was added to remove.
-cma_verify_failing_layer() {
+# This reader enforces that vocabulary for the FILE path and maps anything else
+# — a missing file, an empty file, an unrecognised token — to `unknown`. It NEVER
+# defaults to `existence`: absence means the layer was NOT measured, and naming a
+# specific cause instead is the exact defect this replaces (§11.4.6, §11.4.201).
+#
+# FALLBACK VOCABULARY — THE TWO SETS DIVERGE, DELIBERATELY AND EXPLICITLY.
+# When no file token is present the reason matcher below is used, and it emits
+# `tool_calling`, `sentinel`, `route`, `chat`, `chat_http` — NONE of which are in
+# the closed set above. That is not an oversight to be normalised away in one
+# direction: test_sync_failing_layer_attribution.sh asserts the LEGACY strings
+# and test_failing_layer_attribution.sh asserts the CLOSED set, so a
+# modern verifier is expected to write the file and every legacy caller is
+# expected to see the old strings. The divergence is recorded here rather than
+# hidden, and the two suites pin both halves. Reconciling them into one
+# vocabulary is a deliberate future change, not a drive-by simplification.
+cma_read_verify_layer() {
+  local f="${1:-}" reason="${2:-}" v=""
+  [[ -n "$f" && -s "$f" ]] && v="$(tr -d '[:space:]' < "$f" 2>/dev/null || true)"
+  case "$v" in
+    existence|tool_call|context|attribution|llmsverifier|preconditions)
+      printf '%s\n' "$v"; return 0 ;;
+  esac
+  # No file token. That is the LEGACY case, not an absence of information: a
+  # verifier or stub that predates the file protocol still emits its reason on
+  # stderr, so fall back to the reason matcher below. Both paths are real —
+  # test_failing_layer_attribution.sh exercises the file (modern) and
+  # test_sync_failing_layer_attribution.sh exercises the reason (legacy) — and
+  # dropping either one breaks a passing suite (§11.4.120).
+  cma_derive_layer_from_reason "$reason"
+}
+
+# cma_derive_layer_from_reason <verifier-stderr-reason> -> legacy layer token.
+#
+# Kept for verifiers that predate CMA_VERIFY_LAYER_FILE. Its vocabulary is the
+# LEGACY one (`tool_calling`, `sentinel`, `route`, `chat`), which is NOT the
+# closed set published by providers-verify.sh:70-84 (`tool_call`, `attribution`);
+# the pair is recorded here deliberately so the divergence is visible rather
+# than silently normalised in one direction.
+# cma_verify_failing_layer <verifier-stderr-reason> -> legacy layer token.
+# Merge reconciliation (2026-10-09, feature/006 into main): main's cmd_sync
+# failure branch calls this name as the fallback when the verifier wrote no
+# layer-file token; feature/006 renamed the body to
+# cma_derive_layer_from_reason. Both names stay, one implementation, so neither
+# side's call sites break.
+cma_verify_failing_layer() { cma_derive_layer_from_reason "$@"; }
+
+cma_derive_layer_from_reason() {
   local reason="${1:-}"
   case "$reason" in
     '')                                     printf 'unknown\n' ;;
@@ -3881,9 +3950,6 @@ cma_verify_failing_layer() {
     *'context-inadequate'*)                 printf 'context\n' ;;
     *'error body'*)                         printf 'chat\n' ;;
     *'LLMsVerifier did not confirm'*)       printf 'existence\n' ;;
-    # A definitive non-200 on the chat probe. The verifier itself says this is
-    # "auth/billing/model-missing/account-suspended" — it does NOT single out
-    # any one of them, so neither may we.
     *'chat probe HTTP'*)                    printf 'chat_http\n' ;;
     *)                                      printf 'unknown\n' ;;
   esac
