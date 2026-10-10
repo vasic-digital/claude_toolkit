@@ -1,11 +1,11 @@
 # OpenCode live verification proof
-generated: 2026-10-04T19:24:32+0200
-host:      Linux 7.0.0-34-generic x86_64
+generated: 2026-10-10T23:15:49+0200
+host:      Linux 7.0.0-38-generic x86_64
 opencode:  1.18.30
 config:    /home/milosvasic/.config/opencode/opencode.json
-mcp_total=20 mcp_enabled=1 skill_paths=1
-skills_resolved=994 (threshold 200)
-mcp_connected=19 mcp_failed=1
-instructions=0
+mcp_total=164 mcp_enabled=5 skill_paths=215
+skills_resolved=3030 (threshold 200)
+mcp_connected=23 mcp_failed=0
+instructions=1
 
 result: see PASS/FAIL tally below
