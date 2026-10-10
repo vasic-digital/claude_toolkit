@@ -2,6 +2,53 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.5 — 2026-10-10
+
+Fix-forward release addressing the independent NO-GO review of merge
+`dadd8b1` (feature/006 hardware-aware model management). No history rewritten.
+
+### Fixed
+
+- `cmd_sync` and `cmd_verify` now read `CMA_VERIFY_LAYER_FILE` through
+  `cma_read_verify_layer`, which keeps legal tokens as-is, maps off-vocabulary
+  tokens to a reason-derived layer, and falls back to `unknown`. This closes the
+  branch where an invalid layer token was persisted verbatim and the legacy
+  reason fallback covered only one path (commits `0b2a606`).
+- The `failing_layer` closed vocabulary no longer claims `unknown` is a verifier
+  output; it is documented as the caller-side no-layer value, matching how
+  downstream readers already treat it.
+- The F6 ca-bundle temporary-file reaper now saves and restores the existing
+  `INT`/`TERM` trap handlers instead of resetting them with `trap -`, so running
+  the alias in an interactive shell no longer discards the operator's handlers.
+
+### Added
+
+- `test_failing_layer_attribution.sh`: L10b (cmd_verify unverified path with
+  legal, off-vocabulary and silent-verifier tokens) and L11 (real
+  `cmd_sync_multi` loop with stubbed verifier/generator).
+- `test_ccr_upstream_ca.sh`: INT/TERM trap preservation coverage for the F6
+  reaper; the INT half honestly skips when the suite inherits a SIGINT-ignored
+  startup state.
+
+### Documentation
+
+- `docs/Provider_Verification_Guide.md`: corrected the fallback/tool_call note
+  and the `unknown` caller-side semantics.
+- `docs/CONTINUATION.md`: updated §7 reference, noted F6 fixed, recorded the
+  merge, and added new §6.5 coverage.
+- `scripts/debugging/failing_layer_attribution.md`: kept the alias (not deleted)
+  and refreshed notes.
+
+### Verification
+
+- Full `run-all.sh` suite at `0b2a606`: exit 0; 93 of 93 test files passed,
+  0 failed, 1 skipped by prerequisite (the live Kimi test, gated behind
+  `CMA_LIVE_TESTS=1`).
+
+### Commits in this release
+
+- `0b2a606` fix(post-006-review): restore closed-vocabulary layer reads, kill surviving mutants, stop trap clobbering
+
 ## v1.30.4 — 2026-10-06
 
 ### Added
