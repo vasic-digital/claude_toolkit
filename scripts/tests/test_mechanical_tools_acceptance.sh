@@ -57,7 +57,11 @@ source "$SCRIPTS_DIR/resolve_deps.sh"
 # reserved for "nothing configured and nothing found".
 [[ -n "${CMA_CONSTITUTION_DIR+x}" && -z "${CT_CONSTITUTION_DIR+x}" ]] && \
   export CT_CONSTITUTION_DIR="$CMA_CONSTITUTION_DIR"
-OVERRIDE_SET=0; [[ -n "${CT_CONSTITUTION_DIR+x}" ]] && OVERRIDE_SET=1
+# Precedence: CT_CONSTITUTION_DIR wins over CMA_CONSTITUTION_DIR when both are set.
+# A NON-EMPTY CT_HOST_CONSTITUTION_FALLBACK also counts as "configured": if it is
+# invalid the suite fails loudly instead of SKIPping.
+OVERRIDE_SET=0
+[[ -n "${CT_CONSTITUTION_DIR+x}" || -n "${CT_HOST_CONSTITUTION_FALLBACK:-}" ]] && OVERRIDE_SET=1
 resolve_mech() {
   local c err rc
   err="$WORK/resolve.err"

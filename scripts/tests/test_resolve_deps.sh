@@ -125,6 +125,12 @@ for v in CT_CONSTITUTION_DIR CMA_CONSTITUTION_DIR; do
 done
 out="$(acc "CT_CONSTITUTION_DIR=")"; rc=$?
 assert_eq 1 "$rc" "empty-but-set CT_CONSTITUTION_DIR => exit 1"
+out="$(acc "CT_HOST_CONSTITUTION_FALLBACK=$W/nonexistent")"; rc=$?
+assert_eq 1 "$rc" "non-empty INVALID CT_HOST_CONSTITUTION_FALLBACK => exit 1 (configured, not SKIP)"
+[[ "$out" == *"SKIP:"* ]] && _fail "invalid fallback masked as SKIP" || _pass "invalid fallback not a SKIP"
+mkdir -p "$W/fbok/scripts/mechanical"; : > "$W/fbok/Constitution.md"
+out="$(acc "CT_CONSTITUTION_DIR=$W/over" "CMA_CONSTITUTION_DIR=$W/nonexistent")"; rc=$?
+[[ "$out" == *"$W/nonexistent"* ]] && _fail "CMA_ won over CT_" || _pass "CT_ wins over CMA_ when both set (CMA_ value never consulted)"
 out="$(acc)"; rc=$?
 assert_eq 0 "$rc" "nothing configured => exit 0"
 [[ "$out" == *"SKIP:"* ]] && _pass "honest SKIP printed" || _fail "no SKIP message" "$out"
@@ -147,13 +153,30 @@ mkdir -p "$W/ord/tool/constitution" "$W/ord/constitution"; : > "$W/ord/tool/cons
 out="$(res "$W/ord/tool" constitution 2>&1)"
 assert_eq "$W/ord/tool/constitution" "$out" "in-tree wins over sibling"
 
-it "override whose directory cannot be entered fails (no exit-0-with-empty-output)"
+it "mode-000 override dir is rejected (exercises the not-a-valid-checkout branch only)"
 mkdir -p "$W/noenter"; : > "$W/noenter/Constitution.md"; chmod 000 "$W/noenter"
 if [[ $(id -u) -eq 0 ]]; then _pass "root can enter any dir; leg not applicable"; else
   out="$(res "$W/hub/submodules/claude_toolkit" constitution CT_CONSTITUTION_DIR="$W/noenter" 2>&1)"; rc=$?
   [[ $rc -ne 0 ]] && _pass "non-enterable override => non-zero ($rc)" || _fail "exit 0 with output '$out'"
 fi
 chmod 755 "$W/noenter"
+
+it "J: cd/pwd failure AFTER validation must fail (exercises the '|| return 1' guard)"
+# A valid override whose canonicalising pwd -P fails (shadowing function that
+# fails only when invoked inside the override dir) must NOT return 0 with empty output.
+out="$(env -u CT_CONSTITUTION_DIR BAD="$W/over" CT_CONSTITUTION_DIR="$W/over" RES="$RESOLVER" bash -c '
+  source "$RES"
+  pwd() { if [ "$PWD" = "$BAD" ]; then return 1; fi; builtin pwd "$@"; }
+  o="$(ct_resolve_dep constitution "$1")"; rc=$?
+  echo "rc=$rc out=[$o]"' _ "$W/hub/submodules/claude_toolkit" 2>/dev/null)"
+[[ "$out" == "rc=1 out=[]" ]] && _pass "pwd failure => rc=1, empty output ($out)" || _fail "pwd failure not propagated" "$out"
+# same for the candidate-loop path (no override): fail pwd inside the hub constitution dir
+out="$(env -u CT_CONSTITUTION_DIR BAD="$W/hub/constitution" RES="$RESOLVER" bash -c '
+  source "$RES"
+  pwd() { if [ "$PWD" = "$BAD" ]; then return 1; fi; builtin pwd "$@"; }
+  o="$(ct_resolve_dep constitution "$1")"; rc=$?
+  echo "rc=$rc"' _ "$W/hub/submodules/claude_toolkit" 2>/dev/null)"
+[[ "$out" != "rc=0" ]] && _pass "candidate-loop pwd failure not reported as success ($out)" || _fail "candidate loop returned 0 on pwd failure"
 
 it "unknown dependency name is rejected"
 out="$(res "$W/hub/submodules/claude_toolkit" bogusdep 2>&1)"; rc=$?
