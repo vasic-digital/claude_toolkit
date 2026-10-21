@@ -61,7 +61,7 @@ ct_resolve_dep() {  # ct_resolve_dep <name> [toolkit_root]
       echo "resolve_deps: $var is set but EMPTY. Set it to a valid $name checkout or unset it." >&2
       return 1
     fi
-    if _ct_valid "$name" "${!var}"; then (cd "${!var}" && pwd -P); return 0; fi
+    if _ct_valid "$name" "${!var}"; then (cd "${!var}" && pwd -P) || return 1; return 0; fi
     echo "resolve_deps: $var='${!var}' is set but is not a valid $name checkout. Fix or unset $var." >&2
     return 1
   fi
@@ -81,7 +81,7 @@ ct_resolve_dep() {  # ct_resolve_dep <name> [toolkit_root]
 
   for cand in "${cands[@]}"; do
     if [ -d "$cand" ] && _ct_valid "$name" "$(cd "$cand" && pwd -P)"; then
-      (cd "$cand" && pwd -P); return 0
+      (cd "$cand" && pwd -P) || return 1; return 0
     fi
   done
   {

@@ -52,16 +52,35 @@ trap 'rm -rf "$WORK"' EXIT
 # is an error, never a cue to go hunting elsewhere.
 # shellcheck source=../resolve_deps.sh
 source "$SCRIPTS_DIR/resolve_deps.sh"
+# An explicitly configured override (set, even if empty) that fails to resolve
+# is LOUD: resolver stderr is printed and the suite exits 1. The honest SKIP is
+# reserved for "nothing configured and nothing found".
+[[ -n "${CMA_CONSTITUTION_DIR+x}" && -z "${CT_CONSTITUTION_DIR+x}" ]] && \
+  export CT_CONSTITUTION_DIR="$CMA_CONSTITUTION_DIR"
+OVERRIDE_SET=0; [[ -n "${CT_CONSTITUTION_DIR+x}" ]] && OVERRIDE_SET=1
 resolve_mech() {
-  local c
-  [[ -n "${CMA_CONSTITUTION_DIR:-}" && -z "${CT_CONSTITUTION_DIR:-}" ]] && \
-    export CT_CONSTITUTION_DIR="$CMA_CONSTITUTION_DIR"
-  c="$(ct_resolve_dep constitution "$REPO_ROOT" 2>/dev/null)" || return 1
-  [[ -d "$c/scripts/mechanical" ]] || return 1
+  local c err rc
+  err="$WORK/resolve.err"
+  c="$(ct_resolve_dep constitution "$REPO_ROOT" 2>"$err")"; rc=$?
+  if (( rc != 0 )); then
+    if (( OVERRIDE_SET )); then
+      echo "FAIL: constitution override is configured but does not resolve:" >&2
+      cat "$err" >&2
+      return 3
+    fi
+    return 1
+  fi
+  if [[ ! -d "$c/scripts/mechanical" ]]; then
+    (( OVERRIDE_SET )) && { echo "FAIL: $c has no scripts/mechanical (override CT_CONSTITUTION_DIR/CMA_CONSTITUTION_DIR)" >&2; return 3; }
+    return 1
+  fi
   printf '%s\n' "$c/scripts/mechanical"
 }
 
-MECH="$(resolve_mech)" || MECH=""
+MECH="$(resolve_mech)"; _mrc=$?
+# rc 3 = configured override failed (message already on stderr): loud, non-zero.
+(( _mrc == 3 )) && exit 1
+(( _mrc != 0 )) && MECH=""
 
 if [[ -z "$MECH" ]]; then
   echo "SKIP: the §11.4.274 mechanical tools are not reachable from this checkout."

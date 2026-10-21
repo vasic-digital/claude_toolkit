@@ -111,6 +111,50 @@ if grep -q 'helix_code' "$RESOLVER"; then _fail "hardcoded host path present in 
 out="$(env -u CT_CONSTITUTION_DIR -u CT_HOST_CONSTITUTION_FALLBACK bash "$RESOLVER" constitution "$W/lonely/tool" 2>&1)"; rc=$?
 [[ $rc -ne 0 ]] && _pass "unset fallback => fails closed ($rc)" || _fail "resolved without any source" "$out"
 
+it "acceptance suite: invalid override is LOUD (exit 1), nothing-configured is an honest SKIP"
+FX="$W/fx"; mkdir -p "$FX/scripts/tests/lib"
+cp "$SCRIPTS_DIR/resolve_deps.sh" "$FX/scripts/"; cp "$TESTS_DIR/test_mechanical_tools_acceptance.sh" "$FX/scripts/tests/"
+cp "$TESTS_DIR/lib/assert.sh" "$FX/scripts/tests/lib/"
+acc() { env -u SCRIPTS_DIR -u CT_CONSTITUTION_DIR -u CMA_CONSTITUTION_DIR -u CT_HOST_CONSTITUTION_FALLBACK "$@" \
+          bash "$FX/scripts/tests/test_mechanical_tools_acceptance.sh" 2>&1; }
+for v in CT_CONSTITUTION_DIR CMA_CONSTITUTION_DIR; do
+  out="$(acc "$v=$W/nonexistent")"; rc=$?
+  assert_eq 1 "$rc" "$v=/nonexistent => exit 1"
+  [[ "$out" == *"not a valid constitution"* || "$out" == *CT_CONSTITUTION_DIR* ]] && _pass "$v: resolver message surfaced" || _fail "$v: no resolver message" "$out"
+  [[ "$out" == SKIP* || "$out" == *"SKIP:"* ]] && _fail "$v: bad override masked as SKIP" || _pass "$v: not a SKIP"
+done
+out="$(acc "CT_CONSTITUTION_DIR=")"; rc=$?
+assert_eq 1 "$rc" "empty-but-set CT_CONSTITUTION_DIR => exit 1"
+out="$(acc)"; rc=$?
+assert_eq 0 "$rc" "nothing configured => exit 0"
+[[ "$out" == *"SKIP:"* ]] && _pass "honest SKIP printed" || _fail "no SKIP message" "$out"
+
+it "tried-list is exactly in-tree + sibling when the fallback is unset (no hidden default)"
+out="$(env -u CT_CONSTITUTION_DIR -u CT_HOST_CONSTITUTION_FALLBACK bash "$RESOLVER" constitution "$W/lonely/tool" 2>&1)"
+tried="$(printf '%s\n' "$out" | sed -n 's/^  tried: //p')"
+assert_eq "$W/lonely/tool/constitution $W/lonely/tool/../constitution" "$tried" "exact candidate list"
+
+it "H: superspec dir WITHOUT extension.yml is rejected; with it is accepted"
+mkdir -p "$W/ss/tool" "$W/ss/superspec"; : > "$W/ss/superspec/README.md"
+out="$(res "$W/ss/tool" superspec 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && _pass "marker-less superspec rejected ($rc)" || _fail "superspec accepted without extension.yml" "$out"
+: > "$W/ss/superspec/extension.yml"
+out="$(res "$W/ss/tool" superspec 2>&1)"; rc=$?
+assert_eq 0 "$rc" "superspec with extension.yml accepted"
+
+it "I: constitution order — in-tree beats sibling"
+mkdir -p "$W/ord/tool/constitution" "$W/ord/constitution"; : > "$W/ord/tool/constitution/Constitution.md"; : > "$W/ord/constitution/Constitution.md"
+out="$(res "$W/ord/tool" constitution 2>&1)"
+assert_eq "$W/ord/tool/constitution" "$out" "in-tree wins over sibling"
+
+it "override whose directory cannot be entered fails (no exit-0-with-empty-output)"
+mkdir -p "$W/noenter"; : > "$W/noenter/Constitution.md"; chmod 000 "$W/noenter"
+if [[ $(id -u) -eq 0 ]]; then _pass "root can enter any dir; leg not applicable"; else
+  out="$(res "$W/hub/submodules/claude_toolkit" constitution CT_CONSTITUTION_DIR="$W/noenter" 2>&1)"; rc=$?
+  [[ $rc -ne 0 ]] && _pass "non-enterable override => non-zero ($rc)" || _fail "exit 0 with output '$out'"
+fi
+chmod 755 "$W/noenter"
+
 it "unknown dependency name is rejected"
 out="$(res "$W/hub/submodules/claude_toolkit" bogusdep 2>&1)"; rc=$?
 [[ $rc -ne 0 ]] && _pass "non-zero ($rc)" || _fail "expected non-zero" "$out"
