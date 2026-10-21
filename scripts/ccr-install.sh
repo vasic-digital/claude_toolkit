@@ -25,7 +25,9 @@ LIB_DIR="$(cd "$(dirname "$_src")" && pwd)"
 unset _src _tgt
 
 REPO_ROOT="$(cd "$LIB_DIR/.." && pwd)"
-SUBMODULE="$REPO_ROOT/submodules/claude-code-router"
+# Flat router checkout, located by the single resolver (not a submodule any more).
+SUBMODULE="$(bash "$LIB_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT")" \
+  || { printf '\033[0;31m[ccr]\033[0m claude-code-router checkout not resolvable (see above) — provide it flat: CT_CLAUDE_CODE_ROUTER_DIR, the parent hub, or a sibling clone\n' >&2; exit 1; }
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 
 log()  { printf '\033[0;32m[ccr]\033[0m %s\n' "$*"; }
@@ -35,7 +37,7 @@ die()  { printf '\033[0;31m[ccr]\033[0m %s\n' "$*" >&2; exit 1; }
 # --- preflight ----------------------------------------------------------
 
 if [ ! -d "$SUBMODULE" ]; then
-  die "submodule not found at $SUBMODULE — run: git submodule update --init"
+  die "router checkout not found at $SUBMODULE — set CT_CLAUDE_CODE_ROUTER_DIR or vendor it in the parent hub"
 fi
 
 if ! command -v go >/dev/null 2>&1; then

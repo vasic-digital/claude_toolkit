@@ -169,6 +169,15 @@ brew install bash jq rsync gawk pandoc weasyprint
 macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash when needed,
 and only touch `~/.zshrc` on Darwin.
 
+**Own-org dependencies are flat, not nested.** This repo tracks no
+`vasic-digital/*` or `HelixDevelopment/*` submodule (the only submodule is the
+third-party `submodules/go`). The Go router (`claude-code-router`), the optional
+`LLMsVerifier`, and `constitution`/`containers`/`challenges`/`superspec` are found
+by `scripts/resolve_deps.sh <name>`: `CT_<NAME>_DIR` override → parent hub
+(`<hub>/submodules/<name>`) → `<root>/submodules/<name>` → sibling `../<name>`,
+with a loud error and the clone command when nothing resolves. A standalone
+`curl-install.sh` run clones the router as a sibling for you.
+
 ## 🗂️ Layout after unification
 
 ```

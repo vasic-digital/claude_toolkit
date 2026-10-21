@@ -119,7 +119,7 @@ fi
 if [ -z "$_ccr" ]; then
   _fail "ccr: no router found at \$HOME/.local/bin/ccr nor on PATH.
              Provider aliases using the router transport CANNOT launch.
-             Fix: ensure a Go toolchain new enough for submodules/claude-code-router/go.mod
+             Fix: ensure a Go toolchain new enough for the claude-code-router go.mod (scripts/resolve_deps.sh claude_code_router)
              (install/upgrade Go: https://go.dev/dl/ — or, with an older Go already
              installed and network access: GOTOOLCHAIN=auto claude-ccr-build),
              then run: claude-ccr-build"

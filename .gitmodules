@@ -1,15 +1,12 @@
-[submodule "submodules/LLMsVerifier"]
-	path = submodules/LLMsVerifier
-	url = git@github.com:vasic-digital/LLMsVerifier.git
-	branch = main
-[submodule "submodules/claude-code-router"]
-	path = submodules/claude-code-router
-	url = git@github.com:vasic-digital/claude-code-router.git
-	branch = main
-# DELIBERATE EXCEPTION: the only HTTPS URL. go.googlesource.com is the canonical
-# upstream of the Go toolchain; no SSH mirror is used elsewhere in the fleet, so
-# none is invented here. constitution/containers/challenges/superspec are NOT
-# declared: they resolve via scripts/resolve_deps.sh (single source of truth).
+# claude_toolkit tracks NO own-org submodule (vasic-digital/*, HelixDevelopment/*):
+# constitution, containers, challenges, superspec, llms_verifier (LLMsVerifier)
+# and claude_code_router (claude-code-router) live FLAT in the parent project and
+# resolve via scripts/resolve_deps.sh (single source of truth). Gate:
+# scripts/tests/test_gitmodules_no_ownorg.sh.
+#
+# DELIBERATE EXCEPTION: the only HTTPS URL and the only submodule. It is
+# third-party: go.googlesource.com is the canonical upstream of the Go toolchain;
+# no SSH mirror is used elsewhere in the fleet, so none is invented here.
 [submodule "submodules/go"]
 	path = submodules/go
 	url = https://go.googlesource.com/go

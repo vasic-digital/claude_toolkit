@@ -26,3 +26,11 @@ scripts/tests/proof/verify-aliases-multi-prompt/
 # (timestamps, ports, PIDs, sandbox paths) is written here and never tracked.
 # Only the curated scripts/tests/proof/{.gitkeep,PROOF.md,00-summary.txt} stay tracked.
 scripts/tests/proof/volatile/
+
+# Flat own-org checkouts a developer may place in-tree (resolve_deps.sh tier 3).
+# They are NOT submodules of this repo (operator decision 2026-10-21) and must
+# never be committed here; the parent hub or a sibling clone is preferred.
+/submodules/llms_verifier/
+/submodules/LLMsVerifier/
+/submodules/claude_code_router/
+/submodules/claude-code-router/

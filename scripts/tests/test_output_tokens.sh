@@ -41,7 +41,7 @@ done
 # wrapper now uses.
 #
 # The accepted set MIRRORS the bundled Go router's dispatch
-# (submodules/claude-code-router/cmd/ccr/main.go). The catch-all FAILS LOUDLY
+# (claude-code-router:cmd/ccr/main.go). The catch-all FAILS LOUDLY
 # instead of `exit 0`: a silently-succeeding stub is what certified the v1.23.0
 # Go-router swap against a launch grammar the real binary rejected. Grammar
 # drift must now break this test. See test_ccr_conformance.sh for the static

@@ -29,6 +29,7 @@ mkhub() {  # mkhub <dir>: a hub with constitution + flat submodules
 # run resolver for <name> against toolkit root <root>, hermetic env
 res() { local root="$1" name="$2"; shift 2
   env -u CT_CONSTITUTION_DIR -u CT_CONTAINERS_DIR -u CT_CHALLENGES_DIR -u CT_SUPERSPEC_DIR \
+      -u CT_LLMS_VERIFIER_DIR -u CT_CLAUDE_CODE_ROUTER_DIR -u LLMSVERIFIER_DIR \
       CT_HOST_CONSTITUTION_FALLBACK="$W/no-such-host-fallback" "$@" \
       bash "$RESOLVER" "$name" "$root"; }
 
@@ -190,14 +191,84 @@ mkdir -p "$W/hostfb"; : > "$W/hostfb/Constitution.md"
 out="$(res "$W/lonely/tool" constitution CT_HOST_CONSTITUTION_FALLBACK="$W/hostfb" 2>&1)"; rc=$?
 assert_eq 0 "$rc" "host fallback: exit 0"; assert_eq "$W/hostfb" "$out" "host fallback path"
 
-it ".gitmodules no longer declares the hub-owned duplicates"
-for p in constitution submodules/containers submodules/challenges submodules/superspec; do
+# --- own-org tools that used to be nested submodules here (operator decision
+# 2026-10-21): llms_verifier (vasic-digital/LLMsVerifier) and claude_code_router
+# (vasic-digital/claude-code-router). Identity markers: llm-verifier/go.mod and
+# cmd/ccr/main.go. Canonical dir name is snake_case; the legacy repo name is
+# accepted as an alias at every tier.
+mark_lv()  { mkdir -p "$1/llm-verifier"; : > "$1/llm-verifier/go.mod"; }
+mark_ccr() { mkdir -p "$1/cmd/ccr"; : > "$1/go.mod"; : > "$1/cmd/ccr/main.go"; }
+
+it "llms_verifier + claude_code_router resolve from <hub>/submodules (snake_case)"
+mkdir -p "$W/oh/submodules/claude_toolkit"
+mark_lv "$W/oh/submodules/llms_verifier"; mark_ccr "$W/oh/submodules/claude_code_router"
+out="$(res "$W/oh/submodules/claude_toolkit" llms_verifier 2>&1)"; rc=$?
+assert_eq 0 "$rc" "llms_verifier: exit 0"; assert_eq "$W/oh/submodules/llms_verifier" "$out" "llms_verifier path"
+out="$(res "$W/oh/submodules/claude_toolkit" claude_code_router 2>&1)"; rc=$?
+assert_eq 0 "$rc" "claude_code_router: exit 0"; assert_eq "$W/oh/submodules/claude_code_router" "$out" "claude_code_router path"
+
+it "legacy repo names (LLMsVerifier, claude-code-router) are accepted aliases"
+mkdir -p "$W/ol/submodules/claude_toolkit"
+mark_lv "$W/ol/submodules/LLMsVerifier"; mark_ccr "$W/ol/submodules/claude-code-router"
+out="$(res "$W/ol/submodules/claude_toolkit" llms_verifier 2>&1)"; rc=$?
+assert_eq 0 "$rc" "legacy LLMsVerifier: exit 0"; assert_eq "$W/ol/submodules/LLMsVerifier" "$out" "legacy LLMsVerifier path"
+out="$(res "$W/ol/submodules/claude_toolkit" claude_code_router 2>&1)"; rc=$?
+assert_eq 0 "$rc" "legacy claude-code-router: exit 0"; assert_eq "$W/ol/submodules/claude-code-router" "$out" "legacy claude-code-router path"
+
+it "toolkit at <proj>/constitution/submodules/claude_toolkit: tools come from <proj>/submodules"
+mkdir -p "$W/op/constitution/submodules/claude_toolkit"; : > "$W/op/constitution/Constitution.md"
+mark_lv "$W/op/submodules/llms_verifier"; mark_ccr "$W/op/submodules/claude_code_router"
+out="$(res "$W/op/constitution/submodules/claude_toolkit" llms_verifier 2>&1)"; rc=$?
+assert_eq 0 "$rc" "project-root llms_verifier: exit 0"; assert_eq "$W/op/submodules/llms_verifier" "$out" "project-root llms_verifier path"
+out="$(res "$W/op/constitution/submodules/claude_toolkit" claude_code_router 2>&1)"; rc=$?
+assert_eq 0 "$rc" "project-root claude_code_router: exit 0"; assert_eq "$W/op/submodules/claude_code_router" "$out" "project-root ccr path"
+
+it "standalone toolkit: in-tree <root>/submodules/<n> beats the sibling <root>/../<n>"
+mkdir -p "$W/os/tool"; mark_ccr "$W/os/tool/submodules/claude_code_router"; mark_ccr "$W/os/claude_code_router"
+out="$(res "$W/os/tool" claude_code_router 2>&1)"; rc=$?
+assert_eq 0 "$rc" "in-tree: exit 0"; assert_eq "$W/os/tool/submodules/claude_code_router" "$out" "in-tree wins"
+mkdir -p "$W/os2/tool"; mark_lv "$W/os2/llms_verifier"
+out="$(res "$W/os2/tool" llms_verifier 2>&1)"; rc=$?
+assert_eq 0 "$rc" "sibling: exit 0"; assert_eq "$W/os2/llms_verifier" "$out" "sibling path"
+
+it "identity marker required: a bare directory of the right name does not resolve"
+mkdir -p "$W/om/tool" "$W/om/claude_code_router" "$W/om/llms_verifier"
+out="$(res "$W/om/tool" claude_code_router 2>&1)"; rc=$?
+assert_eq 1 "$rc" "unmarked ccr dir: exit 1"
+out="$(res "$W/om/tool" llms_verifier 2>&1)"; rc=$?
+assert_eq 1 "$rc" "unmarked llms_verifier dir: exit 1"
+
+it "env overrides: CT_*_DIR wins; legacy LLMSVERIFIER_DIR honoured; CT_ beats legacy"
+mark_lv "$W/ov_lv"; mark_ccr "$W/ov_ccr"; mark_lv "$W/ov_lv_legacy"
+out="$(res "$W/oh/submodules/claude_toolkit" claude_code_router CT_CLAUDE_CODE_ROUTER_DIR="$W/ov_ccr" 2>&1)"; rc=$?
+assert_eq 0 "$rc" "ccr override: exit 0"; assert_eq "$W/ov_ccr" "$out" "ccr override path"
+out="$(res "$W/oh/submodules/claude_toolkit" llms_verifier LLMSVERIFIER_DIR="$W/ov_lv_legacy" 2>&1)"; rc=$?
+assert_eq 0 "$rc" "legacy override: exit 0"; assert_eq "$W/ov_lv_legacy" "$out" "legacy override path"
+out="$(res "$W/oh/submodules/claude_toolkit" llms_verifier CT_LLMS_VERIFIER_DIR="$W/ov_lv" LLMSVERIFIER_DIR="$W/ov_lv_legacy" 2>&1)"; rc=$?
+assert_eq 0 "$rc" "CT_ + legacy: exit 0"; assert_eq "$W/ov_lv" "$out" "CT_ beats legacy"
+
+it "invalid override is LOUD (no fall-through to the hub copy)"
+mkdir -p "$W/emptyov"
+out="$(res "$W/oh/submodules/claude_toolkit" llms_verifier LLMSVERIFIER_DIR="$W/emptyov" 2>&1)"; rc=$?
+assert_eq 1 "$rc" "invalid legacy override: exit 1"
+grep -q 'LLMSVERIFIER_DIR' <<<"$out" && _pass "message names LLMSVERIFIER_DIR" || _fail "message does not name the bad var" "$out"
+out="$(res "$W/oh/submodules/claude_toolkit" claude_code_router CT_CLAUDE_CODE_ROUTER_DIR= 2>&1)"; rc=$?
+assert_eq 1 "$rc" "empty CT_CLAUDE_CODE_ROUTER_DIR: exit 1"
+
+it "nothing resolvable: exit 1, tried-list and actionable fix on stderr"
+mkdir -p "$W/none/tool"
+out="$(res "$W/none/tool" claude_code_router 2>&1 >/dev/null)"; rc=$?
+assert_eq 1 "$rc" "absent ccr: exit 1"
+grep -q "$W/none/tool/submodules/claude_code_router" <<<"$out" && _pass "tried-list names the in-tree candidate" || _fail "tried-list missing" "$out"
+grep -q 'CT_CLAUDE_CODE_ROUTER_DIR' <<<"$out" && _pass "fix names CT_CLAUDE_CODE_ROUTER_DIR" || _fail "no actionable fix" "$out"
+grep -q 'git@github.com:vasic-digital/claude-code-router.git' <<<"$out" && _pass "fix names the upstream clone url" || _fail "no clone url in fix" "$out"
+
+it ".gitmodules no longer declares the hub-owned duplicates or own-org tools"
+for p in constitution submodules/containers submodules/challenges submodules/superspec submodules/LLMsVerifier submodules/claude-code-router; do
   if grep -qE "path = $p\$" "$REPO_ROOT/.gitmodules"; then _fail "still declared: $p"; else _pass "not declared: $p"; fi
   if git -C "$REPO_ROOT" ls-files -s -- "$p" 2>/dev/null | grep -q '^160000'; then _fail "gitlink still present: $p"; else _pass "no gitlink: $p"; fi
 done
-for p in submodules/LLMsVerifier submodules/claude-code-router submodules/go; do
-  grep -qE "path = $p\$" "$REPO_ROOT/.gitmodules" && _pass "own dep kept: $p" || _fail "own dep lost: $p"
-done
+grep -qE "path = submodules/go\$" "$REPO_ROOT/.gitmodules" && _pass "third-party dep kept: submodules/go" || _fail "third-party dep lost: submodules/go"
 
 it "in-repo consumers use the resolver instead of hardcoded constitution/ paths"
 grep -q 'resolve_deps.sh' "$TESTS_DIR/test_mechanical_tools_acceptance.sh" \

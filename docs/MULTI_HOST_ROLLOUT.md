@@ -18,7 +18,7 @@ parser.
 |---|---|---|
 | `rsync`, `jq`, `awk` | **hard** — `install.sh` aborts without them | `install.sh` step 1 (`cma_require`) |
 | `bash` 4+ | **hard** on macOS (`brew install bash`) — several scripts re-exec under `/opt/homebrew/bin/bash` or `/usr/local/bin/bash` | `install.sh`, `claude-bootstrap.sh`, `claude-opencode-sync.sh` |
-| A Go toolchain matching `submodules/claude-code-router/go.mod` | **hard for router-transport aliases** — a build failure is recorded and re-raised as a real install failure | `install.sh` step 2b → `claude-ccr-build.sh` |
+| A Go toolchain matching the claude-code-router `go.mod` (flat checkout, `scripts/resolve_deps.sh claude_code_router`) | **hard for router-transport aliases** — a build failure is recorded and re-raised as a real install failure | `install.sh` step 2b → `claude-ccr-build.sh` |
 | `node` + `npm` | soft — only the optional TOON utility; a warning, not a failure | `install.sh` step 1b |
 | `pandoc` + a PDF engine | soft — doc export is skipped without them | `install.sh` steps 1 and 6 |
 | `python3` | needed by `claude-opencode-sync` and the provider resolver | `cma_require python3` |
@@ -35,13 +35,17 @@ curl -fsSL https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/s
 `curl-install.sh` detects the platform, installs missing hard deps via the
 system package manager where it can, clones into `${CLAUDE_TOOLKIT_DIR:-$HOME/claude-toolkit}`
 with `git clone --recursive` (re-runs do `git pull --ff-only --recurse-submodules`
-followed by `git submodule update --init --recursive`), then runs
+followed by `git submodule update --init --recursive`), clones the Go router
+flat as a sibling (`$(dirname $CLAUDE_TOOLKIT_DIR)/claude_code_router`) when
+`scripts/resolve_deps.sh claude_code_router` cannot find it, then runs
 `scripts/install.sh`. It is idempotent.
 
 From an existing checkout:
 
 ```bash
-git submodule update --init --recursive     # submodules are NOT optional
+git submodule update --init --recursive     # submodules are NOT optional (only submodules/go remains)
+bash scripts/resolve_deps.sh claude_code_router \
+  || git clone git@github.com:vasic-digital/claude-code-router.git ../claude_code_router   # flat, not nested
 bash scripts/install.sh                     # idempotent
 ```
 

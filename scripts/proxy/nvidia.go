@@ -18,7 +18,7 @@
 // -level, system blocks — matching the poe/kimi/sarvam shim pattern.
 //
 // The strip is SCHEMA-AWARE, mirroring the semantics of
-// submodules/claude-code-router/internal/translate stripKey: a tool's
+// claude-code-router:internal/translate stripKey: a tool's
 // input_schema is a JSON Schema, and inside its "properties" object the map
 // keys are property NAMES chosen by whoever wrote the tool. A tool may
 // legitimately declare a property called "cache_control"; deleting it blindly
@@ -39,7 +39,7 @@ func init() { registerRequest("nvidia", nvidiaFix) }
 // tree, EXCEPT where the key sits in a JSON Schema "properties" object (user
 // data, not Anthropic metadata). Mutates maps in place, exactly like ccr's
 // stripKeyIn — the proxy re-marshals the body afterwards, so an in-place edit
-// is the whole job. Mirrors submodules/claude-code-router/internal/translate/
+// is the whole job. Mirrors claude-code-router:internal/translate/
 // anthropic.go:stripKeyIn one-for-one.
 func nvidiaStripKeyIn(v interface{}, inProperties bool) interface{} {
 	switch t := v.(type) {

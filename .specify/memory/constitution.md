@@ -202,7 +202,11 @@ capability extends the upstream submodule rather than hand-rolling a
 duplicate (`§11.4.74`). Every proposed dependency — internal or external —
 carries a closed-set existence verdict (`VERIFIED`/`AMBIGUOUS`/`UNVERIFIED`)
 with citable evidence before adoption; existence is necessary, never
-sufficient, for fitness (`§11.4.270`). `submodules/go` is the one documented
+sufficient, for fitness (`§11.4.270`). This repo tracks **no own-org nested
+submodule** (operator decision 2026-10-21, `§11.4.28(C)`): own-org repos
+(constitution, containers, challenges, LLMsVerifier, claude-code-router) live flat
+in the parent project and resolve via `scripts/resolve_deps.sh`; the gate
+`scripts/tests/test_gitmodules_no_ownorg.sh` enforces it. `submodules/go` is the one documented
 exception to "always pull latest": it is pinned to a Go point release
 required by `claude-code-router`'s `go.mod`, and `origin/master` is the
 unreleased next-major dev tree — never bump it there (project-level override,
@@ -309,7 +313,7 @@ named tracked item — never a silent or informal bypass (`§11.4.271`).
 | Sync/merge | `rsync` (two-pass `--ignore-existing` then overlay) | Cross-account shared-item unification (`claude-unify.sh`) |
 | Locking | `flock(1)` with atomic-`mkdir` fallback | Alias-file commit serialization, suite-run serialization — never bare file writes under contention |
 | Go toolchain | Vendored Go (pinned point release) + system Go fallback via `command -v` probe | Building `claude-code-router` (CCR) and `cma-proxy`; `submodules/go` pinned to the exact version `go.mod` requires, never `origin/master` |
-| Node / router | `claude-code-router` (submodule) | Multi-provider request routing; comma vs slash selector semantics distinguish route syntax from vendor/model catalog ids |
+| Node / router | `claude-code-router` (flat checkout via `scripts/resolve_deps.sh claude_code_router`; not a submodule) | Multi-provider request routing; comma vs slash selector semantics distinguish route syntax from vendor/model catalog ids |
 | Go proxy | `cma-proxy` | Per-provider request/response transforms (Kimi tool-schema normalization, HelixAgent tool-call recovery) |
 | Kimi agent | Kimi Code CLI (`kimi`) | Sibling agent family to Claude Code; own account prefix, home dir, shared-store subtree |
 | Python | `providers_resolve.py`, `model_verify.py`, `opencode_sync.py` | Provider catalog resolution (models.dev), multi-model scoring/verification, OpenCode config translation |

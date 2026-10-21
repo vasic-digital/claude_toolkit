@@ -3,8 +3,8 @@
 #
 # Verifies that a provider's key works and a model exists/responds. Strategy,
 # in order:
-#   1. If the LLMsVerifier binary is built (submodules/LLMsVerifier/bin/
-#      model-verification), use it — the authoritative "Do you see my code?"
+#   1. If the LLMsVerifier binary is built (<llms_verifier>/bin/
+#      model-verification, checkout resolved by resolve_deps.sh), use it — the authoritative "Do you see my code?"
 #      check. Pass/fail is read from its stdout (Status: verified + Can See
 #      Code: true), per its documented contract.
 #   2. Else, if curl+jq are present, network is allowed, and the key is set,
@@ -56,7 +56,17 @@ done
 
 # Overridable so a hermetic test can prove strategy 1 is unavailable instead of
 # depending on whether this host happens to have built the submodule.
-VERIFIER_BIN="${CMA_VERIFIER_BIN:-$LIB_DIR/../submodules/LLMsVerifier/bin/model-verification}"
+# Strategy 1's binary lives in the flat LLMsVerifier checkout located by the
+# single resolver (not a nested submodule any more). An unresolvable checkout
+# leaves strategy 1 unavailable and is NAMED in the final message, never silent.
+if [[ -n "${CMA_VERIFIER_BIN:-}" ]]; then
+  VERIFIER_BIN="$CMA_VERIFIER_BIN"
+elif [[ -f "$LIB_DIR/resolve_deps.sh" ]] && _lv="$(bash "$LIB_DIR/resolve_deps.sh" llms_verifier "$LIB_DIR/.." 2>/dev/null)"; then
+  VERIFIER_BIN="$_lv/bin/model-verification"
+else
+  VERIFIER_BIN="<LLMsVerifier checkout not resolvable: set CT_LLMS_VERIFIER_DIR>/bin/model-verification"
+fi
+unset _lv
 
 # emit VERDICT REASON [LAYER]
 #
@@ -544,5 +554,5 @@ elif [[ -z "$key" ]]; then
 else
   _why="no probe strategy applied"
 fi
-emit unverified "not verified — $_why. Layer 1 is unavailable too: no LLMsVerifier binary at $VERIFIER_BIN (build submodules/LLMsVerifier for full verification)." preconditions
+emit unverified "not verified — $_why. Layer 1 is unavailable too: no LLMsVerifier binary at $VERIFIER_BIN (build the LLMsVerifier checkout located by scripts/resolve_deps.sh llms_verifier for full verification)." preconditions
 exit 2

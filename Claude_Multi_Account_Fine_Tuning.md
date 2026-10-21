@@ -910,7 +910,7 @@ dynamic** — no provider, base URL, or model ID is hardcoded.
 3. `providers_resolve.py` resolves each key into a record: provider id, alias,
    base URL, transport (`native` iff the provider speaks the Anthropic API,
    else `router`), and a strong + fast model chosen from the metadata.
-4. The bundled **`LLMsVerifier`** submodule (or a lightweight HTTP probe)
+4. The **`LLMsVerifier`** checkout (resolved flat by `scripts/resolve_deps.sh llms_verifier`) (or a lightweight HTTP probe)
    optionally verifies the key + model before the alias is activated.
 5. For each provider: a non-secret env file, a `cma_run_provider <id>` alias, a
    `~/.claude-prov-<id>` config dir linking all shared items (so every plugin is
@@ -991,7 +991,7 @@ A route in the router's config is `provider,model` on disk. But the router
 *also* honours a **client-supplied selector** in the request body's `model`
 field, so a caller can pin an exact upstream for a single request instead of
 taking the server-configured `Router.default`. `parseExplicitSelector`
-(`submodules/claude-code-router/internal/router/selector.go`) recognises
+(`claude-code-router:internal/router/selector.go`) recognises
 **two** separators — a comma and a slash — and whichever appears **leftmost**
 decides the split, so one string can never be parsed two different ways. If
 neither separator is present, or either half would be empty, it is not a
@@ -1325,12 +1325,12 @@ The toolkit vendors three own-dependency submodules. Pins as of `claude_toolkit-
 | `submodules/claude-code-router` | `9accd18` (`v0.4.9-5-g9accd18`) | The Go router (`ccr`) behind the **router** transport — including the selector fix in §11. |
 | `submodules/go` | `go1.26.4` | Vendored Go toolchain, built by `claude-go-build.sh` into `~/.local/share/claude-go`. |
 
-As of v1.30.6, `constitution`, `containers`, `challenges` and `superspec` are not declared here; the pins above for `challenges` and `containers` (removed rows) were dropped, and all four resolve from the constitution hub via `scripts/resolve_deps.sh` (`superspec` never appeared in this table).
+After v1.30.6 (Unreleased), `LLMsVerifier` and `claude-code-router` are not declared here either (operator decision 2026-10-21: no own-org nested submodule); the two rows above are historical pins, and both now resolve flat via `scripts/resolve_deps.sh llms_verifier` / `claude_code_router` (`CT_LLMS_VERIFIER_DIR`, `CT_CLAUDE_CODE_ROUTER_DIR`, parent hub, `<root>/submodules/`, sibling). `submodules/go` is the only remaining submodule. As of v1.30.6, `constitution`, `containers`, `challenges` and `superspec` are not declared here; the pins above for `challenges` and `containers` (removed rows) were dropped, and all four resolve from the constitution hub via `scripts/resolve_deps.sh` (`superspec` never appeared in this table).
 
 Two pinning rules that are not obvious:
 
 - **`submodules/go` must track a point release on `release-branch.go1.N`, and
-  is pinned to whatever `submodules/claude-code-router/go.mod` requires.**
+  is pinned to whatever the claude-code-router `go.mod` requires.**
   Never bump it to `origin/master`: that is the unreleased next-major dev
   tree, and it carries no `VERSION` file — which `claude-go-build.sh` parses
   and hard-fails without. A bump must be followed by `claude-go-build`,

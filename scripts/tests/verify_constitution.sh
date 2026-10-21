@@ -7,7 +7,7 @@
 # written to $PROOF_DIR/45-constitution.txt, nonzero exit if any check FAILs.
 #
 # Checks (docs/superpowers/specs/2026-07-04-provider-verification-design.md §7.4):
-#   CONST-051   submodules/LLMsVerifier carries zero toolkit coupling
+#   CONST-051   the LLMsVerifier checkout carries zero toolkit coupling
 #   §11.4.157   AGENTS.md / CLAUDE.md / QWEN.md / GEMINI.md exist and their
 #               byte sizes stay within 5% of each other (doc lockstep)
 #   §11.4.113   no force-push in any repo script (scripts/, upstreams/)
@@ -46,7 +46,9 @@ set +e  # failing-by-design greps must not abort the run
 
 # --- CONST-051: submodule/toolkit decoupling --------------------------------
 it "CONST-051: LLMsVerifier submodule carries zero toolkit coupling"
-SUB="$CMA_REPO_ROOT/submodules/LLMsVerifier"
+# Flat checkout via the single resolver (not a nested submodule any more).
+SUB="$(bash "$CMA_REPO_ROOT/scripts/resolve_deps.sh" llms_verifier "$CMA_REPO_ROOT" 2>/dev/null)" \
+  || SUB="<llms_verifier not resolvable: set CT_LLMS_VERIFIER_DIR>"
 if [[ ! -d "$SUB" ]]; then
   echo "SKIP: submodule not checked out at $SUB"
   echo "CONST-051 SKIP: submodule absent" >> "$EV"

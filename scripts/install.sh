@@ -139,7 +139,7 @@ for f in "$LIB_DIR"/kimi-*.sh; do
   cma_link_script_onto_path "$f" || true
 done
 
-# 2b. Build the BUNDLED Go claude-code-router (submodule) and install it as
+# 2b. Build the BUNDLED Go claude-code-router (flat checkout) and install it as
 # `ccr`, so the provider aliases route through OUR vendored router rather than a
 # separately-installed Node one.
 #
@@ -156,7 +156,7 @@ done
 # the operator re-run once per failure.
 # (Declared above step 2 — the PATH-link guard is now their first writer.)
 if ! bash "$LIB_DIR/claude-ccr-build.sh"; then
-  CMA_INSTALL_FAILURES+=("bundled claude-code-router (Go) did NOT build/install — provider aliases on the router transport cannot launch. Fix: ensure a Go toolchain new enough for submodules/claude-code-router/go.mod is available (install/upgrade Go: https://go.dev/dl/ — or, with an older Go already installed and network access: GOTOOLCHAIN=auto claude-ccr-build), then run: claude-ccr-build")
+  CMA_INSTALL_FAILURES+=("bundled claude-code-router (Go) did NOT build/install — provider aliases on the router transport cannot launch. Fix: ensure a Go toolchain new enough for the claude-code-router go.mod (checkout located by scripts/resolve_deps.sh claude_code_router) is available (install/upgrade Go: https://go.dev/dl/ — or, with an older Go already installed and network access: GOTOOLCHAIN=auto claude-ccr-build), then run: claude-ccr-build")
 fi
 
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc

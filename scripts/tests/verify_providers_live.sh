@@ -79,7 +79,7 @@ grep -q 'prov-' "$PROOF_DIR/51-detected-accounts.txt"; assert_eq 1 $? "no provid
   echo "# provider live verification — $(date)"
   echo "providers installed: $(find "$PDIR" -maxdepth 1 -name '*.env' 2>/dev/null | wc -l | tr -d ' ')"
   echo "ccr installed: $(command -v ccr >/dev/null 2>&1 && echo yes || echo no)"
-  echo "LLMsVerifier binary: $([[ -x "$SCRIPTS_DIR/../submodules/LLMsVerifier/bin/model-verification" ]] && echo built || echo not-built)"
+  echo "LLMsVerifier binary: $(_lvd="$(bash "$SCRIPTS_DIR/resolve_deps.sh" llms_verifier 2>/dev/null)"; [[ -n "$_lvd" && -x "$_lvd/bin/model-verification" ]] && echo built || echo not-built)"
 } >> "$EV"
 
 # --- layer 3 (semantic) + layer 4 (superpowers-TUI) per installed provider ---

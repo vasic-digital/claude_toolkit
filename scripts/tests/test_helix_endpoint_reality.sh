@@ -215,7 +215,7 @@ pv() {
   local errf="$1"; shift
   # CMA_VERIFIER_BIN=/nonexistent makes strategy 1 (the LLMsVerifier binary)
   # deterministically unavailable. Without it this whole section would depend
-  # on whether THIS host happens to have built submodules/LLMsVerifier — and
+  # on whether THIS host happens to have built the LLMsVerifier checkout — and
   # on a host that had, every case below would probe the network through a
   # different code path and fail for an unrelated reason.
   env -u CMA_PROVIDER_CA_CERT CMA_VERIFIER_BIN=/nonexistent bash "$PROVIDERS_VERIFY" \

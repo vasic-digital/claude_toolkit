@@ -51,8 +51,21 @@ assert_file_contains "$SCRIPTS_DIR/install.sh" 'claude-ccr-build.sh'
 it "lib.sh's provider-router guidance points at the bundled build"
 assert_file_contains "$SCRIPTS_DIR/lib.sh" 'claude-ccr-build'
 
-it ".gitmodules registers the claude-code-router submodule"
-assert_file_contains "$REPO_ROOT/.gitmodules" 'submodules/claude-code-router'
+it "the router is resolved flat (no nested submodule, no auto submodule init)"
+if grep -qiE '^[[:space:]]*(path|url)[[:space:]]*=.*claude-code-router' "$REPO_ROOT/.gitmodules"; then
+  _fail ".gitmodules still declares claude-code-router"; else _pass ".gitmodules does not declare claude-code-router (path/url lines)"; fi
+assert_file_contains "$BUILD" 'resolve_deps.sh" claude_code_router'
+assert_file_not_contains "$BUILD" 'submodule update'
+
+# Flat router checkout (empty when not resolvable on this host).
+ROUTER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT" 2>/dev/null || true)"
+
+it "router unresolvable => claude-ccr-build exits non-zero with an actionable message"
+_none="$(mktemp -d "${TMPDIR:-/tmp}/cma-noccr.XXXXXX")"
+out="$(CT_CLAUDE_CODE_ROUTER_DIR="$_none" bash "$BUILD" 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && _pass "non-zero ($rc)" || _fail "exit 0 with no router" "$out"
+grep -q 'CT_CLAUDE_CODE_ROUTER_DIR' <<<"$out" && _pass "message names CT_CLAUDE_CODE_ROUTER_DIR" || _fail "no actionable message" "$out"
+rm -rf "$_none"
 
 it "go.mod carries no patch-level toolchain pin (field failure 2026-07-25)"
 # A patch-pinned `go 1.26.4` directive plus a host toolchain one patch behind
@@ -66,7 +79,7 @@ it "go.mod carries no patch-level toolchain pin (field failure 2026-07-25)"
 # submodules/go by claude-go-build.sh) is available, the patch-level pin
 # is harmless because the vendored toolchain matches the required version
 # exactly. The GOTOOLCHAIN=auto retry also handles this case.
-gomod="$REPO_ROOT/submodules/claude-code-router/go.mod"
+gomod="${ROUTER_DIR:-<claude_code_router not resolvable>}/go.mod"
 if [[ -f "$gomod" ]]; then
   directive="$(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$gomod")"
   if [[ "$directive" =~ ^[0-9]+\.[0-9]+$ ]]; then
@@ -76,8 +89,11 @@ if [[ -f "$gomod" ]]; then
   else
     _fail "go directive carries a patch pin" "go.mod has 'go $directive' — must be major.minor (e.g. 1.26), else older same-minor toolchains with GOTOOLCHAIN=local cannot build"
   fi
+elif [[ -z "$ROUTER_DIR" ]]; then
+  echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR) — go.mod directive not checked"
+  _pass "skipped: router checkout not resolvable"
 else
-  _fail "go.mod not found" "$gomod (submodule not checked out?)"
+  _fail "go.mod not found" "$gomod"
 fi
 
 it "both build entrypoints advise on toolchain version skew"
@@ -115,8 +131,9 @@ it "builds with system Go when the vendored toolchain is absent"
 # VENDORED_GO. BIN_DIR follows the sandbox $HOME, so nothing outside is touched.
 if ! command -v go >/dev/null 2>&1; then
   _pass "skipped: no system Go on this host"
-elif [[ ! -f "$REPO_ROOT/submodules/claude-code-router/go.mod" ]]; then
-  _pass "skipped: claude-code-router submodule not checked out"
+elif [[ -z "$ROUTER_DIR" ]]; then
+  echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR)"
+  _pass "skipped: claude_code_router checkout not resolvable"
 else
   out="$(VENDORED_GO="$HOME/definitely-not-here/bin/go" bash "$BUILD" 2>&1)"; rc=$?
   case "$out" in
@@ -156,7 +173,7 @@ VGO_LOG="$HOME/vendored-go-invocations.log"
 
 MATRIX_READY=1
 [[ -n "$SYS_GO" ]] || MATRIX_READY=0
-[[ -f "$REPO_ROOT/submodules/claude-code-router/go.mod" ]] || MATRIX_READY=0
+[[ -n "$ROUTER_DIR" && -f "$ROUTER_DIR/go.mod" ]] || MATRIX_READY=0
 
 # _install_vendored_stub — write an executable fake `go` at the script's default
 # vendored path. It records every invocation, then execs the REAL system go, so

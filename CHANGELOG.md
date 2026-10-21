@@ -2,6 +2,35 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## Unreleased
+
+Own-org dependencies flattened (operator decision 2026-10-21: claude_toolkit
+tracks no own-org nested submodule; own-org repos live flat in
+`<root>/submodules` or `<hub>/constitution/submodules`).
+
+### Changed
+
+- Removed the `submodules/LLMsVerifier` (vasic-digital/LLMsVerifier, last pin
+  `8f2090ac`) and `submodules/claude-code-router` (vasic-digital/claude-code-router,
+  last pin `9accd18`) submodule declarations and gitlinks. `submodules/go`
+  (third-party) is the only submodule left.
+- `scripts/resolve_deps.sh` resolves `llms_verifier` and `claude_code_router`
+  (env `CT_LLMS_VERIFIER_DIR` / `CT_CLAUDE_CODE_ROUTER_DIR`, legacy
+  `LLMSVERIFIER_DIR` still honoured with `CT_` winning → parent hub →
+  `<root>/submodules` → sibling; snake_case name first, legacy repo name
+  accepted; identity markers `llm-verifier/go.mod` and `go.mod`+`cmd/ccr/main.go`;
+  the unresolvable message names the clone URL).
+- `claude-ccr-build.sh`, `ccr-install.sh`, `claude-verify-providers.sh`,
+  `claude-semantic-visibility.sh`, `providers-verify.sh` and the tests use the
+  resolver; `claude-ccr-build.sh` no longer runs `git submodule update`.
+- `curl-install.sh` clones the router as a flat sibling when it is not resolvable.
+
+### Added
+
+- `scripts/tests/test_gitmodules_no_ownorg.sh`: FAILs on any own-org URL in
+  `.gitmodules`, an own-org gitlink in the index, or a hardcoded old nested path
+  in `scripts/` (control needles included).
+
 ## v1.30.6 — 2026-10-21
 
 Single-source dependency layout (owner mandate 2026-10-21: one source of truth,

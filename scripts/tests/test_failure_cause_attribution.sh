@@ -8,7 +8,7 @@
 #
 #   (1) providers-semantic.sh mapped driver exit 1 to
 #       "layer-3 FAIL (cannot see code / bluffed)". Per the driver's own
-#       contract (submodules/LLMsVerifier/llm-verifier/cmd/
+#       contract (LLMsVerifier:llm-verifier/cmd/
 #       semantic-code-visibility/main.go:44-50) exit 1 ALSO covers definitive
 #       provider rejections of the model-under-test — HTTP 401/402/403/404.
 #       Measured over the committed corpus: 24 evidence files carried that

@@ -204,10 +204,11 @@ Layer-4 route attribution is now recorded per alias. Post-fix spot checks in the
 - **`CMA_HELIX_AUTOSTART` has no test.** `grep -rl CMA_HELIX_AUTOSTART scripts/tests/` returns nothing — neither the default-off branch nor the opt-in parse (`1|true|yes|on`) is pinned by the suite.
 - **`shellcheck` is clean only at `-S error` (0).** Warning level reports **62**, style level **203**. The README badge now says `0 errors` rather than implying a clean lint at every severity.
 - `submodules/containers`, `submodules/challenges`, `constitution`, `submodules/superspec` were un-declared (v1.30.6): resolved via `scripts/resolve_deps.sh` from the constitution hub instead.
+- `submodules/LLMsVerifier` and `submodules/claude-code-router` were un-declared too (after v1.30.6, operator decision 2026-10-21: no own-org nested submodule): resolved flat via `scripts/resolve_deps.sh llms_verifier|claude_code_router`. On a host with no parent hub, point `CT_CLAUDE_CODE_ROUTER_DIR` / `CT_LLMS_VERIFIER_DIR` at a checkout or clone it as a sibling.
 
 ### 4.2 Long-standing
 
-- `submodules/LLMsVerifier/CONSTITUTION.md` is **~284 KB** (290,921 bytes) and exceeds the 256 KB Read limit — use `offset`/`limit` or `grep`. (Earlier revisions of this file said 282.2 KB; it grows.)
+- The LLMsVerifier checkout's `CONSTITUTION.md` is **~284 KB** (290,921 bytes) and exceeds the 256 KB Read limit — use `offset`/`limit` or `grep`. (Earlier revisions of this file said 282.2 KB; it grows.)
 - Owned submodules do not carry the `claude_toolkit-` release prefix (§1.1).
 - The Go port of the TOON encoder (`scripts/toon/`) is built and tested but **nothing in the toolkit invokes it** — see `docs/TOON_Integration.md`.
 

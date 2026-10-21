@@ -9,12 +9,16 @@
 # Secrets: the command reads the model + judge keys from the env var NAMES given via
 # --api-key-env / --judge-api-key-env (os.Getenv), never from argv.
 #
-# Env knobs: LLMSVERIFIER_DIR (submodule path), LV_SEMANTIC_BIN (cached binary path).
+# Env knobs: CT_LLMS_VERIFIER_DIR / legacy LLMSVERIFIER_DIR (LLMsVerifier checkout, resolved by scripts/resolve_deps.sh), LV_SEMANTIC_BIN (cached binary path).
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LV_DIR="${LLMSVERIFIER_DIR:-$REPO_ROOT/submodules/LLMsVerifier}"
+# LLMsVerifier checkout: single resolver (env CT_LLMS_VERIFIER_DIR / legacy
+# LLMSVERIFIER_DIR -> parent hub -> <root>/submodules -> sibling). Not a nested
+# submodule of claude_toolkit any more. Empty on failure; checked below.
+LV_DIR="$(bash "$SCRIPT_DIR/resolve_deps.sh" llms_verifier "$REPO_ROOT" 2>"${TMPDIR:-/tmp}/.cma-lv-resolve.$$")" || LV_DIR=""
+LV_RESOLVE_ERR="$(cat "${TMPDIR:-/tmp}/.cma-lv-resolve.$$" 2>/dev/null)"; rm -f "${TMPDIR:-/tmp}/.cma-lv-resolve.$$"
 LV_MOD="$LV_DIR/llm-verifier"
 BIN="${LV_SEMANTIC_BIN:-$REPO_ROOT/.local-cache/semantic-code-visibility}"
 SRC="$LV_MOD/cmd/semantic-code-visibility/main.go"
@@ -27,14 +31,15 @@ case "${1:-}" in
     echo "usage: claude-semantic-visibility.sh [flags]"
     echo "  semantic-code-visibility driver: builds (cached) + runs the LLMsVerifier"
     echo "  layer-3 semantic-code-visibility command, forwarding all flags through."
-    echo "  Env: LLMSVERIFIER_DIR (submodule path), LV_SEMANTIC_BIN (cached binary path)."
+    echo "  Env: CT_LLMS_VERIFIER_DIR / LLMSVERIFIER_DIR (LLMsVerifier checkout), LV_SEMANTIC_BIN (cached binary path)."
     exit 0
     ;;
 esac
 
-if [ ! -d "$LV_MOD" ]; then
-  echo "error: LLMsVerifier submodule not initialized." >&2
-  echo "  run: git submodule update --init submodules/LLMsVerifier" >&2
+if [ -z "$LV_DIR" ] || [ ! -d "$LV_MOD" ]; then
+  echo "error: LLMsVerifier checkout not resolvable." >&2
+  [ -n "$LV_RESOLVE_ERR" ] && printf '%s\n' "$LV_RESOLVE_ERR" >&2
+  echo "  fix: set CT_LLMS_VERIFIER_DIR=/path/to/LLMsVerifier (or vendor it flat in the parent hub)" >&2
   exit 3
 fi
 if ! command -v go >/dev/null 2>&1; then

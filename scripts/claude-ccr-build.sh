@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# claude-ccr-build.sh — build the BUNDLED claude-code-router (Go) from the
-# submodule and install it as the toolkit's `ccr`.
+# claude-ccr-build.sh — build the BUNDLED claude-code-router (Go) from its
+# flat checkout and install it as the toolkit's `ccr`.
 #
 # The toolkit's provider aliases route through `ccr` (the OpenAI<->Anthropic
 # gateway). Historically that meant a separately-installed Node
-# `@musistudio/claude-code-router` on PATH. This repository now VENDORS a
-# from-scratch Go reimplementation as the `submodules/claude-code-router`
-# submodule; this script builds it and symlinks the result onto PATH so the
-# toolkit is self-contained and uses OUR router.
+# `@musistudio/claude-code-router` on PATH. The toolkit now uses OUR
+# from-scratch Go reimplementation (vasic-digital/claude-code-router). It is no
+# longer a nested submodule of this repo: the checkout is located by
+# scripts/resolve_deps.sh claude_code_router (CT_CLAUDE_CODE_ROUTER_DIR ->
+# <hub>/submodules/claude_code_router -> <root>/submodules/claude_code_router ->
+# sibling ../claude_code_router; legacy name claude-code-router accepted).
+# This script builds it and symlinks the result onto PATH.
 #
 # It is idempotent: re-running rebuilds the binary in place and re-points the
 # symlink. With no `go` toolchain: if a USABLE bundled router is already
@@ -34,23 +37,22 @@ unset _src _tgt
 source "$LIB_DIR/lib.sh"
 
 REPO_ROOT="$(cd "$LIB_DIR/.." && pwd)"
-SUBMODULE="$REPO_ROOT/submodules/claude-code-router"
+# The router checkout (variable name kept for history: it used to be a submodule).
+if ! SUBMODULE="$(bash "$LIB_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT")"; then
+  printf 'claude-ccr-build: the claude-code-router checkout could not be resolved (see above).
+  It is NOT a submodule of claude_toolkit any more; provide it flat (CT_CLAUDE_CODE_ROUTER_DIR, the parent hub, or a sibling clone).
+' >&2
+  exit 1
+fi
 # Hoisted above the Go gate: the no-Go path probes the artifact already
 # installed at $BIN_DIR/ccr before deciding whether missing Go is fatal.
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 
 # Vendored Go toolchain (built by claude-go-build.sh).
 VENDORED_GO="${VENDORED_GO:-$HOME/.local/share/claude-go/bin/go}"
-# 1. Ensure the submodule is checked out.
-if [ ! -f "$SUBMODULE/go.mod" ] || [ ! -d "$SUBMODULE/cmd/ccr" ]; then
-  cma_log "claude-code-router submodule not checked out — initialising ..."
-  if ! git -C "$REPO_ROOT" submodule update --init --recursive submodules/claude-code-router 2>/dev/null; then
-    printf 'claude-ccr-build: submodule submodules/claude-code-router is missing and could not be initialised.\n  Run: git -C %s submodule update --init --recursive\n' "$REPO_ROOT" >&2
-    exit 1
-  fi
-fi
+# 1. The resolver already verified the identity marker (go.mod + cmd/ccr/main.go).
 if [ ! -d "$SUBMODULE/cmd/ccr" ]; then
-  printf 'claude-ccr-build: %s does not contain cmd/ccr (unexpected submodule layout).\n' "$SUBMODULE" >&2
+  printf 'claude-ccr-build: %s does not contain cmd/ccr (unexpected router layout).\n' "$SUBMODULE" >&2
   exit 1
 fi
 

@@ -41,6 +41,11 @@ assert_file_not_contains "$INSTALL_SCRIPT" 'REPO_URL="https://github.com/vasic-d
 it "curl-install.sh uses --recursive for submodule clone"
 assert_file_contains "$INSTALL_SCRIPT" "git clone --recursive" "clone uses --recursive"
 
+it "curl-install.sh provisions the flat router via the resolver (no nested own-org submodule)"
+assert_file_contains "$INSTALL_SCRIPT" 'resolve_deps.sh" claude_code_router' "probes the resolver first"
+assert_file_contains "$INSTALL_SCRIPT" 'claude_code_router"' "clones the router as a flat sibling"
+assert_file_contains "$INSTALL_SCRIPT" 'die "git clone of claude-code-router failed' "dies loudly on router clone failure"
+
 it "curl-install.sh defaults INSTALL_DIR to ~/claude-toolkit"
 # shellcheck disable=SC2016  # matching literal $HOME in the script text
 assert_file_contains "$INSTALL_SCRIPT" 'INSTALL_DIR="${CLAUDE_TOOLKIT_DIR:-$HOME/claude-toolkit}"' "default install dir"

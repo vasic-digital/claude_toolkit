@@ -11,7 +11,7 @@
 // exposed (ccr's cleancache strips cache_control in the typed Anthropic->OpenAI
 // path); the direct-probe chain — and any client that talks to the proxy
 // without ccr in front — was. These tests pin the schema-AWARE strip semantics
-// of submodules/claude-code-router/internal/translate stripKey: every Anthropic
+// of claude-code-router:internal/translate stripKey: every Anthropic
 // cache_control goes (message-level, content-block-level, tool-level, system
 // blocks), but a JSON-Schema property legitimately NAMED cache_control inside a
 // tool input_schema "properties" bag is USER DATA and is preserved.

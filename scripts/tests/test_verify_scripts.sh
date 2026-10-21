@@ -228,7 +228,7 @@ assert_eq 2 "$rc" "unknown arg exit 2"
 grep -q "unknown arg" <<<"$bogus"; assert_eq 0 $? "stderr names the unknown arg"
 
 # Run against a COPY inside the sandbox so the script's VERIFIER_BIN resolves
-# relative to $HOME (where no submodules/LLMsVerifier exists) — making strategy 1
+# relative to $HOME (where no resolve_deps.sh / LLMsVerifier checkout exists) — making strategy 1
 # deterministically unavailable regardless of whether the real repo built it.
 COPY="$HOME/providers-verify-copy.sh"
 cp "$PROVIDERS_VERIFY" "$COPY"

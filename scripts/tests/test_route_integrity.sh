@@ -19,7 +19,7 @@
 #      successful one, and the launch proceeded on the previous route.
 #
 #   3. SILENT RESTART. `ccr restart` ran under `|| true`. The restart is what
-#      makes the write LIVE (submodules/claude-code-router/cmd/ccr/service.go,
+#      makes the write LIVE (claude-code-router:cmd/ccr/service.go,
 #      cmdRestart); a failed restart means the config file is right and the
 #      running gateway is still wrong — the config says one thing, the wire says
 #      another, and nothing anywhere reports it.
@@ -80,7 +80,7 @@ case "${1:-}" in
   --help|-h|help) echo "Usage: ccr start [--host <host>] [--port <port>]"
                   echo "  ccr serve [--host <host>] [--port <port>]"
                   # MUST advertise `ccr restart` with the bundled Go router's
-                  # grammar (submodules/claude-code-router/cmd/ccr/main.go):
+                  # grammar (claude-code-router:cmd/ccr/main.go):
                   # aa30853 made cma_run_provider identity-check the resolved
                   # ccr by grepping --help for exactly that subcommand (the
                   # npm router lacks it), so a stale --help trips the rc=127

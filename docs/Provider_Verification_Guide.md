@@ -244,7 +244,7 @@ claude-providers verify <id> --force
 
 ### "resolved ccr … is not the bundled claude-code-router"
 
-The `ccr` being used is not the toolkit's own router. The toolkit vendors a Go implementation (`submodules/claude-code-router`) and discriminates it by the `restart` subcommand: `ccr --help` shows `ccr restart` on the bundled router and does **not** on the Node `@musistudio/claude-code-router`. That missing subcommand is why route-apply failed in the field against the npm build. Fix:
+The `ccr` being used is not the toolkit's own router. The toolkit builds a Go implementation (the flat `claude_code_router` checkout, `scripts/resolve_deps.sh claude_code_router`) and discriminates it by the `restart` subcommand: `ccr --help` shows `ccr restart` on the bundled router and does **not** on the Node `@musistudio/claude-code-router`. That missing subcommand is why route-apply failed in the field against the npm build. Fix:
 
 ```bash
 claude-ccr-build                              # build + install the bundled Go router

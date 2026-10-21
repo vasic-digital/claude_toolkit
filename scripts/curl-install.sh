@@ -8,7 +8,8 @@
 #   1. Detects platform, shell, and architecture.
 #   2. Installs missing hard dependencies (jq, rsync, awk) via the system
 #      package manager when possible.
-#   3. Clones (or pulls) the toolkit repo with all submodules.
+#   3. Clones (or pulls) the toolkit repo with all submodules, then provisions
+#      the flat own-org router checkout as a sibling when it is not resolvable.
 #   4. Runs scripts/install.sh to symlink onto PATH, create the managed alias
 #      file, and wire up rc-file sourcing.
 #
@@ -100,6 +101,24 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
 else
   info "cloning $REPO_URL -> $INSTALL_DIR"
   git clone --recursive "$REPO_URL" "$INSTALL_DIR" || die "git clone failed"
+fi
+
+# ── 3b. Flat own-org dependencies ─────────────────────────────────────────────
+# claude_toolkit tracks NO own-org submodule (operator decision 2026-10-21): the
+# Go router it builds (vasic-digital/claude-code-router) lives FLAT, found by
+# scripts/resolve_deps.sh. A standalone curl install has no parent hub, so the
+# router is cloned as a SIBLING (the resolver's tier 4). LLMsVerifier is
+# optional (full model verification only) and is not cloned here.
+CCR_URL="${CLAUDE_TOOLKIT_CCR_URL:-https://github.com/vasic-digital/claude-code-router.git}"
+CCR_SIBLING="$(dirname "$INSTALL_DIR")/claude_code_router"
+if ! bash "$INSTALL_DIR/scripts/resolve_deps.sh" claude_code_router "$INSTALL_DIR" >/dev/null 2>&1; then
+  if [[ -d "$CCR_SIBLING/.git" ]]; then
+    info "pulling claude-code-router -> $CCR_SIBLING"
+    git -C "$CCR_SIBLING" pull --ff-only --quiet || die "git pull of $CCR_SIBLING failed"
+  else
+    info "cloning $CCR_URL -> $CCR_SIBLING (flat sibling; resolved by scripts/resolve_deps.sh)"
+    git clone --quiet "$CCR_URL" "$CCR_SIBLING" || die "git clone of claude-code-router failed (set CT_CLAUDE_CODE_ROUTER_DIR to an existing checkout and re-run)"
+  fi
 fi
 
 # ── 4. Run the internal installer ─────────────────────────────────────────────

@@ -2216,7 +2216,7 @@ cma_run_provider() {
     # re-imported on restart), so the write is inert-for-routing". That claim
     # described the RETIRED JS router and is INVERTED for the Go router that now
     # serves every alias. The Go source documents the opposite —
-    # submodules/claude-code-router/cmd/ccr/service.go, cmdRestart: the toolkit
+    # claude-code-router:cmd/ccr/service.go, cmdRestart: the toolkit
     # "rewrites ~/.claude-code-router/config.json before every provider-alias
     # launch and then runs `ccr restart` to make that rewrite take effect."
     # Post-ATM-870 (`a6a24e0`) the mechanism is richer than that quote: the

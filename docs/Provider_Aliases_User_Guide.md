@@ -20,8 +20,8 @@ existing providers.
 | The toolkit installed | provides `lib.sh`, the alias file, sync-state | `bash scripts/install.sh` |
 | A keys file | one `export NAME_API_KEY=...` per provider | `~/api_keys.sh` (default) or pass `--keys-file` |
 | `jq`, `python3`, `curl` | catalog parse + resolve + fetch | system package manager |
-| `claude-code-router` *(only for routed providers)* | translate Anthropic↔OpenAI/Gemini | `claude-ccr-build` — builds the **bundled Go** router from `submodules/claude-code-router`. Do **not** `npm install -g @musistudio/claude-code-router`; that is a different binary the toolkit treats as a doppelgänger (it lacks the `ccr restart` subcommand every route-apply needs). |
-| `submodules/LLMsVerifier` built *(optional)* | full "does this model work?" verification | see §7 |
+| `claude-code-router` *(only for routed providers)* | translate Anthropic↔OpenAI/Gemini | `claude-ccr-build` — builds the **bundled Go** router from the flat `claude_code_router` checkout (found by `scripts/resolve_deps.sh claude_code_router`: `CT_CLAUDE_CODE_ROUTER_DIR`, the parent hub, `<root>/submodules/`, or a sibling clone — it is not a submodule of this repo). Do **not** `npm install -g @musistudio/claude-code-router`; that is a different binary the toolkit treats as a doppelgänger (it lacks the `ccr restart` subcommand every route-apply needs). |
+| the `llms_verifier` (LLMsVerifier) checkout built *(optional)* | full "does this model work?" verification | see §7 |
 
 Your keys file is the **only** place secrets live. `claude-providers` reads the
 variable *names* from it (without executing it) to discover providers, and the
@@ -364,14 +364,18 @@ is one verification, two aliases sharing its outcome. A `kimi-<id>` alias is
 refused at launch unless its id is `verified` (override with `--force`).
 
 For an additional authoritative layer ("can this model genuinely see and
-describe my code?") build the LLMsVerifier submodule:
+describe my code?") build the LLMsVerifier checkout. It is not a submodule of
+this repo: provide it flat (the parent hub's `submodules/llms_verifier`, or a
+sibling clone) or point `CT_LLMS_VERIFIER_DIR` at it:
 
 ```bash
-git submodule update --init --depth 1 submodules/LLMsVerifier
-cd submodules/LLMsVerifier && go build -o bin/model-verification ./llm-verifier/cmd/model-verification
+LV="$(bash scripts/resolve_deps.sh llms_verifier)" \
+  || git clone --depth 1 git@github.com:vasic-digital/LLMsVerifier.git ../llms_verifier
+LV="$(bash scripts/resolve_deps.sh llms_verifier)"
+cd "$LV" && go build -o bin/model-verification ./llm-verifier/cmd/model-verification
 ```
 
-Once `submodules/LLMsVerifier/bin/model-verification` exists, `sync` prefers it
+Once `<llms_verifier>/bin/model-verification` exists, `sync` prefers it
 as the existence check. `sync` also runs the two-round semantic code-visibility
 check (sentinel + independent judge) when it is available; billing/auth
 rejections there demote the alias, while transient judge/infra errors are an
@@ -454,7 +458,7 @@ setting, `sync` will seed it automatically.
 A route is `provider,model` on disk, but the router also accepts a
 **client-supplied** selector in the request's `model` field, and it recognises
 *two* separators — comma and slash, leftmost wins
-(`submodules/claude-code-router/internal/router/selector.go`).
+(`claude-code-router:internal/router/selector.go`).
 
 Once `lib.sh` began exporting `ANTHROPIC_MODEL` for the **router** transport
 too, Claude Code put the raw catalog id in the request body —
@@ -1479,7 +1483,7 @@ HelixCode native providers and `claude-providers` can **coexist**:
 
 1. **HelixCode server** uses native providers for its own LLM operations
 2. **claude-providers** creates Claude Code aliases for interactive coding
-3. **Shared verification** — both can use LLMsVerifier submodule
+3. **Shared verification** — both can use the LLMsVerifier checkout
 4. **Different use cases** — HelixCode for automation/workflows, claude-providers for interactive coding
 
 **Example workflow:**

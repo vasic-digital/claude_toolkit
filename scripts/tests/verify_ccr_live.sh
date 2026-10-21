@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # verify_ccr_live.sh — end-to-end LIVE proof that the BUNDLED Go
-# claude-code-router (the `submodules/claude-code-router` submodule) really is
+# claude-code-router (flat checkout, scripts/resolve_deps.sh claude_code_router) really is
 # the toolkit's `ccr`, builds from source, and functions as a routing gateway:
 # it serves the health/ready probes, maps an unreachable upstream to the
 # Anthropic error envelope, records Prometheus metrics, and validates/redacts
@@ -37,7 +37,10 @@ PROOF_FINAL="$PROOF_DIR/ccr-go-live.txt"
 mkdir -p "$PROOF_DIR"
 
 BUILD_SCRIPT="$REPO_ROOT/scripts/claude-ccr-build.sh"
-SUBMODULE_BIN="$REPO_ROOT/submodules/claude-code-router/bin/ccr"
+# Flat router checkout via the single resolver; unresolvable => abort loudly.
+ROUTER_DIR="$(bash "$REPO_ROOT/scripts/resolve_deps.sh" claude_code_router "$REPO_ROOT")" \
+  || { echo "FAIL: claude_code_router checkout not resolvable (set CT_CLAUDE_CODE_ROUTER_DIR)" >&2; exit 1; }
+SUBMODULE_BIN="$ROUTER_DIR/bin/ccr"
 
 # A secret that lives ONLY in the ccr config's api_key. It must never surface in
 # any captured HTTP response, /metrics scrape, or committed proof file. Every
@@ -288,14 +291,14 @@ it "TLS + HTTP/3: bundled ccr serves HTTPS via --tls-cert/--tls-key/--http3"
 section "5. TLS + HTTP/3"
 # Capability gate: the flags only exist once the bundled router carries the
 # TLS/HTTP3 feature. A build that predates it must be SKIPped (not FAILed) —
-# this leg self-activates the moment submodules/claude-code-router is bumped to
+# this leg self-activates the moment the claude_code_router checkout is bumped to
 # a commit that exposes the flags in `ccr --help`.
 CCR_HELP="$("$CCR" --help 2>&1)"
 if ! command -v openssl >/dev/null 2>&1; then
   msg="SKIP: openssl not found — cannot mint a self-signed cert; TLS/HTTP3 leg skipped (not faked)."
   echo "$msg"; echo "$msg" >> "$PROOF"
 elif ! grep -q -- '--tls-cert' <<<"$CCR_HELP" || ! grep -q -- '--http3' <<<"$CCR_HELP"; then
-  msg="SKIP: the bundled ccr build does not expose --tls-cert/--tls-key/--http3 (submodule predates the TLS/HTTP3 feature); TLS/HTTP3 leg skipped. Bump submodules/claude-code-router to a commit carrying the feature to activate this leg."
+  msg="SKIP: the bundled ccr build does not expose --tls-cert/--tls-key/--http3 (submodule predates the TLS/HTTP3 feature); TLS/HTTP3 leg skipped. Bump the claude_code_router checkout to a commit carrying the feature to activate this leg."
   echo "$msg"; echo "$msg" >> "$PROOF"
 else
   TLS_CERT="$TMP_ROOT/tls-cert.pem"
@@ -437,7 +440,7 @@ fi
 it "inbound auth: --api-key gates /v1/messages (Bearer + x-api-key), never /health"
 section "6. inbound auth (--api-key)"
 if ! grep -q -- '--api-key' <<<"$CCR_HELP"; then
-  msg="SKIP: the bundled ccr build does not expose --api-key (submodule predates inbound gateway auth); auth leg skipped. Bump submodules/claude-code-router to a commit carrying the feature to activate this leg."
+  msg="SKIP: the bundled ccr build does not expose --api-key (submodule predates inbound gateway auth); auth leg skipped. Bump the claude_code_router checkout to a commit carrying the feature to activate this leg."
   echo "$msg"; echo "$msg" >> "$PROOF"
 else
   # A canary inbound key. The "testkey-canary-" prefix is deliberately NOT a

@@ -10,7 +10,7 @@
 # invisible to everything except the one test being probed.
 #
 # During the v1.23.1 launch-path work an independent reviewer mutated
-#   submodules/claude-code-router/cmd/ccr/launch.go
+#   claude-code-router:cmd/ccr/launch.go
 #     -  if surface == "app" {
 #     +  if surface == "app" && false {
 # to prove TestLaunchRejectsAppSurface had teeth. `&& false` makes the branch
@@ -43,14 +43,19 @@ it "no mutation residue in the bundled Go router's production sources"
 # pass. An unchecked-out submodule, a renamed cmd//internal layout or a typo in
 # either path produces exactly that same silence. Count the corpus first — a
 # clean bill of health is only meaningful over a non-empty set of files.
-_go_files="$(find "$REPO_ROOT/submodules/claude-code-router/cmd" \
-  "$REPO_ROOT/submodules/claude-code-router/internal" \
+# The router is a FLAT checkout located by the single resolver (not a submodule
+# of this repo any more). Unresolvable => ROUTER_DIR is a non-existent marker
+# path and the anti-vacuous corpus count below FAILs loudly.
+ROUTER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT")" \
+  || ROUTER_DIR="<claude_code_router not resolvable>"
+_go_files="$(find "$ROUTER_DIR/cmd" \
+  "$ROUTER_DIR/internal" \
   -type f -name '*.go' 2>/dev/null | grep -c . || true)"
 cond=1; [[ "${_go_files:-0}" -ge 5 ]] && cond=0
 assert_eq 0 "$cond" "the Go residue sweep had sources to read ($_go_files *.go files)"
 go_hits="$(grep -rnE "$RESIDUE_RE" \
-  "$REPO_ROOT/submodules/claude-code-router/cmd" \
-  "$REPO_ROOT/submodules/claude-code-router/internal" \
+  "$ROUTER_DIR/cmd" \
+  "$ROUTER_DIR/internal" \
   --include='*.go' 2>/dev/null | grep -v '_test\.go:' || true)"
 if [[ -z "$go_hits" ]]; then
   _pass "no mutation residue in cmd/ + internal/ (*.go, excluding _test.go)"

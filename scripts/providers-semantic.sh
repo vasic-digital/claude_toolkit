@@ -164,7 +164,7 @@ set -e
 #
 # WHY (2026-07-27 audit). Driver exit 1 does NOT mean "cannot see code /
 # bluffed". Per the driver's own contract
-# (submodules/LLMsVerifier/llm-verifier/cmd/semantic-code-visibility/main.go:44-50)
+# (LLMsVerifier:llm-verifier/cmd/semantic-code-visibility/main.go:44-50)
 # exit 1 ALSO covers definitive provider rejections on the model-under-test —
 # HTTP 401, 402, 403, 404 — because auth failure, depleted credit and
 # model-not-found are deterministic states, not transient infra. Printing a

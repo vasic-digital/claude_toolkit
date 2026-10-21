@@ -47,7 +47,7 @@ EOF
 chmod +x "$HOME/.local/bin/claude-session" "$HOME/.local/bin/claude-sync-state"
 
 # Fake ccr. The accepted subcommand set MIRRORS the bundled Go router
-# (submodules/claude-code-router/cmd/ccr/main.go): start|ui|serve|web|stop|
+# (claude-code-router:cmd/ccr/main.go): start|ui|serve|web|stop|
 # restart|config|help|-h|--help, plus the launch grammar the toolkit uses
 # (`default-claude-code`, with `code` as its alias).
 #

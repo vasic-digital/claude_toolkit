@@ -27,7 +27,11 @@ source "$SCRIPTS_DIR/lib.sh"
 set +e
 
 LIB_SH="$SCRIPTS_DIR/lib.sh"
-ROUTER_MAIN="$REPO_ROOT/submodules/claude-code-router/cmd/ccr/main.go"
+# Flat router checkout via the single resolver (loud on failure; the
+# assert_file below then FAILs naming the unresolved path).
+ROUTER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT")" \
+  || ROUTER_DIR="<claude_code_router not resolvable>"
+ROUTER_MAIN="$ROUTER_DIR/cmd/ccr/main.go"
 
 # ---------------------------------------------------------------------------
 # Extractors

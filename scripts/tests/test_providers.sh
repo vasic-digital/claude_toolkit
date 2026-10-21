@@ -1543,7 +1543,7 @@ chmod +x "$HOME/fakebin/go"
 
 it "claude-semantic-visibility.sh builds (cached) + forwards flags to the binary"
 rm -f "$_sem_bin"
-out="$( PATH="$HOME/fakebin:$PATH" LLMSVERIFIER_DIR="$SCRIPTS_DIR/../submodules/LLMsVerifier" \
+out="$( PATH="$HOME/fakebin:$PATH" LLMSVERIFIER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" llms_verifier 2>/dev/null || echo "<llms_verifier not resolvable>")" \
         LV_SEMANTIC_BIN="$_sem_bin" bash "$SEMDRV" --model m --sentinel Z 2>/dev/null )"
 grep -q 'SCV-STUB' <<<"$out"; assert_eq 0 $? "driver execs the built binary"
 grep -q -- '--sentinel Z' <<<"$out"; assert_eq 0 $? "driver forwards flags verbatim"
