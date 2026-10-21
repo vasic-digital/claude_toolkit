@@ -27,6 +27,10 @@ tracks no own-org nested submodule; own-org repos live flat in
 
 ### Added
 
+- `helix-deps.yaml` (§11.4.31 dependency manifest: HelixConstitution, containers,
+  challenges, LLMsVerifier, claude-code-router; all flat; ssh_url verified with
+  `git ls-remote`) and `scripts/tests/test_helix_deps_manifest.sh` (offline
+  shape + coverage validation, negative control).
 - `scripts/tests/test_gitmodules_no_ownorg.sh`: FAILs on any own-org URL in
   `.gitmodules`, an own-org gitlink in the index, or a hardcoded old nested path
   in `scripts/` (control needles included).

@@ -1,0 +1,18 @@
+# §11.4.31 Submodule-Dependency-Manifest — own-org deps of claude_toolkit,
+# resolved FLAT from the parent project (never nested own-org submodules;
+# §11.4.28(C), operator decision 2026-10-21). Resolution: scripts/resolve_deps.sh
+# (CT_<NAME>_DIR -> <hub>/submodules/<name> -> <root>/submodules/<name> -> sibling).
+# ssh_url values verified with `git ls-remote <url> refs/heads/main` (2026-10-21).
+# Third-party, NOT listed here: submodules/go (go.googlesource.com, the only
+# submodule) and superspec (WangX0111/superspec, resolved like the others).
+schema_version: 1
+deps:
+  - { name: HelixConstitution,  ssh_url: git@github.com:HelixDevelopment/HelixConstitution.git, ref: main, why: governance canon + mechanical acceptance tools (resolve_deps.sh constitution), layout: flat }
+  - { name: containers,         ssh_url: git@github.com:vasic-digital/containers.git,            ref: main, why: LLMsVerifier data/observability tier boot (config/containers), layout: flat }
+  - { name: challenges,         ssh_url: git@github.com:vasic-digital/challenges.git,            ref: main, why: challenge banks for the LLMsVerifier tier (config/containers/llmsverifier), layout: flat }
+  - { name: LLMsVerifier,       ssh_url: git@github.com:vasic-digital/LLMsVerifier.git,          ref: main, why: provider model + semantic code-visibility verification (resolve_deps.sh llms_verifier), layout: flat }
+  - { name: claude-code-router, ssh_url: git@github.com:vasic-digital/claude-code-router.git,    ref: main, why: bundled Go ccr gateway for router-transport aliases (resolve_deps.sh claude_code_router), layout: flat }
+transitive_handling:
+  recursive: true
+  conflict_resolution: operator-required
+language_specific_subtree: false

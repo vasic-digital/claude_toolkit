@@ -177,6 +177,8 @@ by `scripts/resolve_deps.sh <name>`: `CT_<NAME>_DIR` override → parent hub
 (`<hub>/submodules/<name>`) → `<root>/submodules/<name>` → sibling `../<name>`,
 with a loud error and the clone command when nothing resolves. A standalone
 `curl-install.sh` run clones the router as a sibling for you.
+The own-org dependency manifest is [`helix-deps.yaml`](helix-deps.yaml)
+(§11.4.31; validated by `scripts/tests/test_helix_deps_manifest.sh`).
 
 ## 🗂️ Layout after unification
 
