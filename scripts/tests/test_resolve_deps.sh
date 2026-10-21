@@ -89,4 +89,10 @@ for p in submodules/LLMsVerifier submodules/claude-code-router submodules/go; do
   grep -qE "path = $p\$" "$REPO_ROOT/.gitmodules" && _pass "own dep kept: $p" || _fail "own dep lost: $p"
 done
 
+it "in-repo consumers use the resolver instead of hardcoded constitution/ paths"
+grep -q 'resolve_deps.sh' "$TESTS_DIR/test_mechanical_tools_acceptance.sh" \
+  && _pass "mechanical acceptance test sources the resolver" || _fail "mechanical acceptance test still hand-rolls resolution"
+if grep -qE 'REPO_ROOT/constitution/scripts/mechanical' "$TESTS_DIR/test_mechanical_tools_acceptance.sh"; then
+  _fail "hardcoded in-tree constitution path remains"; else _pass "no hardcoded in-tree constitution path"; fi
+
 summary

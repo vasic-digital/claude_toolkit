@@ -46,27 +46,19 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/cma-mechacc.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 # --- resolve the mechanical tools, project-agnostically (§11.4.177) ---------
-# Order: explicit override, then an in-tree checkout, then an ancestor search.
-# NO project name appears anywhere in this resolution — hardcoding one is the
-# coupling §11.4.177 exists to forbid.
+# Single source of truth: scripts/resolve_deps.sh (env override -> parent hub ->
+# in-tree -> siblings -> host fallback). CMA_CONSTITUTION_DIR is kept as a
+# back-compat alias of CT_CONSTITUTION_DIR. An override that does not resolve
+# is an error, never a cue to go hunting elsewhere.
+# shellcheck source=../resolve_deps.sh
+source "$SCRIPTS_DIR/resolve_deps.sh"
 resolve_mech() {
-  local d
-  if [[ -n "${CMA_CONSTITUTION_DIR:-}" ]]; then
-    d="$CMA_CONSTITUTION_DIR/scripts/mechanical"
-    [[ -d "$d" ]] && { printf '%s\n' "$d"; return 0; }
-    return 1   # an explicit override that does not resolve is an error, not a
-               # cue to go hunting elsewhere and silently use something else
-  fi
-  [[ -d "$REPO_ROOT/constitution/scripts/mechanical" ]] && {
-    printf '%s\n' "$REPO_ROOT/constitution/scripts/mechanical"; return 0; }
-  local p="$REPO_ROOT"
-  while [[ "$p" != "/" ]]; do
-    for d in "$p"/*/constitution/scripts/mechanical "$p"/constitution/scripts/mechanical; do
-      [[ -d "$d" ]] && { printf '%s\n' "$d"; return 0; }
-    done
-    p="$(dirname "$p")"
-  done
-  return 1
+  local c
+  [[ -n "${CMA_CONSTITUTION_DIR:-}" && -z "${CT_CONSTITUTION_DIR:-}" ]] && \
+    export CT_CONSTITUTION_DIR="$CMA_CONSTITUTION_DIR"
+  c="$(ct_resolve_dep constitution "$REPO_ROOT" 2>/dev/null)" || return 1
+  [[ -d "$c/scripts/mechanical" ]] || return 1
+  printf '%s\n' "$c/scripts/mechanical"
 }
 
 MECH="$(resolve_mech)" || MECH=""
@@ -75,7 +67,7 @@ if [[ -z "$MECH" ]]; then
   echo "SKIP: the §11.4.274 mechanical tools are not reachable from this checkout."
   echo "  UNAVAILABLE : constitution/scripts/mechanical (mutation_harness.sh, census_query.sh, await_condition.sh)"
   echo "  STILL WORKS : every other suite in this directory — these tools are used BY tests, not by the toolkit at runtime."
-  echo "  TO SUPPLY   : set CMA_CONSTITUTION_DIR=/path/to/constitution, or place a constitution checkout beside this repo."
+  echo "  TO SUPPLY   : set CT_CONSTITUTION_DIR=/path/to/constitution (CMA_CONSTITUTION_DIR also accepted), or vendor this repo under a constitution hub (see scripts/resolve_deps.sh)."
   echo
   echo "0 passed, 0 failed"
   exit 0
