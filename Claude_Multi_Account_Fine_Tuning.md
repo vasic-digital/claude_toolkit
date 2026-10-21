@@ -1314,9 +1314,14 @@ per-line lint would report guarded code as bare — and then behaviourally
 executes the emitters in a shell with no `lib.sh` present, to prove the text
 actually arrives.
 
-## 15. Bundled submodules and their pins
+## 15. Dependencies and their pins
 
-The toolkit vendors three own-dependency submodules. Pins as of `claude_toolkit-1.26.7`
+The toolkit's only submodule today is the third-party `submodules/go`. Its own-org
+dependencies (`LLMsVerifier`, `claude-code-router`) are flat checkouts found by
+`scripts/resolve_deps.sh` and declared in `helix-deps.yaml`; a standalone
+`curl-install.sh` run clones the router over https into
+`$(dirname INSTALL_DIR)/claude_code_router` when there is no parent hub.
+Historical pins as of `claude_toolkit-1.26.7`, when all three were submodules
 (`git submodule status`):
 
 | Submodule | Pin | Role |

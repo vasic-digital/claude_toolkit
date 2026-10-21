@@ -21,7 +21,7 @@ flowchart TB
     LIB["lib.sh helpers\n(env/alias/link/enable)"]
   end
 
-  subgraph Verifier["submodules/LLMsVerifier (optional)"]
+  subgraph Verifier["LLMsVerifier flat checkout via resolve_deps.sh (optional)"]
     BIN["bin/model-verification"]
   end
 
