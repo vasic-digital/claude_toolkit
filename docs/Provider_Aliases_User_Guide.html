@@ -401,14 +401,19 @@ providers.</p>
 providers)</em></td>
 <td>translate Anthropic↔︎OpenAI/Gemini</td>
 <td><code>claude-ccr-build</code> — builds the <strong>bundled
-Go</strong> router from <code>submodules/claude-code-router</code>. Do
-<strong>not</strong>
+Go</strong> router from the flat <code>claude_code_router</code>
+checkout (found by
+<code>scripts/resolve_deps.sh claude_code_router</code>:
+<code>CT_CLAUDE_CODE_ROUTER_DIR</code>, the parent hub,
+<code>&lt;root&gt;/submodules/</code>, or a sibling clone — it is not a
+submodule of this repo). Do <strong>not</strong>
 <code>npm install -g @musistudio/claude-code-router</code>; that is a
 different binary the toolkit treats as a doppelgänger (it lacks the
 <code>ccr restart</code> subcommand every route-apply needs).</td>
 </tr>
 <tr>
-<td><code>submodules/LLMsVerifier</code> built <em>(optional)</em></td>
+<td>the <code>llms_verifier</code> (LLMsVerifier) checkout built
+<em>(optional)</em></td>
 <td>full &quot;does this model work?&quot; verification</td>
 <td>see §7</td>
 </tr>
@@ -876,10 +881,15 @@ Code twin — there is one verification, two aliases sharing its outcome.
 A <code>kimi-&lt;id&gt;</code> alias is refused at launch unless its id
 is <code>verified</code> (override with <code>--force</code>).</p>
 <p>For an additional authoritative layer (&quot;can this model genuinely see
-and describe my code?&quot;) build the LLMsVerifier submodule:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> submodule update <span class="at">--init</span> <span class="at">--depth</span> 1 submodules/LLMsVerifier</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> submodules/LLMsVerifier <span class="kw">&amp;&amp;</span> <span class="ex">go</span> build <span class="at">-o</span> bin/model-verification ./llm-verifier/cmd/model-verification</span></code></pre></div>
-<p>Once <code>submodules/LLMsVerifier/bin/model-verification</code>
+and describe my code?&quot;) build the LLMsVerifier checkout. It is not a
+submodule of this repo: provide it flat (the parent hub&#39;s
+<code>submodules/llms_verifier</code>, or a sibling clone) or point
+<code>CT_LLMS_VERIFIER_DIR</code> at it:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="va">LV</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> scripts/resolve_deps.sh llms_verifier<span class="va">)</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">||</span> <span class="fu">git</span> clone <span class="at">--depth</span> 1 git@github.com:vasic-digital/LLMsVerifier.git ../llms_verifier</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="va">LV</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> scripts/resolve_deps.sh llms_verifier<span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$LV</span><span class="st">&quot;</span> <span class="kw">&amp;&amp;</span> <span class="ex">go</span> build <span class="at">-o</span> bin/model-verification ./llm-verifier/cmd/model-verification</span></code></pre></div>
+<p>Once <code>&lt;llms_verifier&gt;/bin/model-verification</code>
 exists, <code>sync</code> prefers it as the existence check.
 <code>sync</code> also runs the two-round semantic code-visibility check
 (sentinel + independent judge) when it is available; billing/auth
@@ -1074,7 +1084,7 @@ model ids (fixed in v1.26.7)</h3>
 accepts a <strong>client-supplied</strong> selector in the request&#39;s
 <code>model</code> field, and it recognises <em>two</em> separators —
 comma and slash, leftmost wins
-(<code>submodules/claude-code-router/internal/router/selector.go</code>).</p>
+(<code>claude-code-router:internal/router/selector.go</code>).</p>
 <p>Once <code>lib.sh</code> began exporting <code>ANTHROPIC_MODEL</code>
 for the <strong>router</strong> transport too, Claude Code put the raw
 catalog id in the request body —
@@ -2863,8 +2873,8 @@ claude-providers</h3>
 LLM operations</li>
 <li><strong>claude-providers</strong> creates Claude Code aliases for
 interactive coding</li>
-<li><strong>Shared verification</strong> — both can use LLMsVerifier
-submodule</li>
+<li><strong>Shared verification</strong> — both can use the LLMsVerifier
+checkout</li>
 <li><strong>Different use cases</strong> — HelixCode for
 automation/workflows, claude-providers for interactive coding</li>
 </ol>
