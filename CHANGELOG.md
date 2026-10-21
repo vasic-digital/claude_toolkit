@@ -2,6 +2,31 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.30.6 — 2026-10-21
+
+Single-source dependency layout (owner mandate 2026-10-21: one source of truth,
+no nested duplicate chains).
+
+### Changed
+
+- Removed the `constitution`, `submodules/containers`, `submodules/challenges`
+  and `submodules/superspec` submodule declarations and gitlinks; the
+  constitution hub that vendors the toolkit already carries them. Previous
+  pins: constitution `e44f22f`, containers `4a8f04e`, challenges `8a352b9`,
+  superspec `c20ac6c`. Own deps (`LLMsVerifier`, `claude-code-router`, `go`)
+  stay; `go` keeps its documented HTTPS URL exception.
+- `test_mechanical_tools_acceptance.sh` resolves the constitution through the
+  new resolver (it previously walked ancestors and could pick up an unrelated
+  project's constitution); `CMA_CONSTITUTION_DIR` remains accepted.
+
+### Added
+
+- `scripts/resolve_deps.sh` (env override -> parent hub -> in-tree -> siblings
+  -> host fallback; non-zero + actionable message when unresolvable) and
+  `scripts/tests/test_resolve_deps.sh` (44 assertions).
+- "Shared dependency layout" section in CLAUDE.md / AGENTS.md / GEMINI.md /
+  QWEN.md.
+
 ## v1.30.5 — 2026-10-10
 
 Fix-forward release addressing the independent NO-GO review of merge
