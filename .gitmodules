@@ -2,22 +2,14 @@
 	path = submodules/LLMsVerifier
 	url = git@github.com:vasic-digital/LLMsVerifier.git
 	branch = main
-[submodule "submodules/containers"]
-	path = submodules/containers
-	url = git@github.com:vasic-digital/containers.git
-[submodule "submodules/challenges"]
-	path = submodules/challenges
-	url = git@github.com:vasic-digital/challenges.git
 [submodule "submodules/claude-code-router"]
 	path = submodules/claude-code-router
 	url = git@github.com:vasic-digital/claude-code-router.git
 	branch = main
+# DELIBERATE EXCEPTION: the only HTTPS URL. go.googlesource.com is the canonical
+# upstream of the Go toolchain; no SSH mirror is used elsewhere in the fleet, so
+# none is invented here. constitution/containers/challenges/superspec are NOT
+# declared: they resolve via scripts/resolve_deps.sh (single source of truth).
 [submodule "submodules/go"]
 	path = submodules/go
 	url = https://go.googlesource.com/go
-[submodule "constitution"]
-	path = constitution
-	url = git@github.com:HelixDevelopment/HelixConstitution.git
-[submodule "submodules/superspec"]
-	path = submodules/superspec
-	url = git@github.com:WangX0111/superspec.git
