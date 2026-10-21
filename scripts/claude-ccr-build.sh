@@ -15,7 +15,7 @@
 # It is idempotent: re-running rebuilds the binary in place and re-points the
 # symlink. With no `go` toolchain: if a USABLE bundled router is already
 # installed at $BIN_DIR/ccr it warns that the router cannot be rebuilt (and
-# will go stale on submodule updates) and exits 0 — the artifact, not the
+# will go stale on router checkout updates) and exits 0 — the artifact, not the
 # build prerequisite, is what the gate asserts; otherwise it explains how to
 # install Go and exits non-zero, which install.sh records as a REAL failure.
 #
@@ -62,7 +62,7 @@ fi
 # instructions — deliberately NOT an auto-bootstrap that downloads Go. Reasons,
 # in order of weight:
 #   1. An auto-bootstrap must pin a verified checksum per (version x os x arch).
-#      The required version tracks this submodule's go.mod (see below) and would
+#      The required version tracks the router checkout's go.mod (see below) and would
 #      go stale on every bump; shipping an unverified — or silently stale —
 #      toolchain download is precisely the unverified-dependency risk we refuse
 #      (§11.4.6/§11.4.10).
@@ -99,7 +99,7 @@ if ! command -v go >/dev/null 2>&1; then
         *"ccr restart"*)
           cma_warn "Go toolchain not found — cannot REBUILD the bundled claude-code-router.
   The existing bundled router verified usable ($_resident — 'ccr restart' grammar present),
-  so this install keeps working. It WILL GO STALE on submodule updates until Go
+  so this install keeps working. It WILL GO STALE on router checkout updates until Go
   is installed:
     Debian/Ubuntu:  sudo apt install golang-go
     Fedora/RHEL:    sudo dnf install golang
@@ -149,7 +149,7 @@ if [ -n "$_need" ] && [ -n "$_have" ] \
   printf '  If the build below fails on the toolchain version, either:\n    export GOTOOLCHAIN=auto     # let Go fetch %s itself (needs network)\n  or upgrade your Go to %s+ (https://go.dev/dl/).\n' "$_need" "$_need" >&2
 fi
 
-# 3. Build ./cmd/ccr into the submodule's bin/ccr (matches the submodule
+# 3. Build ./cmd/ccr into the router checkout's bin/ccr (matches the router repo's
 #    Makefile's output path).
 # Prefer the vendored Go toolchain if built; fall back to system Go.
 #
@@ -203,7 +203,7 @@ if [ "$_built_ok" != "1" ]; then
   Toolchain used: $_go_bin ($("$_go_bin" version 2>&1 | head -1)); go.mod requires $(awk '/^go[ \t]+[0-9]/ {print $2; exit}' "$SUBMODULE/go.mod" 2>/dev/null || echo "<unreadable>").
   The cause is in the compiler output above — this script does not guess at it.
   The existing bundled router at $_resident verified usable ('ccr restart' grammar present),
-  so this install keeps working. It WILL GO STALE on the next submodule change until the build succeeds.
+  so this install keeps working. It WILL GO STALE on the next router checkout change until the build succeeds.
   Re-run to see the failure in full:  claude-ccr-build"
           exit 0
           ;;

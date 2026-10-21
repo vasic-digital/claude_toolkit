@@ -26,7 +26,14 @@ set +e
 
 it "verify_constitution.sh passes on the real repo and writes evidence"
 PROOF_DIR="$SANDBOX_HOME/proof-real" bash "$TESTS_DIR/verify_constitution.sh" >/dev/null 2>&1
-assert_eq 0 $? "exit 0 on the real repo"
+rc=$?
+if bash "$TESTS_DIR/../resolve_deps.sh" llms_verifier >/dev/null 2>&1; then
+  assert_eq 0 "$rc" "exit 0 on the real repo (LLMsVerifier resolvable)"
+else
+  # CONST-051 cannot run: exit 3 = no FAIL but NOT a pass (visible SKIP).
+  echo "SKIP: LLMsVerifier not resolvable on this host — CONST-051 not verified (set CT_LLMS_VERIFIER_DIR)"
+  assert_eq 3 "$rc" "exit 3 (not-a-pass) on the real repo without a resolvable LLMsVerifier"
+fi
 assert_file "$SANDBOX_HOME/proof-real/45-constitution.txt" "evidence file written for the real repo"
 
 # --- controlled fixture repo -------------------------------------------------
@@ -59,8 +66,20 @@ done
 # No .env, no .github, no .gitlab-ci.yml, no submodule checkout — those
 # checks SKIP or vacuously pass on the fixture.
 
-it "well-formed fixture repo passes (SKIPs count as pass)"
-CMA_REPO_ROOT="$FIX" PROOF_DIR="$SANDBOX_HOME/proof-fixture" \
+it "fixture with NO resolvable LLMsVerifier: CONST-051 SKIP is visible and NOT a pass (exit 3)"
+out="$(env -u CT_LLMS_VERIFIER_DIR -u LLMSVERIFIER_DIR CMA_REPO_ROOT="$FIX" PROOF_DIR="$SANDBOX_HOME/proof-noverifier" \
+  bash "$TESTS_DIR/verify_constitution.sh" 2>&1)"; rc=$?
+assert_eq 3 "$rc" "exit 3 when CONST-051 could not run"
+grep -q 'CONST-051 NOT VERIFIED' <<<"$out" && _pass "SKIP banner names CONST-051 NOT VERIFIED" || _fail "no visible CONST-051 SKIP banner" "$out"
+grep -q 'CT_LLMS_VERIFIER_DIR' <<<"$out" && _pass "banner names CT_LLMS_VERIFIER_DIR" || _fail "banner lacks the fix" "$out"
+
+# A populated, decoupled fake LLMsVerifier checkout (identity marker + >=20 files).
+FAKE_LV="$SANDBOX_HOME/fake_llms_verifier"
+mkdir -p "$FAKE_LV/llm-verifier"; : > "$FAKE_LV/llm-verifier/go.mod"
+for n in $(seq 1 22); do printf 'package x // file %s\n' "$n" > "$FAKE_LV/llm-verifier/f$n.go"; done
+
+it "well-formed fixture repo with a resolvable LLMsVerifier passes (exit 0)"
+CT_LLMS_VERIFIER_DIR="$FAKE_LV" CMA_REPO_ROOT="$FIX" PROOF_DIR="$SANDBOX_HOME/proof-fixture" \
   bash "$TESTS_DIR/verify_constitution.sh" >/dev/null 2>&1
 assert_eq 0 $? "exit 0 on well-formed fixture"
 assert_file "$SANDBOX_HOME/proof-fixture/45-constitution.txt" "evidence file written for the fixture"

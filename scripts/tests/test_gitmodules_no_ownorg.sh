@@ -68,7 +68,9 @@ else _fail "own-org gitlink(s) tracked:$bad" "git rm them; the parent project ve
 it "no executable script hardcodes the old nested paths (they must use the resolver)"
 # Code, not prose: lines that are comments are carriers and are skipped.
 # The resolver's own fixtures and this gate are excluded.
-code_hits="$(grep -rnE 'submodules/(LLMsVerifier|claude-code-router)' "$SCRIPTS_DIR" \
+# Both the legacy repo names and the canonical snake_case names are covered:
+# a hardcoded submodules/llms_verifier bypasses the resolver just as badly.
+code_hits="$(grep -rniE 'submodules/(LLMsVerifier|llms_verifier|claude-code-router|claude_code_router)' "$SCRIPTS_DIR" \
     --include='*.sh' --include='*.go' --include='*.py' 2>/dev/null \
   | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(#|//)' \
   | grep -vE '/tests/(test_resolve_deps|test_gitmodules_no_ownorg)\.sh:' || true)"

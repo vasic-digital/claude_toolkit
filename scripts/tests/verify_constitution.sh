@@ -2,8 +2,8 @@
 # verify_constitution.sh — Tier C: constitution/conformance static checks.
 #
 # Read-only, no network. Follows the verify_*.sh conventions: NOT named
-# test_*.sh (run-all.sh won't auto-pick it), honest SKIP (counted as pass)
-# when a precondition is absent, PASS/FAIL tallies via lib/assert.sh, evidence
+# test_*.sh (run-all.sh won't auto-pick it), honest SKIP when a precondition
+# is absent (an unrunnable CONST-051 is NOT a pass: exit 3, see below), PASS/FAIL tallies via lib/assert.sh, evidence
 # written to $PROOF_DIR/45-constitution.txt, nonzero exit if any check FAILs.
 #
 # Checks (docs/superpowers/specs/2026-07-04-provider-verification-design.md §7.4):
@@ -47,11 +47,16 @@ set +e  # failing-by-design greps must not abort the run
 # --- CONST-051: submodule/toolkit decoupling --------------------------------
 it "CONST-051: LLMsVerifier submodule carries zero toolkit coupling"
 # Flat checkout via the single resolver (not a nested submodule any more).
-SUB="$(bash "$CMA_REPO_ROOT/scripts/resolve_deps.sh" llms_verifier "$CMA_REPO_ROOT" 2>/dev/null)" \
-  || SUB="<llms_verifier not resolvable: set CT_LLMS_VERIFIER_DIR>"
-if [[ ! -d "$SUB" ]]; then
-  echo "SKIP: submodule not checked out at $SUB"
-  echo "CONST-051 SKIP: submodule absent" >> "$EV"
+# The resolver ships next to this script; CMA_REPO_ROOT may be a fixture tree.
+CONST051_UNVERIFIED=0
+_lv_err="$(mktemp "${TMPDIR:-/tmp}/cma-const051.XXXXXX")"
+SUB="$(bash "$TESTS_DIR/../resolve_deps.sh" llms_verifier "$CMA_REPO_ROOT" 2>"$_lv_err")" || SUB=""
+if [[ -z "$SUB" || ! -d "$SUB" ]]; then
+  CONST051_UNVERIFIED=1
+  echo "SKIP: CONST-051 NOT VERIFIED — LLMsVerifier checkout not resolvable (this is NOT a pass; run exits 3)."
+  echo "  fix: set CT_LLMS_VERIFIER_DIR=/path/to/LLMsVerifier, or vendor it flat in the parent hub"
+  sed 's/^/  resolver: /' "$_lv_err"
+  echo "CONST-051 NOT VERIFIED: LLMsVerifier not resolvable" >> "$EV"
 else
   # Whole subtree (minus .git): as of writing, zero hits across all files,
   # so no *_test.go carve-out is needed.
@@ -188,6 +193,13 @@ assert_eq 1 "$fx_ok" "fixture/rubric live in scripts/providers/ and are referenc
   echo "repo root: $CMA_REPO_ROOT"
 } >> "$EV"
 
+rm -f "$_lv_err"
 cma_proof_commit "$EV" "$EV_FINAL"
 echo "evidence: $EV_FINAL"
-summary
+summary || exit $?
+# No FAIL, but CONST-051 could not run: distinct non-zero so no caller
+# (run-proof.sh, test_constitution.sh) can read it as a PASS.
+if (( CONST051_UNVERIFIED )); then
+  echo "RESULT: no FAIL, but CONST-051 was NOT VERIFIED — exit 3 (not a pass)"
+  exit 3
+fi

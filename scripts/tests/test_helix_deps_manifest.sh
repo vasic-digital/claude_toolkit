@@ -20,10 +20,14 @@ source "$TESTS_DIR/lib/assert.sh"
 set +e
 
 MANIFEST="${CT_TEST_HELIX_DEPS:-$REPO_ROOT/helix-deps.yaml}"
+# Interpreter is overridable so the no-PyYAML path is provable (e.g. a wrapper
+# running `python3 -S`, which hides dist-packages).
+PY="${CT_TEST_PYTHON:-python3}"
+NO_PYYAML=0
 
 # validate <file> — prints one problem per line; exit 0 only when clean.
 validate() {
-  python3 - "$1" <<'PY'
+  "$PY" - "$1" <<'PY'
 import re, sys
 try:
     import yaml
@@ -79,7 +83,7 @@ bad="$(mktemp "${TMPDIR:-/tmp}/cma-hd.XXXXXX")"
 sed -e 's#git@github.com:vasic-digital/claude-code-router.git#https://github.com/vasic-digital/claude-code-router.git#' \
     -e '/^transitive_handling:/,$d' "$MANIFEST" > "$bad"
 out="$(validate "$bad")"; rc=$?
-if [[ $rc -eq 3 ]]; then echo "SKIP: python3 yaml module absent — manifest not validated"; _pass "skipped: no PyYAML"
+if [[ $rc -eq 3 ]]; then NO_PYYAML=1
 else
   [[ $rc -ne 0 ]] && _pass "broken copy rejected (rc=$rc)" || _fail "validator accepted a broken manifest" "$bad"
   grep -q 'ssh_url not an own-org SSH url' <<<"$out" && _pass "flags the https url" || _fail "https url not flagged" "$out"
@@ -89,8 +93,14 @@ rm -f "$bad"
 
 it "the real manifest validates clean"
 out="$(validate "$MANIFEST")"; rc=$?
-if [[ $rc -eq 3 ]]; then echo "SKIP: python3 yaml module absent"; _pass "skipped: no PyYAML"
+if [[ $rc -eq 3 ]]; then NO_PYYAML=1
 elif [[ $rc -eq 0 ]]; then _pass "helix-deps.yaml valid"
 else _fail "helix-deps.yaml invalid" "$out"; fi
+
+# Honest SKIP: NOT a pass. Printed at column 0 so run-all.sh counts it as
+# skipped-prereq; no _pass is recorded for the unvalidated manifest.
+if (( NO_PYYAML )); then
+  echo "SKIP: python3 PyYAML module absent — helix-deps.yaml NOT validated (install python3-yaml / pip install pyyaml)"
+fi
 
 summary

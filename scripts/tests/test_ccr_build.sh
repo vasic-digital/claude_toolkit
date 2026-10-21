@@ -29,13 +29,11 @@ if [[ -x "$BUILD" ]]; then _pass "executable"; else _fail "not executable" "$BUI
 it "has valid bash syntax"
 assert_exit 0 bash -n "$BUILD"
 
-it "builds ./cmd/ccr into the submodule bin and self-checks the router grammar"
+it "builds ./cmd/ccr into the router checkout bin and self-checks the router grammar"
 assert_file_contains "$BUILD" 'build -o bin/ccr ./cmd/ccr'
 assert_file_contains "$BUILD" 'ccr start' # self-check mirrors lib.sh's identity guard
 assert_file_contains "$BUILD" 'ccr serve'
 
-it "initialises the submodule when it is not checked out"
-assert_file_contains "$BUILD" 'submodule update --init'
 
 it "guards on a missing Go toolchain (best-effort, non-fatal to install)"
 assert_file_contains "$BUILD" 'command -v go'
@@ -55,7 +53,11 @@ it "the router is resolved flat (no nested submodule, no auto submodule init)"
 if grep -qiE '^[[:space:]]*(path|url)[[:space:]]*=.*claude-code-router' "$REPO_ROOT/.gitmodules"; then
   _fail ".gitmodules still declares claude-code-router"; else _pass ".gitmodules does not declare claude-code-router (path/url lines)"; fi
 assert_file_contains "$BUILD" 'resolve_deps.sh" claude_code_router'
-assert_file_not_contains "$BUILD" 'submodule update'
+# Code only: comment lines are carriers. Any executable `git ... submodule update`
+# would silently re-create the nested layout the operator removed.
+_su="$(grep -nE 'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+submodule[[:space:]]+update' "$BUILD" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+[[ -z "$_su" ]] && _pass "no executable git submodule update in claude-ccr-build.sh" \
+  || _fail "claude-ccr-build.sh still runs git submodule update" "$_su"
 
 # Flat router checkout (empty when not resolvable on this host).
 ROUTER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT" 2>/dev/null || true)"
