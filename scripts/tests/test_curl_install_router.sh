@@ -78,8 +78,35 @@ it "CLAUDE_TOOLKIT_CCR_URL overrides the clone url"
 out="$(run_case url CLAUDE_TOOLKIT_CCR_URL=https://example.invalid/r.git)"; rc=$?
 grep -q '^clone --quiet https://example.invalid/r.git ' "$W/url.log" && _pass "override url used" || _fail "override ignored" "$(cat "$W/url.log")"
 
-it "step 3b actually calls provision_flat_router on a real install (wired, not just defined)"
-grep -qx 'provision_flat_router' "$INSTALL_SCRIPT" && _pass "top-level call present" \
-  || _fail "provision_flat_router is never called at top level" "$INSTALL_SCRIPT"
+it "a REAL (non-library) run reaches step 3b and clones the router (wired, not just defined)"
+# Full script path, as `curl … | bash` runs it. A stub git fabricates the
+# toolkit clone (real resolver + no-op install.sh) and records argv; nothing
+# touches the network or the real HOME. An early exit before the step-3b call
+# (or a deleted call) leaves no router clone in the log.
+FULL="$W/full/home"; mkdir -p "$FULL" "$W/fullbin"
+cat > "$W/fullbin/git" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$W/full.log"
+if [[ "\$1" == "clone" ]]; then
+  dest="\${@: -1}"
+  mkdir -p "\$dest/.git" "\$dest/scripts"
+  case "\$*" in
+    *claude_toolkit.git*)
+      cp "$SCRIPTS_DIR/resolve_deps.sh" "\$dest/scripts/"
+      printf '#!/usr/bin/env bash\nexit 0\n' > "\$dest/scripts/install.sh" ;;
+  esac
+fi
+exit 0
+STUB
+chmod +x "$W/fullbin/git"; : > "$W/full.log"
+out="$(env -u CT_CLAUDE_CODE_ROUTER_DIR -u CT_LLMS_VERIFIER_DIR -u LLMSVERIFIER_DIR -u CT_CURL_INSTALL_LIB_ONLY \
+        HOME="$FULL" CLAUDE_TOOLKIT_DIR="$FULL/claude-toolkit" PATH="$W/fullbin:$PATH" \
+        bash "$INSTALL_SCRIPT" 2>&1)"; rc=$?
+assert_eq 0 "$rc" "full run exits 0"
+grep -q '^clone --recursive https://github.com/vasic-digital/claude_toolkit.git ' "$W/full.log" \
+  && _pass "toolkit cloned first" || _fail "toolkit clone missing" "$(cat "$W/full.log")"
+want="clone --quiet https://github.com/vasic-digital/claude-code-router.git $FULL/claude_code_router"
+grep -qxF -- "$want" "$W/full.log" && _pass "step 3b ran: $want" \
+  || _fail "full run never provisioned the router" "log: $(cat "$W/full.log")"
 
 summary

@@ -12,7 +12,7 @@
 
 | Half | Surface | State |
 |---|---|---|
-| Go (router) | `submodules/claude-code-router/internal/gateway/messages.go` — `const maxRequestBodyBytes = 32 << 20` (:30), applied via `http.MaxBytesReader` (:210) | **implemented + tested** |
+| Go (router) | `claude-code-router:internal/gateway/messages.go` — `const maxRequestBodyBytes = 32 << 20` (:30), applied via `http.MaxBytesReader` (:210) | **implemented + tested** |
 | Bash (wrapper) | `scripts/lib.sh` ~1140–1569 — `CLAUDE_CODE_MAX_CONTEXT_TOKENS`, `CMA_AUTO_COMPACT_CAP` | present, but it is **CONTEXT-WINDOW** compaction, not request-byte compaction |
 
 Router module: `github.com/vasic-digital/claude-code-router`.
@@ -56,10 +56,13 @@ the two are related but not the same quantity.
 
 ## Work-stream access blocker (recorded)
 
-`submodules/claude-code-router` is **uninitialized in the feature work-stream**
-(0 entries) while the trunk checkout has it (18 entries). Any router-side change
-therefore requires initializing that nested submodule in the work-stream first —
-a deliberate step, not something to do silently mid-task.
+`submodules/claude-code-router` was **uninitialized in the feature work-stream**
+(0 entries) while the trunk checkout had it (18 entries), at the time of this
+note. Update 2026-10-21: the router is no longer a nested submodule of
+claude_toolkit at all; it is a flat checkout found by
+`scripts/resolve_deps.sh claude_code_router` (`CT_CLAUDE_CODE_ROUTER_DIR`, the
+parent hub, or a sibling clone). A router-side change is made in that checkout
+(its own repo, vasic-digital/claude-code-router).
 
 ## Ordered next steps for Issue 3
 
@@ -69,6 +72,6 @@ a deliberate step, not something to do silently mid-task.
    auto-compaction fires earlier, (b) add pre-send byte-size estimation to the
    wrapper, or (c) accept the 413 as correct and surface a clearer remediation
    message. **Do not raise the router ceiling** without addressing OOM.
-3. If a code change is chosen, initialize the nested router submodule in the
-   work-stream, then author the RED (a >32MB request that must be compacted/
+3. If a code change is chosen, make sure the flat router checkout resolves
+   (`bash scripts/resolve_deps.sh claude_code_router`), then author the RED (a >32MB request that must be compacted/
    reported rather than killed) before the fix.

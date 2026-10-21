@@ -45,7 +45,7 @@ EV="$(cma_proof_open "$EV_FINAL")"
 set +e  # failing-by-design greps must not abort the run
 
 # --- CONST-051: submodule/toolkit decoupling --------------------------------
-it "CONST-051: LLMsVerifier submodule carries zero toolkit coupling"
+it "CONST-051: the LLMsVerifier checkout (resolved flat) carries zero toolkit coupling"
 # Flat checkout via the single resolver (not a nested submodule any more).
 # The resolver ships next to this script; CMA_REPO_ROOT may be a fixture tree.
 CONST051_UNVERIFIED=0

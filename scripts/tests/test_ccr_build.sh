@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # test_ccr_build.sh — claude-ccr-build.sh builds the BUNDLED Go
-# claude-code-router (submodule) and installs it as `ccr`, so provider aliases
+# claude-code-router (flat checkout located by scripts/resolve_deps.sh
+# claude_code_router; not a submodule) and installs it as `ccr`, so provider aliases
 # route through OUR vendored router rather than a separately-installed Node one.
 #
 # This test verifies the script's contract and its wiring into install.sh and
-# lib.sh (structural + bash syntax). The go-PRESENT end-to-end build (git
-# submodule + go build + symlink + `ccr --help`) needs the Go toolchain and a
-# checked-out submodule, so it is exercised by the live proof / run-proof.sh,
+# lib.sh (structural + bash syntax). The go-PRESENT end-to-end build (resolved
+# router checkout + go build + symlink + `ccr --help`) needs the Go toolchain and a
+# resolvable router checkout, so it is exercised by the live proof / run-proof.sh,
 # not this hermetic unit test.
 set -uo pipefail
 
@@ -59,8 +60,23 @@ _su="$(grep -nE 'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+submod
 [[ -z "$_su" ]] && _pass "no executable git submodule update in claude-ccr-build.sh" \
   || _fail "claude-ccr-build.sh still runs git submodule update" "$_su"
 
-# Flat router checkout (empty when not resolvable on this host).
-ROUTER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT" 2>/dev/null || true)"
+# Flat router checkout. UNSET override + nothing found => ROUTER_DIR empty and
+# the router-dependent rows SKIP visibly. A SET-but-invalid override is an
+# operator error: FAIL carrying the resolver's own message (never a SKIP).
+_rerr="$(mktemp "${TMPDIR:-/tmp}/cma-ccrres.XXXXXX")"
+ROUTER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" claude_code_router "$REPO_ROOT" 2>"$_rerr")" || ROUTER_DIR=""
+if [[ -z "$ROUTER_DIR" && -n "${CT_CLAUDE_CODE_ROUTER_DIR+x}" ]]; then
+  it "CT_CLAUDE_CODE_ROUTER_DIR is set, so it must resolve"
+  _fail "CT_CLAUDE_CODE_ROUTER_DIR is set but did not resolve" "$(tr '\n' ' ' < "$_rerr")"
+fi
+rm -f "$_rerr"
+_router_absent() {  # the one message for a router-dependent row that cannot run
+  if [[ -n "${CT_CLAUDE_CODE_ROUTER_DIR+x}" ]]; then
+    echo "NOT RUN: $1 — CT_CLAUDE_CODE_ROUTER_DIR is invalid (see FAIL above)"
+  else
+    echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR) — $1"
+  fi
+}
 
 it "router unresolvable => claude-ccr-build exits non-zero with an actionable message"
 _none="$(mktemp -d "${TMPDIR:-/tmp}/cma-noccr.XXXXXX")"
@@ -92,7 +108,7 @@ if [[ -f "$gomod" ]]; then
     _fail "go directive carries a patch pin" "go.mod has 'go $directive' — must be major.minor (e.g. 1.26), else older same-minor toolchains with GOTOOLCHAIN=local cannot build"
   fi
 elif [[ -z "$ROUTER_DIR" ]]; then
-  echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR) — go.mod directive not checked"
+  _router_absent "go.mod directive not checked"
 else
   _fail "go.mod not found" "$gomod"
 fi
@@ -131,9 +147,9 @@ it "builds with system Go when the vendored toolchain is absent"
 # proves it WORKS. Runs the real script against a deliberately nonexistent
 # VENDORED_GO. BIN_DIR follows the sandbox $HOME, so nothing outside is touched.
 if ! command -v go >/dev/null 2>&1; then
-  _pass "skipped: no system Go on this host"
+  echo "SKIP: no system Go on this host — system-Go build not exercised"
 elif [[ -z "$ROUTER_DIR" ]]; then
-  echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR)"
+  _router_absent "system-Go build not exercised"
 else
   out="$(VENDORED_GO="$HOME/definitely-not-here/bin/go" bash "$BUILD" 2>&1)"; rc=$?
   case "$out" in
@@ -187,9 +203,10 @@ EOF
 }
 
 # _matrix_skip MSG — one honest, clearly-labelled skip line (never a silent
-# green): the row did not run, and says so.
+# green, never counted as a pass): the row did not run, and says so. Column-0
+# "SKIP:" so run-all.sh tallies it as skipped-prereq.
 _matrix_skip() {
-  _pass "SKIPPED (prereq unmet): $1"
+  echo "SKIP: (prereq unmet) $1"
 }
 
 # _assert_no_exec_failure OUT — the failure signature of the original bug.
@@ -258,7 +275,7 @@ fi
 
 it "row 1/6: default vendored path ABSENT -> system Go, build succeeds"
 if (( ! MATRIX_READY )); then
-  _matrix_skip "needs system Go + a checked-out claude-code-router submodule"
+  _matrix_skip "needs system Go + a resolvable claude_code_router checkout (CT_CLAUDE_CODE_ROUTER_DIR)"
 else
   rm -rf "$HOME/.local/share/claude-go" "$VGO_LOG"
   rm -f "$HOME/.local/bin/ccr"
@@ -274,7 +291,7 @@ fi
 
 it "row 2/6: default vendored path EXISTS + executable -> PREFERRED over system Go"
 if (( ! MATRIX_READY )); then
-  _matrix_skip "needs system Go + a checked-out claude-code-router submodule"
+  _matrix_skip "needs system Go + a resolvable claude_code_router checkout (CT_CLAUDE_CODE_ROUTER_DIR)"
 else
   _install_vendored_stub
   rm -f "$VGO_LOG" "$HOME/.local/bin/ccr"
@@ -296,7 +313,7 @@ fi
 
 it "row 3/6: explicit VENDORED_GO pointing at a real binary still wins (env knob)"
 if (( ! MATRIX_READY )); then
-  _matrix_skip "needs system Go + a checked-out claude-code-router submodule"
+  _matrix_skip "needs system Go + a resolvable claude_code_router checkout (CT_CLAUDE_CODE_ROUTER_DIR)"
 else
   _install_vendored_stub
   rm -f "$VGO_LOG" "$HOME/.local/bin/ccr"
@@ -312,7 +329,7 @@ fi
 
 it "row 4/6: vendored path exists but is NOT executable -> system Go, no EACCES"
 if (( ! MATRIX_READY )); then
-  _matrix_skip "needs system Go + a checked-out claude-code-router submodule"
+  _matrix_skip "needs system Go + a resolvable claude_code_router checkout (CT_CLAUDE_CODE_ROUTER_DIR)"
 else
   _install_vendored_stub
   chmod -x "$VGO"
@@ -330,7 +347,7 @@ fi
 
 it "row 5/6: vendored path exists but is a DIRECTORY -> system Go, no EISDIR"
 if (( ! MATRIX_READY )); then
-  _matrix_skip "needs system Go + a checked-out claude-code-router submodule"
+  _matrix_skip "needs system Go + a resolvable claude_code_router checkout (CT_CLAUDE_CODE_ROUTER_DIR)"
 else
   rm -rf "$VGO" "$VGO_LOG" "$HOME/.local/bin/ccr"
   mkdir -p "$VGO"

@@ -1543,11 +1543,19 @@ chmod +x "$HOME/fakebin/go"
 
 it "claude-semantic-visibility.sh builds (cached) + forwards flags to the binary"
 rm -f "$_sem_bin"
-out="$( PATH="$HOME/fakebin:$PATH" LLMSVERIFIER_DIR="$(bash "$SCRIPTS_DIR/resolve_deps.sh" llms_verifier 2>/dev/null || echo "<llms_verifier not resolvable>")" \
+# Needs a real LLMsVerifier source tree (the driver checks llm-verifier/).
+# Nothing configured and nothing resolvable => visible SKIP (not a pass); a
+# configured override is used as-is, so a bad one still FAILs below.
+_lv_src="$(bash "$SCRIPTS_DIR/resolve_deps.sh" llms_verifier 2>/dev/null)"
+if [[ -z "$_lv_src" && -z "${CT_LLMS_VERIFIER_DIR+x}" && -z "${LLMSVERIFIER_DIR+x}" ]]; then
+  echo "SKIP: LLMsVerifier checkout not resolvable (set CT_LLMS_VERIFIER_DIR) — semantic driver build/forward not exercised"
+else
+out="$( PATH="$HOME/fakebin:$PATH" LLMSVERIFIER_DIR="${_lv_src:-<llms_verifier not resolvable>}" \
         LV_SEMANTIC_BIN="$_sem_bin" bash "$SEMDRV" --model m --sentinel Z 2>/dev/null )"
 grep -q 'SCV-STUB' <<<"$out"; assert_eq 0 $? "driver execs the built binary"
 grep -q -- '--sentinel Z' <<<"$out"; assert_eq 0 $? "driver forwards flags verbatim"
 assert_file "$_sem_bin" "binary was cached under .local-cache"
+fi
 
 it "claude-semantic-visibility.sh --help/-h ALWAYS works, even with no built binary (bug fix)"
 # Regression guard: the OLD code did `exec "$BIN" -h` unconditionally, so with
