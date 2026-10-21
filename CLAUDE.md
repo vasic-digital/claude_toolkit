@@ -42,6 +42,10 @@ bash scripts/tests/run-proof.sh
 
 The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`, `claude-providers`, `claude-sync-state`, `claude-bootstrap`, and the Kimi family `kimi-add-account`, `kimi-remove-account`, `kimi-list-accounts`, `kimi-unify`, `kimi-rollback`, `kimi-providers`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh` and `kimi-*.sh`).
 
+## Shared dependency layout (single source of truth)
+
+`constitution`, `containers`, `challenges` and `superspec` are **not** submodules of this repo any more: the constitution hub that vendors the toolkit (`<hub>/constitution/submodules/claude_toolkit`) already carries them, and re-declaring them created stale nested duplicates. `scripts/resolve_deps.sh` finds them (`bash scripts/resolve_deps.sh <name> [toolkit_root]` prints the path; non-zero exit + an actionable message when nothing resolves). Order: `CT_CONSTITUTION_DIR` / `CT_CONTAINERS_DIR` / `CT_CHALLENGES_DIR` / `CT_SUPERSPEC_DIR` override (an invalid override is an error) → parent hub (`../..`) → `<root>/constitution`, `<root>/submodules/<name>` → siblings → host fallback `/home/milosvasic/Projects/helix_code/constitution`. Only the toolkit's own deps (`LLMsVerifier`, `claude-code-router`, `go`) stay as submodules. To use the constitution standalone, `export CT_CONSTITUTION_DIR=/path/to/constitution` (the `@constitution/CLAUDE.md` import of a consuming project resolves through the hub that vendors the toolkit; a standalone checkout simply has no such import to break).
+
 ## Go toolchain resolution (`claude-ccr-build.sh`, `claude-proxy-build.sh`)
 
 Both Go build entrypoints prefer a **vendored** toolchain and fall back to system Go:

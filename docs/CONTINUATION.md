@@ -105,10 +105,8 @@ Plus a large churn under `scripts/tests/proof/` (regenerated evidence, some file
 | Submodule | Pinned at | Pushed? | Note |
 |---|---|---|---|
 | `submodules/LLMsVerifier` | `2a105fe7` (`llmsverifier-v1.12.2-12-g2a105fe7`) | detached HEAD | +6 over the previous pointer |
-| `submodules/challenges` | `2e3ef88` (`helixcode-v1.1.0-18-g2e3ef88`) | detached HEAD | +2 |
 | `submodules/claude-code-router` | `9accd18` (`v0.4.9-5-g9accd18`) | **yes** — `origin/main` is 0 ahead / 0 behind | carries the release-blocking selector fix |
 | `submodules/go` | `a9ce111` = **`go1.26.4`** | — | **deliberately held**; see below |
-| `submodules/containers` | `a432efa` | — | 136 behind; not on any toolkit code path, deferred |
 
 **`submodules/go` must never be bumped to `origin/master`.** That is the unreleased next-major dev tree and carries **no `VERSION` file**, which `claude-go-build.sh` requires — presence check at `:35`, parse hard-fails `exit 1` at `:45-51`. Only point releases on `release-branch.go1.N` are valid bump targets, and a bump must be followed by `claude-go-build` + `claude-ccr-build` + the live router legs.
 
@@ -205,7 +203,7 @@ Layer-4 route attribution is now recorded per alias. Post-fix spot checks in the
 - **Nothing bumps `package.json`.** There is no `VERSION` file and `claude-release-gate.sh` has no version reference, so `1.26.7` will silently re-stale. Worse than the old obvious `1.0.0` scaffold, because a bumped-once number *looks* maintained. Add it to the release checklist.
 - **`CMA_HELIX_AUTOSTART` has no test.** `grep -rl CMA_HELIX_AUTOSTART scripts/tests/` returns nothing — neither the default-off branch nor the opt-in parse (`1|true|yes|on`) is pinned by the suite.
 - **`shellcheck` is clean only at `-S error` (0).** Warning level reports **62**, style level **203**. The README badge now says `0 errors` rather than implying a clean lint at every severity.
-- **`submodules/containers` is 136 behind** and deliberately not absorbed during a release window.
+- `submodules/containers`, `submodules/challenges`, `constitution`, `submodules/superspec` were un-declared (v1.30.6): resolved via `scripts/resolve_deps.sh` from the constitution hub instead.
 
 ### 4.2 Long-standing
 
