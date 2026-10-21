@@ -93,7 +93,6 @@ if [[ -f "$gomod" ]]; then
   fi
 elif [[ -z "$ROUTER_DIR" ]]; then
   echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR) — go.mod directive not checked"
-  _pass "skipped: router checkout not resolvable"
 else
   _fail "go.mod not found" "$gomod"
 fi
@@ -135,7 +134,6 @@ if ! command -v go >/dev/null 2>&1; then
   _pass "skipped: no system Go on this host"
 elif [[ -z "$ROUTER_DIR" ]]; then
   echo "SKIP: claude_code_router not resolvable on this host (set CT_CLAUDE_CODE_ROUTER_DIR)"
-  _pass "skipped: claude_code_router checkout not resolvable"
 else
   out="$(VENDORED_GO="$HOME/definitely-not-here/bin/go" bash "$BUILD" 2>&1)"; rc=$?
   case "$out" in
