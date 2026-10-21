@@ -47,7 +47,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 # --- resolve the mechanical tools, project-agnostically (§11.4.177) ---------
 # Single source of truth: scripts/resolve_deps.sh (env override -> parent hub ->
-# in-tree -> siblings -> host fallback). CMA_CONSTITUTION_DIR is kept as a
+# in-tree -> siblings -> OPT-IN CT_HOST_CONSTITUTION_FALLBACK). CMA_CONSTITUTION_DIR is kept as a
 # back-compat alias of CT_CONSTITUTION_DIR. An override that does not resolve
 # is an error, never a cue to go hunting elsewhere.
 # shellcheck source=../resolve_deps.sh
@@ -67,7 +67,7 @@ if [[ -z "$MECH" ]]; then
   echo "SKIP: the §11.4.274 mechanical tools are not reachable from this checkout."
   echo "  UNAVAILABLE : constitution/scripts/mechanical (mutation_harness.sh, census_query.sh, await_condition.sh)"
   echo "  STILL WORKS : every other suite in this directory — these tools are used BY tests, not by the toolkit at runtime."
-  echo "  TO SUPPLY   : set CT_CONSTITUTION_DIR=/path/to/constitution (CMA_CONSTITUTION_DIR also accepted), or vendor this repo under a constitution hub (see scripts/resolve_deps.sh)."
+  echo "  TO SUPPLY   : set CT_CONSTITUTION_DIR=/path/to/constitution (CMA_CONSTITUTION_DIR also accepted), vendor this repo under a constitution hub, or opt in via CT_HOST_CONSTITUTION_FALLBACK (see scripts/resolve_deps.sh). With none of these the suite SKIPs (documented, exit 0, 0 passed/0 failed) — it is not a silent pass."
   echo
   echo "0 passed, 0 failed"
   exit 0

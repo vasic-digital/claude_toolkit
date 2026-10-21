@@ -25,11 +25,11 @@ here as gaps, not invented.
 This document is a **spec-kit-facing index**, not canon. Authoritative governance
 for this repository is, in order:
 
-1. `constitution/Constitution.md` (the submodule pinned at `constitution/`) —
+1. `<constitution>/Constitution.md` (the constitution checkout, located by `scripts/resolve_deps.sh` — hub, `CT_CONSTITUTION_DIR`, or sibling; it is no longer a submodule pinned at `constitution/` in this repo) —
    the full Helix Universal Constitution, §§1–12 plus Appendices A–C, anchors
    `§11.4.1`–`§11.4.275` (gaps: `§11.4.62`, `§11.4.175`, `§11.4.203`,
    `§11.4.204` — never defined or re-numbered away in canon itself).
-2. `constitution/CLAUDE.md` — the agent manual mirroring the same anchors in
+2. `<constitution>/CLAUDE.md` — the agent manual mirroring the same anchors in
    lockstep (`§11.4.157`).
 3. This repository's own root `CLAUDE.md` — a **consumer extension** per
    `§11.4.35`: it may extend or tighten canon, it may never weaken it.
@@ -86,7 +86,7 @@ upstream (`§11.4.113`, `§9.2`, `§2.1` multi-upstream push). Before any
 destructive git command, check status and back up (`§9`/`§9.1`–`§9.4`). A
 submodule's own changes are committed and pushed to its own upstream(s)
 *before* the superproject's pointer bump; every tag on main mirrors onto every
-owned submodule (`constitution/Constitution.md` §§2–4). Branch taxonomy is
+owned submodule (`<constitution>/Constitution.md` §§2–4). Branch taxonomy is
 closed — `feat/*` merges to `main` only after full validation **and** live
 manual QA (`§11.4.185`); `product/*`/`flavor/*` lines do not merge to `main`
 the same way (`§11.4.195`). Commits are never made while a build is actively
@@ -396,7 +396,7 @@ step:
 
 This constitution is the spec-kit-facing governance document for this
 repository. It does not supersede the canonical Helix Universal Constitution
-(`constitution/Constitution.md`) or this repository's own root `CLAUDE.md` —
+(`<constitution>/Constitution.md`) or this repository's own root `CLAUDE.md` —
 it is their distillation into spec-kit's principle/workflow/gate shape, and it
 is itself bound by `§11.4.35` (canonical-root inheritance) and `§11.4.17`
 (universal-vs-project classification).

@@ -1316,7 +1316,7 @@ actually arrives.
 
 ## 15. Bundled submodules and their pins
 
-The toolkit vendors three own-dependency submodules (`constitution`, `containers`, `challenges`, `superspec` are resolved from the constitution hub by `scripts/resolve_deps.sh` and are no longer declared here). Pins as of `claude_toolkit-1.26.7`
+The toolkit vendors three own-dependency submodules. Pins as of `claude_toolkit-1.26.7`
 (`git submodule status`):
 
 | Submodule | Pin | Role |
@@ -1324,6 +1324,8 @@ The toolkit vendors three own-dependency submodules (`constitution`, `containers
 | `submodules/LLMsVerifier` | `2a105fe7` (`llmsverifier-v1.12.2-12-g2a105fe7`) | The `model-verification` and `semantic-code-visibility` drivers behind provider verification layers 1-2. |
 | `submodules/claude-code-router` | `9accd18` (`v0.4.9-5-g9accd18`) | The Go router (`ccr`) behind the **router** transport — including the selector fix in §11. |
 | `submodules/go` | `go1.26.4` | Vendored Go toolchain, built by `claude-go-build.sh` into `~/.local/share/claude-go`. |
+
+As of v1.30.6, `constitution`, `containers`, `challenges` and `superspec` are not declared here; the pins above for `challenges` and `containers` (removed rows) were dropped, and all four resolve from the constitution hub via `scripts/resolve_deps.sh` (`superspec` never appeared in this table).
 
 Two pinning rules that are not obvious:
 

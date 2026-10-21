@@ -22,8 +22,10 @@ no nested duplicate chains).
 ### Added
 
 - `scripts/resolve_deps.sh` (env override -> parent hub -> in-tree -> siblings
-  -> host fallback; non-zero + actionable message when unresolvable) and
-  `scripts/tests/test_resolve_deps.sh` (44 assertions).
+  -> opt-in host fallback via CT_HOST_CONSTITUTION_FALLBACK, no built-in path;
+  identity-marker validation; canonicalised overrides, empty override rejected;
+  non-zero + actionable message when unresolvable) and
+  `scripts/tests/test_resolve_deps.sh` (56 assertions, mutation-killing fixtures).
 - "Shared dependency layout" section in CLAUDE.md / AGENTS.md / GEMINI.md /
   QWEN.md.
 

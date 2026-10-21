@@ -256,6 +256,7 @@ Cadence: mutation runs are **not** part of every `run-all.sh` invocation (they a
 
 `.gitmodules` (repo root) declares exactly three submodules:
 
+> HISTORICAL (as of v1.30.6): `containers` and `challenges` are no longer declared here; they resolve via `scripts/resolve_deps.sh`.
 ```
 [submodule "submodules/LLMsVerifier"]
 [submodule "submodules/containers"]

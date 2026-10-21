@@ -15,27 +15,32 @@
 #   source scripts/resolve_deps.sh; ct_resolve_dep containers   # same, as a function
 #
 # Resolution order (first VALID hit wins; "valid" = Constitution.md file for
-# constitution, a non-empty directory for the others):
+# constitution; a directory carrying the identity marker for the others:
+# containers=go.mod, challenges=go.mod, superspec=extension.yml):
 #   1. env override  CT_CONSTITUTION_DIR | CT_CONTAINERS_DIR | CT_CHALLENGES_DIR | CT_SUPERSPEC_DIR
-#      (set but invalid => hard failure, NO fall-through: a wrong override must
-#      never silently resolve to something else)
+#      (set-but-empty or invalid => hard failure, NO fall-through: a wrong
+#      override must never silently resolve to something else; the accepted
+#      path is canonicalised with pwd -P)
 #   2. parent hub, when the toolkit sits at <hub>/submodules/claude_toolkit
 #      (hub = ../..): constitution = <hub> (if it is itself the constitution)
 #      or <hub>/constitution; others = <hub>/submodules/<n>, then the hub's own
 #      parent <hub>/../submodules/<n> (hub = <project>/constitution case)
 #   3. in-tree: <root>/constitution, <root>/submodules/<n>
 #   4. siblings: <root>/../constitution, <root>/../<n>
-#   5. host fallback (constitution only): $CT_HOST_CONSTITUTION_FALLBACK
-#      (default /home/milosvasic/Projects/helix_code/constitution)
+#   5. host fallback (constitution only), OPT-IN: $CT_HOST_CONSTITUTION_FALLBACK
+#      (no built-in default; unset/empty => tier skipped)
 #
 # Exit codes: 0 resolved | 1 not resolvable / bad override | 2 usage error
 
 CT_RESOLVE_SELF="${BASH_SOURCE[0]}"
 
-_ct_valid() {  # _ct_valid <name> <path>
+_ct_valid() {  # _ct_valid <name> <path> — identity marker, not mere existence
+  [ -d "$2" ] || return 1
   case "$1" in
     constitution) [ -f "$2/Constitution.md" ] ;;
-    *) [ -d "$2" ] && [ -n "$(ls -A "$2" 2>/dev/null)" ] ;;
+    containers|challenges) [ -f "$2/go.mod" ] ;;
+    superspec) [ -f "$2/extension.yml" ] ;;
+    *) return 1 ;;
   esac
 }
 
@@ -51,8 +56,12 @@ ct_resolve_dep() {  # ct_resolve_dep <name> [toolkit_root]
   var="CT_${up}_DIR"
 
   # 1. env override — authoritative; invalid => loud failure
-  if [ -n "${!var:-}" ]; then
-    if _ct_valid "$name" "${!var}"; then printf '%s\n' "${!var}"; return 0; fi
+  if [ -n "${!var+x}" ]; then
+    if [ -z "${!var}" ]; then
+      echo "resolve_deps: $var is set but EMPTY. Set it to a valid $name checkout or unset it." >&2
+      return 1
+    fi
+    if _ct_valid "$name" "${!var}"; then (cd "${!var}" && pwd -P); return 0; fi
     echo "resolve_deps: $var='${!var}' is set but is not a valid $name checkout. Fix or unset $var." >&2
     return 1
   fi
@@ -68,7 +77,7 @@ ct_resolve_dep() {  # ct_resolve_dep <name> [toolkit_root]
   if [ "$name" = constitution ]; then cands+=("$root/constitution" "$root/../constitution")
   else cands+=("$root/submodules/$name" "$root/../$name"); fi
   # 5. host fallback
-  [ "$name" = constitution ] && cands+=("${CT_HOST_CONSTITUTION_FALLBACK:-/home/milosvasic/Projects/helix_code/constitution}")
+  [ "$name" = constitution ] && [ -n "${CT_HOST_CONSTITUTION_FALLBACK:-}" ] && cands+=("$CT_HOST_CONSTITUTION_FALLBACK")
 
   for cand in "${cands[@]}"; do
     if [ -d "$cand" ] && _ct_valid "$name" "$(cd "$cand" && pwd -P)"; then
@@ -79,6 +88,7 @@ ct_resolve_dep() {  # ct_resolve_dep <name> [toolkit_root]
     echo "resolve_deps: cannot resolve '$name' for toolkit root $root."
     echo "  tried: ${cands[*]}"
     echo "  fix : set $var=/path/to/$name, or vendor claude_toolkit under a hub at <hub>/submodules/claude_toolkit"
+    [ "$name" = constitution ] && echo "        (optional host fallback: export CT_HOST_CONSTITUTION_FALLBACK=/path/to/constitution)"
   } >&2
   return 1
 }

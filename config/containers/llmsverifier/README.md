@@ -23,7 +23,9 @@ tunnel, e.g. `ssh -L 8080:127.0.0.1:8080 milosvasic@nezha.local`.
 ```bash
 # On the orchestrator host (paths assume this repo):
 rsync -az --exclude='.git' submodules/LLMsVerifier/ milosvasic@nezha.local:~/helix-build/LLMsVerifier/
-rsync -az --exclude='.git' submodules/challenges/   milosvasic@nezha.local:~/helix-build/challenges/
+# challenges is no longer a submodule of this repo: resolve it first
+#   CHALLENGES="$(bash scripts/resolve_deps.sh challenges)"
+rsync -az --exclude='.git' "$CHALLENGES"/   milosvasic@nezha.local:~/helix-build/challenges/
 scp config/containers/llmsverifier/Dockerfile.nezha milosvasic@nezha.local:~/helix-build/
 
 # Build the app image on nezha (cgo + nested module — see Dockerfile.nezha):
