@@ -71,6 +71,9 @@ name: jev-spec verify
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   jev-spec:
     runs-on: ubuntu-latest
@@ -78,7 +81,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - name: Install jev-spec
         run: bunx jev-spec --version
       - name: Verify (trusted PRs)
