@@ -68,6 +68,23 @@ tracks no own-org nested submodule; own-org repos live flat in
   `docs/diagrams/jev-architecture.{mmd,svg}`. Tests: 9 suites under
   `scripts/tests/test_jev_*.sh` sharing the canonical stdlib fixture
   `scripts/tests/fixtures/jev_server.py`.
+- **Usage reporting** (`claude-usage report`): ccusage-backed token usage
+  across every native account and provider alias — per-model, per-day,
+  per-session, and per-provider-bucket breakdowns (`--group-by all` for
+  all dimensions at once), arbitrary `--since`/`--until` range defaulting
+  to the trailing 28 days, output as `json`/`md`/`csv` written by default
+  to both stdout and `$SHARED_DIR/usage-reports/<range>.{json,md}` (or a
+  single explicit `--out PATH`). Honest limitation, documented in the
+  script's own `--help` and in `Claude_Multi_Account_Fine_Tuning.md`: true
+  per-alias attribution is not recoverable from ccusage's own session
+  logs, since every account's `projects/` directory is the same symlinked
+  shared tree; native accounts are reported pooled, and provider
+  attribution is explicit best-effort (`candidate alias` / `AMBIGUOUS` /
+  `unmapped`) inference from model id against `providers/status.json`,
+  never asserted as fact. Backed by the vendored `ccusage` submodule
+  (`scripts/claude-ccusage-build.sh`). Tests: `scripts/tests/
+  test_claude_usage.sh` (hermetic, 50 assertions including a guarded live
+  smoke run against fabricated JSONL transcripts).
 
 ## v1.30.6 — 2026-10-21
 
