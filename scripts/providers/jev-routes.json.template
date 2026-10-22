@@ -1,0 +1,35 @@
+{
+  "_comment": "Opt-in multi-candidate specialization/voting gateway for jev_mcp.py's jev_ask tool. Copy to a real path and point JEV_ROUTES_FILE at it; absent entirely, jev_ask behaves exactly as today (single configured endpoint, no routing). Each route key is a 'decision_type' a caller can pass to jev_ask; candidates reuse the same record shape detect_jev_records() produces in claude-providers.sh (provider_id, base_url, key_var, model) so a route candidate can be lifted straight from 'claude-providers list'. min_confidence gates a single candidate's trust; min_agreement (optional) additionally requires >=2 candidates to independently agree on the same answer before the gateway trusts it -- when they disagree, the gateway degrades honestly (reports degraded:true, agreement:false) rather than silently picking one.",
+  "routes": {
+    "example_decision_type": {
+      "candidates": [
+        {
+          "provider_id": "jev-typesafe",
+          "base_url": "https://api.typesafe.ai",
+          "key_var": "TYPESAFE_API_KEY",
+          "model": "jev-latest"
+        }
+      ],
+      "min_confidence": 0.7,
+      "min_agreement": null
+    },
+    "_example_with_voting_once_a_second_decision_model_exists": {
+      "candidates": [
+        {
+          "provider_id": "jev-typesafe",
+          "base_url": "https://api.typesafe.ai",
+          "key_var": "TYPESAFE_API_KEY",
+          "model": "jev-latest"
+        },
+        {
+          "provider_id": "kev-local",
+          "base_url": "http://127.0.0.1:8096",
+          "key_var": "",
+          "model": "kev-latest"
+        }
+      ],
+      "min_confidence": 0.75,
+      "min_agreement": 0.75
+    }
+  }
+}

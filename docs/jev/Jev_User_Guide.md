@@ -328,6 +328,49 @@ Before writing any conditional logic that requires semantic understanding
 This is the "jev-architect" pattern: propose the split — routing/urgency on
 Jev, the reply on an LLM — before writing the code, not after.
 
+### 7.2 `jev_recommend_tier` — advisory model-tier routing
+
+**Important constraint:** Claude Code's PreToolUse hooks (what `jev-gate.sh`
+is) can only return `allow`/`ask`/`deny` — they cannot rewrite a tool call's
+parameters. Jev therefore cannot literally force which model a Task/Agent
+subagent dispatch uses; there is no hard enforcement point for that in the
+current hook API. `jev_recommend_tier(task_description, risk_hint?)` is an
+ADVISORY MCP tool instead: the orchestrating Claude calls it explicitly
+before deciding which model to pass to a subagent dispatch, gets back
+`{"tier": "haiku"|"sonnet"|"opus", "confidence", "reasoning"}`, and decides
+for itself whether to act on it. Nothing in this toolkit enforces the
+recommendation — if you want cost reduction from this, your own CLAUDE.md
+(or the Decision Architecture Rule above) needs to instruct the orchestrator
+to call it and act on the result.
+
+### 7.3 Multi-candidate specialization/voting gateway (`JEV_ROUTES_FILE`)
+
+Opt-in and additive — absent entirely, `jev_ask` behaves exactly as it
+always has (single configured endpoint, no routing). Point `JEV_ROUTES_FILE`
+at a routes config (template: `scripts/providers/jev-routes.json.template`)
+mapping a `decision_type` string to an ordered list of candidate endpoints
+(the same record shape `detect_jev_records()` produces — `provider_id`,
+`base_url`, `key_var`, `model`), a `min_confidence` floor, and an optional
+`min_agreement`. Pass `decision_type` to `jev_ask` to route through it:
+
+- **No `min_agreement`:** ordered failover — the first candidate whose
+  confidence clears `min_confidence` wins.
+- **`min_agreement` set:** requires at least two candidates to independently
+  return the SAME answer, each clearing `min_confidence`, before the result
+  is trusted (`agreement: true`, `agreed_candidates: [...]`). When
+  candidates disagree or neither clears the bar, the gateway degrades
+  honestly — it reports `degraded: true, agreement: false` and falls back
+  to the highest-priority live answer rather than silently trusting one
+  candidate.
+
+**Honest limitation:** this environment has no second real decision model
+(Kev, Laya, etc. — surveyed in `docs/research/jev-ecosystem.md`) reachable
+over the network. The routing/gating MECHANISM above is real and covered by
+`scripts/tests/test_jev_routes_gateway.sh` against two fixture endpoints —
+but no live multi-model vote has actually run against a real second
+decision model. Wiring a real Kev/Laya endpoint in as a second candidate is
+a follow-up integration step, not something this toolkit fabricates.
+
 ## 8. `jev-stats` — savings and calibration report
 
 `jev-stats [--days N] [--json]` reads `decisions.jsonl` and reports:

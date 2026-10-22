@@ -7,17 +7,29 @@ LSP-style headers per the MCP stdio spec; newline-delimited JSON is also
 accepted on input for robustness.
 
 Tools:
-  jev_ask(state, question, options?) -> choice answer (options given) or noul
-      probability; passthrough to ${JEV_BASE_URL||TYPESAFE_BASE_URL}/v1/systemone
+  jev_ask(state, question, options?, decision_type?) -> choice answer
+      (options given) or noul probability; passthrough to
+      ${JEV_BASE_URL||TYPESAFE_BASE_URL}/v1/systemone, UNLESS decision_type
+      matches a route in JEV_ROUTES_FILE, in which case the multi-candidate
+      gateway (see _route_ask) answers instead.
   jev_models()                       -> GET /v1/models listing
   jev_stats_summary()                -> aggregate of $JEV_STATE_DIR/decisions.jsonl
+  jev_recommend_tier(task_description, risk_hint?) -> {"tier", "confidence",
+      "reasoning"}; ADVISORY ONLY. Claude Code's PreToolUse hooks (jev-gate.sh)
+      can only allow/ask/deny a tool call — they cannot rewrite its
+      parameters, so Jev cannot literally pick which model a Task/Agent
+      subagent spawn uses. This tool exists for the ORCHESTRATING Claude to
+      call explicitly before it decides which model to pass to a subagent
+      dispatch; nothing here enforces the recommendation.
 
 Env: JEV_BASE_URL or TYPESAFE_BASE_URL, JEV_API_KEY or TYPESAFE_API_KEY
      (explicit override) or JEV_KEY_VAR (the key's variable NAME in
      api_keys.sh, resolved here at call time rather than exported as secret
      material into the launched agent's whole process tree),
      JEV_MODEL (default jev-latest), JEV_MODE (default shadow),
-     JEV_STATE_DIR (default ~/.local/state/jev), JEV_MCP_TIMEOUT (default 4).
+     JEV_STATE_DIR (default ~/.local/state/jev), JEV_MCP_TIMEOUT (default 4),
+     JEV_ROUTES_FILE (optional; see jev-routes.json.template — opt-in
+     multi-candidate routing by decision_type, additive, never required).
 
 Any unreachable endpoint yields a structured isError:true result — never a
 hang, never a crash.
@@ -39,7 +51,9 @@ TOOLS = [
         "name": "jev_ask",
         "description": "Ask the Jev decision model an allow/ask/deny-style choice "
                        "question (when options are given) or a noul probability "
-                       "question (when they are not).",
+                       "question (when they are not). If decision_type matches a "
+                       "route in JEV_ROUTES_FILE, the multi-candidate gateway "
+                       "answers instead of the single default endpoint.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -47,6 +61,9 @@ TOOLS = [
                 "question": {"type": "string", "description": "The decision instruction."},
                 "options": {"type": "array", "items": {"type": "string"},
                             "description": "Choice options; omit for a noul probability."},
+                "decision_type": {"type": "string",
+                                   "description": "Optional route key into JEV_ROUTES_FILE "
+                                                   "for multi-candidate specialization/voting."},
             },
             "required": ["state", "question"],
         },
@@ -61,6 +78,20 @@ TOOLS = [
         "description": "Summarize the local Jev gate evidence log (decisions.jsonl).",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "jev_recommend_tier",
+        "description": "ADVISORY: recommend a Claude model tier (haiku/sonnet/opus) for a "
+                       "planned subagent dispatch. Never enforced — the orchestrating "
+                       "Claude decides whether to act on the recommendation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_description": {"type": "string", "description": "What the subagent will do."},
+                "risk_hint": {"type": "string", "description": "normal|high; default normal."},
+            },
+            "required": ["task_description"],
+        },
+    },
 ]
 
 
@@ -69,12 +100,12 @@ def _endpoint():
             or os.environ.get("TYPESAFE_BASE_URL") or "").rstrip("/")
 
 
-def _api_key():
-    direct = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")
-    if direct:
-        return direct
-    key_var = os.environ.get("JEV_KEY_VAR", "")
-    if not _KEY_VAR_RE.match(key_var):
+def _resolve_key_var(key_var):
+    """Resolve a key-variable NAME to its value from the keys file. Shared by
+    the default single-endpoint path and route candidates that name their
+    own key_var (routes.json candidates reuse detect_jev_records()'s
+    key_var field rather than ever carrying a secret inline)."""
+    if not key_var or not _KEY_VAR_RE.match(key_var):
         return "local"
     keys_file = os.environ.get("CMA_KEYS_FILE") or os.path.expanduser("~/api_keys.sh")
     try:
@@ -88,28 +119,120 @@ def _api_key():
         return "local"
 
 
-def _post_systemone(questions):
-    base = _endpoint()
+def _api_key():
+    direct = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")
+    if direct:
+        return direct
+    return _resolve_key_var(os.environ.get("JEV_KEY_VAR", ""))
+
+
+def _post_systemone(state, questions, model=None, base=None, key=None):
+    """POST one systemone request. base/key/model default to the single
+    configured endpoint's env vars; a route candidate overrides any subset
+    to call a different endpoint without touching the process environment."""
+    base = (base or _endpoint())
     if not base:
         raise RuntimeError("no JEV_BASE_URL/TYPESAFE_BASE_URL configured")
     payload = json.dumps({
-        "model": os.environ.get("JEV_MODEL", "jev-latest"),
-        "state": questions.pop("_state", ""),
-        "questions": questions["questions"],
+        "model": model or os.environ.get("JEV_MODEL", "jev-latest"),
+        "state": state,
+        "questions": questions,
     }).encode("utf-8")
     req = urllib.request.Request(
-        base + "/v1/systemone", data=payload,
+        base.rstrip("/") + "/v1/systemone", data=payload,
         headers={"Content-Type": "application/json",
-                 "Authorization": "Bearer " + _api_key()})
+                 "Authorization": "Bearer " + (key if key is not None else _api_key())})
     timeout = float(os.environ.get("JEV_MCP_TIMEOUT", "4"))
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+def _load_routes():
+    """Opt-in routes.json: {"routes": {decision_type: {candidates:[...],
+    min_confidence, min_agreement}}}. Absent/unreadable/malformed -> {} so
+    every caller falls back to the single-endpoint path unchanged."""
+    path = os.environ.get("JEV_ROUTES_FILE", "")
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        routes = data.get("routes") if isinstance(data, dict) else None
+        return routes if isinstance(routes, dict) else {}
+    except Exception:
+        return {}
+
+
+def _candidate_answer(candidate, state, questions):
+    """Query one route candidate; returns the raw answers dict for the
+    'ask' question, or None on any failure (never raises — a candidate
+    going down must not abort the route, just fall through to the next)."""
+    try:
+        data = _post_systemone(
+            state, questions,
+            model=candidate.get("model"),
+            base=candidate.get("base_url", ""),
+            key=_resolve_key_var(candidate.get("key_var", "")),
+        )
+        return (data.get("answers") or {}).get("ask")
+    except Exception:
+        return None
+
+
+def _answer_value(a):
+    return a.get("choice", a.get("noul", a.get("answer")))
+
+
+def _route_ask(route, state, questions):
+    """Multi-candidate specialization/voting gateway for one route. Never
+    requires a second real decision model to exist: with one candidate (or
+    min_agreement unset) it behaves as ordered failover; with
+    min_agreement set and >=2 candidates configured, it requires two
+    candidates to agree before trusting the result, degrading honestly
+    (never silently) when they don't."""
+    candidates = route.get("candidates") or []
+    min_confidence = float(route.get("min_confidence", 0.0) or 0.0)
+    min_agreement = route.get("min_agreement")
+    results = []  # [(candidate, answer_dict_or_None)]
+    for c in candidates:
+        results.append((c, _candidate_answer(c, state, questions)))
+        if min_agreement is None and results[-1][1] is not None \
+                and results[-1][1].get("confidence", results[-1][1].get("noul", 0)) >= min_confidence:
+            a = results[-1][1]
+            return {"answer": _answer_value(a), "probabilities": a.get("probabilities", {}),
+                    "confidence": a.get("confidence", 0), "endpoint": c.get("base_url", ""),
+                    "provider_id": c.get("provider_id"), "degraded": False}
+    live = [(c, a) for c, a in results if a is not None]
+    if min_agreement is not None:
+        for i in range(len(live)):
+            for j in range(i + 1, len(live)):
+                c1, a1 = live[i]
+                c2, a2 = live[j]
+                conf1 = a1.get("confidence", a1.get("noul", 0))
+                conf2 = a2.get("confidence", a2.get("noul", 0))
+                if _answer_value(a1) == _answer_value(a2) and conf1 >= min_confidence and conf2 >= min_confidence:
+                    return {"answer": _answer_value(a1), "probabilities": a1.get("probabilities", {}),
+                            "confidence": min(conf1, conf2),
+                            "agreement": True,
+                            "agreed_candidates": [c1.get("provider_id"), c2.get("provider_id")],
+                            "degraded": False}
+    # No candidate (or pair) cleared the bar: degrade honestly to the
+    # highest-priority live answer rather than hard-failing the tool call.
+    if live:
+        c, a = live[0]
+        return {"answer": _answer_value(a), "probabilities": a.get("probabilities", {}),
+                "confidence": a.get("confidence", a.get("noul", 0)),
+                "endpoint": c.get("base_url", ""), "provider_id": c.get("provider_id"),
+                "agreement": False, "degraded": True,
+                "reason": "no candidate met min_confidence/min_agreement"}
+    raise RuntimeError("no route candidate reachable")
 
 
 def _tool_jev_ask(args):
     state = str(args.get("state", ""))[:12000]
     question = str(args.get("question", ""))
     options = args.get("options") or []
+    decision_type = str(args.get("decision_type", "") or "")
     # Verified systemone wire format (research §1.2): questions is a name ->
     # question map; meaning lives in instructions/criteria only.
     if options:
@@ -118,14 +241,46 @@ def _tool_jev_ask(args):
     else:
         q = {"ask": {"type": "noul", "instructions": question,
                      "criteria": {"true": "yes", "false": "no"}}}
-    data = _post_systemone({"_state": state, "questions": q})
+    routes = _load_routes() if decision_type else {}
+    route = routes.get(decision_type) if routes else None
+    if route:
+        return _route_ask(route, state, q)
+    data = _post_systemone(state, q)
     a = (data.get("answers") or {}).get("ask")
     if not a:
         raise RuntimeError("endpoint returned no answers")
-    answer = a.get("choice", a.get("noul", a.get("answer")))
+    answer = _answer_value(a)
     return {"answer": answer, "probabilities": a.get("probabilities", {}),
             "confidence": a.get("confidence", 0),
             "endpoint": _endpoint(), "model": data.get("model")}
+
+
+def _tool_jev_recommend_tier(args):
+    """ADVISORY: a Choice question over {haiku, sonnet, opus}. The caller
+    (the orchestrating Claude, before dispatching a subagent) decides
+    whether to act on the recommendation — nothing here is enforced."""
+    task_description = str(args.get("task_description", ""))[:4000]
+    risk_hint = str(args.get("risk_hint", "normal") or "normal")
+    tiers = ["haiku", "sonnet", "opus"]
+    instructions = (
+        "Pick the cheapest Claude model tier that can reliably complete this "
+        "subagent task without needing escalation. risk_hint={0}. "
+        "Prefer haiku for mechanical/narrow work, sonnet for standard "
+        "multi-step work, opus only for tasks needing deep judgment or "
+        "high-stakes correctness.".format(risk_hint)
+    )
+    q = {"ask": {"type": "choice", "instructions": instructions,
+                 "criteria": {t: t for t in tiers}}}
+    data = _post_systemone(task_description, q)
+    a = (data.get("answers") or {}).get("ask")
+    if not a:
+        raise RuntimeError("endpoint returned no answers")
+    tier = _answer_value(a)
+    if tier not in tiers:
+        tier = "sonnet"
+    return {"tier": tier, "confidence": a.get("confidence", 0),
+            "reasoning": "jev choice over {0}; advisory only, not enforced".format(tiers),
+            "probabilities": a.get("probabilities", {})}
 
 
 def _tool_jev_models(_args):
@@ -179,6 +334,8 @@ def _call_tool(name, args):
         return _tool_jev_models(args or {})
     if name == "jev_stats_summary":
         return _tool_jev_stats_summary(args or {})
+    if name == "jev_recommend_tier":
+        return _tool_jev_recommend_tier(args or {})
     raise RuntimeError("unknown tool: %s" % name)
 
 
