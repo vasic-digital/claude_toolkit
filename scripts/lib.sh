@@ -1371,13 +1371,14 @@ cma_jev_env() {
   fi
   export JEV_BASE_URL="$_jev_base"
   export TYPESAFE_BASE_URL="$JEV_BASE_URL"          # SDK convention
-  # Secret read from the keys file ONLY (the cache stores the key var NAME,
-  # never key material — same contract as cma_run_provider).
-  if [ -n "$_jev_kv" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
-    JEV_API_KEY="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$_jev_kv"':-}"')"
-    export JEV_API_KEY
-  fi
-  export TYPESAFE_API_KEY="${JEV_API_KEY:-local}"
+  # Secret scoping: do NOT export the real key material into the whole
+  # launched agent process tree — every tool-use subprocess Claude Code
+  # spawns (Bash calls, other MCP servers, etc.) would otherwise inherit a
+  # TypeSafe API key it has no reason to see. Export only the NON-SECRET
+  # variable NAME; jev-gate.sh and jev_mcp.py — the only two consumers that
+  # actually need the key — resolve the real value themselves at call time
+  # from the keys file, the same pattern opencode-jev-plugin.js already uses.
+  export JEV_KEY_VAR="$_jev_kv"
   export JEV_MODEL="$_jev_model" JEV_MODE="${JEV_MODE:-shadow}" CMA_JEV_ACTIVE=1
   export CMA_JEV_ENDPOINT_ID="$_jev_pid"
   # Token-reduction env (verified Claude Code knob names). Additive: never

@@ -12,7 +12,10 @@ Tools:
   jev_models()                       -> GET /v1/models listing
   jev_stats_summary()                -> aggregate of $JEV_STATE_DIR/decisions.jsonl
 
-Env: JEV_BASE_URL or TYPESAFE_BASE_URL, JEV_API_KEY or TYPESAFE_API_KEY,
+Env: JEV_BASE_URL or TYPESAFE_BASE_URL, JEV_API_KEY or TYPESAFE_API_KEY
+     (explicit override) or JEV_KEY_VAR (the key's variable NAME in
+     api_keys.sh, resolved here at call time rather than exported as secret
+     material into the launched agent's whole process tree),
      JEV_MODEL (default jev-latest), JEV_MODE (default shadow),
      JEV_STATE_DIR (default ~/.local/state/jev), JEV_MCP_TIMEOUT (default 4).
 
@@ -21,8 +24,12 @@ hang, never a crash.
 """
 import json
 import os
+import re
+import subprocess
 import sys
 import urllib.request
+
+_KEY_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_INFO = {"name": "jev-mcp", "version": "1.0.0"}
@@ -63,7 +70,22 @@ def _endpoint():
 
 
 def _api_key():
-    return os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY") or "local"
+    direct = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")
+    if direct:
+        return direct
+    key_var = os.environ.get("JEV_KEY_VAR", "")
+    if not _KEY_VAR_RE.match(key_var):
+        return "local"
+    keys_file = os.environ.get("CMA_KEYS_FILE") or os.path.expanduser("~/api_keys.sh")
+    try:
+        out = subprocess.run(
+            ["bash", "-c",
+             'source "{0}" >/dev/null 2>&1; printf %s "${{{1}:-}}"'.format(keys_file, key_var)],
+            capture_output=True, text=True, timeout=4,
+        )
+        return out.stdout.strip() or "local"
+    except Exception:
+        return "local"
 
 
 def _post_systemone(questions):

@@ -15,7 +15,11 @@
 #   JEV_MODE=shadow|enforce (default shadow: always allow, log the would-be
 #                           decision)
 #   JEV_BASE_URL            endpoint base (required; unset => fail-open allow)
-#   JEV_API_KEY / TYPESAFE_API_KEY, JEV_MODEL (default jev-latest)
+#   JEV_API_KEY / TYPESAFE_API_KEY (explicit override), or JEV_KEY_VAR (the
+#                           key's variable NAME in api_keys.sh — resolved here
+#                           at call time, never exported as secret material
+#                           into the launched agent's whole process tree)
+#   JEV_MODEL (default jev-latest)
 #   JEV_GATE_TIMEOUT=2      curl timeout seconds
 #   JEV_GATE_THRESHOLD=0.8  risky-probability deny floor
 #   JEV_RISKY_THRESHOLD=0.7 risky-probability floor that escalates allow->ask
@@ -142,7 +146,17 @@ _req=$(jq -cn --arg model "$JEV_MODEL" --arg state "tool=${_tool} input=${_state
        criteria:{"true":"There is a real risk of data loss, secret exposure, or irreversible external side effects.",
                  "false":"The action is routine, reversible, and local."}}}}')
 
-_key="${JEV_API_KEY:-${TYPESAFE_API_KEY:-local}}"
+_key="${JEV_API_KEY:-${TYPESAFE_API_KEY:-}}"
+if [ -z "$_key" ] && [ -n "${JEV_KEY_VAR:-}" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
+  case "$JEV_KEY_VAR" in
+    [A-Za-z_]*) ;;
+    *) JEV_KEY_VAR="" ;;
+  esac
+  if printf '%s' "$JEV_KEY_VAR" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
+    _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$JEV_KEY_VAR"':-}"')"
+  fi
+fi
+_key="${_key:-local}"
 _start_ms=$(( $(date +%s) * 1000 ))
 _resp=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
   -H "Content-Type: application/json" \

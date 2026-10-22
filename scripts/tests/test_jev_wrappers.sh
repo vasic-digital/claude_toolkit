@@ -76,10 +76,19 @@ _expect_jev_env() { # _expect_jev_env <label> <present:0|1>
   if [ "$want" = 1 ]; then
     assert_file "$dump" "$label: stub env dumped"
     for v in JEV_BASE_URL=http://127.0.0.1:8095 TYPESAFE_BASE_URL=http://127.0.0.1:8095 \
-             JEV_API_KEY=secret123 TYPESAFE_API_KEY=secret123 JEV_MODEL=jev-fixture-1 \
+             JEV_KEY_VAR=TEST_JEV_KEY JEV_MODEL=jev-fixture-1 \
              JEV_MODE=shadow CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50 MAX_THINKING_TOKENS=10000; do
       if grep -q "^$v\$" "$dump"; then _pass "$label: $v"; else _fail "$label env" "missing $v"; fi
     done
+    # Secret-scoping fix (security review): the launched agent's own process
+    # must NOT see the real key material -- only JEV_KEY_VAR (the non-secret
+    # variable NAME) is exported broadly; jev-gate.sh/jev_mcp.py resolve the
+    # actual secret themselves at call time.
+    if grep -qE '^(JEV_API_KEY|TYPESAFE_API_KEY)=secret123$' "$dump"; then
+      _fail "$label: real secret leaked into launched agent env" "$(grep -E '^(JEV_API_KEY|TYPESAFE_API_KEY)=' "$dump")"
+    else
+      _pass "$label: real secret not exported into launched agent env"
+    fi
   else
     if [ -f "$dump" ] && grep -q '^JEV_BASE_URL=' "$dump"; then
       _fail "$label: Jev vars should be absent" "$(grep '^JEV_BASE_URL=' "$dump")"
