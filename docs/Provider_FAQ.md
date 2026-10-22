@@ -310,3 +310,25 @@ It is **mandatory**: a release commit must not be made unless the gate exits 0. 
 ### Why isn't the sandbox test suite enough on its own?
 
 The sandbox proves wrapper **logic** but is structurally blind to real-host state. v1.25.1 shipped with the whole sandbox suite green while every router alias on the real host was bricked (a PATH-shadowing `ccr`, a mis-configured local backend, resumed history overflowing a small window — none reachable from a sandbox). So the gate adds a **live** layer: it regenerates the aliases from the current `lib.sh` and drives the real alias through the real PATH → ccr → route-apply → proxy → backend, asserting the served `GATE-OK` reply and — for router providers — that the gateway's sink-side route actually names the provider under test.
+
+## Jev decision endpoints
+
+### Why does `claude-providers list` show `jev-local` but there is no `jev-local` alias?
+
+Because Jev endpoints are decision models, not chat models — there is no chat-completions API to launch. They are registered with `classification: "decision"` and `"alias": null`; the alias emission paths skip them by construction, so no `jev-*` / `kimi-jev-*` / `pi-jev-*` aliases ever exist. They appear in `list` and `status.json` for health visibility only, and in the ranked `jev-endpoints.json` cache that every launch wrapper reads. The `jev-*` namespace is reserved; no account or provider alias may use it.
+
+### I have an OpenRouter key already used for a chat alias — does it also create a Jev endpoint?
+
+Yes. `OPENROUTER_API_KEY` in the keys file yields both the normal chat provider records and a `jev-openrouter` decision record (model `typesafe/jev-1.13` at `https://openrouter.ai/api/v1/systemone`). Detection reads only the variable NAME from the keys file for hosted sources; no extra network call is made. The same applies to `TYPESAFE_API_KEY` → `jev-typesafe`. See [docs/jev/Jev_User_Guide.md](jev/Jev_User_Guide.md) §2.
+
+### Which Jev endpoint wins when several are detected?
+
+Local llmctl gateway `:8095` (10) > LAN pins (20) > OpenRouter (30) > TypeSafe hosted (40) — local-first because it is free and lowest-latency, and OpenRouter above TypeSafe 1P because the hosted TypeSafe path has a signup waitlist. `CMA_JEV_PREFER="jev-typesafe,jev-local"` overrides. Only the top-ranked endpoint (`endpoints[0]` in the cache) is used at launch.
+
+### Does the Jev layer slow down or change alias launches?
+
+No. `cma_jev_env` does zero network I/O on the launch path (one `stat` + one `jq` on a small cache file; a stale cache only kicks a detached background `sync-jev`). With no endpoint resolved, the launch is identical to pre-Jev behavior plus at most one INACTIVE notice — suppressible with `CMA_JEV_QUIET=1`, or opt the whole layer out with `CMA_JEV_DISABLE=1`.
+
+### The gate blocked (or would have blocked) a tool call — how do I tune or disable it?
+
+Defaults are shadow mode (log only) and fail-open (endpoint errors never block). Tuning knobs: `JEV_GATE_THRESHOLD` (0.8, deny floor), `JEV_RISKY_THRESHOLD` (0.7, allow→ask), `JEV_GATE_TIMEOUT` (2 s). Review `jev-stats` shadow verdicts for a calibration week before `jev-setup --mode enforce`. Kill switch: `JEV_GATE=off`. Full reference: [docs/jev/Jev_FAQ.md](jev/Jev_FAQ.md).

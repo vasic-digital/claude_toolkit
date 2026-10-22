@@ -1315,6 +1315,82 @@ cma_tmux_stale_shell_notice() {
   return 0
 }
 
+# ---------------------------------------------------------------------------
+# Jev decision layer — launch wiring (design: toolkit-jev-design §2.3).
+# cma_jev_env is emitted ONCE into the managed alias block (see
+# _cma_emit_managed) so every wrapper body — which must stay self-contained,
+# never sourcing lib.sh — can call it. The single heredoc below is the source
+# of truth for BOTH copies (lib.sh gets it via the eval immediately after).
+_cma_emit_cma_jev_env() {
+  cat <<'CMA_JEV_ENV_EOF'
+# Jev decision layer: read the ranked jev-endpoints.json cache (written by
+# `claude-providers sync` / `claude-providers sync-jev`) and export JEV_* plus
+# the SDK-convention TYPESAFE_* vars for the launched agent. ZERO network I/O
+# on this hot path: one stat + one jq on a small cache file. A missing or
+# TTL-stale cache kicks a DETACHED background refresh and this launch proceeds
+# without Jev (identical pre-Jev behavior plus one notice line). On any
+# failure: CMA_JEV_ACTIVE=0, no Jev exports, launch proceeds unchanged.
+# CMA_JEV_DISABLE=1 is the global opt-out (no exports, no notice).
+cma_jev_env() {
+  if [ "${CMA_JEV_DISABLE:-0}" = 1 ]; then
+    export CMA_JEV_ACTIVE=0
+    return 0
+  fi
+  local _jev_cache="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
+  local _jev_ttl="${CMA_JEV_CACHE_TTL:-300}" _jev_now _jev_mtime
+  _jev_now=$(date +%s)
+  _jev_mtime=$(stat -c %Y "$_jev_cache" 2>/dev/null || stat -f %m "$_jev_cache" 2>/dev/null || echo 0)
+  if [ ! -s "$_jev_cache" ] || [ $(( _jev_now - _jev_mtime )) -gt "$_jev_ttl" ]; then
+    # Refresh in the background, never block launch; a stale cache is still
+    # used for THIS launch. CMA_JEV_REFRESH_KICKED is a test/observability
+    # seam, not a behavior change.
+    export CMA_JEV_REFRESH_KICKED=1
+    if command -v claude-providers >/dev/null 2>&1; then
+      ( claude-providers sync-jev --quiet >/dev/null 2>&1 & )
+    fi
+  fi
+  if [ ! -s "$_jev_cache" ]; then
+    export CMA_JEV_ACTIVE=0
+    [ "${CMA_JEV_QUIET:-0}" = 1 ] || \
+      printf 'Jev decision layer: INACTIVE (no endpoint cache — run: claude-providers sync)\n' >&2
+    return 0
+  fi
+  command -v jq >/dev/null 2>&1 || { export CMA_JEV_ACTIVE=0; return 0; }
+  local _jev_line
+  _jev_line=$(jq -r '.endpoints[0] | [(.base_url // ""), (.key_var // ""), (.model // "jev-latest"), (.provider_id // "jev")] | @tsv' "$_jev_cache" 2>/dev/null)
+  local _jev_base _jev_kv _jev_model _jev_pid
+  _jev_base=$(printf '%s' "$_jev_line" | cut -f1)
+  _jev_kv=$(printf '%s' "$_jev_line" | cut -f2)
+  _jev_model=$(printf '%s' "$_jev_line" | cut -f3)
+  _jev_pid=$(printf '%s' "$_jev_line" | cut -f4)
+  if [ -z "$_jev_base" ]; then
+    export CMA_JEV_ACTIVE=0
+    [ "${CMA_JEV_QUIET:-0}" = 1 ] || \
+      printf 'Jev decision layer: INACTIVE (endpoint cache has no resolved endpoints)\n' >&2
+    return 0
+  fi
+  export JEV_BASE_URL="$_jev_base"
+  export TYPESAFE_BASE_URL="$JEV_BASE_URL"          # SDK convention
+  # Secret read from the keys file ONLY (the cache stores the key var NAME,
+  # never key material — same contract as cma_run_provider).
+  if [ -n "$_jev_kv" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
+    JEV_API_KEY="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$_jev_kv"':-}"')"
+    export JEV_API_KEY
+  fi
+  export TYPESAFE_API_KEY="${JEV_API_KEY:-local}"
+  export JEV_MODEL="$_jev_model" JEV_MODE="${JEV_MODE:-shadow}" CMA_JEV_ACTIVE=1
+  export CMA_JEV_ENDPOINT_ID="$_jev_pid"
+  # Token-reduction env (verified Claude Code knob names). Additive: never
+  # clobber a value the user already set.
+  export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE="${CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:-50}"
+  export MAX_THINKING_TOKENS="${MAX_THINKING_TOKENS:-10000}"
+  [ "${CMA_JEV_QUIET:-0}" = 1 ] || \
+    printf 'Jev decision layer: ACTIVE (endpoint: %s, mode: %s)\n' "$CMA_JEV_ENDPOINT_ID" "${JEV_MODE:-shadow}" >&2
+}
+CMA_JEV_ENV_EOF
+}
+eval "$(_cma_emit_cma_jev_env)"
+
 _cma_emit_cma_run() {
   cat <<'CMA_RUN_BODY_EOF'
 # Wrapper: keeps .claude.json projects/session index synced across every
@@ -1322,6 +1398,8 @@ _cma_emit_cma_run() {
 # one before claude runs; pushes the post-session state back out after exit.
 # Cheap (jq deep-merge of one ~50KB file per account), runs unconditionally.
 cma_run() {
+  # Jev decision layer: cache-only env export + one-line MOTD (no network).
+  cma_jev_env
   # Self-heal CLAUDE_BIN: the alias file normally exports it at the top, but if
   # that header line is missing (corrupted or hand-edited alias file) every
   # invocation would silently expand to an empty command ("-bash: : command
@@ -1607,6 +1685,8 @@ eval "$(_cma_emit_llmctl_ensure_active)"
 _cma_emit_cma_run_provider() {
   cat <<'CMA_PROV_BODY_EOF'
 cma_run_provider() {
+  # Jev decision layer: cache-only env export + one-line MOTD (no network).
+  cma_jev_env
   # Self-heal CLAUDE_BIN (same as cma_run — §11.4.185). Prevents "-bash: : command
   # not found" when the alias-file header export line is missing. Also resolves
   # the binary for the native-transport path ("$CLAUDE_BIN" "$@") below.
@@ -3100,6 +3180,8 @@ _cma_emit_managed() {
   printf '\n'
   _cma_emit_ccr_gateway_guard
   printf '\n'
+  _cma_emit_cma_jev_env
+  printf '\n'
   _cma_emit_cma_run
   printf '\n'
   _cma_emit_llmctl_ensure_active
@@ -4549,6 +4631,8 @@ _cma_emit_cma_run_kimi() {
 # Kimi Code account wrapper (kimiN). Resolves the kimi binary, scrubs the
 # Claude/Anthropic env the Kimi CLI must never inherit, then runs kimi.
 cma_run_kimi() {
+  # Jev decision layer: cache-only env export + one-line MOTD (no network).
+  cma_jev_env
   local _ck_bin _ck_khome
   _ck_bin="${KIMI_BIN:-}"
   if ! command -v "$_ck_bin" >/dev/null 2>&1; then
@@ -4580,6 +4664,8 @@ _cma_emit_cma_run_kimi_provider() {
 # reads default_model/base_url from the rendered config.toml, and refuses to
 # launch on a missing or stale config. Self-contained: no lib.sh helpers.
 cma_run_kimi_provider() {
+  # Jev decision layer: cache-only env export + one-line MOTD (no network).
+  cma_jev_env
   local _ckf=0 _ckpid _ckhome _ckconf _ckbin _ckdm _ckbase
   if [[ "${1:-}" == "--force" ]]; then _ckf=1; shift; fi
   _ckpid="${1:-}"
@@ -4715,7 +4801,8 @@ eval "$(_cma_emit_cma_run_kimi_provider)"
 # (no prefix) is ALWAYS Claude Code over that backend; kimi-<id> is ALWAYS Kimi
 # Code over the SAME backend; pi-<id> is ALWAYS Pi CLI over the SAME backend.
 # piN account aliases must never be named pi-*/kimi-*/kc-* (those are reserved
-# provider namespaces).
+# provider namespaces). jev-* is likewise reserved: it names Jev DECISION
+# endpoints (classification "decision"), which are never launchable aliases.
 #
 # KNOWN DIVERGENCE (disclosed, not (yet) reconciled): the "home env var" row's
 # PI_HOME cell above is what the ACCOUNT launcher (cma_run_pi, piN aliases)
@@ -4860,6 +4947,8 @@ _cma_emit_cma_run_pi() {
 # Pi CLI account wrapper (piN). Resolves the pi binary, scrubs the
 # Claude/Anthropic/Kimi env the Pi CLI must never inherit, then runs pi.
 cma_run_pi() {
+  # Jev decision layer: cache-only env export + one-line MOTD (no network).
+  cma_jev_env
   local _cp_bin _cp_phome
   _cp_bin="${PI_BIN:-}"
   if ! command -v "$_cp_bin" >/dev/null 2>&1; then
@@ -4905,6 +4994,8 @@ _cma_emit_cma_run_pi_provider() {
 #     config file is JSON named exactly `models.json` (docs/models.md), read
 #     from that directory — never `config.toml`.
 cma_run_pi_provider() {
+  # Jev decision layer: cache-only env export + one-line MOTD (no network).
+  cma_jev_env
   local _cpf=0 _cppid _cphome _cpconf _cpbin _cpdm _cpbase
   if [[ "${1:-}" == "--force" ]]; then _cpf=1; shift; fi
   _cppid="${1:-}"

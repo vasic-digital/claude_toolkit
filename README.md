@@ -70,6 +70,10 @@ kimi-deepseek  # Kimi Code on the SAME deepseek backend the no-prefix alias uses
 - **🪙 TOON encoding utility.** `toon.mjs` / `toon_encode.py` encode JSON to
   [TOON](docs/TOON_Integration.md) (~40% fewer tokens for structured prompt
   data). [TOON guide →](docs/TOON_Integration.md)
+- **🧭 Jev decision layer.** A shadow-first, fail-open permission gate backed
+  by TypeSafe's Jev decision models (local llmctl gateway, LAN pins,
+  OpenRouter, or TypeSafe hosted) — never a chat alias, always a lightweight
+  allow/ask/deny signal wired into every agent launch. [Jev guide →](docs/jev/Jev_Quickstart.md)
 - **🛟 Safe & reversible.** Every destructive step is backed up; `claude-rollback`
   restores everything. Idempotent installers. Verified on Linux and macOS.
 
@@ -89,6 +93,18 @@ Then open a new shell and:
 claude-list-accounts     # see what's wired up
 claude1                  # launch account 1 (auto-resumes this project's session)
 ```
+
+Optional — the Jev decision layer (permission gating via System-One decision
+models, local-first via the llmctl `:8095` gateway):
+
+```bash
+claude-providers sync    # detect Jev endpoints into the ranked cache
+jev-setup                # install gate/hooks/MCP per agent (shadow mode default)
+claude1                  # "Jev decision layer: ACTIVE (…)" MOTD on launch
+jev-stats                # decisions, calibration, ESTIMATED tokens saved
+```
+
+Full walkthrough: [docs/jev/Jev_Quickstart.md](docs/jev/Jev_Quickstart.md).
 
 <details>
 <summary><b>Manual install</b></summary>
@@ -143,6 +159,10 @@ config dir. Both installers are **idempotent**.
 | `claude-opencode-sync` | Expose Claude plugin Skills + MCP + `CLAUDE.md` to OpenCode. |
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
+| `claude-providers sync-jev` | Jev-only fast path: re-probe decision endpoints and refresh the ranked `jev-endpoints.json` cache. |
+| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); `--mode shadow\|enforce`, `--uninstall`. |
+| `jev-stats` | Decision-layer report from `decisions.jsonl`: verdicts, latency, shadow calibration, ESTIMATED tokens saved. `--days N`, `--json`. |
+| `jev-spec-setup <repo>` | Opt-in: install jev-spec CI templates (config + PR-verify workflow) into a target repo. |
 
 ## 📚 Documentation
 
@@ -151,6 +171,7 @@ config dir. Both installers are **idempotent**.
 | [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) | Turning LLM keys into aliases; transports, overrides, verification. |
 | [llmctl Integration Quickstart](docs/llmctl/quickstart.md) → [User Guide](docs/llmctl/user-guide.md) → [FAQ](docs/llmctl/FAQ.md) | Auto-recognizing local llmctl models as aliases; on-demand switching; honest context/LAN warnings; [flow diagrams](docs/diagrams/llmctl-detection-flow.svg). |
 | [Kimi Accounts User Guide](Kimi_Accounts_User_Guide.md) | Kimi Code accounts, `kimi-<id>` aliases, the one-time `kimi-*` → `kc-*` rename. |
+| [Jev Quickstart](docs/jev/Jev_Quickstart.md) → [User Guide](docs/jev/Jev_User_Guide.md) → [FAQ](docs/jev/Jev_FAQ.md) | The Jev decision layer: endpoint detection, the shadow-first permission gate, MCP server, per-agent installer, stats/calibration; [architecture diagram](docs/diagrams/jev-architecture.svg). |
 | [OpenCode Integration](OpenCode_Integration.md) | Sharing Skills + MCP + `CLAUDE.md` with OpenCode. |
 | [Session & Color](docs/SESSION_COLOR.md) | Per-project auto-session naming + the per-alias color hint reality. |
 | [TOON Integration](docs/TOON_Integration.md) | Token-efficient JSON encoding utility. |

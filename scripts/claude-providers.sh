@@ -20,6 +20,9 @@
 #                     llmctl orchestrator through EVERY catalog profile
 #                     (discovered live, never hardcoded), verifying each and
 #                     reporting PASS/FAIL/GATED per profile
+#   sync-jev          light Jev-only path: probe the Jev DECISION-model
+#                     endpoints (non-launchable — no aliases, ever) and
+#                     refresh status.json + providers/jev-endpoints.json
 #
 # Nothing about providers/models is hardcoded — everything derives from
 # models.dev + the editable providers/key-aliases.json and overrides.json.
@@ -2304,6 +2307,347 @@ detect_llmctl_records() {
   '
 }
 
+# --- Jev decision-layer detection (classification "decision") ----------------
+# Jev endpoints are DECISION models (System-One allow/ask/deny, routing,
+# truncation judgments), NOT chat models. They therefore get their own record
+# classification "decision" and a parallel, NON-LAUNCHABLE registration path:
+# records flow through resolve_records into status.json (health bookkeeping)
+# and into the ranked endpoint cache $CMA_PROVIDERS_DIR/jev-endpoints.json
+# (the ONLY thing the launch-time cma_jev_env reads — lib.sh), but they NEVER
+# get cma_run_provider aliases, NEVER reach _cma_kimi_render_config /
+# _cma_pi_render_config, and NEVER appear in models.json/config.toml. The
+# `"alias": null` field on every record is the explicit marker of that.
+#
+# Endpoint selection priority (lower wins; CMA_JEV_PREFER overrides):
+#   local llmctl decide gateway (10) > LAN pinned (20) > OpenRouter (30)
+#   > TypeSafe hosted (40)
+# Rationale: local is free + lowest latency; LAN pinned is user-declared
+# trust; OpenRouter is the no-waitlist hosted path; TypeSafe 1P has a signup
+# waitlist. Pins: providers/jev.json (override in tests via CMA_JEV_PINS_FILE,
+# same pattern as CMA_LLMCTL_PINS_FILE). Probe timeout CMA_JEV_HTTP_TIMEOUT
+# (default 2 — the launch-adjacent path needs faster than llmctl's 3).
+#
+# Hosted/OpenRouter sub-detectors need NO network: a record is emitted on the
+# PRESENCE of the key var (non-empty) in the keys file — the exact same
+# keys-file scan providers_resolve.py performs. A live POST /v1/systemone
+# probe (one noul question) only happens under the explicit CMA_JEV_LIVE=1
+# opt-in.
+detect_jev_records() {
+  local _jev_json="${CMA_JEV_PINS_FILE:-$LIB_DIR/providers/jev.json}"
+  command -v jq   >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+  command -v curl >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+  # -e (not -f): a process-substitution pins file (CMA_JEV_PINS_FILE=<(...))
+  # is a legitimate test seam and is NOT a POSIX regular file per -f, the
+  # exact distinction present_key_vars documents for the keys file. A
+  # directory, however, is useless to jq and skipped honestly.
+  if [[ ! -e "$_jev_json" || -d "$_jev_json" ]]; then
+    printf '[]\n'; return 0
+  fi
+  # Slurp the pins ONCE: a process-substitution pins file
+  # (CMA_JEV_PINS_FILE=<(...), a documented test seam) is a non-seekable FIFO
+  # — the first jq read drains it and every later read would see EOF, so
+  # every lookup below reads this captured copy, never the path again.
+  local _jev_pins=""
+  _jev_pins="$(cat -- "$_jev_json" 2>/dev/null)" || _jev_pins=""
+  # Malformed pins: warn + skip honestly, never crash (mirrors the llmctl
+  # detector's garbage-catalog contract).
+  if ! printf '%s' "$_jev_pins" | jq -e 'type=="object"' >/dev/null 2>&1; then
+    cma_warn "jev: pins file $_jev_json is not valid JSON — skipping Jev detection"
+    printf '[]\n'; return 0
+  fi
+
+  local _t="${CMA_JEV_HTTP_TIMEOUT:-2}"
+  [[ "$_t" =~ ^[0-9]+$ && "$_t" -gt 0 ]] || _t=2
+
+  # Key-var presence scan: same names-with-nonempty-values extraction
+  # providers_resolve.py relies on. Guarded so a missing keys file (a legit
+  # standalone `sync-jev` on a keyless host) yields no hosted records rather
+  # than present_key_vars' hard cma_die.
+  local _keys_present=""
+  if [[ -e "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" && ! -d "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then
+    _keys_present="$(present_key_vars 2>/dev/null | paste -sd' ' -)" || _keys_present=""
+  fi
+  _cma_jev_has_key() { case " $_keys_present " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+  local -a _jev_recs=()
+
+  # (a)/(b) hosted + OpenRouter — key-var presence only (no live call by
+  # default). With CMA_JEV_LIVE=1, one POST <base><systemone_path> carrying a
+  # single noul probe question; failure downgrades the record to
+  # status=unverified (excluded from the endpoint cache) with the real reason.
+  local _hs
+  for _hs in typesafe openrouter; do
+    local _h_enabled _h_keyvar _h_base _h_spath _h_model _h_ctx _h_prio _h_pid
+    _h_enabled="$(jq -r --arg h "$_hs" '.hosted[$h].enabled // false' <<<"$_jev_pins" 2>/dev/null)" || _h_enabled="false"
+    [[ "$_h_enabled" == "true" ]] || continue
+    _h_keyvar="$(jq -r --arg h "$_hs" '.hosted[$h].key_var // ""' <<<"$_jev_pins" 2>/dev/null)" || _h_keyvar=""
+    _h_base="$(jq -r --arg h "$_hs" '.hosted[$h].base_url // ""' <<<"$_jev_pins" 2>/dev/null)" || _h_base=""
+    _h_spath="$(jq -r --arg h "$_hs" '.hosted[$h].systemone_path // "/v1/systemone"' <<<"$_jev_pins" 2>/dev/null)" || _h_spath="/v1/systemone"
+    # Default model per design: typesafe -> jev-latest (last in its pins
+    # list), openrouter -> typesafe/jev-1.13 (first in its pins list — the
+    # canonical upstream id, ahead of the jev-latest alias).
+    _h_model="$(jq -r --arg h "$_hs" \
+      '(if $h == "openrouter" then .hosted[$h].models[0] else .hosted[$h].models[-1] end) // "jev-latest"' \
+      <<<"$_jev_pins" 2>/dev/null)" || _h_model="jev-latest"
+    _h_ctx="$(jq -r --arg h "$_hs" '.hosted[$h].context_limit // 64000' <<<"$_jev_pins" 2>/dev/null)" || _h_ctx=64000
+    [[ "$_h_ctx" =~ ^[0-9]+$ ]] || _h_ctx=64000
+    [[ -n "$_h_keyvar" && -n "$_h_base" ]] || continue
+    _cma_jev_has_key "$_h_keyvar" || continue
+    if [[ "$_hs" == "openrouter" ]]; then _h_pid="jev-openrouter"; _h_prio=30
+    else _h_pid="jev-typesafe"; _h_prio=40; fi
+    local _h_status="resolved" _h_reason="\$$_h_keyvar present in keys file (endpoint not probed; set CMA_JEV_LIVE=1 to probe)"
+    if [[ "${CMA_JEV_LIVE:-0}" == "1" ]]; then
+      local _h_secret _h_probe_rc=0 _h_body
+      _h_secret="$( set +e; set -a +u; . "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; set -a
+                    eval "printf '%s' \"\${$_h_keyvar:-}\"" )" || _h_secret=""
+      _h_body="$(jq -cn --arg m "$_h_model" '{model:$m, state:"probe",
+        questions:[{name:"probe", type:"noul", instructions:"Is this endpoint reachable? Answer yes."}]}')"
+      if curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
+           -H "Authorization: Bearer $_h_secret" -H "Content-Type: application/json" \
+           -d "$_h_body" 2>/dev/null | jq -e . >/dev/null 2>&1; then
+        _h_status="resolved"; _h_reason="live systemone probe ok at ${_h_base%/}$_h_spath"
+      else
+        _h_status="unverified"; _h_reason="live systemone probe failed at ${_h_base%/}$_h_spath (timeout ${_t}s or non-JSON response)"
+      fi
+    fi
+    _jev_recs+=("$(jq -cn --arg keyvar "$_h_keyvar" --arg pid "$_h_pid" \
+      --arg base "${_h_base%/}" --arg model "$_h_model" --argjson ctx "$_h_ctx" \
+      --argjson prio "$_h_prio" --arg status "$_h_status" --arg reason "$_h_reason" \
+      '{key_var:$keyvar, classification:"decision", provider_id:$pid, alias:null,
+        base_url:$base, transport:"systemone",
+        strong_model:$model, fast_model:$model,
+        context_limit:$ctx, max_output:0, priority:$prio, lan_exposed:false,
+        status:$status, reason:$reason}')")
+  done
+
+  # (c) local llmctl decide gateway + (d) LAN pins — live probes of
+  # GET <health_path> AND GET <models_path> (>=1 model id required), run in
+  # the SAME bounded-parallel batch pattern detect_llmctl_records uses
+  # (batch-wait, never wait -n: bash 3.2 portability), with the SAME
+  # fd-detach redirect on the backgrounded subshell group (a backgrounded
+  # probe inheriting the enclosing command-substitution pipe's write end
+  # hangs the whole sync at exit — reproduced live; see detect_llmctl_records'
+  # LOAD-BEARING comment).
+  #
+  # OFFLINE means "assume nothing is reachable" everywhere in this file;
+  # hosted key-presence records above are offline-safe (they claim presence,
+  # not reachability), but loopback/LAN liveness is a network fact, so probes
+  # are skipped entirely under OFFLINE.
+  if (( ! ${OFFLINE:-0} )); then
+    local -a _jev_targets=()
+    local _lg_enabled _lg_host _lg_port _lg_hpath _lg_mpath _lg_keyvar _lg_ctx
+    _lg_enabled="$(jq -r '.local_gateway.enabled // false' <<<"$_jev_pins" 2>/dev/null)" || _lg_enabled="false"
+    if [[ "$_lg_enabled" == "true" ]]; then
+      _lg_host="$(jq -r '.local_gateway.host // "127.0.0.1"' <<<"$_jev_pins" 2>/dev/null)" || _lg_host="127.0.0.1"
+      _lg_port="$(jq -r '.local_gateway.port // 8095' <<<"$_jev_pins" 2>/dev/null)" || _lg_port=8095
+      _lg_hpath="$(jq -r '.local_gateway.health_path // "/healthz"' <<<"$_jev_pins" 2>/dev/null)" || _lg_hpath="/healthz"
+      _lg_mpath="$(jq -r '.local_gateway.models_path // "/v1/models"' <<<"$_jev_pins" 2>/dev/null)" || _lg_mpath="/v1/models"
+      _lg_keyvar="$(jq -r '.local_gateway.key_var // ""' <<<"$_jev_pins" 2>/dev/null)" || _lg_keyvar=""
+      _lg_ctx="$(jq -r '.local_gateway.context_limit // 64000' <<<"$_jev_pins" 2>/dev/null)" || _lg_ctx=64000
+      [[ "$_lg_port" =~ ^[0-9]+$ ]] && \
+        _jev_targets+=("local"$'\t'"$_lg_host"$'\t'"$_lg_port"$'\t'"$_lg_hpath"$'\t'"$_lg_mpath"$'\t'"$_lg_keyvar"$'\t'"$_lg_ctx")
+    fi
+    # LAN pins: user-declared trusted endpoints; provider_id is "jev-<id>"
+    # (an entry id "lan-1" yields jev-lan-1). Disabled entries are never
+    # probed.
+    local _lan_id _lan_host _lan_port _lan_keyvar _lan_ctx
+    while IFS=$'\t' read -r _lan_id _lan_host _lan_port _lan_keyvar _lan_ctx; do
+      [[ -n "$_lan_id" && -n "$_lan_host" && "$_lan_port" =~ ^[0-9]+$ ]] || continue
+      case "$_lan_id" in *[!A-Za-z0-9._-]*) cma_warn "jev: lan entry id '$_lan_id' has invalid characters — skipped"; continue ;; esac
+      [[ "$_lan_ctx" =~ ^[0-9]+$ ]] || _lan_ctx=64000
+      local _lg_hpath2 _lg_mpath2
+      _lg_hpath2="$(jq -r '.local_gateway.health_path // "/healthz"' <<<"$_jev_pins" 2>/dev/null)" || _lg_hpath2="/healthz"
+      _lg_mpath2="$(jq -r '.local_gateway.models_path // "/v1/models"' <<<"$_jev_pins" 2>/dev/null)" || _lg_mpath2="/v1/models"
+      _jev_targets+=("$_lan_id"$'\t'"$_lan_host"$'\t'"$_lan_port"$'\t'"$_lg_hpath2"$'\t'"$_lg_mpath2"$'\t'"$_lan_keyvar"$'\t'"$_lan_ctx")
+    done < <(jq -r '.lan[]? | select(.enabled == true) |
+      [.id, .host, (.port|tostring), (.key_var // ""), ((.context_limit // "")|tostring)] | @tsv' \
+      <<<"$_jev_pins" 2>/dev/null)
+
+    if (( ${#_jev_targets[@]} > 0 )); then
+      local _jev_tmpdir=""
+      _jev_tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma-jev-probe.XXXXXX" 2>/dev/null)" || _jev_tmpdir=""
+      if [[ -n "$_jev_tmpdir" ]]; then
+        trap 'rm -rf "'"$_jev_tmpdir"'" 2>/dev/null' RETURN
+        local _jev_idx=0 _jev_entry
+        for _jev_entry in "${_jev_targets[@]}"; do
+          local _tid _thost _tport _thpath _tmpath _tkeyvar _tctx
+          IFS=$'\t' read -r _tid _thost _tport _thpath _tmpath _tkeyvar _tctx <<<"$_jev_entry"
+          local _jev_outfile="$_jev_tmpdir/$(printf '%06d' "$_jev_idx").json"
+          (
+            set +e
+            _base="http://${_thost}:${_tport}"
+            # healthz first (cheap liveness), then models (real capability) —
+            # BOTH must answer; an open port owned by an unrelated service
+            # fails the JSON/model-id gates below exactly like the llmctl
+            # detector's wrong-service case.
+            _hz=""
+            _hz="$(curl -sf --max-time "$_t" "${_base}${_thpath}" 2>/dev/null)" || _hz=""
+            [[ -n "$_hz" ]] || exit 0
+            _body=""
+            _body="$(curl -sf --max-time "$_t" "${_base}${_tmpath}" 2>/dev/null)" || _body=""
+            [[ -n "$_body" ]] || exit 0
+            _mid=""
+            _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
+            [[ -n "$_mid" ]] || exit 0
+            _mctx=""
+            _mctx="$(jq -r --arg m "$_mid" \
+              '[.data[]? | select(.id==$m) | (.meta.n_ctx // empty)] | .[0] // empty' \
+              <<<"$_body" 2>/dev/null)" || _mctx=""
+            [[ "$_mctx" =~ ^[0-9]+$ && "$_mctx" -gt 0 ]] || _mctx="$_tctx"
+            [[ "$_mctx" =~ ^[0-9]+$ && "$_mctx" -gt 0 ]] || _mctx=64000
+            _lan="false"; _prio=10
+            if [[ "$_tid" != "local" ]]; then _lan="true"; _prio=20; fi
+            _pid="jev-$_tid"
+            jq -cn --arg keyvar "$_tkeyvar" --arg pid "$_pid" --arg base "$_base" \
+                   --arg model "$_mid" --argjson ctx "$_mctx" --argjson prio "$_prio" \
+                   --argjson lan "$_lan" --arg tid "$_tid" \
+              '{key_var:$keyvar, classification:"decision", provider_id:$pid, alias:null,
+                base_url:$base, transport:"systemone",
+                strong_model:$model, fast_model:$model,
+                context_limit:$ctx, max_output:0, priority:$prio, lan_exposed:$lan,
+                status:"resolved",
+                reason:(if $tid == "local"
+                        then "llmctl decide gateway live at " + $base
+                        else "LAN-pinned Jev endpoint live at " + $base end)}' \
+              > "$_jev_outfile" 2>/dev/null
+          ) </dev/null >/dev/null 2>&1 &
+          _jev_idx=$(( _jev_idx + 1 ))
+        done
+        wait
+        if compgen -G "$_jev_tmpdir/*.json" >/dev/null 2>&1; then
+          local _frag
+          for _frag in "$_jev_tmpdir"/*.json; do
+            [[ -s "$_frag" ]] && _jev_recs+=("$(cat "$_frag")")
+          done
+        fi
+        rm -rf "$_jev_tmpdir" 2>/dev/null
+        trap - RETURN
+      fi
+    fi
+  fi
+
+  if (( ${#_jev_recs[@]} == 0 )); then
+    printf '[]\n'; return 0
+  fi
+  printf '%s\n' "${_jev_recs[@]}" | jq -cs '.'
+}
+
+# _cma_jev_status_write <id> <status> <model> <reason>
+# status.json bookkeeping for DECISION records. Same {status, model,
+# checked_at} shape as lib.sh's cma_status_write (which deliberately knows
+# nothing about classifications — it stays untouched) plus
+# "classification": "decision" and the detector's honest "reason". Atomic
+# (mktemp + mv). NO key material ever lands here.
+_cma_jev_status_write() {
+  local id="$1" status="$2" model="${3:-}" reason="${4:-}"
+  cma_require jq
+  local f; f="$(cma_status_cache)"; mkdir -p "$(dirname "$f")"
+  [[ -s "$f" ]] || printf '{}\n' > "$f"
+  local now; now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  if jq --arg id "$id" --arg s "$status" --arg m "$model" \
+        --arg r "$reason" --arg t "$now" \
+        '.[$id] = {status:$s, model:$m, checked_at:$t, failing_layer:"",
+                   classification:"decision", reason:$r}' \
+        "$f" > "$tmp" 2>/dev/null; then
+    command mv -f "$tmp" "$f"
+  else
+    rm -f "$tmp"; cma_warn "could not update status cache $f"
+  fi
+}
+
+# _cma_jev_endpoint_cache  — path of the ranked Jev endpoint cache.
+_cma_jev_endpoint_cache() { echo "$(cma_providers_dir)/jev-endpoints.json"; }
+
+# _cma_jev_write_endpoint_cache <records-json-array>
+# Filters to classification=="decision" && status=="resolved", ranks them
+# (priority asc, provider_id tiebreak for determinism; CMA_JEV_PREFER=<comma
+# list of provider_ids> promotes the listed ids to the front, in listed
+# order), and writes the runtime cache atomically (mktemp in the SAME dir +
+# mv — the alias committer's convention). NON-SECRET by construction: only
+# base_url, the key var NAME (never the value), model, priority and the probe
+# timestamp. This file is the ONLY thing lib.sh's cma_jev_env reads at launch
+# (zero probing on the launch hot path). An empty resolved set still writes
+# the file ({"endpoints": []}) so a stale endpoint can never linger after its
+# server disappears — auto-appear/auto-disappear, same contract as llmctl
+# records.
+_cma_jev_write_endpoint_cache() {
+  local records="$1"
+  cma_require jq
+  local cache; cache="$(_cma_jev_endpoint_cache)"
+  mkdir -p "$(dirname "$cache")"
+  local now; now="$(date +%s)"
+  local prefer="${CMA_JEV_PREFER:-}"
+  local tmp; tmp="$(mktemp "$(dirname "$cache")/.jev-endpoints.XXXXXX")"
+  if jq -cn --argjson recs "$records" --arg prefer "$prefer" --argjson now "$now" \
+            --argjson ttl "${CMA_JEV_CACHE_TTL:-300}" '
+    ($prefer | split(",") | map(select(length > 0))) as $pref
+    | [ $recs[] | select(.classification == "decision" and .status == "resolved") ] as $d
+    | {version: 1, generated_at: $now, ttl: $ttl,
+       endpoints: (
+         # Preferred ids first, in listed order; then the rest by priority.
+         # The parens are LOAD-BEARING: without them `sort_by` binds to the
+         # whole concatenation and silently destroys the prefer-first order.
+         ([ $pref[] as $p | $d[] | select(.provider_id == $p) ]
+          + ([ $d[] | select(.provider_id as $i | ($pref | index($i)) | not) ]
+             | sort_by(.priority, .provider_id)))
+         # NO unique_by here: unique_by SORTS by the key, which would
+         # silently destroy the ranked order (prefer-first, then priority).
+         # Duplicates are impossible by construction (the two halves are
+         # disjoint and resolve_records already dedupes by provider_id).
+         | map({provider_id, base_url, model: .strong_model, key_var,
+                priority, probed_at: $now, reason}))}' > "$tmp" 2>/dev/null; then
+    command mv -f "$tmp" "$cache"
+  else
+    rm -f "$tmp"; cma_warn "could not write Jev endpoint cache $cache"
+    return 1
+  fi
+}
+
+# _cma_jev_after_sync <records-json-array>
+# The single post-resolve integration point shared by cmd_sync and
+# cmd_sync_jev: status.json bookkeeping for every decision record (health
+# visibility; the launch gate never consults these — no aliases exist) + the
+# ranked endpoint cache.
+_cma_jev_after_sync() {
+  local records="$1"
+  [[ "${CMA_JEV_DISABLE:-0}" == "1" ]] && return 0
+  local pid status model reason
+  while IFS=$'\t' read -r pid status model reason; do
+    [[ -n "$pid" ]] || continue
+    _cma_jev_status_write "$pid" "$status" "$model" "$reason"
+  done < <(jq -r '.[] | select(.classification == "decision") |
+    [.provider_id, .status, (.strong_model // ""), (.reason // "")] | @tsv' \
+    <<<"$records" 2>/dev/null)
+  _cma_jev_write_endpoint_cache "$records"
+}
+
+# --- subcommand: sync-jev ---------------------------------------------------
+# claude-providers sync-jev [--quiet]
+# The LIGHT Jev-only path: run just detect_jev_records + the status/cache
+# writes — no models.dev catalog, no resolver, no alias work. This is what the
+# launch-time background refresh kicks (cma_jev_env in lib.sh runs
+# `claude-providers sync-jev --quiet` when the endpoint cache is older than
+# CMA_JEV_CACHE_TTL). The full `sync` path performs the same writes via
+# _cma_jev_after_sync, so the two never disagree about the cache format.
+cmd_sync_jev() {
+  if [[ "${CMA_JEV_DISABLE:-0}" == "1" ]]; then
+    (( QUIET )) || cma_log "sync-jev: Jev detection disabled (CMA_JEV_DISABLE=1)"
+    return 0
+  fi
+  local jev_records; jev_records="$(detect_jev_records)" || jev_records="[]"
+  if ! printf '%s' "$jev_records" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_jev_records produced no/invalid JSON output"
+  fi
+  if (( DRY_RUN )); then
+    jq -r '.[] | "\(.provider_id)\t\(.status)\t\(.base_url)"' <<<"$jev_records"
+    return 0
+  fi
+  _cma_jev_after_sync "$jev_records"
+  local n; n="$(jq '[.[] | select(.status=="resolved")] | length' <<<"$jev_records")"
+  (( QUIET )) || cma_log "sync-jev: $n Jev decision endpoint(s) resolved -> $(_cma_jev_endpoint_cache)"
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -2382,13 +2726,25 @@ resolve_records() {
   if ! printf '%s' "$extra_lc" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_llmctl_records produced no/invalid JSON output"
   fi
-  # Merge all ten sources, deduped by provider_id. The Kimi Code OAuth
+  # Jev decision-layer detection runs in the main sync path by default;
+  # CMA_JEV_DISABLE=1 opts out entirely (zero probes, zero records, zero
+  # cache/status writes — identical pre-Jev behavior).
+  extra_jev="[]"
+  if [[ "${CMA_JEV_DISABLE:-0}" != "1" ]]; then
+    extra_jev="$(detect_jev_records)" || true
+    if ! printf '%s' "$extra_jev" | jq -e 'type=="array"' >/dev/null 2>&1; then
+      cma_die "detect_jev_records produced no/invalid JSON output"
+    fi
+  fi
+  # Merge all eleven sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" --argjson e9 "$extra_tr" --argjson e10 "$extra_lc" '
-    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8 + $e9 + $e10) | unique_by(.provider_id)
+  # Decision-classification (Jev) records are merged in LAST ($e11): their
+  # provider_ids (jev-* namespace) are reserved for the decision layer.
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" --argjson e6 "$extra_hy" --argjson e7 "$extra_z" --argjson e8 "$extra_hc" --argjson e9 "$extra_tr" --argjson e10 "$extra_lc" --argjson e11 "$extra_jev" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5 + $e6 + $e7 + $e8 + $e9 + $e10 + $e11) | unique_by(.provider_id)
   '
 }
 
@@ -2438,10 +2794,14 @@ cma_find_orphans() {
   local sf; sf="$(cma_status_cache)"
   local candidates="" cid
   if [[ -s "$sf" ]]; then
+    # Decision-classification (Jev) status entries are owned by the
+    # sync/sync-jev lifecycle, never by orphan demotion — skip them here so a
+    # sync with CMA_JEV_DISABLE=1 (or a transiently-unreachable endpoint)
+    # leaves their health records exactly as the last Jev sync wrote them.
     while IFS= read -r cid; do
       [[ -n "$cid" ]] || continue
       case "$candidates" in *" $cid "*) ;; *) candidates="$candidates $cid " ;; esac
-    done < <(jq -r 'keys[]' "$sf" 2>/dev/null)
+    done < <(jq -r 'to_entries[] | select(.value.classification != "decision") | .key' "$sf" 2>/dev/null)
   fi
   if [[ -d "$pdir" ]] && compgen -G "$pdir/*.env" >/dev/null 2>&1; then
     local f base
@@ -2522,11 +2882,15 @@ cma_find_status_only_orphans() {
   local pdir; pdir="$(cma_providers_dir)"
   local sf; sf="$(cma_status_cache)"
   [[ -s "$sf" ]] || return 0
+  # Decision-classification (Jev) entries NEVER have a backing .env by design
+  # (they are non-launchable; status.json + the endpoint cache are their only
+  # intended surfaces) — without this filter `prune` would evict every Jev
+  # health record on every run. Their lifecycle is owned by sync/sync-jev.
   local id
   while IFS= read -r id; do
     [[ -n "$id" ]] || continue
     [[ -f "$pdir/$id.env" ]] || printf '%s\n' "$id"
-  done < <(jq -r 'keys[]' "$sf" 2>/dev/null)
+  done < <(jq -r 'to_entries[] | select(.value.classification != "decision") | .key' "$sf" 2>/dev/null)
 }
 
 # cma_find_unresolved_orphans <resolved-ids-space-separated> — *.env ids that
@@ -2841,6 +3205,9 @@ _cma_pi_twin_alias() {
 # from whatever directory the `PI_CODING_AGENT_DIR` env var names (default
 # `~/.pi/agent`) — see cma_run_pi_provider, which exports that variable
 # pointing at this SAME per-id directory so pi resolves exactly this file.
+# GUARD (Jev decision layer): records with classification=="decision" never
+# reach this renderer — cmd_sync filters them out of the provider loop before
+# any render call, and their transport ("systemone") is never passed here.
 _cma_pi_render_config() {
   local id="$1" keyvar="$2" transport="$3" base="$4" strong="$5" ctx="${6:-}"
   case "$id" in ''|pi-*|kimi-*|kc-*) return 0 ;; esac
@@ -3082,6 +3449,14 @@ cmd_sync() {
   cma_log "discovered $total key vars; $resolved resolve to a provider"
   local resolved_ids
   resolved_ids="$(jq -r '[.[] | select(.status=="resolved") | .provider_id] | unique | join(" ")' <<<"$records")"
+  # Decision-classification (Jev) records are captured BEFORE the provider
+  # loop: they are written to status.json + the ranked endpoint cache
+  # (_cma_jev_after_sync, after the loop) and are otherwise EXCLUDED from
+  # every launchable-provider consumer below (alias emission, env records,
+  # kimi/pi renderer configs, verification). resolved_ids above deliberately
+  # INCLUDES their ids so orphan demotion never touches their status entries.
+  local jev_records="[]"
+  jev_records="$(jq -c '[.[] | select(.classification == "decision")]' <<<"$records")" || jev_records="[]"
 
   if [[ -n "$_filter" ]]; then
     local _match_count
@@ -3275,7 +3650,13 @@ cmd_sync() {
     (( KIMI_ALIASES )) && { _cma_kimi_twin_alias "$pid" || true; }
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | select(.classification != "decision") | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
+
+  # Decision-layer (Jev) bookkeeping: status.json entries + ranked endpoint
+  # cache. Filtered syncs (`sync <id>`) still refresh the full Jev state from
+  # the pre-filter capture above — the cache is what launch-time cma_jev_env
+  # reads, so it must never silently go stale because one provider was synced.
+  if (( ! DRY_RUN )); then _cma_jev_after_sync "$jev_records"; fi
 
   # Orphan detection: any status.json/*.env record whose provider id is NOT in
   # the CURRENT resolved set (catalog/key/override dropped it) is demoted +
@@ -3820,9 +4201,29 @@ _list_rows() {
         "${alias:-?}" "$CMA_PROVIDER_ID" "$status" "$age" "${layer:--}" "$CMA_PROVIDER_MODEL" )
   done
 }
-cmd_list()        { _list_rows verified; }
-cmd_list_all()    { _list_rows all; }
-cmd_list_faulty() { _list_rows faulty; }
+# _list_jev_rows — read-only rendering of the Jev decision endpoints for the
+# list family. Decision records are NON-LAUNCHABLE (no aliases, no .env
+# files), so they are not part of _list_rows' *.env iteration; they surface
+# here, in their own section, from the endpoint cache + status.json (both
+# written by sync / sync-jev). This view never probes anything.
+_list_jev_rows() {
+  local cache; cache="$(_cma_jev_endpoint_cache)"
+  [[ -s "$cache" ]] || return 0
+  local n; n="$(jq '.endpoints | length' "$cache" 2>/dev/null)" || n=0
+  [[ "$n" =~ ^[0-9]+$ ]] || n=0
+  (( n > 0 )) || return 0
+  printf '\n## Decision endpoints (Jev) — not launchable; decision layer\n'
+  printf '%-16s %-34s %-22s %-9s %s\n' PROVIDER BASE_URL MODEL PRIORITY STATUS
+  local row pid base model prio status
+  while IFS=$'\t' read -r pid base model prio; do
+    [[ -n "$pid" ]] || continue
+    status="$(cma_status_read "$pid" 2>/dev/null)" || status=""
+    printf '%-16s %-34s %-22s %-9s %s\n' "$pid" "$base" "$model" "$prio" "${status:-pending}"
+  done < <(jq -r '.endpoints[] | [.provider_id, .base_url, .model, (.priority|tostring)] | @tsv' "$cache" 2>/dev/null)
+}
+cmd_list()        { _list_rows verified; _list_jev_rows; }
+cmd_list_all()    { _list_rows all; _list_jev_rows; }
+cmd_list_faulty() { _list_rows faulty; _list_jev_rows; }
 
 # --- subcommand: show -------------------------------------------------------
 cmd_show() {
@@ -4012,6 +4413,11 @@ cmd_sync_multi() {
   local pdir; pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
   local seen=" "
   local n_created=0 n_skipped=0
+
+  # Decision-classification (Jev) records never enter the multi-alias phase:
+  # they are non-launchable by design and must never reach model_verify.py /
+  # providers_generate.py.
+  records="$(jq -c '[.[] | select(.classification != "decision")]' <<<"$records")"
 
   while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out lan_exp ctx_warn; do
     [[ "$status" == "resolved" ]] || { n_skipped=$((n_skipped+1)); continue; }
@@ -4595,7 +5001,7 @@ cmd_quota() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|sync-all-llmctl|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names|quota|limits) SUBCMD="$1"; shift ;;
+  sync|sync-all-llmctl|sync-jev|list|list-all|list-faulty|show|verify|remove|prune|add|helixllm-export|migrate-names|quota|limits) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -4771,6 +5177,7 @@ case "$SUBCMD" in
   show)        cmd_show "${POSITIONAL[@]:-}" ;;
   verify)      cmd_verify "${POSITIONAL[@]:-}" ;;
   sync-all-llmctl) cmd_sync_all_llmctl ;;
+  sync-jev)    cmd_sync_jev ;;
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
   prune)       cmd_prune ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;

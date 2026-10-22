@@ -138,6 +138,11 @@ done
 for f in "$LIB_DIR"/kimi-*.sh; do
   cma_link_script_onto_path "$f" || true
 done
+# Jev decision-layer commands (v1.28.0): jev-setup / jev-gate / jev-stats /
+# jev-spec-setup land on PATH exactly like the other families.
+for f in "$LIB_DIR"/jev-*.sh; do
+  cma_link_script_onto_path "$f" || true
+done
 
 # 2b. Build the BUNDLED Go claude-code-router (flat checkout) and install it as
 # `ccr`, so the provider aliases route through OUR vendored router rather than a
