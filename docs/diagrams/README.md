@@ -12,12 +12,13 @@ display without a renderer.
 | Kimi + Claude family dispatch | [kimi-family.mmd](kimi-family.mmd) | [kimi-family.svg](kimi-family.svg) |
 | llmctl detection flow | [llmctl-detection-flow.mmd](llmctl-detection-flow.mmd) | [llmctl-detection-flow.svg](llmctl-detection-flow.svg) |
 | llmctl switch flow | [llmctl-switch-flow.mmd](llmctl-switch-flow.mmd) | [llmctl-switch-flow.svg](llmctl-switch-flow.svg) |
+| Jev decision-layer architecture | [jev-architecture.mmd](jev-architecture.mmd) | [jev-architecture.svg](jev-architecture.svg) |
 
 Regenerate after editing a source:
 
 ```bash
 echo '{"args":["--no-sandbox"]}' > /tmp/pptr.json
-for d in architecture dataflow enable-policy kimi-family llmctl-detection-flow llmctl-switch-flow; do
+for d in architecture dataflow enable-policy kimi-family llmctl-detection-flow llmctl-switch-flow jev-architecture; do
   mmdc -i docs/diagrams/$d.mmd -o docs/diagrams/$d.svg -p /tmp/pptr.json
 done
 ```

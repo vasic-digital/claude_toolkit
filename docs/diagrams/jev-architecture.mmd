@@ -1,0 +1,32 @@
+flowchart TB
+  subgraph SRC["Endpoint sources (scripts/providers/jev.json)"]
+    S1["Local llmctl gateway<br/>127.0.0.1:8095<br/>priority 10"]
+    S2["LAN / remote pins<br/>lan[] enabled entries<br/>priority 20"]
+    S3["OpenRouter<br/>OPENROUTER_API_KEY<br/>priority 30"]
+    S4["TypeSafe hosted<br/>TYPESAFE_API_KEY<br/>priority 40"]
+  end
+  SRC --> D["detect_jev_records()<br/>claude-providers.sh<br/>probe /healthz + /v1/models<br/>(hosted: keys-file name only)"]
+  D --> R{"classification == decision<br/>status == resolved?"}
+  R -- no --> X1["No record<br/>(endpoint absent = clean no-op)"]
+  R -- yes --> F["Filtered OUT of alias emission,<br/>kimi/pi renderers, chat catalogs"]
+  R -- yes --> ST["status.json<br/>health rows only"]
+  R -- yes --> C["_cma_jev_write_endpoint_cache()<br/>ranked: CMA_JEV_PREFER first,<br/>then priority asc"]
+  C --> CACHE["jev-endpoints.json<br/>version 1 · TTL 300 s<br/>non-secret (key var NAMES only)"]
+  CACHE --> ENV["cma_jev_env() — all 6 launch wrappers<br/>zero network I/O on launch path<br/>stale cache =&gt; detached sync-jev"]
+  ENV --> MOTD["MOTD: Jev decision layer: ACTIVE<br/>exports JEV_* + TYPESAFE_* + token knobs"]
+  MOTD --> AG["Agents: claude · kimi · pi · opencode"]
+  AG --> GATE["jev-gate.sh — PreToolUse hook"]
+  subgraph GFLOW["Gate flow (per gated tool call)"]
+    G1{"JEV_GATE=off?"} -- yes --> GA["allow · nothing logged"]
+    G1 -- no --> G2["Risk floor (deterministic)<br/>rm -rf / · mkfs · git push --force …<br/>=&gt; at least ask"]
+    G2 --> G3["One systemone request:<br/>choice gate + noul risky"]
+    G3 --> G4{"endpoint error /<br/>timeout 2 s?"}
+    G4 -- yes --> G5["FAIL-OPEN allow<br/>fallback logged"]
+    G4 -- no --> G6{"JEV_MODE?"}
+    G6 -- shadow --> G7["allow · log would-be decision"]
+    G6 -- enforce --> G8["real allow / ask / deny<br/>exit 0 / 0 / 2"]
+  end
+  GATE --> LOG["decisions.jsonl<br/>state_hash only — never raw input"]
+  LOG --> STATS["jev-stats<br/>verdicts · latency · shadow calibration<br/>ESTIMATED tokens saved"]
+  AG --> MCP["jev_mcp.py — MCP tools<br/>jev_ask · jev_models · jev_stats_summary"]
+  MCP --> LOG

@@ -1629,3 +1629,46 @@ needed.
 
 ---
 
+
+## 15. Decision endpoints (Jev) — non-launchable records
+
+`claude-providers list` has a second section below the agent rows:
+
+```
+## Decision endpoints (Jev) — not launchable; decision layer
+```
+
+These rows are **decision models** (Jev System-One endpoints), not chat
+models. They answer typed questions (`choice` / `noul` / `score`) via
+`POST <base>/v1/systemone` and have no chat-completions API — so they are
+registered with `classification: "decision"` and `"alias": null`, and the
+emission paths that would turn a record into `<id>` / `kimi-<id>` /
+`pi-<id>` aliases skip them by construction. **There is no `jev-local`
+alias to launch, and there never will be**; the `jev-*` namespace is
+reserved for the decision layer and rejected for account/provider alias
+names.
+
+What decision records DO get:
+
+- a health row in `status.json` (same `status`/`reason` shape as providers,
+  plus `"classification": "decision"`), so endpoint health is visible in
+  `claude-providers status`/`list`;
+- a ranked entry in the endpoint cache
+  `~/.local/share/claude-multi-account/providers/jev-endpoints.json`
+  (written by `claude-providers sync` / `sync-jev`), which the launch
+  wrappers read to export the `JEV_*`/`TYPESAFE_*` environment and print
+  the `Jev decision layer: ACTIVE (…)` MOTD on every alias launch.
+
+Sources and ranking: local llmctl decision gateway at `127.0.0.1:8095`
+(10) > LAN pins in `scripts/providers/jev.json` (20; LAN or remote cloud
+hosts you declare) > OpenRouter (30) > TypeSafe hosted (40); override with
+`CMA_JEV_PREFER`. Hosted sources are detected by key-var NAME presence in
+the keys file — no network call; local/LAN sources require a live
+`/healthz` + `/v1/models` probe.
+
+The decision layer built on these records (permission gate, MCP tools,
+installer, stats) is documented in
+[docs/jev/Jev_User_Guide.md](jev/Jev_User_Guide.md); the rationale for
+non-launchability and the shadow-first calibration policy is in
+[docs/jev/Jev_FAQ.md](jev/Jev_FAQ.md).
+

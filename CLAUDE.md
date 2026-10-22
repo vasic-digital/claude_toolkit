@@ -178,6 +178,68 @@ The Kimi Code CLI is a first-class sibling of Claude Code. The **family model** 
 
 **Legacy rename (one-time, idempotent, breaking).** The `kimi-` prefix is vacated so it means only "Kimi CLI agent". `scripts/providers/legacy-renames.json` is the one map: `kimi-for-coding→kc-for-coding`, `kimi-for-coding2→kc-for-coding2`, `kimi-for-coding-highspeed→kc-for-coding-highspeed`, `kimi-k3→kc-k3`, `kimi-k2p7→kc-k2p7`. `migrate-names` (auto-run at `sync`) renames `status.json` keys, `*.env`, `*.token`, `~/.claude-prov-<old>`→`~/.claude-prov-<new>` (via `backup_and_remove`), alias lines, `key-aliases.json` values (`ApiKey_Kimi`→`kc-for-coding`), and `overrides.json` keys; audit-logs each action; second run is a no-op. `detect_kimicode_record` emits the renamed `kc-*` ids/aliases and token names. Multi-account users must update scripts/muscle memory.
 
+## Jev decision layer
+
+Jev endpoints are **decision models** (typed `choice`/`noul`/`score` answers
+from `POST <base>/v1/systemone`), not chat models — they are registered with
+`classification: "decision"` and `"alias": null` and **never** become
+aliases, renderer configs, or chat catalog entries. The `jev-*` namespace is
+reserved for the decision layer.
+
+**Commands.** `claude-providers sync-jev [--quiet]` (Jev-only detect + cache
+refresh; full `sync` also does it) · `jev-setup [--agents …] [--mode
+shadow|enforce] [--check] [--uninstall]` (idempotent per-agent installer:
+Claude hooks+MCP+CLAUDE.md block, kimi `[[hooks]]`+mcp.json, pi
+`@riposta/pi-jev`, opencode plugin+MCP) · `jev-stats [--days N] [--json]`
+(decisions/latency/shadow calibration/ESTIMATED savings) · `jev-spec-setup
+[--force] <repo>` (opt-in jev-spec CI templates; key name is
+`TYPESAFE_AI_API_KEY`, not `TYPESAFE_API_KEY`).
+
+**Pipeline.** `detect_jev_records()` (claude-providers.sh; local llmctl
+gateway `127.0.0.1:8095` probed `/healthz`+`/v1/models`, LAN pins from
+`providers/jev.json`, OpenRouter/TypeSafe by keys-file var presence;
+priorities 10/20/30/40, `CMA_JEV_PREFER` overrides) →
+`_cma_jev_write_endpoint_cache()` →
+`~/.local/share/claude-multi-account/providers/jev-endpoints.json` (ranked,
+non-secret, TTL `CMA_JEV_CACHE_TTL` 300 s) → `cma_jev_env()` in all six
+launch wrappers (cache-only read, zero launch-path network I/O; stale cache
+kicks a detached `sync-jev --quiet`) → `jev-gate.sh` (shadow-first,
+fail-open PreToolUse gate; deterministic risk floor; one request with a
+`choice`+`noul` question pair; hashed-only `decisions.jsonl`) and
+`jev_mcp.py` (stdlib MCP server: `jev_ask`, `jev_models`,
+`jev_stats_summary`).
+
+**Env.** `JEV_MODE` (shadow default; enforce only after a calibration week),
+`JEV_GATE=off` kill switch, `JEV_GATE_THRESHOLD` 0.8 / `JEV_RISKY_THRESHOLD`
+0.7 / `JEV_GATE_TIMEOUT` 2 / `JEV_GATE_FAIL` open, `JEV_STATE_DIR`
+(`~/.local/state/jev`), `CMA_JEV_DISABLE=1` global opt-out, `CMA_JEV_QUIET=1`
+suppresses the INACTIVE notice. Active launches also export
+`TYPESAFE_BASE_URL`/`TYPESAFE_API_KEY` (SDK convention) and the token knobs
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50`, `MAX_THINKING_TOKENS=10000`.
+
+**Honest limitations** (keep these in any doc you touch): OpenCode gate
+covers built-in tools only (upstream #2319/#5894); `@riposta/pi-jev` needs
+network at install and its env names beyond the SDK convention are
+unverified; shadow-first is mandatory; confidence is a calibration score,
+not an error probability; the gate is fail-open by design
+(`JEV_GATE_FAIL=closed` is opt-in and risky); `jev-stats` savings are
+documented estimates, not metered; TypeSafe hosted has a signup waitlist
+(OpenRouter ranks above it); `jev-architect` does not call Jev and is
+excluded; StartLux-Decision local weights are CC BY-NC-4.0.
+
+**Test conventions for the jev suites.** Nine suites
+(`scripts/tests/test_jev_*.sh`, 280 assertions) share the canonical stdlib
+fixture `scripts/tests/fixtures/jev_server.py`, which speaks the verified
+systemone wire format (`GET /healthz`, `GET /v1/models`, `POST
+/v1/systemone` with a name→question MAP; choice/noul/score response shapes;
+scripted answers; delay seam; port file). Determinism seams:
+`CMA_JEV_PINS_FILE` (pins override, same pattern as
+`CMA_LLMCTL_PINS_FILE`), `CMA_JEV_HTTP_TIMEOUT`, `CMA_JEV_CACHE_TTL`,
+`CMA_JEV_DISABLE`, `CMA_JEV_REFRESH_KICKED`, `JEV_STATE_DIR`,
+`CMA_JEV_FIXTURE_*` fixture controls. All suites run under `make_sandbox`;
+the fixture has no randomness, so assertion counts are identical across
+runs (280/0 in every recorded run — `qa-results/jev_decision_layer_20261006/`).
+
 ## Test harness conventions
 
 Tests under `scripts/tests/` are plain bash. Each `test_*.sh` file:

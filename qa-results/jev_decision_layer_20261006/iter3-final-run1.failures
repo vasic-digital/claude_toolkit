@@ -1,0 +1,10 @@
+  - test_ccr_build.sh
+  - test_ccr_conformance.sh
+  - test_constitution.sh
+  - test_export.sh
+  - test_install.sh
+  - test_install_clean_host_ccr.sh
+  - test_llmctl_detect.sh
+  - test_llmctl_lan_exposure.sh
+  - test_mutation_residue.sh
+  - test_providers.sh

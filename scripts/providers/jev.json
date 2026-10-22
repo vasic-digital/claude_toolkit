@@ -1,0 +1,32 @@
+{
+  "$schema_note": "Jev decision-model endpoints. classification is always 'decision'. Probed by detect_jev_records() in claude-providers.sh; override this file in tests via CMA_JEV_PINS_FILE (same pattern as CMA_LLMCTL_PINS_FILE). Probing timeout: CMA_JEV_HTTP_TIMEOUT (default 2s).",
+  "hosted": {
+    "typesafe": {
+      "key_var": "TYPESAFE_API_KEY",
+      "base_url": "https://api.typesafe.ai",
+      "systemone_path": "/v1/systemone",
+      "models": ["jev-1.13.0", "jev-latest"],
+      "context_limit": 64000,
+      "enabled": true
+    },
+    "openrouter": {
+      "key_var": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api",
+      "systemone_path": "/v1/systemone",
+      "models": ["typesafe/jev-1.13", "jev-latest"],
+      "context_limit": 32000,
+      "enabled": true
+    }
+  },
+  "local_gateway": {
+    "host": "127.0.0.1",
+    "port": 8095,
+    "health_path": "/healthz",
+    "models_path": "/v1/models",
+    "systemone_path": "/v1/systemone",
+    "key_var": "LLMCTL_API_KEY",
+    "context_limit": 64000,
+    "enabled": true
+  },
+  "lan": []
+}

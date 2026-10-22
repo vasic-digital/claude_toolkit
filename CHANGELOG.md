@@ -34,6 +34,40 @@ tracks no own-org nested submodule; own-org repos live flat in
 - `scripts/tests/test_gitmodules_no_ownorg.sh`: FAILs on any own-org URL in
   `.gitmodules`, an own-org gitlink in the index, or a hardcoded old nested path
   in `scripts/` (control needles included).
+- **Jev decision layer**: TypeSafe's Jev decision/classification models
+  (`POST /v1/systemone` — yes/no, multiple-choice+confidence, 1-10 rubric,
+  bounding-box; no chat/completions, no tool calling) are registered as a new
+  `classification: "decision"` provider record, `"alias": null`, never
+  launchable — excluded from alias emission, the kimi/pi renderers and chat
+  catalogs, and surfaced only via `claude-providers list`'s own `## Decision
+  endpoints (Jev)` section. `detect_jev_records()` (local llmctl gateway
+  `127.0.0.1:8095` > LAN pins > OpenRouter > TypeSafe hosted, priorities
+  10/20/30/40, `CMA_JEV_PREFER` override) writes a ranked, non-secret endpoint
+  cache (`providers/jev-endpoints.json`, TTL `CMA_JEV_CACHE_TTL` 300s) via
+  `claude-providers sync` / the new `sync-jev` subcommand. `cma_jev_env()` in
+  all six launch wrappers reads that cache only (zero launch-path network
+  I/O; a stale cache kicks a detached background refresh) and exports
+  `JEV_*`/`TYPESAFE_*`; any failure degrades to `CMA_JEV_ACTIVE=0` with
+  launch behavior unchanged (`CMA_JEV_DISABLE=1` opts out entirely).
+  `jev-gate.sh` is a shadow-first (default), fail-open PreToolUse permission
+  gate — one Jev `/v1/systemone` call per gated tool call mapped to
+  allow/ask/deny (0.8 deny / 0.7 ask thresholds, deterministic risk floor for
+  destructive patterns), hashed-only evidence to `decisions.jsonl`; enforce
+  mode is explicit opt-in (`jev-setup --mode enforce`); `JEV_GATE=off` is the
+  gate-only kill switch. `jev_mcp.py` is a stdlib-only MCP server
+  (`jev_ask`/`jev_models`/`jev_stats_summary`). `jev-setup.sh` idempotently
+  installs per-agent artifacts for Claude Code, Kimi, pi, and OpenCode
+  (backup-first, atomic writes, honest offline SKIP). `jev-stats.sh` reports
+  decision counts, latency, shadow-calibration split, and an explicitly
+  labeled ESTIMATE (never a measurement) of tokens saved. `jev-spec-setup.sh`
+  is an opt-in CI-template installer for an external repo the operator
+  names — never wired into this repo's own `.github/`, consistent with the
+  no-CI/CD mandate. Docs: `docs/jev/{Jev_Quickstart,Jev_User_Guide,Jev_FAQ}.md`,
+  `docs/research/{toolkit-architecture,agent-integration-mechanics,
+  jev-ecosystem,decision-model-hashes,encoder-model-hashes}.md`,
+  `docs/diagrams/jev-architecture.{mmd,svg}`. Tests: 9 suites under
+  `scripts/tests/test_jev_*.sh` sharing the canonical stdlib fixture
+  `scripts/tests/fixtures/jev_server.py`.
 
 ## v1.30.6 — 2026-10-21
 

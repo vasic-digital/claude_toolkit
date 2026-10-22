@@ -1,0 +1,108 @@
+claude_toolkit — Jev decision-layer, iteration 3, FINAL integration QA
+==========================================================================
+Date: 2026-10-06. Repo: /mnt/agents/claude_toolkit.
+Integration verifier: converged fixtures on the VERIFIED systemone wire
+format (research/jev-ecosystem.md §1.2), re-ran everything, captured
+spot-check evidence.
+
+1. WIRE-FORMAT CONVERGENCE
+--------------------------
+- scripts/tests/fixtures/jev_server.py is now the ONE canonical fixture
+  (jev_gate_server.py DELETED; test_jev_gate.sh and test_jev_mcp.sh now
+  reference jev_server.py — no references to the old file remain).
+- Canonical fixture speaks §1.2 exactly:
+    request  {model, state, questions:{name -> {type,instructions,criteria}}}
+    response {"model":..., "answers":{name -> answer}} with
+      choice -> {type,choice,probabilities,confidence}
+      noul   -> {type,noul}                     (no separate confidence)
+      score  -> {type,score,legend,probabilities,confidence}
+- Tolerant parsing kept (both coders' designs preserved): also accepts the
+  legacy questions LIST form ([{name,...}]) and yes/no noul script values.
+- Direct dialect proof (choice+noul+score round-trip vs the fixture) is in
+  toolkit-iter3-integration.txt under "fixture dialect proof".
+
+2. GATE/MCP RE-RUN AFTER CODER B's §1.2 EDITS (previously un-run)
+-----------------------------------------------------------------
+- test_jev_gate.sh: 27 passed, 0 failed.
+- test_jev_mcp.sh:  11 passed, 0 failed.
+- No gate/MCP/plugin code fixes needed; no assertions weakened. The only
+  production-adjacent change was the fixture itself (the old gate fixture
+  answered the pre-§1.2 dialect AND had a broken _answer_for() call
+  signature — both removed with the dedupe).
+- node --check scripts/opencode-jev-plugin.js: OK.
+
+3. FULL-SUITE VERIFICATION (run-all.sh TWICE)
+---------------------------------------------
+Baseline (coder A final, /mnt/agents/qa/final-runall.log):
+    Test files: 100   passed: 89   failed: 11   (skipped-prereq: 2)
+Final run 1 (/mnt/agents/qa/iter3-final-run1.log):
+    Test files: 101   passed: 91   failed: 10   (skipped-prereq: 2)
+Final run 2 (/mnt/agents/qa/iter3-final-run2.log):
+    Test files: 101   passed: 91   failed: 10   (skipped-prereq: 2)
+(101 files now: coder B's test_jev_stats.sh landed after coder A's final
+baseline run; all 9 jev suites are in both runs.)
+
+FAILURE-LIST DIFF PROOF (sorted failure lists, *.failures next to logs):
+    diff iter3-final-run1.failures iter3-final-run2.failures -> IDENTICAL
+    diff final-runall.failures iter3-final-run1.failures ->
+        only line: "- test_sandbox_hygiene.sh" (in the pre-existing 11,
+        PASSED in both final runs — an improvement, not a new failure)
+    => ZERO new failures. All 10 remaining failures are the pre-existing
+       environmental set: test_ccr_build, test_ccr_conformance (ccr
+       submodule absent), test_constitution, test_export (pandoc toolchain),
+       test_install, test_install_clean_host_ccr (no ccr on host),
+       test_llmctl_detect (bc missing), test_llmctl_lan_exposure (host ss
+       output), test_mutation_residue (Go env), test_providers (host state).
+
+4. NEW JEV SUITES (assertion counts, identical across all 3 runs)
+-----------------------------------------------------------------
+    test_jev_detect.sh           25   (coder A)
+    test_jev_endpoints_cache.sh  16   (coder A)
+    test_jev_no_alias_leak.sh    26   (coder A)
+    test_jev_pins.sh             27   (coder A)
+    test_jev_gate.sh             27   (coder B)
+    test_jev_mcp.sh              11   (coder B)
+    test_jev_setup_idempotent.sh 32   (coder B)
+    test_jev_stats.sh            21   (coder B)
+    test_jev_wrappers.sh         95   (coder B)
+    TOTAL                       280 assertions, 0 failures, every run.
+
+5. DETERMINISM STATEMENT
+------------------------
+All 9 jev suites were run THREE times (standalone twice + inside both
+run-all passes — effectively 4 executions): identical pass counts and zero
+failures every time. The fixture has no randomness anywhere (scripted
+substring matching, fixed probabilities, first-option defaults).
+
+6. SPOT-CHECK EVIDENCE INDEX (/mnt/agents/qa/toolkit-iter3-integration.txt)
+---------------------------------------------------------------------------
+ (a) `claude-providers sync-jev` vs fixture (CMA_JEV_PINS_FILE seam,
+     sandboxed HOME): resolved 1 endpoint; jev-endpoints.json printed.
+ (b) Sandboxed wrapper path (managed alias render + stub claude):
+     "Jev decision layer: ACTIVE (endpoint: jev-local, mode: shadow)" MOTD
+     captured; stub saw JEV_BASE_URL + CMA_JEV_ACTIVE=1.
+ (c) jev-gate.sh round-trips vs converged fixture scripted gate->deny:
+     shadow -> exit 0 + permissionDecision allow + jsonl mode=shadow,
+     enforced=false, answer=deny; enforce -> exit 2 + permissionDecision
+     deny + jsonl mode=enforce, enforced=true. decisions.jsonl lines shown.
+ (d) jev-setup.sh --check on the sandbox: rc=0, honest MISSING reports
+     (CLAUDE.md block, opencode plugin/mcp entry), pi SKIP.
+ (+) fixture dialect proof: one POST with choice+noul+score questions in
+     §1.2 map form, exact §1.2 answers keyed by question name.
+
+7. FILES CHANGED BY INTEGRATION (nothing else)
+----------------------------------------------
+    M scripts/tests/fixtures/jev_server.py   (rewritten: canonical §1.2,
+                                             tolerant legacy parsing, keeps
+                                             delay/model/port-file seams)
+    D scripts/tests/fixtures/jev_gate_server.py
+    M scripts/tests/test_jev_gate.sh         (fixture path -> jev_server.py)
+    M scripts/tests/test_jev_mcp.sh          (fixture path -> jev_server.py)
+Checks: bash -n on both touched test files OK; python3 -m py_compile on
+jev_server.py + jev_mcp.py OK; node --check opencode-jev-plugin.js OK.
+No docs/README/CHANGELOG edits. No production-code edits were required.
+
+QA artifacts:
+    /mnt/agents/qa/iter3-final-run1.log, iter3-final-run2.log (+ .failures)
+    /mnt/agents/qa/toolkit-iter3-integration.txt (+ iter3-spotchecks.sh)
+    /mnt/agents/qa/toolkit-iter3-final.txt (this file)
