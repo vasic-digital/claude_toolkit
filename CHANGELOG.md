@@ -86,7 +86,35 @@ tracks no own-org nested submodule; own-org repos live flat in
   never asserted as fact. Backed by the vendored `ccusage` submodule
   (`scripts/claude-ccusage-build.sh`). Tests: `scripts/tests/
   test_claude_usage.sh` (hermetic, 50 assertions including a guarded live
-  smoke run against fabricated JSONL transcripts).
+  smoke run against fabricated JSONL transcripts). Usage reports now
+  auto-refresh on every `claude-providers sync`/`sync --multi` run
+  (`_cma_usage_refresh_after_sync`, mirroring the existing `_cma_jev_after_sync`
+  fail-soft pattern): a missing/unbuilt `claude-usage.sh` is a one-line skip,
+  a failing refresh is a warning, neither ever fails the sync itself;
+  `CMA_SYNC_SKIP_USAGE_REFRESH=1` opts out. Tests: `scripts/tests/
+  test_sync_usage_refresh.sh`.
+
+### Security
+
+- `jev-gate.sh`: fail-open/shadow/kill-switch paths no longer emit
+  `permissionDecision:"allow"` (a prior build of this PreToolUse gate let
+  those paths actively grant permission instead of deferring to Claude's
+  normal permission flow). Replaced with a clean passthrough
+  (`_emit_passthrough`); only genuine enforce-mode decisions emit a
+  decision now.
+- `jev-setup.sh`: credential-bearing config writes (`TYPESAFE_API_KEY`/
+  `JEV_API_KEY` into MCP/OpenCode configs) now happen under `umask 077`
+  with a `chmod 600` backstop, instead of inheriting the process umask.
+- `lib.sh`'s `cma_jev_env()` no longer exports the real `JEV_API_KEY`/
+  `TYPESAFE_API_KEY` secret into the whole launched agent process's
+  environment (and therefore every tool-use subprocess it spawns) — it
+  exports only the non-secret key-variable *name* (`JEV_KEY_VAR`);
+  `jev-gate.sh` and `jev_mcp.py` resolve the real key themselves at call
+  time from the keys file.
+- `jev-spec-setup.sh`'s generated GitHub Actions template pins
+  `oven-sh/setup-bun` to a commit SHA (`0c5077e51419868618aeaa5fe8019c62421857d6`
+  / `v2.2.0`, verified via the GitHub API) instead of the mutable `@v2`
+  tag, and adds top-level `permissions: contents: read`.
 
 ## v1.30.6 — 2026-10-21
 
