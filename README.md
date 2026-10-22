@@ -139,6 +139,7 @@ config dir. Both installers are **idempotent**.
 | `kimi-rollback` | Restore `.preunify.*` backups for the Kimi family. |
 | `kimi-providers` | Kimi framing over `claude-providers` (`sync\|list\|show\|verify\|migrate-names`). |
 | `kimi-providers quota` / `limits` | Same usage/limit report, reached via `kimi-providers`' catch-all forward. See [Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits](docs/Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits). |
+| `claude-usage report` | Token/cost usage report built on the real `ccusage` binary (day/model/session/project/provider breakdowns; default last 4 weeks; `json`/`md`/`csv`, written under `$SHARED_DIR/usage-reports/` by default). Native accounts are pooled (cannot be told apart) and "provider" is a best-effort catalog cross-reference — see `claude-usage --help` for the exact honesty contract. |
 | `claude-opencode-sync` | Expose Claude plugin Skills + MCP + `CLAUDE.md` to OpenCode. |
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
