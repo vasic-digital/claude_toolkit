@@ -32,10 +32,20 @@ set -u
 
 JEV_MODE="${JEV_MODE:-shadow}"
 JEV_GATE_TIMEOUT="${JEV_GATE_TIMEOUT:-2}"
-JEV_GATE_THRESHOLD="${JEV_GATE_THRESHOLD:-0.8}"
-JEV_RISKY_THRESHOLD="${JEV_RISKY_THRESHOLD:-0.7}"
 JEV_STATE_DIR="${JEV_STATE_DIR:-$HOME/.local/state/jev}"
 JEV_MODEL="${JEV_MODEL:-jev-latest}"
+
+# Threshold precedence: explicit env var > calibrated decisions.lock.json
+# (written by jev-calibrate.sh sweep) > fixed default. A lock file is read
+# only when the operator hasn't already pinned a threshold via env.
+_jev_lock_file="$JEV_STATE_DIR/decisions.lock.json"
+_jev_lock_ask="" _jev_lock_deny=""
+if [ -f "$_jev_lock_file" ] && command -v jq >/dev/null 2>&1; then
+  _jev_lock_ask=$(jq -r '.ask_threshold // empty' "$_jev_lock_file" 2>/dev/null)
+  _jev_lock_deny=$(jq -r '.deny_threshold // empty' "$_jev_lock_file" 2>/dev/null)
+fi
+JEV_GATE_THRESHOLD="${JEV_GATE_THRESHOLD:-${_jev_lock_deny:-0.8}}"
+JEV_RISKY_THRESHOLD="${JEV_RISKY_THRESHOLD:-${_jev_lock_ask:-0.7}}"
 
 _emit_allow() {
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"jev: %s"}}\n' "$1"

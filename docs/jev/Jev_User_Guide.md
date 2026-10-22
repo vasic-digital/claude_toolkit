@@ -349,6 +349,50 @@ report prints a zero-state hint and exits 0. The report footer repeats the
 calibration policy: review shadow verdicts for a week before
 `jev-setup --mode enforce`.
 
+## 8a. `jev-calibrate` — threshold calibration loop
+
+The gate's `ask`/`deny` thresholds (0.7/0.8 by default) are population-level
+constants. The POC design doc is explicit that per-project calibration is
+mandatory — "nobody can hand you trustworthy numbers for your use case."
+`jev-calibrate.sh` implements the shadow -> label -> sweep -> enforce ->
+drift-check loop against this toolkit's own stdlib-only tooling (not the
+unverified third-party `jevcal`/`jevkit-calibrate` packages the doc names).
+
+```
+cp "$JEV_STATE_DIR/decisions.jsonl" shadow_batch.jsonl   # freeze a snapshot
+jev-calibrate label --data shadow_batch.jsonl --labels ground_truth.json --out labeled.jsonl
+jev-calibrate sweep --data labeled.jsonl --target-accuracy 0.95 --lock "$JEV_STATE_DIR/decisions.lock.json"
+jev-calibrate check --data fresh_labeled.jsonl --lock "$JEV_STATE_DIR/decisions.lock.json" --max-ece 0.05 --max-mce 0.15
+```
+
+**Honest gap**: there is no built-in "ask an LLM to label this" call. `label`
+merges OPERATOR-SUPPLIED ground truth — a JSON array of
+`{"index":N,"ground_truth_ask":bool,"ground_truth_deny":bool}` keyed by
+0-based line number in the frozen snapshot — into the decisions. Wiring a
+live LLM-teacher call (e.g. asking Claude to label each shadow decision) is a
+documented follow-up integration point, not something this script fakes.
+
+`sweep` finds the lowest `risky_p` threshold reaching `--target-accuracy`
+against each of `ground_truth_ask`/`ground_truth_deny` independently (the
+same `risky_p` predictor the gate already emits), and writes the result —
+including ECE (Expected Calibration Error), MCE (Maximum Calibration Error),
+and Brier score — to a `decisions.lock.json` lock file. If no threshold
+reaches the target, that threshold is reported as `null` with an explanatory
+note: per the POC doc, "none is a real answer" — it means the gate question
+needs revising, not the bar lowered.
+
+`jev-gate.sh` reads `decisions.lock.json` automatically (precedence: an
+explicit `JEV_GATE_THRESHOLD`/`JEV_RISKY_THRESHOLD` env var wins over the
+lock file, which wins over the 0.8/0.7 fixed defaults) — no extra wiring
+needed once a lock file exists.
+
+`check` recomputes ECE/MCE/Brier on a *fresh* labeled batch using the
+*locked* thresholds (no re-sweep) and reports `PASS`/`WARN`/`FAIL` plus the
+drift percentage against the lock's own recorded calibration. Exit codes
+follow the POC doc's CI-gate convention: `0` = pass, `1` = bounds exceeded,
+`2` = config/input error (e.g. missing lock file) — never a silent pass on
+bad input.
+
 ## 9. `jev-spec-setup` — CI spec verification (opt-in)
 
 `jev-spec-setup [--force] /path/to/target-repo` writes two templates into a

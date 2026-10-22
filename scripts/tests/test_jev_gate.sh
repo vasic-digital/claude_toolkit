@@ -106,6 +106,21 @@ after=$(wc -l < "$JEV_STATE_DIR/decisions.jsonl" 2>/dev/null || echo 0)
 assert_eq 0 "$rc" "gate off exits 0"
 assert_eq "$before" "$after" "gate off logs nothing"
 
+it "a calibrated decisions.lock.json lowers the ask threshold below its 0.7 default"
+_start_fixture '{"gate":"allow","risky":0.5}'
+# Without a lock file, risky=0.5 stays under the default 0.7 ask floor -> allow.
+out=$(printf '%s' "$HOOK_LS" | JEV_BASE_URL="http://127.0.0.1:$JEV_FIX_PORT" JEV_MODE=enforce bash "$GATE")
+case "$out" in *'"permissionDecision":"allow"'*) _pass "no lock file: default 0.7 threshold -> allow" ;; *) _fail "expected allow with no lock file" "$out" ;; esac
+# With a calibrated lock file lowering ask_threshold to 0.3, the same risky=0.5 now escalates.
+printf '{"ask_threshold":0.3,"deny_threshold":0.95,"calibrated_at":"test","sample_size":4}' > "$JEV_STATE_DIR/decisions.lock.json"
+out=$(printf '%s' "$HOOK_LS" | JEV_BASE_URL="http://127.0.0.1:$JEV_FIX_PORT" JEV_MODE=enforce bash "$GATE")
+case "$out" in *'"permissionDecision":"ask"'*) _pass "lock file ask_threshold=0.3 escalates risky=0.5 to ask" ;; *) _fail "lock file threshold not honored" "$out" ;; esac
+# An explicit env var still wins over the lock file (0.95 > 0.5 -> back to allow).
+out=$(printf '%s' "$HOOK_LS" | JEV_BASE_URL="http://127.0.0.1:$JEV_FIX_PORT" JEV_MODE=enforce JEV_RISKY_THRESHOLD=0.95 bash "$GATE")
+case "$out" in *'"permissionDecision":"allow"'*) _pass "explicit env var overrides the lock file" ;; *) _fail "explicit env JEV_RISKY_THRESHOLD should override the lock file" "$out" ;; esac
+rm -f "$JEV_STATE_DIR/decisions.lock.json"
+_stop_fixture
+
 it "jsonl schema keys present and raw secret absent"
 line=$(tail -n1 "$JEV_STATE_DIR/decisions.jsonl")
 keys=$(printf '%s' "$line" | jq -c 'keys')
