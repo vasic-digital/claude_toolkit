@@ -97,20 +97,20 @@ assert_eq "PASS" "$(printf '%s' "$out3" | jq -r '.verdict')" "verdict PASS"
 assert_eq "0.0" "$(printf '%s' "$out3" | jq -r '.drift_pct')" "0% drift against its own calibration data"
 
 it "check FAILs (exit 1) when ECE bound is set below the actual ECE"
-bash "$CAL" check --data "$WORK/labeled.jsonl" --lock "$WORK/decisions.lock.json" --max-ece 0.0001 --json >/tmp/_jevcal_check_fail.$$  2>&1
+bash "$CAL" check --data "$WORK/labeled.jsonl" --lock "$WORK/decisions.lock.json" --max-ece 0.0001 --json >"$WORK/_jevcal_check_fail.$$"  2>&1
 rc=$?
 assert_eq 1 "$rc" "exit 1 on bounds exceeded"
-assert_eq "FAIL" "$(jq -r '.verdict' </tmp/_jevcal_check_fail.$$)" "verdict FAIL"
-rm -f /tmp/_jevcal_check_fail.$$
+assert_eq "FAIL" "$(jq -r '.verdict' <"$WORK/_jevcal_check_fail.$$")" "verdict FAIL"
+rm -f "$WORK/_jevcal_check_fail.$$"
 
 it "check exits 2 on a missing lock file (config error, not a silent pass)"
 bash "$CAL" check --data "$WORK/labeled.jsonl" --lock "$WORK/does-not-exist.json" >/dev/null 2>&1
 assert_eq 2 "$?" "exit 2 config error"
 
 it "--help prints usage without requiring any subcommand args"
-bash "$CAL" --help >/tmp/_jevcal_help.$$ 2>&1
+bash "$CAL" --help >"$WORK/_jevcal_help.$$" 2>&1
 assert_eq 0 "$?" "exit 0"
-assert_eq "1" "$(grep -qi 'label\|sweep\|check' /tmp/_jevcal_help.$$ && echo 1 || echo 0)" "help mentions subcommands"
-rm -f /tmp/_jevcal_help.$$
+assert_eq "1" "$(grep -qi 'label\|sweep\|check' "$WORK/_jevcal_help.$$" && echo 1 || echo 0)" "help mentions subcommands"
+rm -f "$WORK/_jevcal_help.$$"
 
 summary
