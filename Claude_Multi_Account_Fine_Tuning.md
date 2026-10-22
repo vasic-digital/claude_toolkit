@@ -1205,6 +1205,44 @@ Full details, overrides, verification, and troubleshooting live in
 **`docs/Provider_Aliases_User_Guide.md`**; diagrams in
 `docs/diagrams/provider-aliases.md`.
 
+### Usage reporting (`claude-usage report`)
+
+Where `claude-providers quota` (§14 of `docs/Provider_Aliases_User_Guide.md`)
+answers "how much is left on this key *right now*", `claude-usage report`
+answers the historical question — "what did we actually spend, and on what"
+— by reading the vendored **ccusage** binary's own analysis of Claude Code's
+local session logs (`submodules/ccusage`, built via
+`claude-ccusage-build.sh`).
+
+```bash
+claude-usage report                       # last 28 days, json + md written to disk
+claude-usage report --since 2026-10-01    # custom start, until = today
+claude-usage report --format csv          # csv to stdout instead of files
+claude-usage report --out /tmp/report.md  # write to an explicit path
+```
+
+With no flags, the window defaults to the **last 4 weeks** (`until` = today,
+`since` = `until` − 28 days), ccusage is called with `--breakdown` so every
+day's per-model split is captured, and the result is written as **both**
+`.json` and `.md` under `$SHARED_DIR/usage-reports/<range>.{json,md}` (the
+rendered Markdown is also echoed to stdout) — `--format` selects a single
+format to stdout/`--out` instead of the default dual file write, and `csv` is
+also available.
+
+**Honest limitation — there is no true per-alias split.** Every account
+dir's `projects/` (native **and** provider) is symlinked into the same
+`$SHARED_DIR/projects`, by design (see §11's *Data flow* above) — so the
+usage logs ccusage reads carry no signal distinguishing which alias actually
+made a given call. `claude-usage report` does not pretend otherwise: native
+`claude1..N` accounts are reported as one pooled bucket, and provider
+attribution is a **best-effort** reverse lookup from each entry's model ID
+back to `status.json`, explicitly labeled `candidate alias` when a model
+maps to exactly one provider, `AMBIGUOUS` when several providers could have
+served it, and `unmapped` when none do. Per-model, per-day, per-session, and
+per-project breakdowns are all real and exact; only "which alias" is an
+inference, and the command says so in its own output rather than asserting a
+precision the underlying data cannot support.
+
 ## 12. Per-project auto-session & per-alias color
 
 A **bare** alias launch — native (`claude1`, `claude2`, …) or provider
