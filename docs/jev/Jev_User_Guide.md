@@ -303,6 +303,31 @@ result — never a hang, never a crash. Question names are never sent to the
 model; all semantics live in `instructions`/`criteria` (per the verified
 systemone wire format).
 
+### 7.1 Adopting Jev in your own project: the Decision Architecture Rule
+
+Once `jev-setup` has installed the per-agent artifacts for a consuming
+project, paste this rule into that project's own `CLAUDE.md` so Claude Code
+reaches for `jev_ask` instead of spending a full LLM turn on a decision that
+doesn't need one:
+
+```markdown
+## Decision Architecture Rule
+
+Before writing any conditional logic that requires semantic understanding
+(classification, routing, scoring, quality judgment), ask:
+
+1. Can this be expressed as a Noul, Choice, or Score question?
+2. If yes, define the question and options explicitly in code comments.
+3. Call the `jev_ask` MCP tool (installed by this toolkit's `jev-setup`) for
+   the decision.
+4. Write the threshold and fallback logic in plain code.
+5. Only fall back to Claude Code for the generative parts (descriptions,
+   summaries, explanations, code generation).
+```
+
+This is the "jev-architect" pattern: propose the split — routing/urgency on
+Jev, the reply on an LLM — before writing the code, not after.
+
 ## 8. `jev-stats` — savings and calibration report
 
 `jev-stats [--days N] [--json]` reads `decisions.jsonl` and reports:
