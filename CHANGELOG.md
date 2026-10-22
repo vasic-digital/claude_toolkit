@@ -4,6 +4,8 @@ All notable changes to the Claude multi-account toolkit.
 
 ## Unreleased
 
+## v1.31.0 — 2026-10-22
+
 Own-org dependencies flattened (operator decision 2026-10-21: claude_toolkit
 tracks no own-org nested submodule; own-org repos live flat in
 `<root>/submodules` or `<hub>/constitution/submodules`).
