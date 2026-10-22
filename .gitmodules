@@ -10,3 +10,14 @@
 [submodule "submodules/go"]
 	path = submodules/go
 	url = https://go.googlesource.com/go
+
+# SECOND DELIBERATE EXCEPTION, same rationale as submodules/go above: HTTPS,
+# third-party (github.com/ryoppippi/ccusage is not an own-org repo, so it is
+# NOT subject to the flat-own-org-dependency policy in helix-deps.yaml), and
+# vendored so claude-usage.sh / claude-ccusage-build.sh never depend on
+# `npx ccusage@latest` reaching the npm registry at runtime. Built locally by
+# scripts/claude-ccusage-build.sh (cargo build of rust/, the package's own
+# real implementation — see that script's header for why).
+[submodule "submodules/ccusage"]
+	path = submodules/ccusage
+	url = https://github.com/ryoppippi/ccusage.git
