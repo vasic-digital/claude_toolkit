@@ -35,7 +35,7 @@ CACHE="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
 
 AGENTS="claude,kimi,pi,opencode"
-MODE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0
+MODE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0 CONSENT="${JEV_SETUP_CONSENT:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --agents|--agent) AGENTS="$2"; shift 2 ;;
@@ -45,10 +45,35 @@ while [ $# -gt 0 ]; do
     --uninstall) UNINSTALL=1; shift ;;
     --if-stale) IF_STALE="$2"; shift 2 ;;
     --quiet) QUIET=1; shift ;;
+    --yes|-y) CONSENT=1; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) printf 'jev-setup: unknown flag %s\n' "$1" >&2; exit 2 ;;
   esac
 done
+
+# CONSENT GATE. This script edits files in agent homes (~/.claude, ~/.kimi-code,
+# ~/.pi, ~/.config/opencode ...). It does so only with explicit consent:
+# --yes, JEV_SETUP_CONSENT=1, an interactive "y", or - for the launch-time lazy
+# --if-stale refresh only - a consent stamp left by an earlier consented run.
+# --check never writes and --uninstall only restores, so neither needs it.
+if [ "$CHECK" = 0 ] && [ "$UNINSTALL" = 0 ] && [ "$CONSENT" != 1 ]; then
+  if [ "$IF_STALE" -gt 0 ] && [ -f "$JEV_STATE_DIR/consent" ]; then
+    CONSENT=1
+  elif [ -t 0 ] && [ -t 1 ] && [ "$QUIET" = 0 ]; then
+    printf 'jev-setup will edit agent configuration under your home (a backup is made first). Continue? [y/N] ' >&2
+    read -r _ans </dev/tty 2>/dev/null || _ans=""
+    case "$_ans" in y|Y|yes|YES) CONSENT=1 ;; esac
+  fi
+  if [ "$CONSENT" != 1 ]; then
+    if [ "$IF_STALE" -le 0 ] && [ "$QUIET" = 0 ]; then
+      printf 'jev-setup: not editing any agent home without consent.\n  Preview: jev-setup --check\n  Apply:   jev-setup --yes   (or JEV_SETUP_CONSENT=1); every edited file is backed up first (*.prejev.<timestamp>)\n' >&2
+    fi
+    exit 3
+  fi
+fi
+if [ "$CONSENT" = 1 ] && [ "$CHECK" = 0 ] && [ "$UNINSTALL" = 0 ]; then
+  mkdir -p "$JEV_STATE_DIR" 2>/dev/null && : > "$JEV_STATE_DIR/consent" 2>/dev/null || true
+fi
 
 _say() { [ "$QUIET" = 1 ] || printf '%s\n' "$*"; }
 _want() { case ",$AGENTS," in *,"$1",*|*,all,*) return 0 ;; *) return 1 ;; esac }
@@ -75,14 +100,15 @@ _jq_merge() {
   local file="$1" prog="$2"; shift 2
   [ -f "$file" ] || (umask 077; printf '{}\n' > "$file")
   local tmp; tmp=$(umask 077; mktemp "$file.jevtmp.XXXXXX")
-  if jq "$@" "$prog" "$file" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+  local _jqerr; _jqerr="$(jq "$@" "$prog" "$file" 2>&1 >"$tmp")"
+  if [ -z "$_jqerr" ] && [ -s "$tmp" ]; then
     if cmp -s "$tmp" "$file"; then rm -f "$tmp"; return 0; fi
     _backup "$file"
     mv "$tmp" "$file"
     chmod 600 "$file" 2>/dev/null || true
   else
     rm -f "$tmp"
-    printf 'jev-setup: jq merge failed for %s — left untouched\n' "$file" >&2
+    printf 'jev-setup: jq merge failed for %s - left untouched: %s\n' "$file" "${_jqerr:-empty result}" >&2
     return 1
   fi
 }

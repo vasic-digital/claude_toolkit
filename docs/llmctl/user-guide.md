@@ -122,6 +122,58 @@ non-agentic use where the smaller window is fine.
   no dependency introduced. You can use every other part of claude_toolkit
   normally.
 
+## 5a. Model validation gate (§11.4.277) and Vision QA (§11.4.278)
+
+Local models are only as trustworthy as their last known-answer check.
+Constitution **§11.4.277** puts that check inside llmctl, not inside this
+toolkit:
+
+- `llmctl validate <profile>` runs deterministic known-answer suites (chat,
+  coder, embedding, and the Vision suite `vision-golden-v1`). Its exit codes
+  (llmctl `docs/validation.md`): **0** every check passed, **1** any wrong
+  result (a defective model/runtime), **2** could not determine (not served,
+  wrong model served, truncated output, pressure refusal, ...; UNDETERMINED
+  is never a pass).
+- `llmctl require-validated <profile>`: **0** only for a fresh, signed PASS
+  record that matches what would run now; **1** not validated; **2** cannot
+  determine. **75** and **98** are not validation verdicts: 75 is the
+  host-pressure gate refusing to start a unit (it is also the code of a
+  failed rollback, which is why the toolkit tells them apart by re-probing the
+  running set), and 98 is the port-in-use skip of the systemd/onnx path.
+- `LLMCTL_VALIDATE_STRICT=1` makes an UNDETERMINED result stop the profile;
+  llmctl treats consumer-facing profiles strictly unless
+  `LLMCTL_VALIDATE_STRICT=0` is set, so set it to `1` explicitly for
+  decision-bearing use.
+- llmctl runs the gate on `start`, `switch`, `auto`, `enable` and `restart`.
+  Launching an `llmctl-<profile>` alias runs `llmctl switch <profile>` (§2)
+  **only when that profile is not already the sole running one**, and then the
+  gate runs inside llmctl; the toolkit forwards your environment unchanged and
+  any non-zero exit from `switch` aborts the launch with llmctl's own message
+  and exit code. When the profile is already running no switch happens and the
+  start-time gate does not run again: under `LLMCTL_VALIDATE_STRICT=1` the
+  toolkit therefore asks `llmctl require-validated <profile>` itself (exit
+  0 proceeds; anything else aborts the launch with that code). Without
+  `STRICT=1` an already-running profile launches as before.
+- A refusal is never turned into a launch against an unvalidated model. A
+  wrong answer is a model/quantisation/`mmproj`/template defect to
+  investigate, never a reason to retry until green.
+
+**Vision QA (§11.4.278).** HelixQA reads real screens with a Vision model; that
+model must hold a fresh `require-validated` PASS first. The toolkit's part is
+only to provide the `llmctl-vision` alias and keep the gate's environment and
+refusals intact — proven by `scripts/tests/test_llmctl_vision_gate_wiring.sh`
+(a fake llmctl; no model is run). The toolkit runs **no** Vision known-answer
+suite of its own, and a PASS in this repo says nothing about Vision accuracy.
+
+The llmctl units are host-safe by construction (§11.4.277(E): no
+`Restart=always`, memory limits, refuse-to-start under memory pressure); see
+llmctl's `docs/host-safety.md`.
+
+Related: llmctl is itself a constitution *hub engine*, consumed by reference
+and never nested — see the README's
+[hub-engine section](../../README.md#-constitution-hub-engine) and the
+[placement diagram](../diagrams/hub-engine-placement.svg).
+
 ## 6. What this integration does not do
 
 claude_toolkit does not install, configure, or manage llmctl itself, and
@@ -136,4 +188,5 @@ repository — in
 Visual walkthroughs of the two flows described above:
 
 - [Detection flow](../diagrams/llmctl-detection-flow.svg) ([source](../diagrams/llmctl-detection-flow.mmd)) — catalog → per-profile probe → context/LAN honesty checks → alias.
+- [Hub-engine placement](../diagrams/hub-engine-placement.svg) ([source](../diagrams/hub-engine-placement.mmd)) — where llmctl and claude_toolkit sit in a consuming project, and how dependencies resolve without nesting.
 - [Switch flow](../diagrams/llmctl-switch-flow.svg) ([source](../diagrams/llmctl-switch-flow.mmd)) — on-demand switch, the post-failure re-probe, and the `CRITICAL: rollback also failed` path.

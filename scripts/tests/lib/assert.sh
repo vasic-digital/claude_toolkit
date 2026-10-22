@@ -7,6 +7,7 @@
 TESTS_PASSED="${TESTS_PASSED:-0}"
 TESTS_FAILED="${TESTS_FAILED:-0}"
 TESTS_FAILURES=()
+TESTS_SKIPPED="${TESTS_SKIPPED:-0}"
 CURRENT_TEST="${CURRENT_TEST:-(unknown)}"
 
 # Mark the start of an individual test case. Use as:  it "merges history.jsonl"
@@ -18,6 +19,12 @@ it() {
 _pass() {
   TESTS_PASSED=$((TESTS_PASSED + 1))
   printf '    \033[32m[PASS]\033[0m %s\n' "$1"
+}
+
+# _skip <reason>: an honest, COUNTED skip (never a pass); summary() reports it.
+_skip() {
+  TESTS_SKIPPED=$((TESTS_SKIPPED + 1))
+  printf '    \033[33m[SKIP]\033[0m %s\n' "$1"
 }
 
 _fail() {
@@ -169,8 +176,17 @@ assert_exit() {
 
 summary() {
   echo
+  # A file that asserted nothing proves nothing: never a pass (no vacuous green).
+  if (( TESTS_PASSED + TESTS_FAILED == 0 )); then
+    printf '\033[31m✗ no assertions ran (0 passed, 0 failed) - a test that checks nothing is not a pass\033[0m\n'
+    return 1
+  fi
   if (( TESTS_FAILED == 0 )); then
-    printf '\033[32m✓ %d passed, 0 failed\033[0m\n' "$TESTS_PASSED"
+    if (( TESTS_SKIPPED > 0 )); then
+      printf '\033[32m✓ %d passed, 0 failed\033[0m (%d skipped)\n' "$TESTS_PASSED" "$TESTS_SKIPPED"
+    else
+      printf '\033[32m✓ %d passed, 0 failed\033[0m\n' "$TESTS_PASSED"
+    fi
     return 0
   fi
   printf '\033[31m✗ %d failed, %d passed\033[0m\n' "$TESTS_FAILED" "$TESTS_PASSED"

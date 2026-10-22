@@ -18,6 +18,9 @@ make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
+# These suites drive plain-http loopback fixtures; since v1.32.0 plain http is an
+# explicit opt-in (TLS is the default). test_jev_detect_https.sh covers the default.
+export CMA_JEV_ALLOW_HTTP=1
 
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 mkdir -p "$PDIR" "$HOME/.claude-prov-testprov" "$HOME/.kimi-prov-testprov" "$HOME/.pi-prov-testprov"

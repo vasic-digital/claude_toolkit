@@ -221,6 +221,17 @@ switch seems to hang or fail with an unfamiliar message</a></li>
 do I report a problem that&#39;s actually inside llmctl itself, not this
 integration?</a></li>
 </ul></li>
+<li><a href="#validation-and-vision" id="toc-validation-and-vision">Validation and Vision</a>
+<ul>
+<li><a href="#does-claude_toolkit-validate-my-local-vision-model" id="toc-does-claude_toolkit-validate-my-local-vision-model">Does
+claude_toolkit validate my local Vision model?</a></li>
+<li><a href="#what-does-exit-2--undetermined-mean" id="toc-what-does-exit-2--undetermined-mean">What does exit 2 /
+UNDETERMINED mean?</a></li>
+<li><a href="#why-does-vision-qa-114278-matter-here" id="toc-why-does-vision-qa-114278-matter-here">Why does Vision QA
+(§11.4.278) matter here?</a></li>
+<li><a href="#is-claude_toolkit-part-of-the-constitution" id="toc-is-claude_toolkit-part-of-the-constitution">Is claude_toolkit
+part of the constitution?</a></li>
+</ul></li>
 </ul></li>
 </ul>
 </nav>
@@ -352,5 +363,41 @@ integration?</h3>
 found <em>inside</em> llmctl during this integration&#39;s development is
 documented, not patched here. See <a href="../research/2026-10-02-llmctl-upstream-findings.md"><code>../research/2026-10-02-llmctl-upstream-findings.md</code></a>
 for the current record of what&#39;s been found and reported upstream.</p>
+<h2 id="validation-and-vision">Validation and Vision</h2>
+<h3 id="does-claude_toolkit-validate-my-local-vision-model">Does
+claude_toolkit validate my local Vision model?</h3>
+<p>No. The validation gate (Constitution §11.4.277) lives in llmctl:
+<code>llmctl validate</code>,
+<code>llmctl require-validated &lt;profile&gt;</code> and
+<code>LLMCTL_VALIDATE_STRICT=1</code>. When you launch
+<code>llmctl-vision</code>, the toolkit runs
+<code>llmctl switch vision</code>, passes your environment through, and
+aborts the launch if the gate refuses (exit 1 wrong answer, 2
+undetermined, 75 pressure). It never launches against a profile the gate
+refused. This is covered by
+<code>scripts/tests/test_llmctl_vision_gate_wiring.sh</code>; the
+toolkit has no Vision known-answer suite of its own.</p>
+<h3 id="what-does-exit-2--undetermined-mean">What does exit 2 /
+UNDETERMINED mean?</h3>
+<p>llmctl could not decide whether the model answers correctly (for
+example the engine was unreachable or host pressure refused the run).
+UNDETERMINED is never treated as a pass; under
+<code>LLMCTL_VALIDATE_STRICT=1</code> it stops the profile. Fix the
+cause (see <code>llmctl logs &lt;profile&gt;</code>), do not retry until
+it turns green.</p>
+<h3 id="why-does-vision-qa-114278-matter-here">Why does Vision QA
+(§11.4.278) matter here?</h3>
+<p>HelixQA&#39;s screen-reading oracle is a Vision model; it is only
+trustworthy while that model holds a fresh
+<code>require-validated</code> PASS. The toolkit supplies the
+<code>llmctl-vision</code> alias and keeps the gate intact; the QA
+itself is HelixQA&#39;s.</p>
+<h3 id="is-claude_toolkit-part-of-the-constitution">Is claude_toolkit
+part of the constitution?</h3>
+<p>It is a <em>hub engine</em>: consumed by reference at
+<code>constitution/submodules/claude_toolkit</code>, depth 1, never
+initialised recursively, dependencies resolved by
+<code>scripts/resolve_deps.sh</code> instead of nested copies
+(§11.4.28(C), §11.4.31). See the README&#39;s hub-engine section.</p>
 </body>
 </html>

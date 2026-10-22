@@ -76,3 +76,11 @@ previously active is left exactly as it was.
 See the full [user guide](./user-guide.md) for switching details, both
 warnings in depth, and troubleshooting — and the [FAQ](./FAQ.md) for quick
 answers to the most common "why isn't..." questions.
+
+## Validation gate (Constitution §11.4.277)
+
+llmctl validates a model with known-answer suites before decision-bearing use.
+`export LLMCTL_VALIDATE_STRICT=1` before launching an `llmctl-<profile>` alias
+to make an UNDETERMINED result stop the launch; check a profile yourself with
+`llmctl require-validated vision` (exit 0 = fresh PASS). Details and exit codes:
+[user-guide §5a](./user-guide.md#5a-model-validation-gate-114277-and-vision-qa-114278).

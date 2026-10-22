@@ -35,7 +35,16 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from http_noredirect import open_url as _open_url
+
+
+def urlopen(req, timeout=None, context=None):
+    """Credential-safe replacement for urllib's urlopen: a redirect is only
+    followed when it stays on the same scheme://host:port, so an Authorization
+    / x-api-key header can never be replayed to another origin (see
+    http_noredirect.py). Tests may still stub `model_verify.urlopen`."""
+    return _open_url(req, timeout=timeout, context=context, same_origin=True)
 from urllib.error import URLError, HTTPError
 
 # --- Constants ---------------------------------------------------------------

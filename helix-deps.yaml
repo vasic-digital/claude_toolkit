@@ -3,8 +3,9 @@
 # §11.4.28(C), operator decision 2026-10-21). Resolution: scripts/resolve_deps.sh
 # (CT_<NAME>_DIR -> <hub>/submodules/<name> -> <root>/submodules/<name> -> sibling).
 # ssh_url values verified with `git ls-remote <url> refs/heads/main` (2026-10-21).
-# Third-party, NOT listed here: submodules/go (go.googlesource.com, the only
-# submodule) and superspec (WangX0111/superspec, resolved like the others).
+# Third-party, NOT listed here: submodules/go (go.googlesource.com) and
+# submodules/ccusage (ryoppippi/ccusage), the only submodules; and superspec
+# (WangX0111/superspec, resolved like the others).
 schema_version: 1
 deps:
   - { name: HelixConstitution,  ssh_url: git@github.com:HelixDevelopment/HelixConstitution.git, ref: main, why: governance canon + mechanical acceptance tools (resolve_deps.sh constitution), layout: flat }

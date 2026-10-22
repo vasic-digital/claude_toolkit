@@ -4,6 +4,127 @@ All notable changes to the Claude multi-account toolkit.
 
 ## Unreleased
 
+## v1.32.0 — 2026-10-22
+
+The Jev local decide-gateway detector now speaks llmctl's real transport
+(HTTPS + mandatory bearer key); the key can no longer reach a command line or
+an http request; plus hub-engine / validation-gate / decision-model
+documentation, a user-manual index, two new diagrams and tests.
+
+### BREAKING (security) — read before upgrading
+
+- LAN pins (`lan[]` in `scripts/providers/jev.json`) and the local gateway pin
+  are now **TLS-only by default** (`scheme` defaults to `https`). A plain-http
+  LAN endpoint that v1.31.x detected is no longer registered; the detector
+  warns `does not speak TLS` when it can tell. Serve it over TLS and give the
+  detector the CA (`CMA_JEV_CA_FILE`) and key (`key_var`), or, for a
+  loopback-only dev server, opt in with `CMA_JEV_ALLOW_HTTP=1` or
+  `"scheme": "http"` in the pin. Plain http is **never** used for a
+  non-loopback host.
+- Plain-http (opt-in) records carry **no** `key_var` and no `ca_file`;
+  `jev-gate.sh` and `jev_mcp.py` send no Authorization header over http.
+- The endpoint cache gains `ca_file` and launches export `JEV_CA_FILE`: existing
+  installs must run `claude-providers sync` (regenerates the alias file) once.
+- `llmctl-<profile>` launches: exit 75 from `llmctl switch` is no longer always
+  reported as a failed rollback (see Fixed).
+
+### Fixed
+
+- `detect_jev_records` probed the local llmctl decide gateway over plain
+  `http://` with no key, so a real gateway (HTTPS, local CA, bearer key) was
+  never auto-detected. It now tries TLS first, trying each CA candidate in turn
+  (`CMA_JEV_CA_FILE`, `SSL_CERT_FILE`, `$LLMCTL_HOME/cert/ca/ca.crt`, system
+  store) until `/healthz` answers; certificate verification is never disabled.
+  The bearer key comes from the env var named by the pin's `key_var` (else the
+  keys file) and reaches curl through a header file, never argv, never printed
+  or cached. Each failure has its own key-free warning: no key; key rejected
+  (HTTP 401/403/429); models request failed (HTTP n); certificate not trusted.
+- Key-on-command-line class: `jev-gate.sh` and the `CMA_JEV_LIVE=1` hosted
+  probe passed `-H "Authorization: Bearer $key"` (visible in `ps`); both now use
+  a header file. `jev_mcp.py` no longer follows redirects (urllib replayed the
+  Authorization header to the redirect target) and strips Authorization for
+  non-https URLs.
+- Host classification is an exact grammar (`127.0.0.0/8` literal, `localhost`,
+  `::1`, `[::1]`); userinfo (`127.0.0.1@host`), paths, `127.evil.example`,
+  `127.0.0.1.nip.io` and `localhost.` are not loopback.
+- `jev-gate.sh` now resolves the key named by `JEV_KEY_VAR` from the process
+  environment before the keys file (it previously sent `Bearer local` when no
+  keys file existed).
+- Empty-array expansion under `set -u` (bash 3.2 / 4.3) in the new probe.
+- `_cma_llmctl_ensure_active`: exit 75 from `llmctl switch` means a host-pressure
+  refusal with the running set untouched OR a failed rollback; it now decides
+  from llmctl's text and a re-probe of the running set, so a pressure refusal no
+  longer prints `CRITICAL: rollback also failed`. With `LLMCTL_VALIDATE_STRICT=1`
+  an already-running profile is checked with `llmctl require-validated` (no
+  switch means llmctl's start-time gate would not run).
+- `docs/diagrams/kimi-family.mmd` was not valid Mermaid (its prose header was not commented); the header is now `%%` comments and the SVG is re-rendered.
+- `JEV_GATE=off` is recorded (`$JEV_STATE_DIR/gate-off.log`, reported by `jev-stats`).
+- `jev-setup` now needs consent (`--yes` / `JEV_SETUP_CONSENT=1` / interactive `y` /
+  a prior consent stamp for `--if-stale`) before editing any agent home; exit 3
+  otherwise. Callers that ran it unattended must add `--yes`. Backups were
+  already made first.
+- One shared credential-safe opener (`scripts/http_noredirect.py`): a redirect is
+  refused (strict) or followed only within the same scheme://host:port; used by
+  `jev_mcp.py`, `quota_probe.py`, `model_verify.py` (provider probes carrying the
+  user's API key) and `alias_e2e_test.py`, replacing the duplicate handler and
+  urllib's default redirect-following.
+- `cma_jq_edit` (lib.sh): one atomic, loud JSON edit used by `claude-providers add`,
+  `claude-unify` (enabledPlugins union) and `jev-setup` merges, instead of
+  swallowing jq errors.
+- `assert.sh summary()` fails a test file that asserted nothing; two test fixtures
+  no longer lose server PIDs in a `$(...)` subshell.
+- `specs/003-jev-decision-layer/{spec,plan,tasks}.md` ported (historical spec with a
+  status header; the design file it cites was never found, UNCONFIRMED whether it
+  was written; task T017 is not present in the current code).
+- Out of this repository (reported, not changed here): the `validate_judge.py`
+  redirect handler and `run_golden.py` / `review_translation.py` (llmctl,
+  constitution), `curl -k` in `validate_bridge.sh`, the SonarQube `curl -u` token.
+- Not verified against a real `llmctl decide` gateway (hermetic TLS stand-in
+  only); the OpenCode plugin does not read `JEV_CA_FILE` (use
+  `NODE_EXTRA_CA_CERTS`). The release gate (`claude-release-gate`) was not run
+  for this release.
+
+### Added
+
+- `docs/User_Manual.md`: explicit manual index over every guide, FAQ and
+  diagram (Constitution §11.4.257), linked from the README.
+- Diagrams `docs/diagrams/hub-engine-placement.{mmd,svg}` (hub-engine
+  placement, resolver order, no nesting) and
+  `docs/diagrams/decide-gateway-flow.{mmd,svg}` (llmctl decide gateway:
+  HTTPS + mandatory bearer key, local CA, fail-open gate); rendered with
+  `mmdc`.
+- README: "Constitution hub engine" and "Decision models (Jev) and the decide
+  gateway" sections; feature bullets for the hub engine and the llmctl
+  validation gate; version badge corrected (was v1.27.0).
+- `docs/llmctl/user-guide.md` §5a (§11.4.277 validation gate, exit codes,
+  STRICT, §11.4.278 Vision QA relationship); llmctl quickstart/FAQ entries.
+- Provider Aliases User Guide and Provider FAQ: governance context (hub
+  engine, validation gate, decision models never aliases, alias/provider/model
+  consistency).
+- Jev guide/FAQ/quickstart: HTTPS + bearer transport, CA and key handling,
+  troubleshooting; limitation 11 records the fix and what is unverified;
+  Constitution §11.4.279 clause citations (A, C, D).
+- Tests: `scripts/tests/test_jev_detect_https.sh` (hermetic TLS fixture
+  `fixtures/jev_https_server.py` with openssl self-signed certs and sink-side
+  request logs; CA candidates, 401/404/untrusted-CA/no-key messages, http opt-in
+  and key-free http records, host-grammar table, curl-argv PATH shim with a
+  positive control, gate env-key resolution, jev_mcp TLS trust and redirect
+  refusal, cache/env with a missing CA, server-leak assertion; H8 is a counted
+  skip on hosts without a non-loopback address) and
+  `test_jev_detect_https_mutation.sh` (every reviewer mutation, each must fail
+  its suite). `assert.sh` gains a counted `_skip`. `scripts/tests/test_llmctl_vision_gate_wiring.sh` (fake llmctl:
+  `LLMCTL_VALIDATE_STRICT` is forwarded, gate exits 1/2/75 abort the launch,
+  non-llmctl aliases untouched) and `scripts/tests/test_docs_hub_engine_release.sh`
+  (manual/README link lint, required topics, diagram presence, doc twins
+  non-empty, package.json == top CHANGELOG release).
+
+### Changed
+
+- `package.json` / `package-lock.json` version 1.30.6 -> 1.32.0 (the 1.31.0
+  release had not bumped it).
+- Doc twins (`.html`/`.pdf`/`.docx`) regenerated with `claude-export-docs.sh`
+  for the changed docs.
+
 ## v1.31.0 — 2026-10-22
 
 Own-org dependencies flattened (operator decision 2026-10-21: claude_toolkit

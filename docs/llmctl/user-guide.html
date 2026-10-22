@@ -187,8 +187,11 @@ LAN-exposure warning</a></li>
 Context-size warning</a></li>
 <li><a href="#5-troubleshooting" id="toc-5-troubleshooting">5.
 Troubleshooting</a></li>
+<li><a href="#5a-model-validation-gate-114277-and-vision-qa-114278" id="toc-5a-model-validation-gate-114277-and-vision-qa-114278">5a. Model
+validation gate (§11.4.277) and Vision QA (§11.4.278)</a></li>
 <li><a href="#6-what-this-integration-does-not-do" id="toc-6-what-this-integration-does-not-do">6. What this integration
 does not do</a></li>
+<li><a href="#7-diagrams" id="toc-7-diagrams">7. Diagrams</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -318,6 +321,67 @@ Everything behaves exactly as if llmctl were simply absent — zero
 llmctl-related aliases, no error, no dependency introduced. You can use
 every other part of claude_toolkit normally.</li>
 </ul>
+<h2 id="5a-model-validation-gate-114277-and-vision-qa-114278">5a. Model
+validation gate (§11.4.277) and Vision QA (§11.4.278)</h2>
+<p>Local models are only as trustworthy as their last known-answer
+check. Constitution <strong>§11.4.277</strong> puts that check inside
+llmctl, not inside this toolkit:</p>
+<ul>
+<li><code>llmctl validate &lt;profile&gt;</code> runs deterministic
+known-answer suites (chat, coder, embedding, and the Vision suite
+<code>vision-golden-v1</code>). Its exit codes (llmctl
+<code>docs/validation.md</code>): <strong>0</strong> every check passed,
+<strong>1</strong> any wrong result (a defective model/runtime),
+<strong>2</strong> could not determine (not served, wrong model served,
+truncated output, pressure refusal, ...; UNDETERMINED is never a
+pass).</li>
+<li><code>llmctl require-validated &lt;profile&gt;</code>:
+<strong>0</strong> only for a fresh, signed PASS record that matches
+what would run now; <strong>1</strong> not validated; <strong>2</strong>
+cannot determine. <strong>75</strong> and <strong>98</strong> are not
+validation verdicts: 75 is the host-pressure gate refusing to start a
+unit (it is also the code of a failed rollback, which is why the toolkit
+tells them apart by re-probing the running set), and 98 is the
+port-in-use skip of the systemd/onnx path.</li>
+<li><code>LLMCTL_VALIDATE_STRICT=1</code> makes an UNDETERMINED result
+stop the profile; llmctl treats consumer-facing profiles strictly unless
+<code>LLMCTL_VALIDATE_STRICT=0</code> is set, so set it to
+<code>1</code> explicitly for decision-bearing use.</li>
+<li>llmctl runs the gate on <code>start</code>, <code>switch</code>,
+<code>auto</code>, <code>enable</code> and <code>restart</code>.
+Launching an <code>llmctl-&lt;profile&gt;</code> alias runs
+<code>llmctl switch &lt;profile&gt;</code> (§2) <strong>only when that
+profile is not already the sole running one</strong>, and then the gate
+runs inside llmctl; the toolkit forwards your environment unchanged and
+any non-zero exit from <code>switch</code> aborts the launch with
+llmctl&#39;s own message and exit code. When the profile is already running
+no switch happens and the start-time gate does not run again: under
+<code>LLMCTL_VALIDATE_STRICT=1</code> the toolkit therefore asks
+<code>llmctl require-validated &lt;profile&gt;</code> itself (exit 0
+proceeds; anything else aborts the launch with that code). Without
+<code>STRICT=1</code> an already-running profile launches as
+before.</li>
+<li>A refusal is never turned into a launch against an unvalidated
+model. A wrong answer is a
+model/quantisation/<code>mmproj</code>/template defect to investigate,
+never a reason to retry until green.</li>
+</ul>
+<p><strong>Vision QA (§11.4.278).</strong> HelixQA reads real screens
+with a Vision model; that model must hold a fresh
+<code>require-validated</code> PASS first. The toolkit&#39;s part is only to
+provide the <code>llmctl-vision</code> alias and keep the gate&#39;s
+environment and refusals intact — proven by
+<code>scripts/tests/test_llmctl_vision_gate_wiring.sh</code> (a fake
+llmctl; no model is run). The toolkit runs <strong>no</strong> Vision
+known-answer suite of its own, and a PASS in this repo says nothing
+about Vision accuracy.</p>
+<p>The llmctl units are host-safe by construction (§11.4.277(E): no
+<code>Restart=always</code>, memory limits, refuse-to-start under memory
+pressure); see llmctl&#39;s <code>docs/host-safety.md</code>.</p>
+<p>Related: llmctl is itself a constitution <em>hub engine</em>,
+consumed by reference and never nested — see the README&#39;s <a href="../../README.md#-constitution-hub-engine">hub-engine section</a>
+and the <a href="../diagrams/hub-engine-placement.svg">placement
+diagram</a>.</p>
 <h2 id="6-what-this-integration-does-not-do">6. What this integration
 does not do</h2>
 <p>claude_toolkit does not install, configure, or manage llmctl itself,
@@ -325,5 +389,19 @@ and does not modify llmctl&#39;s own configuration or behavior. Where
 analyzing llmctl&#39;s own codebase surfaced genuine defects in that
 separate project, they are documented — not fixed here, since
 claude_toolkit does not own that repository — in <a href="../research/2026-10-02-llmctl-upstream-findings.md"><code>../research/2026-10-02-llmctl-upstream-findings.md</code></a>.</p>
+<h2 id="7-diagrams">7. Diagrams</h2>
+<p>Visual walkthroughs of the two flows described above:</p>
+<ul>
+<li><a href="../diagrams/llmctl-detection-flow.svg">Detection flow</a>
+(<a href="../diagrams/llmctl-detection-flow.mmd">source</a>) — catalog →
+per-profile probe → context/LAN honesty checks → alias.</li>
+<li><a href="../diagrams/hub-engine-placement.svg">Hub-engine
+placement</a> (<a href="../diagrams/hub-engine-placement.mmd">source</a>) — where llmctl
+and claude_toolkit sit in a consuming project, and how dependencies
+resolve without nesting.</li>
+<li><a href="../diagrams/llmctl-switch-flow.svg">Switch flow</a> (<a href="../diagrams/llmctl-switch-flow.mmd">source</a>) — on-demand
+switch, the post-failure re-probe, and the
+<code>CRITICAL: rollback also failed</code> path.</li>
+</ul>
 </body>
 </html>

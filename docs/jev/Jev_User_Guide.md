@@ -46,13 +46,56 @@ via `CMA_JEV_PINS_FILE`; probing timeout `CMA_JEV_HTTP_TIMEOUT`, default 2 s).
 
 ### 2.1 Local llmctl decision gateway (priority 10)
 
-`local_gateway` pin: `http://127.0.0.1:8095`, health path `/healthz`, models
-path `/v1/models`, key var `LLMCTL_API_KEY` (llama-server has no API key; the
-var is a placeholder for future auth proxies). The detector requires both a
-200 on `/healthz` **and** a parseable `/v1/models` listing with at least one
+`local_gateway` pin: `127.0.0.1:8095` (`scheme: https`), health path `/healthz`, models
+path `/v1/models`, key var `LLMCTL_API_KEY` (the name of the env var / keys-file entry holding
+the gateway's bearer key; 8095 is llmctl's default decide port - if you changed
+it with `llmctl decide serve --port N`, update `local_gateway.port` in the
+pins). The detector requires a 200 on `/healthz` **and** a parseable
+authenticated `/v1/models` listing with at least one
 model id — a merely-open port is never trusted. The record appears and
 disappears with the running server on every sync, exactly like llmctl chat
 profiles. Emitted as `jev-local` with the served model id from `.data[0].id`.
+
+**Transport: HTTPS + bearer key (v1.32.0).** llmctl's decide gateway
+(`llmctl decide`, llmctl `docs/decide-gateway.md`) serves
+`https://127.0.0.1:8095`, signs with a local CA
+(`$LLMCTL_HOME/cert/ca/ca.crt`) and requires `Authorization: Bearer
+$LLMCTL_API_KEY` on every `/v1/*` request (401 otherwise); only `/healthz` and
+`/readyz` are open. The detector now speaks exactly that:
+
+- It tries `https://` first. Each CA candidate is tried in turn until the TLS
+  `/healthz` answers: `CMA_JEV_CA_FILE`, `SSL_CERT_FILE`, `$LLMCTL_HOME/cert/ca/ca.crt`
+  (when set and present), then the system store; the CA that verified is the
+  one recorded as `ca_file`. Certificate verification is never disabled: a
+  gateway whose certificate no candidate trusts is not registered, and the
+  warning says so (`TLS certificate ... is not trusted`).
+- The bearer key is read from the env var **named** by the pin's `key_var`
+  (`LLMCTL_API_KEY`), else from the keys file (`~/api_keys.sh` /
+  `CMA_KEYS_FILE`). It is handed to curl through a header file, never on a
+  command line, and is never printed or written to the cache. Healthz answering
+  but no key available, an HTTP 401/403/429 on `/v1/models` (key rejected), or
+  any other status (`models request failed (HTTP n)`) means the endpoint is
+  **not registered**; each case has its own one-line, key-free warning.
+- `scheme` in a pin (`local_gateway.scheme`, `lan[].scheme`) defaults to
+  `https`. **Plain http is opt-in and loopback-only**: set
+  `CMA_JEV_ALLOW_HTTP=1` (or `scheme: "http"` in the pin) for a loopback host
+  (`127.0.0.0/8` literal, `localhost`, `::1`, `[::1]` - exact match; userinfo,
+  paths, `127.evil.example`, `127.0.0.1.nip.io`, `localhost.` are not loopback).
+  Such a record carries no `key_var` and no `ca_file`, and neither
+  `jev-gate.sh` nor `jev_mcp.py` ever sends an Authorization header over http.
+  A non-loopback host is never probed over plain http; `scheme: "http"` for one
+  is refused with a warning, and a default-scheme LAN pin whose server does
+  not speak TLS says so. **Breaking vs v1.31.x**: LAN pins without a scheme are
+  now TLS-only.
+- The endpoint cache records the non-secret `ca_file`; launches export it as
+  `JEV_CA_FILE` (deliberately **not** `SSL_CERT_FILE`, which would replace the
+  system trust store for the whole agent tree). `jev-gate.sh` passes it to curl
+  as `--cacert`; `jev_mcp.py` loads it into its TLS context. The OpenCode
+  plugin (Node) does not read it: export `NODE_EXTRA_CA_CERTS` for it.
+
+Governing rule: Constitution §11.4.279 (clause A detection, C decision models
+are never aliases, D validation through §11.4.277); diagram:
+[decide-gateway-flow](../diagrams/decide-gateway-flow.svg).
 
 ### 2.2 LAN pins (priority 20)
 
@@ -116,10 +159,11 @@ atomically by `claude-providers sync` and by the Jev-only fast path
   "generated_at": 1759700000,
   "ttl": 300,
   "endpoints": [
-    { "provider_id": "jev-local", "base_url": "http://127.0.0.1:8095",
+    { "provider_id": "jev-local", "base_url": "https://127.0.0.1:8095",
       "model": "jev-latest", "key_var": "LLMCTL_API_KEY",
+      "ca_file": "/home/me/.local/share/llmctl/cert/ca/ca.crt",
       "priority": 10, "probed_at": 1759700000,
-      "reason": "llmctl decide gateway live at http://127.0.0.1:8095" }
+      "reason": "llmctl decide gateway live at https://127.0.0.1:8095" }
   ]
 }
 ```
@@ -140,10 +184,12 @@ wrappers (`cma_run`, `cma_run_provider`, `cma_run_kimi`,
 `cma_run_kimi_provider`, `cma_run_pi`, `cma_run_pi_provider`) and exports,
 when an endpoint is resolved:
 
-- `JEV_BASE_URL`, `JEV_API_KEY` (read from the keys file at launch, never
-  stored), `JEV_MODEL`, `JEV_MODE` (default `shadow`),
-- `TYPESAFE_BASE_URL`, `TYPESAFE_API_KEY` — the SDK-convention aliases
-  (TypeSafe SDKs honor these names),
+- `JEV_BASE_URL`, `JEV_KEY_VAR` (the NAME of the key variable - the key
+  value is never exported into the agent's environment; `jev-gate.sh` and
+  `jev_mcp.py` resolve it themselves), `JEV_CA_FILE` (the non-secret CA path
+  for an https gateway, only when the file exists), `JEV_MODEL`, `JEV_MODE`
+  (default `shadow`),
+- `TYPESAFE_BASE_URL` — the SDK-convention alias (TypeSafe SDKs honor it),
 - `CMA_JEV_ACTIVE=1`, `CMA_JEV_ENDPOINT_ID=<provider_id>`,
 - `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50` and `MAX_THINKING_TOKENS=10000`
   (token-reduction knobs; pre-set values are preserved).
@@ -436,6 +482,21 @@ follow the POC doc's CI-gate convention: `0` = pass, `1` = bounds exceeded,
 `2` = config/input error (e.g. missing lock file) — never a silent pass on
 bad input.
 
+## 8b. Kill-switch record and setup consent
+
+- `JEV_GATE=off` still passes every tool call straight through, but each use is
+  now **recorded**: one UTC-timestamped line (agent, cwd) is appended to
+  `$JEV_STATE_DIR/gate-off.log`, and `jev-stats` (text and `--json` as
+  `gate_off.count` / `gate_off.last`) reports the number of uses, so an
+  unevaluated tool call is never invisible.
+- `jev-setup` edits files in agent homes (`~/.claude-*`, `~/.kimi-*`, `~/.pi`,
+  `~/.config/opencode`, the shared `CLAUDE.md`). It does so **only with
+  consent**: `--yes`, `JEV_SETUP_CONSENT=1`, an interactive `y`, or - for the
+  launch-time lazy `--if-stale` refresh only - the stamp
+  (`$JEV_STATE_DIR/consent`) a previous consented run left. Without consent it
+  exits 3 and writes nothing. `--check` never writes and `--uninstall` only
+  restores. Every file it edits is backed up first (`*.prejev.<timestamp>`).
+
 ## 9. `jev-spec-setup` — CI spec verification (opt-in)
 
 `jev-spec-setup [--force] /path/to/target-repo` writes two templates into a
@@ -502,3 +563,15 @@ refuses to overwrite without `--force` and never runs npm itself — it prints
 10. StartLux-Decision local replication weights are **CC BY-NC-4.0** —
     non-commercial use only (code is Apache-2.0). See
     [../research/jev-ecosystem.md](../research/jev-ecosystem.md).
+11. **Decide-gateway transport (fixed in v1.32.0), with an honest boundary.**
+    Detection, the gate and the MCP server speak HTTPS + bearer key as above.
+    Verified only against a hermetic stand-in (`jev_https_server.py`, a
+    self-signed cert, 401/no-key/untrusted-CA/plain-http/unreachable cases);
+    it has **not** been run against a real `llmctl decide` gateway. The
+    OpenCode plugin does not read `JEV_CA_FILE` (export `NODE_EXTRA_CA_CERTS`).
+    Plain http is opt-in (`CMA_JEV_ALLOW_HTTP=1`), loopback-only and key-free.
+12. Cross-references: decision models are governed by Constitution §11.4.279 (A detection, C never an alias, D
+    validation);
+    local-model validation by §11.4.277; Vision QA by §11.4.278; the toolkit's
+    hub-engine placement by §11.4.28(C)/§11.4.31 (see
+    [hub-engine-placement](../diagrams/hub-engine-placement.svg)).

@@ -254,6 +254,8 @@ Switching models</a></li>
 <li><a href="#5-two-honest-warnings-you-may-see" id="toc-5-two-honest-warnings-you-may-see">5. Two honest warnings you
 may see</a></li>
 <li><a href="#6-something-not-working" id="toc-6-something-not-working">6. Something not working?</a></li>
+<li><a href="#validation-gate-constitution-114277" id="toc-validation-gate-constitution-114277">Validation gate
+(Constitution §11.4.277)</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -344,5 +346,14 @@ defect.</li>
 <p>See the full <a href="./user-guide.md">user guide</a> for switching
 details, both warnings in depth, and troubleshooting — and the <a href="./FAQ.md">FAQ</a> for quick answers to the most common &quot;why
 isn&#39;t...&quot; questions.</p>
+<h2 id="validation-gate-constitution-114277">Validation gate
+(Constitution §11.4.277)</h2>
+<p>llmctl validates a model with known-answer suites before
+decision-bearing use. <code>export LLMCTL_VALIDATE_STRICT=1</code>
+before launching an <code>llmctl-&lt;profile&gt;</code> alias to make an
+UNDETERMINED result stop the launch; check a profile yourself with
+<code>llmctl require-validated vision</code> (exit 0 = fresh PASS).
+Details and exit codes: <a href="./user-guide.md#5a-model-validation-gate-114277-and-vision-qa-114278">user-guide
+§5a</a>.</p>
 </body>
 </html>

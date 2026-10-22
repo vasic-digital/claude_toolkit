@@ -33,6 +33,9 @@ make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
+# These suites drive plain-http loopback fixtures; since v1.32.0 plain http is an
+# explicit opt-in (TLS is the default). test_jev_detect_https.sh covers the default.
+export CMA_JEV_ALLOW_HTTP=1
 
 # Single-alias path only (multi-sync leg runs live model_verify.py).
 export CMA_SYNC_MULTI=0

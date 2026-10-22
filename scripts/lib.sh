@@ -49,6 +49,26 @@ cma_warn() { printf '\033[33m[cma warn]\033[0m %s\n' "$*" >&2; }
 cma_err()  { printf '\033[31m[cma err]\033[0m %s\n' "$*" >&2; }
 cma_die()  { cma_err "$*"; exit 1; }
 
+# cma_jq_edit FILE JQ_ARG... : the ONE atomic, loud in-place JSON edit.
+# jq runs on FILE (appended last); the result goes to a temp file next to FILE
+# and replaces it only when jq succeeded and produced valid, non-empty JSON.
+# On ANY failure FILE is left untouched, the temp file is removed, jq's own
+# error text is printed (never swallowed) and the return code is 1.
+cma_jq_edit() {
+  local file="$1"; shift
+  local tmp err rc mode
+  tmp="$(mktemp "$file.cmatmp.XXXXXX")" || { cma_warn "cma_jq_edit: cannot create a temp file next to $file"; return 1; }
+  err="$(jq "$@" "$file" 2>&1 >"$tmp")"; rc=$?
+  if (( rc != 0 )) || [[ ! -s "$tmp" ]] || ! jq empty "$tmp" >/dev/null 2>&1; then
+    rm -f "$tmp"
+    cma_warn "cma_jq_edit: edit of $file FAILED (jq rc=$rc): ${err:-empty or invalid result} - file left untouched"
+    return 1
+  fi
+  mode="$(stat -c %a "$file" 2>/dev/null || stat -f %Lp "$file" 2>/dev/null)"
+  [[ -n "$mode" ]] && chmod "$mode" "$tmp" 2>/dev/null
+  mv -f "$tmp" "$file"
+}
+
 # Quota severity classifier: the <= 0 check MUST come first to correctly
 # classify negative values (e.g., -5 representing usage past 100%) as limit_exceeded.
 _cma_quota_severity() {
@@ -1357,12 +1377,14 @@ cma_jev_env() {
   fi
   command -v jq >/dev/null 2>&1 || { export CMA_JEV_ACTIVE=0; return 0; }
   local _jev_line
-  _jev_line=$(jq -r '.endpoints[0] | [(.base_url // ""), (.key_var // ""), (.model // "jev-latest"), (.provider_id // "jev")] | @tsv' "$_jev_cache" 2>/dev/null)
+  _jev_line=$(jq -r '.endpoints[0] | [(.base_url // ""), (.key_var // ""), (.model // "jev-latest"), (.provider_id // "jev"), (.ca_file // "")] | @tsv' "$_jev_cache" 2>/dev/null)
   local _jev_base _jev_kv _jev_model _jev_pid
   _jev_base=$(printf '%s' "$_jev_line" | cut -f1)
   _jev_kv=$(printf '%s' "$_jev_line" | cut -f2)
   _jev_model=$(printf '%s' "$_jev_line" | cut -f3)
   _jev_pid=$(printf '%s' "$_jev_line" | cut -f4)
+  local _jev_ca
+  _jev_ca=$(printf '%s' "$_jev_line" | cut -f5)
   if [ -z "$_jev_base" ]; then
     export CMA_JEV_ACTIVE=0
     [ "${CMA_JEV_QUIET:-0}" = 1 ] || \
@@ -1379,6 +1401,10 @@ cma_jev_env() {
   # actually need the key — resolve the real value themselves at call time
   # from the keys file, the same pattern opencode-jev-plugin.js already uses.
   export JEV_KEY_VAR="$_jev_kv"
+  # TLS trust for an https decide gateway: a NON-secret CA path scoped to the
+  # Jev consumers (jev-gate.sh --cacert, jev_mcp.py). Deliberately NOT
+  # SSL_CERT_FILE: that would replace the system trust store for the whole agent tree.
+  if [ -n "$_jev_ca" ] && [ -f "$_jev_ca" ]; then export JEV_CA_FILE="$_jev_ca"; else unset JEV_CA_FILE; fi
   export JEV_MODEL="$_jev_model" JEV_MODE="${JEV_MODE:-shadow}" CMA_JEV_ACTIVE=1
   export CMA_JEV_ENDPOINT_ID="$_jev_pid"
   # Token-reduction env (verified Claude Code knob names). Additive: never
@@ -1604,6 +1630,21 @@ _cma_llmctl_ensure_active() {
   local _cma_lc_rows=0 _cma_lc_row=""
   IFS=$'\t' read -r _cma_lc_rows _cma_lc_row < <(_cma_llmctl_active_profile "$_cma_lc_bin")
   if [[ "$_cma_lc_rows" -eq 1 && "$_cma_lc_row" == "$_cma_lc_profile" ]]; then
+    # No switch happens, so llmctl's own start/switch validation gate does not
+    # run. Under LLMCTL_VALIDATE_STRICT=1 the operator asked for decision-
+    # bearing use: ask llmctl directly (exit 0 = fresh PASS; 1 not validated;
+    # 2 cannot determine) and refuse the launch otherwise (Constitution
+    # section 11.4.277).
+    if [[ "${LLMCTL_VALIDATE_STRICT:-0}" == "1" ]]; then
+      local _cma_lc_rv_out="" _cma_lc_rv_rc=0
+      _cma_lc_rv_out="$("$_cma_lc_bin" require-validated "$_cma_lc_profile" 2>&1)" || _cma_lc_rv_rc=$?
+      if (( _cma_lc_rv_rc != 0 )); then
+        printf 'claude-providers: llmctl require-validated %s FAILED (exit %d) under LLMCTL_VALIDATE_STRICT=1 -- refusing to launch against an unvalidated model.\n' \
+          "$_cma_lc_profile" "$_cma_lc_rv_rc" >&2
+        [[ -n "$_cma_lc_rv_out" ]] && printf '%s\n' "$_cma_lc_rv_out" >&2
+        return "$_cma_lc_rv_rc"
+      fi
+    fi
     return 0
   fi
   printf 'claude-providers: switching llmctl to profile %s (currently: %s)...\n' \
@@ -1624,9 +1665,26 @@ _cma_llmctl_ensure_active() {
     # owns, then independently RE-PROBE (never assume from the exit code
     # alone) whether the previously active profile actually survived the
     # failed switch.
-    if (( _cma_lc_switch_rc == 75 )) || [[ "$_cma_lc_switch_out" == *"ROLLBACK ALSO FAILED"* ]]; then
+    # Exit 75 is AMBIGUOUS in llmctl: the host-pressure gate refuses BEFORE
+    # anything is stopped (75, running set untouched) and a failed rollback
+    # also exits 75. Decide from llmctl's own text, else from a re-probe of
+    # the running set -- never from the exit code alone.
+    local _cma_lc_crit=0
+    if [[ "$_cma_lc_switch_out" == *"ROLLBACK ALSO FAILED"* ]]; then
+      _cma_lc_crit=1
+    elif (( _cma_lc_switch_rc == 75 )); then
+      local _cma_lc_rows3=0 _cma_lc_row3=""
+      IFS=$'\t' read -r _cma_lc_rows3 _cma_lc_row3 < <(_cma_llmctl_active_profile "$_cma_lc_bin")
+      if [[ "$_cma_lc_rows3" != "$_cma_lc_rows" || "$_cma_lc_row3" != "$_cma_lc_row" ]]; then
+        _cma_lc_crit=1
+      fi
+    fi
+    if (( _cma_lc_crit )); then
       printf 'claude-providers: CRITICAL: llmctl rollback also failed while switching to %s (exit %d) -- the host may now be running FEWER models than before.\n' \
         "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2
+    elif (( _cma_lc_switch_rc == 75 )); then
+      printf 'claude-providers: llmctl declined to switch to %s (exit 75: refused under host pressure, the running set is unchanged) -- not launching.\n' \
+        "$_cma_lc_profile" >&2
     else
       printf 'claude-providers: llmctl switch to %s FAILED (exit %d) -- refusing to launch against a possibly-wrong or absent backend.\n' \
         "$_cma_lc_profile" "$_cma_lc_switch_rc" >&2

@@ -44,6 +44,9 @@ make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e   # lib.sh sets -e; the harness asserts on failures, so relax it.
+# These suites drive plain-http loopback fixtures; since v1.32.0 plain http is an
+# explicit opt-in (TLS is the default). test_jev_detect_https.sh covers the default.
+export CMA_JEV_ALLOW_HTTP=1
 
 PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
 FIXTURE="$SCRIPTS_DIR/tests/fixtures/jev_server.py"

@@ -14,6 +14,9 @@ source "$TESTS_DIR/lib/sandbox.sh"
 
 make_sandbox
 set +e
+# These suites drive plain-http loopback fixtures; since v1.32.0 plain http is an
+# explicit opt-in (TLS is the default). test_jev_detect_https.sh covers the default.
+export CMA_JEV_ALLOW_HTTP=1
 
 SETUP="$SCRIPTS_DIR/jev-setup.sh"
 
@@ -37,7 +40,7 @@ _owned_files() {
 }
 
 it "first install writes hooks, mcp, CLAUDE.md block, opencode plugin"
-bash "$SETUP" --quiet
+bash "$SETUP" --quiet --yes
 rc=$?
 assert_eq 0 "$rc" "jev-setup exits 0"
 assert_jq "$HOME/.claude-acct1/settings.json" \
@@ -60,7 +63,7 @@ assert_jq "$HOME/.config/opencode/opencode.json" '[.plugin[] | select(contains("
 
 it "second run is byte-identical (idempotent)"
 _owned_files | xargs md5sum > "$HOME/.snap1"
-bash "$SETUP" --quiet
+bash "$SETUP" --quiet --yes
 _owned_files | xargs md5sum > "$HOME/.snap2"
 if cmp -s "$HOME/.snap1" "$HOME/.snap2"; then _pass "byte-identical re-run"; else
   _fail "re-run changed files" "$(diff "$HOME/.snap1" "$HOME/.snap2")"

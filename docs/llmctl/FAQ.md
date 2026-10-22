@@ -64,3 +64,21 @@ llmctl's own `switch` command stops every other running profile and starts exact
 ### Where do I report a problem that's actually inside llmctl itself, not this integration?
 
 claude_toolkit doesn't modify llmctl's own codebase — any defect found *inside* llmctl during this integration's development is documented, not patched here. See [`../research/2026-10-02-llmctl-upstream-findings.md`](../research/2026-10-02-llmctl-upstream-findings.md) for the current record of what's been found and reported upstream.
+
+## Validation and Vision
+
+### Does claude_toolkit validate my local Vision model?
+
+No. The validation gate (Constitution §11.4.277) lives in llmctl: `llmctl validate`, `llmctl require-validated <profile>` and `LLMCTL_VALIDATE_STRICT=1`. When you launch `llmctl-vision`, the toolkit runs `llmctl switch vision`, passes your environment through, and aborts the launch if the gate refuses (exit 1 wrong answer, 2 undetermined, 75 pressure). It never launches against a profile the gate refused. This is covered by `scripts/tests/test_llmctl_vision_gate_wiring.sh`; the toolkit has no Vision known-answer suite of its own.
+
+### What does exit 2 / UNDETERMINED mean?
+
+llmctl could not decide whether the model answers correctly (for example the engine was unreachable or host pressure refused the run). UNDETERMINED is never treated as a pass; under `LLMCTL_VALIDATE_STRICT=1` it stops the profile. Fix the cause (see `llmctl logs <profile>`), do not retry until it turns green.
+
+### Why does Vision QA (§11.4.278) matter here?
+
+HelixQA's screen-reading oracle is a Vision model; it is only trustworthy while that model holds a fresh `require-validated` PASS. The toolkit supplies the `llmctl-vision` alias and keeps the gate intact; the QA itself is HelixQA's.
+
+### Is claude_toolkit part of the constitution?
+
+It is a *hub engine*: consumed by reference at `constitution/submodules/claude_toolkit`, depth 1, never initialised recursively, dependencies resolved by `scripts/resolve_deps.sh` instead of nested copies (§11.4.28(C), §11.4.31). See the README's hub-engine section.

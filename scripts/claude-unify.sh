@@ -248,12 +248,11 @@ union_enabled_plugins_into_template() {
         | to_entries | sort_by(.key) | from_entries
       ' "${files[@]}" 2>/dev/null)" \
      && printf '%s' "$union" | jq empty 2>/dev/null \
-     && jq --argjson u "$union" '.enabledPlugins = $u' "$tmpl" > "$tmp" 2>/dev/null \
-     && jq -e . "$tmp" >/dev/null 2>&1; then
-    mv "$tmp" "$tmpl"
+     && cma_jq_edit "$tmpl" --argjson u "$union" '.enabledPlugins = $u'; then
+    rm -f "$tmp"
   else
     rm -f "$tmp"
-    cma_warn "settings.json: enabledPlugins union skipped (jq error)"
+    cma_warn "settings.json: enabledPlugins union NOT applied (jq error above; the shared template is unchanged)"
   fi
   return 0
 }

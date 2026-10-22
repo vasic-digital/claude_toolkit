@@ -30,7 +30,13 @@ import os
 import re
 import sys
 import time
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from http_noredirect import open_url as _open_url
+
+
+def urlopen(req, timeout=None):
+    """Same-origin-only redirects: the API key must never follow a redirect elsewhere."""
+    return _open_url(req, timeout=timeout, same_origin=True)
 from urllib.error import URLError, HTTPError
 
 

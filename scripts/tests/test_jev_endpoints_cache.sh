@@ -36,6 +36,9 @@ make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
+# These suites drive plain-http loopback fixtures; since v1.32.0 plain http is an
+# explicit opt-in (TLS is the default). test_jev_detect_https.sh covers the default.
+export CMA_JEV_ALLOW_HTTP=1
 
 PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
 FIXTURE="$SCRIPTS_DIR/tests/fixtures/jev_server.py"
@@ -83,8 +86,8 @@ _gat_ok=0; [[ "$_gat" =~ ^[0-9]+$ ]] && (( _gat <= _now && _gat > _now - 60 )) &
 assert_eq 1 "$_gat_ok" "generated_at is an epoch within the last minute ($_gat)"
 assert_jq "$CACHE" '.ttl' "300" "ttl defaults to 300 (CMA_JEV_CACHE_TTL)"
 KEYS0="$(jq -c '.endpoints[0] | keys' "$CACHE")"
-assert_eq '["base_url","key_var","model","priority","probed_at","provider_id","reason"]' "$KEYS0" \
-  "endpoint object carries EXACTLY the fields cma_jev_env dereferences (+priority/probed_at/reason)"
+assert_eq '["base_url","ca_file","key_var","model","priority","probed_at","provider_id","reason"]' "$KEYS0" \
+  "endpoint object carries EXACTLY the fields cma_jev_env dereferences (+ca_file/priority/probed_at/reason)"
 assert_jq "$CACHE" '.endpoints[0].provider_id' "jev-local" "endpoints[0] is the local gateway (top rank)"
 assert_jq "$CACHE" '.endpoints[0].model' "jev-fixture-1" "endpoints[0].model (read by cma_jev_env as JEV_MODEL)"
 # ttl override is recorded, not invented at read time

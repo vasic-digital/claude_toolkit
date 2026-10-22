@@ -2332,6 +2332,30 @@ detect_llmctl_records() {
 # keys-file scan providers_resolve.py performs. A live POST /v1/systemone
 # probe (one noul question) only happens under the explicit CMA_JEV_LIVE=1
 # opt-in.
+# _cma_jev_host_class <host> -> loopback | other | invalid (stdout).
+# EXACT grammar, never substring: loopback is 127.0.0.0/8 as a literal IPv4
+# (each octet 0-255), localhost, ::1 or [::1]. Anything containing userinfo
+# (@), a path/query/fragment (/ ? #), whitespace or a backslash is invalid
+# (curl would route "127.0.0.1@evil" to evil). "127.evil.example",
+# "127.0.0.1.nip.io" and "localhost." are NOT loopback.
+_cma_jev_host_class() {
+  local h="${1-}"
+  case "$h" in
+    ""|*[@/?#\\[:space:]]*) printf 'invalid'; return 0 ;;
+  esac
+  if [[ "$h" =~ ^127(\.[0-9]{1,3}){3}$ ]]; then
+    local _o _ifs="$IFS"; IFS=.
+    for _o in $h; do
+      if (( 10#$_o > 255 )); then IFS="$_ifs"; printf 'invalid'; return 0; fi
+    done
+    IFS="$_ifs"; printf 'loopback'; return 0
+  fi
+  case "$h" in
+    localhost|::1|"[::1]") printf 'loopback' ;;
+    *) printf 'other' ;;
+  esac
+}
+
 detect_jev_records() {
   local _jev_json="${CMA_JEV_PINS_FILE:-$LIB_DIR/providers/jev.json}"
   command -v jq   >/dev/null 2>&1 || { printf '[]\n'; return 0; }
@@ -2403,7 +2427,7 @@ detect_jev_records() {
       _h_body="$(jq -cn --arg m "$_h_model" '{model:$m, state:"probe",
         questions:[{name:"probe", type:"noul", instructions:"Is this endpoint reachable? Answer yes."}]}')"
       if curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
-           -H "Authorization: Bearer $_h_secret" -H "Content-Type: application/json" \
+           -H @<(printf 'Authorization: Bearer %s\n' "$_h_secret") -H "Content-Type: application/json" \
            -d "$_h_body" 2>/dev/null | jq -e . >/dev/null 2>&1; then
         _h_status="resolved"; _h_reason="live systemone probe ok at ${_h_base%/}$_h_spath"
       else
@@ -2444,23 +2468,30 @@ detect_jev_records() {
       _lg_mpath="$(jq -r '.local_gateway.models_path // "/v1/models"' <<<"$_jev_pins" 2>/dev/null)" || _lg_mpath="/v1/models"
       _lg_keyvar="$(jq -r '.local_gateway.key_var // ""' <<<"$_jev_pins" 2>/dev/null)" || _lg_keyvar=""
       _lg_ctx="$(jq -r '.local_gateway.context_limit // 64000' <<<"$_jev_pins" 2>/dev/null)" || _lg_ctx=64000
+      local _lg_scheme
+      _lg_scheme="$(jq -r '.local_gateway.scheme // "https"' <<<"$_jev_pins" 2>/dev/null)" || _lg_scheme="https"
+      [[ "$_lg_scheme" == "http" ]] || _lg_scheme="https"
+      # "-" placeholders keep empty fields from collapsing under IFS=TAB read.
       [[ "$_lg_port" =~ ^[0-9]+$ ]] && \
-        _jev_targets+=("local"$'\t'"$_lg_host"$'\t'"$_lg_port"$'\t'"$_lg_hpath"$'\t'"$_lg_mpath"$'\t'"$_lg_keyvar"$'\t'"$_lg_ctx")
+        _jev_targets+=("local"$'\t'"$_lg_host"$'\t'"$_lg_port"$'\t'"$_lg_hpath"$'\t'"$_lg_mpath"$'\t'"${_lg_keyvar:--}"$'\t'"$_lg_ctx"$'\t'"$_lg_scheme")
     fi
     # LAN pins: user-declared trusted endpoints; provider_id is "jev-<id>"
     # (an entry id "lan-1" yields jev-lan-1). Disabled entries are never
     # probed.
-    local _lan_id _lan_host _lan_port _lan_keyvar _lan_ctx
-    while IFS=$'\t' read -r _lan_id _lan_host _lan_port _lan_keyvar _lan_ctx; do
+    local _lan_id _lan_host _lan_port _lan_keyvar _lan_ctx _lan_scheme
+    while IFS=$'\t' read -r _lan_id _lan_host _lan_port _lan_keyvar _lan_ctx _lan_scheme; do
+      [[ "$_lan_keyvar" == "-" ]] && _lan_keyvar=""
+      [[ "$_lan_ctx" == "-" ]] && _lan_ctx=""
+      [[ "$_lan_scheme" == "http" ]] || _lan_scheme="https"
       [[ -n "$_lan_id" && -n "$_lan_host" && "$_lan_port" =~ ^[0-9]+$ ]] || continue
       case "$_lan_id" in *[!A-Za-z0-9._-]*) cma_warn "jev: lan entry id '$_lan_id' has invalid characters — skipped"; continue ;; esac
       [[ "$_lan_ctx" =~ ^[0-9]+$ ]] || _lan_ctx=64000
       local _lg_hpath2 _lg_mpath2
       _lg_hpath2="$(jq -r '.local_gateway.health_path // "/healthz"' <<<"$_jev_pins" 2>/dev/null)" || _lg_hpath2="/healthz"
       _lg_mpath2="$(jq -r '.local_gateway.models_path // "/v1/models"' <<<"$_jev_pins" 2>/dev/null)" || _lg_mpath2="/v1/models"
-      _jev_targets+=("$_lan_id"$'\t'"$_lan_host"$'\t'"$_lan_port"$'\t'"$_lg_hpath2"$'\t'"$_lg_mpath2"$'\t'"$_lan_keyvar"$'\t'"$_lan_ctx")
+      _jev_targets+=("$_lan_id"$'\t'"$_lan_host"$'\t'"$_lan_port"$'\t'"$_lg_hpath2"$'\t'"$_lg_mpath2"$'\t'"${_lan_keyvar:--}"$'\t'"$_lan_ctx"$'\t'"$_lan_scheme")
     done < <(jq -r '.lan[]? | select(.enabled == true) |
-      [.id, .host, (.port|tostring), (.key_var // ""), ((.context_limit // "")|tostring)] | @tsv' \
+      [.id, .host, (.port|tostring), (.key_var // "-"), ((.context_limit // "-")|tostring), (.scheme // "https")] | @tsv' \
       <<<"$_jev_pins" 2>/dev/null)
 
     if (( ${#_jev_targets[@]} > 0 )); then
@@ -2470,21 +2501,97 @@ detect_jev_records() {
         trap 'rm -rf "'"$_jev_tmpdir"'" 2>/dev/null' RETURN
         local _jev_idx=0 _jev_entry
         for _jev_entry in "${_jev_targets[@]}"; do
-          local _tid _thost _tport _thpath _tmpath _tkeyvar _tctx
-          IFS=$'\t' read -r _tid _thost _tport _thpath _tmpath _tkeyvar _tctx <<<"$_jev_entry"
+          local _tid _thost _tport _thpath _tmpath _tkeyvar _tctx _tscheme
+          IFS=$'\t' read -r _tid _thost _tport _thpath _tmpath _tkeyvar _tctx _tscheme <<<"$_jev_entry"
+          [[ "$_tkeyvar" == "-" ]] && _tkeyvar=""
           local _jev_outfile="$_jev_tmpdir/$(printf '%06d' "$_jev_idx").json"
           (
             set +e
-            _base="http://${_thost}:${_tport}"
-            # healthz first (cheap liveness), then models (real capability) —
-            # BOTH must answer; an open port owned by an unrelated service
-            # fails the JSON/model-id gates below exactly like the llmctl
-            # detector's wrong-service case.
-            _hz=""
-            _hz="$(curl -sf --max-time "$_t" "${_base}${_thpath}" 2>/dev/null)" || _hz=""
-            [[ -n "$_hz" ]] || exit 0
-            _body=""
-            _body="$(curl -sf --max-time "$_t" "${_base}${_tmpath}" 2>/dev/null)" || _body=""
+            # Transport policy (llmctl decide gateway = HTTPS + mandatory
+            # bearer key, llmctl docs/decide-gateway.md). TLS is tried first;
+            # each candidate CA (CMA_JEV_CA_FILE, SSL_CERT_FILE,
+            # $LLMCTL_HOME/cert/ca/ca.crt, then the system store) is tried
+            # until the TLS /healthz answers. The bearer key is resolved from
+            # the env var NAME in the pins (env, else the keys file) and given
+            # to curl through a header FILE (process substitution) - never
+            # argv, never printed, never cached. Plain http is OPT-IN
+            # (CMA_JEV_ALLOW_HTTP=1, or scheme "http" in the pin), loopback
+            # hosts only, unauthenticated, and its record carries NO key_var
+            # and NO ca_file, so no consumer ever sends a bearer over it.
+            _note="${_jev_outfile}.note"
+            _hc="$(_cma_jev_host_class "$_thost")"
+            if [[ "$_hc" == "invalid" ]]; then
+              printf 'host "%s" is not a plain host name or address - skipped\n' "$_thost" > "$_note"
+              exit 0
+            fi
+            _loop=0; [[ "$_hc" == "loopback" ]] && _loop=1
+            _cas=()
+            for _c in "${CMA_JEV_CA_FILE:-}" "${SSL_CERT_FILE:-}" \
+                      "${LLMCTL_HOME:+$LLMCTL_HOME/cert/ca/ca.crt}"; do
+              [[ -n "$_c" && -f "$_c" ]] && _cas+=("$_c")
+            done
+            _cas+=("")   # last candidate: the system trust store
+            _base=""; _auth=0; _hz=""; _body=""; _okca=""; _certrc=0; _tlsrc=0
+            if [[ "$_tscheme" == "https" ]]; then
+              for _c in "${_cas[@]}"; do
+                _co=(); [[ -n "$_c" ]] && _co=(--cacert "$_c")
+                _hz="$(curl -sf --max-time "$_t" ${_co[@]+"${_co[@]}"} "https://${_thost}:${_tport}${_thpath}" 2>/dev/null)"; _r=$?
+                if [[ -n "$_hz" ]]; then _okca="$_c"; break; fi
+                _tlsrc=$_r
+                case "$_r" in 51|58|59|60|77|83|90|91) _certrc=$_r ;; esac
+              done
+              if [[ -n "$_hz" ]]; then
+                _co=(); [[ -n "$_okca" ]] && _co=(--cacert "$_okca")
+                _key=""
+                if [[ -n "$_tkeyvar" && "$_tkeyvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+                  _key="${!_tkeyvar:-}"
+                  if [[ -z "$_key" && -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then
+                    _key="$(KV="$_tkeyvar" bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"' 2>/dev/null)" || _key=""
+                  fi
+                fi
+                if [[ -z "$_key" ]]; then
+                  printf 'gateway at https://%s:%s answers %s but no bearer key is available (%s unset) - cannot verify, not registered\n' \
+                    "$_thost" "$_tport" "$_thpath" "${_tkeyvar:-no key var}" > "$_note"
+                  exit 0
+                fi
+                _body="$(curl -s -w '\n%{http_code}' --max-time "$_t" ${_co[@]+"${_co[@]}"} \
+                  -H @<(printf 'Authorization: Bearer %s\n' "$_key") \
+                  "https://${_thost}:${_tport}${_tmpath}" 2>/dev/null)" || _body=""
+                _code="${_body##*$'\n'}"; _body="${_body%$'\n'*}"
+                case "$_code" in
+                  200) : ;;
+                  401|403|429)
+                    printf 'gateway at https://%s:%s rejected the bearer key (HTTP %s) - not registered\n' \
+                      "$_thost" "$_tport" "$_code" > "$_note"; exit 0 ;;
+                  *)
+                    printf 'gateway at https://%s:%s: models request failed (HTTP %s) - not registered\n' \
+                      "$_thost" "$_tport" "${_code:-none}" > "$_note"; exit 0 ;;
+                esac
+                _base="https://${_thost}:${_tport}"; _auth=1
+              elif (( _certrc != 0 )); then
+                printf 'TLS certificate of https://%s:%s is not trusted (curl rc %s) - set CMA_JEV_CA_FILE to the llmctl CA ($LLMCTL_HOME/cert/ca/ca.crt); not registered\n' \
+                  "$_thost" "$_tport" "$_certrc" > "$_note"
+                exit 0
+              elif (( _tlsrc == 35 && ! _loop )); then
+                printf '%s:%s does not speak TLS; plain http to a non-loopback host is refused - not registered\n' \
+                  "$_thost" "$_tport" > "$_note"
+                exit 0
+              fi
+            fi
+            if [[ -z "$_base" ]]; then
+              if (( ! _loop )); then
+                [[ "$_tscheme" == "http" ]] && printf 'plain http to non-loopback host %s refused (TLS + bearer key required) - not registered\n' "$_thost" > "$_note"
+                exit 0
+              fi
+              # Plain-http fallback: loopback only AND opt-in.
+              [[ "${CMA_JEV_ALLOW_HTTP:-0}" == "1" || "$_tscheme" == "http" ]] || exit 0
+              _b="http://${_thost}:${_tport}"
+              _hz="$(curl -sf --max-time "$_t" "${_b}${_thpath}" 2>/dev/null)" || _hz=""
+              [[ -n "$_hz" ]] || exit 0
+              _body="$(curl -sf --max-time "$_t" "${_b}${_tmpath}" 2>/dev/null)" || _body=""
+              [[ -n "$_body" ]] || exit 0
+              _base="$_b"; _tkeyvar=""
+            fi
             [[ -n "$_body" ]] || exit 0
             _mid=""
             _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
@@ -2498,14 +2605,15 @@ detect_jev_records() {
             _lan="false"; _prio=10
             if [[ "$_tid" != "local" ]]; then _lan="true"; _prio=20; fi
             _pid="jev-$_tid"
+            _cafield=""; [[ "$_auth" == 1 && -n "$_okca" ]] && _cafield="$_okca"
             jq -cn --arg keyvar "$_tkeyvar" --arg pid "$_pid" --arg base "$_base" \
                    --arg model "$_mid" --argjson ctx "$_mctx" --argjson prio "$_prio" \
-                   --argjson lan "$_lan" --arg tid "$_tid" \
+                   --argjson lan "$_lan" --arg tid "$_tid" --arg ca "$_cafield" \
               '{key_var:$keyvar, classification:"decision", provider_id:$pid, alias:null,
                 base_url:$base, transport:"systemone",
                 strong_model:$model, fast_model:$model,
                 context_limit:$ctx, max_output:0, priority:$prio, lan_exposed:$lan,
-                status:"resolved",
+                status:"resolved", ca_file:$ca,
                 reason:(if $tid == "local"
                         then "llmctl decide gateway live at " + $base
                         else "LAN-pinned Jev endpoint live at " + $base end)}' \
@@ -2514,6 +2622,10 @@ detect_jev_records() {
           _jev_idx=$(( _jev_idx + 1 ))
         done
         wait
+        local _jn
+        for _jn in "$_jev_tmpdir"/*.note; do
+          [[ -s "$_jn" ]] && cma_warn "jev: $(cat "$_jn")"
+        done
         if compgen -G "$_jev_tmpdir/*.json" >/dev/null 2>&1; then
           local _frag
           for _frag in "$_jev_tmpdir"/*.json; do
@@ -2595,7 +2707,7 @@ _cma_jev_write_endpoint_cache() {
          # silently destroy the ranked order (prefer-first, then priority).
          # Duplicates are impossible by construction (the two halves are
          # disjoint and resolve_records already dedupes by provider_id).
-         | map({provider_id, base_url, model: .strong_model, key_var,
+         | map({provider_id, base_url, model: .strong_model, key_var, ca_file: (.ca_file // ""),
                 priority, probed_at: $now, reason}))}' > "$tmp" 2>/dev/null; then
     command mv -f "$tmp" "$cache"
   else
@@ -4401,8 +4513,8 @@ cmd_add() {
   cma_require jq
   mkdir -p "$(dirname "$KEY_ALIASES")"
   [[ -s "$KEY_ALIASES" ]] || echo '{}' > "$KEY_ALIASES"
-  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-  jq --arg k "$from_key" --arg p "$pid" '.[$k]=$p' "$KEY_ALIASES" > "$tmp" && mv "$tmp" "$KEY_ALIASES"
+  cma_jq_edit "$KEY_ALIASES" --arg k "$from_key" --arg p "$pid" '.[$k]=$p' \
+    || cma_die "add: could not update $KEY_ALIASES (see the jq error above)"
   cma_log "registered $from_key -> $pid in $KEY_ALIASES"
   cmd_sync
 }

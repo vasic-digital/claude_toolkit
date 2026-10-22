@@ -37,12 +37,7 @@ import model_verify as _mv
 from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
 
 
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Refuses every redirect: redirect_request returning None makes urllib
-    surface the 3xx as an HTTPError instead of re-sending the request (and
-    its Authorization header) to whatever Location names."""
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+from http_noredirect import NoRedirect as _NoRedirectHandler  # the one shared opener policy
 
 
 def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT, follow_redirects=True):

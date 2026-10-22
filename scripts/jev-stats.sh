@@ -29,11 +29,20 @@ done
 EST_IN="${JEV_EST_INPUT_TOKENS:-1500}"
 EST_OUT="${JEV_EST_OUTPUT_TOKENS:-200}"
 
+# Kill-switch uses (JEV_GATE=off) are recorded by jev-gate.sh; always reported.
+OFFLOG="$JEV_STATE_DIR/gate-off.log"
+OFF_N=0; OFF_LAST=""
+if [ -s "$OFFLOG" ]; then
+  OFF_N=$(grep -c . "$OFFLOG" 2>/dev/null || echo 0)
+  OFF_LAST=$(tail -n1 "$OFFLOG" | cut -d' ' -f1)
+fi
+
 if [ ! -s "$LOG" ]; then
   if [ "$JSON" = 1 ]; then
-    printf '{"total":0,"message":"no Jev decisions yet"}\n'
+    jq -cn --argjson n "$OFF_N" --arg last "$OFF_LAST" '{total:0,message:"no Jev decisions yet",gate_off:{count:$n,last:$last}}'
   else
     printf 'No Jev decisions yet — launch any alias after `claude-providers sync`.\n'
+    [ "$OFF_N" -gt 0 ] && printf 'Gate kill-switch (JEV_GATE=off) uses: %s (last %s) — see %s\n' "$OFF_N" "$OFF_LAST" "$OFFLOG"
   fi
   exit 0
 fi
@@ -75,7 +84,7 @@ if [ -z "$_stats" ]; then
 fi
 
 if [ "$JSON" = 1 ]; then
-  printf '%s\n' "$_stats"
+  printf '%s' "$_stats" | jq -c --argjson n "$OFF_N" --arg last "$OFF_LAST" '. + {gate_off:{count:$n,last:$last}}'
   exit 0
 fi
 
@@ -97,5 +106,6 @@ if [ "$_total" -gt 0 ]; then
   printf '  would-deny rate (shadow): %s%%\n' \
     "$(awk -v d="$_shadow_deny" -v t="$_total" 'BEGIN{printf "%.1f", (t>0)? d*100.0/t : 0}')"
 fi
+printf '\nGate kill-switch (JEV_GATE=off) uses: %s%s\n' "$OFF_N" "$([ "$OFF_N" -gt 0 ] && printf ' (last %s; %s)' "$OFF_LAST" "$OFFLOG")"
 printf '\nESTIMATED tokens saved: %s\n' "$(printf '%s' "$_stats" | jq -r '.est_tokens_saved')"
 printf 'Review shadow verdicts for a calibration week before `jev-setup --mode enforce`.\n'

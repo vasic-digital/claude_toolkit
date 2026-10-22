@@ -11,7 +11,8 @@
 #   exit:   0 = allow (or ask, or shadow mode), 2 = deny (reason on stderr)
 #
 # Env:
-#   JEV_GATE=off            kill switch — instant allow, nothing logged
+#   JEV_GATE=off            kill switch — instant allow; each use is appended to
+#                           $JEV_STATE_DIR/gate-off.log (jev-stats reports it)
 #   JEV_MODE=shadow|enforce (default shadow: always allow, log the would-be
 #                           decision)
 #   JEV_BASE_URL            endpoint base (required; unset => fail-open allow)
@@ -70,7 +71,16 @@ _emit_passthrough() {
 }
 
 # 1. Kill switch.
-[ "${JEV_GATE:-on}" = "off" ] && _emit_passthrough
+# Every use of the kill switch is RECORDED (UTC timestamp, agent, cwd) in
+# $JEV_STATE_DIR/gate-off.log so an unevaluated tool call is never invisible;
+# jev-stats reports the count. The call itself still passes straight through.
+if [ "${JEV_GATE:-on}" = "off" ]; then
+  if mkdir -p "$JEV_STATE_DIR" 2>/dev/null; then
+    printf '%s JEV_GATE=off: tool call passed through unevaluated (agent=%s cwd=%s)\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${JEV_AGENT:-unknown}" "$PWD" >> "$JEV_STATE_DIR/gate-off.log" 2>/dev/null || true
+  fi
+  _emit_passthrough
+fi
 
 # 2. Read + parse the hook event.
 _hook_json=$(cat 2>/dev/null || true)
@@ -157,21 +167,30 @@ _req=$(jq -cn --arg model "$JEV_MODEL" --arg state "tool=${_tool} input=${_state
                  "false":"The action is routine, reversible, and local."}}}}')
 
 _key="${JEV_API_KEY:-${TYPESAFE_API_KEY:-}}"
-if [ -z "$_key" ] && [ -n "${JEV_KEY_VAR:-}" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
-  case "$JEV_KEY_VAR" in
-    [A-Za-z_]*) ;;
-    *) JEV_KEY_VAR="" ;;
-  esac
-  if printf '%s' "$JEV_KEY_VAR" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
+# JEV_KEY_VAR names the variable holding the key: the process environment
+# first (same order as the detector and jev_mcp.py), then the keys file.
+if [ -z "$_key" ] && printf '%s' "${JEV_KEY_VAR:-}" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
+  _key="${!JEV_KEY_VAR:-}"
+  if [ -z "$_key" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
     _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$JEV_KEY_VAR"':-}"')"
   fi
 fi
 _key="${_key:-local}"
 _start_ms=$(( $(date +%s) * 1000 ))
-_resp=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $_key" \
-  -d "$_req" "$JEV_BASE_URL/v1/systemone" 2>/dev/null)
+# The bearer key is sent ONLY over https and NEVER on a command line (curl
+# reads the header from a process-substitution file); over plain http no
+# Authorization header is sent at all.
+if [[ "$JEV_BASE_URL" == https://* ]]; then
+  _resp=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
+    -H "Content-Type: application/json" \
+    -H @<(printf 'Authorization: Bearer %s\n' "$_key") \
+    ${JEV_CA_FILE:+--cacert "$JEV_CA_FILE"} \
+    -d "$_req" "$JEV_BASE_URL/v1/systemone" 2>/dev/null)
+else
+  _resp=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
+    -H "Content-Type: application/json" \
+    -d "$_req" "$JEV_BASE_URL/v1/systemone" 2>/dev/null)
+fi
 _curl_rc=$?
 _end_ms=$(( $(date +%s) * 1000 ))
 _latency=$(( _end_ms - _start_ms ))

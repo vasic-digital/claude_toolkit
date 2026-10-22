@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc 3.10" />
+  <meta name="generator" content="pandoc 3.11" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>Claude Multi-Account Fine Tuning</title>
   <style>
@@ -39,7 +39,6 @@ background-color: white;
 body {
 background-color: transparent;
 color: black;
-font-size: 12pt;
 }
 p, h2, h3 {
 orphans: 3;
@@ -169,7 +168,6 @@ width: 0.8em;
 margin: 0 0.8em 0.2em -1.6em;
 vertical-align: middle;
 }
-.display.math{display: block; text-align: center; margin: 0.5rem auto;}
 
 html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
@@ -255,6 +253,10 @@ start</a></li>
 <li><a href="#clipboard-daily-commands" id="toc-clipboard-daily-commands">📋 Daily commands</a></li>
 <li><a href="#books-documentation" id="toc-books-documentation">📚
 Documentation</a></li>
+<li><a href="#bricks-constitution-hub-engine" id="toc-bricks-constitution-hub-engine">🧱 Constitution hub
+engine</a></li>
+<li><a href="#compass-decision-models-jev-and-the-decide-gateway" id="toc-compass-decision-models-jev-and-the-decide-gateway">🧭 Decision
+models (Jev) and the decide gateway</a></li>
 <li><a href="#jigsaw-requirements" id="toc-jigsaw-requirements">🧩
 Requirements</a></li>
 <li><a href="#card_index_dividers-layout-after-unification" id="toc-card_index_dividers-layout-after-unification">🗂️ Layout after
@@ -279,7 +281,7 @@ many Claude Code accounts on one host — with one unified brain.</h3>
 sessions across all of them. Plus turn any LLM API key into a Claude
 Code alias, share your whole plugin ecosystem with OpenCode, and
 auto-name a per-project session on every launch.</p>
-<p><a href="CHANGELOG.md"><img role="img" aria-label="version" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0idmVyc2lvbjogdjEuMjYuNyI+PHRpdGxlPnZlcnNpb246IHYxLjI2Ljc8L3RpdGxlPjxmaWx0ZXIgaWQ9ImJsdXIiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjE2Ii8+PC9maWx0ZXI+PGxpbmVhckdyYWRpZW50IGlkPSJzIiB4Mj0iMCIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2JiYiIgc3RvcC1vcGFjaXR5PSIuMSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1vcGFjaXR5PSIuMSIvPjwvbGluZWFyR3JhZGllbnQ+PGNsaXBQYXRoIGlkPSJyIj48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiByeD0iMyIvPjwvY2xpcFBhdGg+PGcgY2xpcC1wYXRoPSJ1cmwoI3IpIj48cmVjdCB3aWR0aD0iNTEiIGhlaWdodD0iMjAiIGZpbGw9IiM1NTUiLz48cmVjdCB4PSI1MSIgd2lkdGg9IjUzIiBoZWlnaHQ9IjIwIiBmaWxsPSIjMDA3ZWM2Ii8+PHJlY3Qgd2lkdGg9IjEwNCIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMjY1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iNDEwIj52ZXJzaW9uPC90ZXh0Pjx0ZXh0IHg9IjI2NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MTAiPnZlcnNpb248L3RleHQ+PC9nPjx0ZXh0IHg9IjI2NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSI0MTAiPnZlcnNpb248L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iNzY1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iNDMwIj52MS4yNi43PC90ZXh0Pjx0ZXh0IHg9Ijc2NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MzAiPnYxLjI2Ljc8L3RleHQ+PC9nPjx0ZXh0IHg9Ijc2NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSI0MzAiPnYxLjI2Ljc8L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="version" /></a> <a href="#requirements"><img role="img" aria-label="platform" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDgiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0icGxhdGZvcm06IExpbnV4IHwgbWFjT1MiPjx0aXRsZT5wbGF0Zm9ybTogTGludXggfCBtYWNPUzwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxNDgiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI1NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjU3IiB3aWR0aD0iOTEiIGhlaWdodD0iMjAiIGZpbGw9IiMwMDdlYzYiLz48cmVjdCB3aWR0aD0iMTQ4IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIyOTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0NzAiPnBsYXRmb3JtPC90ZXh0Pjx0ZXh0IHg9IjI5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0NzAiPnBsYXRmb3JtPC90ZXh0PjwvZz48dGV4dCB4PSIyOTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDcwIj5wbGF0Zm9ybTwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIxMDE1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iODEwIj5MaW51eCB8IG1hY09TPC90ZXh0Pjx0ZXh0IHg9IjEwMTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuMyIgdGV4dExlbmd0aD0iODEwIj5MaW51eCB8IG1hY09TPC90ZXh0PjwvZz48dGV4dCB4PSIxMDE1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjgxMCI+TGludXggfCBtYWNPUzwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="platform" /></a> <a href="#requirements"><img role="img" aria-label="shell" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iYmFzaDogNCsgKDMuMiBhdXRvLXJlZXhlYykiPjx0aXRsZT5iYXNoOiA0KyAoMy4yIGF1dG8tcmVleGVjKTwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxNjQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSIzNyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjM3IiB3aWR0aD0iMTI3IiBoZWlnaHQ9IjIwIiBmaWxsPSIjODllMDUxIi8+PHJlY3Qgd2lkdGg9IjE2NCIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMjcwIj5iYXNoPC90ZXh0Pjx0ZXh0IHg9IjE5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSIyNzAiPmJhc2g8L3RleHQ+PC9nPjx0ZXh0IHg9IjE5NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSIyNzAiPmJhc2g8L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iI2NjYyI+PHRleHQgeD0iOTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMTE3MCI+NCsgKDMuMiBhdXRvLXJlZXhlYyk8L3RleHQ+PHRleHQgeD0iOTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjExNzAiPjQrICgzLjIgYXV0by1yZWV4ZWMpPC90ZXh0PjwvZz48dGV4dCB4PSI5OTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iMTE3MCIgZmlsbD0iIzMzMyI+NCsgKDMuMiBhdXRvLXJlZXhlYyk8L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="shell" /></a> <a href="#testing"><img role="img" aria-label="tests" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMzIiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0idGVzdHM6IDU4IHN1aXRlcyBncmVlbiI+PHRpdGxlPnRlc3RzOiA1OCBzdWl0ZXMgZ3JlZW48L3RpdGxlPjxmaWx0ZXIgaWQ9ImJsdXIiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjE2Ii8+PC9maWx0ZXI+PGxpbmVhckdyYWRpZW50IGlkPSJzIiB4Mj0iMCIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2JiYiIgc3RvcC1vcGFjaXR5PSIuMSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1vcGFjaXR5PSIuMSIvPjwvbGluZWFyR3JhZGllbnQ+PGNsaXBQYXRoIGlkPSJyIj48cmVjdCB3aWR0aD0iMTMyIiBoZWlnaHQ9IjIwIiByeD0iMyIvPjwvY2xpcFBhdGg+PGcgY2xpcC1wYXRoPSJ1cmwoI3IpIj48cmVjdCB3aWR0aD0iMzciIGhlaWdodD0iMjAiIGZpbGw9IiM1NTUiLz48cmVjdCB4PSIzNyIgd2lkdGg9Ijk1IiBoZWlnaHQ9IjIwIiBmaWxsPSIjNGIwIi8+PHJlY3Qgd2lkdGg9IjEzMiIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMjcwIj50ZXN0czwvdGV4dD48dGV4dCB4PSIxOTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuMyIgdGV4dExlbmd0aD0iMjcwIj50ZXN0czwvdGV4dD48L2c+PHRleHQgeD0iMTk1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjI3MCI+dGVzdHM8L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iODM1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iODUwIj41OCBzdWl0ZXMgZ3JlZW48L3RleHQ+PHRleHQgeD0iODM1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9Ijg1MCI+NTggc3VpdGVzIGdyZWVuPC90ZXh0PjwvZz48dGV4dCB4PSI4MzUiIHk9IjE0MCIgdGV4dExlbmd0aD0iODUwIj41OCBzdWl0ZXMgZ3JlZW48L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="tests" /></a> <a href="#testing"><img role="img" aria-label="shellcheck" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ic2hlbGxjaGVjazogMCBlcnJvcnMiPjx0aXRsZT5zaGVsbGNoZWNrOiAwIGVycm9yczwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI2NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjY3IiB3aWR0aD0iNTMiIGhlaWdodD0iMjAiIGZpbGw9IiM0YjAiLz48cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIzNDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI1NzAiPnNoZWxsY2hlY2s8L3RleHQ+PHRleHQgeD0iMzQ1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjU3MCI+c2hlbGxjaGVjazwvdGV4dD48L2c+PHRleHQgeD0iMzQ1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjU3MCI+c2hlbGxjaGVjazwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI5MjUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0MzAiPjAgZXJyb3JzPC90ZXh0Pjx0ZXh0IHg9IjkyNSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MzAiPjAgZXJyb3JzPC90ZXh0PjwvZz48dGV4dCB4PSI5MjUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDMwIj4wIGVycm9yczwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="shellcheck" /></a> <a href="#license"><img role="img" aria-label="license" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ibGljZW5zZTogc2VlIHJlcG8iPjx0aXRsZT5saWNlbnNlOiBzZWUgcmVwbzwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI0NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjQ3IiB3aWR0aD0iNTciIGhlaWdodD0iMjAiIGZpbGw9IiM5MzkzOTMiLz48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIyNDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSIzNzAiPmxpY2Vuc2U8L3RleHQ+PHRleHQgeD0iMjQ1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjM3MCI+bGljZW5zZTwvdGV4dD48L2c+PHRleHQgeD0iMjQ1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjM3MCI+bGljZW5zZTwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI3NDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0NzAiPnNlZSByZXBvPC90ZXh0Pjx0ZXh0IHg9Ijc0NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0NzAiPnNlZSByZXBvPC90ZXh0PjwvZz48dGV4dCB4PSI3NDUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDcwIj5zZWUgcmVwbzwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="license" /></a></p>
+<p><a href="CHANGELOG.md"><img role="img" aria-label="version" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0idmVyc2lvbjogdjEuMzIuMCI+PHRpdGxlPnZlcnNpb246IHYxLjMyLjA8L3RpdGxlPjxmaWx0ZXIgaWQ9ImJsdXIiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjE2Ii8+PC9maWx0ZXI+PGxpbmVhckdyYWRpZW50IGlkPSJzIiB4Mj0iMCIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2JiYiIgc3RvcC1vcGFjaXR5PSIuMSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1vcGFjaXR5PSIuMSIvPjwvbGluZWFyR3JhZGllbnQ+PGNsaXBQYXRoIGlkPSJyIj48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiByeD0iMyIvPjwvY2xpcFBhdGg+PGcgY2xpcC1wYXRoPSJ1cmwoI3IpIj48cmVjdCB3aWR0aD0iNTEiIGhlaWdodD0iMjAiIGZpbGw9IiM1NTUiLz48cmVjdCB4PSI1MSIgd2lkdGg9IjUzIiBoZWlnaHQ9IjIwIiBmaWxsPSIjMDA3ZWM2Ii8+PHJlY3Qgd2lkdGg9IjEwNCIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMjY1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iNDEwIj52ZXJzaW9uPC90ZXh0Pjx0ZXh0IHg9IjI2NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MTAiPnZlcnNpb248L3RleHQ+PC9nPjx0ZXh0IHg9IjI2NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSI0MTAiPnZlcnNpb248L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iNzY1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iNDMwIj52MS4zMi4wPC90ZXh0Pjx0ZXh0IHg9Ijc2NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MzAiPnYxLjMyLjA8L3RleHQ+PC9nPjx0ZXh0IHg9Ijc2NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSI0MzAiPnYxLjMyLjA8L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="version" /></a> <a href="#-requirements"><img role="img" aria-label="platform" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDgiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0icGxhdGZvcm06IExpbnV4IHwgbWFjT1MiPjx0aXRsZT5wbGF0Zm9ybTogTGludXggfCBtYWNPUzwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxNDgiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI1NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjU3IiB3aWR0aD0iOTEiIGhlaWdodD0iMjAiIGZpbGw9IiMwMDdlYzYiLz48cmVjdCB3aWR0aD0iMTQ4IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIyOTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0NzAiPnBsYXRmb3JtPC90ZXh0Pjx0ZXh0IHg9IjI5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0NzAiPnBsYXRmb3JtPC90ZXh0PjwvZz48dGV4dCB4PSIyOTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDcwIj5wbGF0Zm9ybTwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIxMDE1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iODEwIj5MaW51eCB8IG1hY09TPC90ZXh0Pjx0ZXh0IHg9IjEwMTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuMyIgdGV4dExlbmd0aD0iODEwIj5MaW51eCB8IG1hY09TPC90ZXh0PjwvZz48dGV4dCB4PSIxMDE1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjgxMCI+TGludXggfCBtYWNPUzwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="platform" /></a> <a href="#-requirements"><img role="img" aria-label="shell" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iYmFzaDogNCsgKDMuMiBhdXRvLXJlZXhlYykiPjx0aXRsZT5iYXNoOiA0KyAoMy4yIGF1dG8tcmVleGVjKTwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxNjQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSIzNyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjM3IiB3aWR0aD0iMTI3IiBoZWlnaHQ9IjIwIiBmaWxsPSIjODllMDUxIi8+PHJlY3Qgd2lkdGg9IjE2NCIgaGVpZ2h0PSIyMCIgZmlsbD0idXJsKCNzKSIvPjwvZz48ZyBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iVmVyZGFuYSxHZW5ldmEsRGVqYVZ1IFNhbnMsc2Fucy1zZXJpZiIgdGV4dC1yZW5kZXJpbmc9Imdlb21ldHJpY1ByZWNpc2lvbiIgZm9udC1zaXplPSIxMTAiPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iIzAxMDEwMSI+PHRleHQgeD0iMTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMjcwIj5iYXNoPC90ZXh0Pjx0ZXh0IHg9IjE5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSIyNzAiPmJhc2g8L3RleHQ+PC9nPjx0ZXh0IHg9IjE5NSIgeT0iMTQwIiB0ZXh0TGVuZ3RoPSIyNzAiPmJhc2g8L3RleHQ+PC9nPjxnIHRyYW5zZm9ybT0ic2NhbGUoLjEpIj48ZyBhcmlhLWhpZGRlbj0idHJ1ZSIgZmlsbD0iI2NjYyI+PHRleHQgeD0iOTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjgiIGZpbHRlcj0idXJsKCNibHVyKSIgdGV4dExlbmd0aD0iMTE3MCI+NCsgKDMuMiBhdXRvLXJlZXhlYyk8L3RleHQ+PHRleHQgeD0iOTk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjExNzAiPjQrICgzLjIgYXV0by1yZWV4ZWMpPC90ZXh0PjwvZz48dGV4dCB4PSI5OTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iMTE3MCIgZmlsbD0iIzMzMyI+NCsgKDMuMiBhdXRvLXJlZXhlYyk8L3RleHQ+PC9nPjwvZz48L3N2Zz4=" alt="shell" /></a> <a href="#-testing"><img role="img" aria-label="tests" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0idGVzdHM6IDExOSBzdWl0ZXMiPjx0aXRsZT50ZXN0czogMTE5IHN1aXRlczwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSIzNyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjM3IiB3aWR0aD0iNjciIGhlaWdodD0iMjAiIGZpbGw9IiMwMDdlYzYiLz48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIxOTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSIyNzAiPnRlc3RzPC90ZXh0Pjx0ZXh0IHg9IjE5NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSIyNzAiPnRlc3RzPC90ZXh0PjwvZz48dGV4dCB4PSIxOTUiIHk9IjE0MCIgdGV4dExlbmd0aD0iMjcwIj50ZXN0czwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI2OTUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI1NzAiPjExOSBzdWl0ZXM8L3RleHQ+PHRleHQgeD0iNjk1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjU3MCI+MTE5IHN1aXRlczwvdGV4dD48L2c+PHRleHQgeD0iNjk1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjU3MCI+MTE5IHN1aXRlczwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="tests" /></a> <a href="#-testing"><img role="img" aria-label="shellcheck" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ic2hlbGxjaGVjazogMCBlcnJvcnMiPjx0aXRsZT5zaGVsbGNoZWNrOiAwIGVycm9yczwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI2NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjY3IiB3aWR0aD0iNTMiIGhlaWdodD0iMjAiIGZpbGw9IiM0YjAiLz48cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIzNDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI1NzAiPnNoZWxsY2hlY2s8L3RleHQ+PHRleHQgeD0iMzQ1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjU3MCI+c2hlbGxjaGVjazwvdGV4dD48L2c+PHRleHQgeD0iMzQ1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjU3MCI+c2hlbGxjaGVjazwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI5MjUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0MzAiPjAgZXJyb3JzPC90ZXh0Pjx0ZXh0IHg9IjkyNSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0MzAiPjAgZXJyb3JzPC90ZXh0PjwvZz48dGV4dCB4PSI5MjUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDMwIj4wIGVycm9yczwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="shellcheck" /></a> <a href="#license"><img role="img" aria-label="license" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ibGljZW5zZTogc2VlIHJlcG8iPjx0aXRsZT5saWNlbnNlOiBzZWUgcmVwbzwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgyPSIwIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjYmJiIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLW9wYWNpdHk9Ii4xIi8+PC9saW5lYXJHcmFkaWVudD48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMDQiIGhlaWdodD0iMjAiIHJ4PSIzIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSI0NyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjQ3IiB3aWR0aD0iNTciIGhlaWdodD0iMjAiIGZpbGw9IiM5MzkzOTMiLz48cmVjdCB3aWR0aD0iMTA0IiBoZWlnaHQ9IjIwIiBmaWxsPSJ1cmwoI3MpIi8+PC9nPjxnIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxEZWphVnUgU2FucyxzYW5zLXNlcmlmIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBmb250LXNpemU9IjExMCI+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSIyNDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSIzNzAiPmxpY2Vuc2U8L3RleHQ+PHRleHQgeD0iMjQ1IiB5PSIxNTAiIGZpbGwtb3BhY2l0eT0iLjMiIHRleHRMZW5ndGg9IjM3MCI+bGljZW5zZTwvdGV4dD48L2c+PHRleHQgeD0iMjQ1IiB5PSIxNDAiIHRleHRMZW5ndGg9IjM3MCI+bGljZW5zZTwvdGV4dD48L2c+PGcgdHJhbnNmb3JtPSJzY2FsZSguMSkiPjxnIGFyaWEtaGlkZGVuPSJ0cnVlIiBmaWxsPSIjMDEwMTAxIj48dGV4dCB4PSI3NDUiIHk9IjE1MCIgZmlsbC1vcGFjaXR5PSIuOCIgZmlsdGVyPSJ1cmwoI2JsdXIpIiB0ZXh0TGVuZ3RoPSI0NzAiPnNlZSByZXBvPC90ZXh0Pjx0ZXh0IHg9Ijc0NSIgeT0iMTUwIiBmaWxsLW9wYWNpdHk9Ii4zIiB0ZXh0TGVuZ3RoPSI0NzAiPnNlZSByZXBvPC90ZXh0PjwvZz48dGV4dCB4PSI3NDUiIHk9IjE0MCIgdGV4dExlbmd0aD0iNDcwIj5zZWUgcmVwbzwvdGV4dD48L2c+PC9nPjwvc3ZnPg==" alt="license" /></a></p>
 <p><a href="#-quick-start">Quick start</a> · <a href="#-features">Features</a> · <a href="#-daily-commands">Commands</a>
 · <a href="#-documentation">Guides</a> · <a href="#-how-cross-account-sync-works">How it works</a></p>
 </div>
@@ -296,7 +298,9 @@ things that <em>must</em> stay private (credentials, auth state) remain
 per-account.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span>     <span class="co"># account 1 — your shared projects, memory, plugins, sessions</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude2</span>     <span class="co"># account 2 — the SAME shared projects, memory, plugins, sessions</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>    <span class="co"># the same ecosystem, running on DeepSeek&#39;s best model</span></span></code></pre></div>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>    <span class="co"># the same ecosystem, running on DeepSeek&#39;s best model</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi1</span>       <span class="co"># Kimi Code account 1 — the same shared store, Kimi&#39;s OAuth subscription</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">kimi-deepseek</span>  <span class="co"># Kimi Code on the SAME deepseek backend the no-prefix alias uses</span></span></code></pre></div>
 <h2 id="sparkles-features">✨ Features</h2>
 <ul>
 <li><strong>🔗 Unified multi-account store.</strong> One alias per
@@ -325,6 +329,11 @@ is TUI-only and can&#39;t be auto-applied — see <a href="docs/SESSION_COLOR.md
 its own alias pointed at that provider&#39;s strongest model — fully dynamic
 (no hardcoded providers/URLs/models), secrets never leave the keys file.
 <a href="docs/Provider_Aliases_User_Guide.md">Provider guide →</a></li>
+<li><strong>🤖 Kimi Code CLI support.</strong> <code>kimi1</code>,
+<code>kimi2</code>, … accounts with their own OAuth subscriptions,
+unified like Claude&#39;s; plus a <code>kimi-&lt;id&gt;</code> alias for
+every provider backend that opens <strong>Kimi Code</strong> on the same
+key. <a href="Kimi_Accounts_User_Guide.md">Kimi guide →</a></li>
 <li><strong>🔌 Share your ecosystem with OpenCode.</strong>
 <code>claude-opencode-sync</code> exposes every Claude plugin&#39;s Skills +
 MCP servers + <code>CLAUDE.md</code> to a host-installed <a href="https://opencode.ai">OpenCode</a> in one command. <a href="OpenCode_Integration.md">OpenCode guide →</a></li>
@@ -332,6 +341,25 @@ MCP servers + <code>CLAUDE.md</code> to a host-installed <a href="https://openco
 <code>toon_encode.py</code> encode JSON to <a href="docs/TOON_Integration.md">TOON</a> (~40% fewer tokens for
 structured prompt data). <a href="docs/TOON_Integration.md">TOON guide
 →</a></li>
+<li><strong>🧭 Jev decision layer.</strong> A shadow-first, fail-open
+permission gate backed by TypeSafe&#39;s Jev decision models (local llmctl
+gateway, LAN pins, OpenRouter, or TypeSafe hosted) — never a chat alias,
+always a lightweight allow/ask/deny signal wired into every agent
+launch. <a href="docs/jev/Jev_Quickstart.md">Jev guide →</a></li>
+<li><strong>🧱 Constitution hub engine.</strong> claude_toolkit is a
+<em>hub engine</em> of the Helix constitution: consumed <strong>by
+reference</strong> at
+<code>constitution/submodules/claude_toolkit</code>, depth 1,
+<strong>never initialised recursively</strong>, and it resolves its own
+dependencies (constitution, containers, challenges, LLMsVerifier,
+claude-code-router) with <code>scripts/resolve_deps.sh</code> instead of
+nesting them (Constitution §11.4.28(C) / §11.4.31). <a href="#-constitution-hub-engine">Hub-engine section →</a></li>
+<li><strong>✅ llmctl validation gate + Vision QA.</strong> Local-model
+aliases run through llmctl&#39;s known-answer validation gate (Constitution
+§11.4.277: <code>LLMCTL_VALIDATE_STRICT=1</code>,
+<code>llmctl require-validated &lt;profile&gt;</code>), the gate Vision
+QA (§11.4.278) depends on. <a href="docs/llmctl/user-guide.md">llmctl
+guide →</a></li>
 <li><strong>🛟 Safe &amp; reversible.</strong> Every destructive step is
 backed up; <code>claude-rollback</code> restores everything. Idempotent
 installers. Verified on Linux and macOS.</li>
@@ -345,25 +373,33 @@ update.</p>
 <p>Then open a new shell and:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span>     <span class="co"># see what&#39;s wired up</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span>                  <span class="co"># launch account 1 (auto-resumes this project&#39;s session)</span></span></code></pre></div>
+<p>Optional — the Jev decision layer (permission gating via System-One
+decision models, local-first via the llmctl <code>:8095</code>
+gateway):</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync    <span class="co"># detect Jev endpoints into the ranked cache</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">jev-setup</span>                <span class="co"># install gate/hooks/MCP per agent (shadow mode default)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span>                  <span class="co"># &quot;Jev decision layer: ACTIVE (…)&quot; MOTD on launch</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">jev-stats</span>                <span class="co"># decisions, calibration, ESTIMATED tokens saved</span></span></code></pre></div>
+<p>Full walkthrough: <a href="docs/jev/Jev_Quickstart.md">docs/jev/Jev_Quickstart.md</a>.</p>
 <details>
 <summary><b>Manual install</b></summary>
 
 <p><strong>A. Host already has ≥1 <code>~/.claude-*</code>
 account:</strong></p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/install.sh         <span class="co"># symlink scripts onto PATH, write managed alias</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># file, source from rc files, unify existing</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># accounts, install the TOON dep, refresh docs.</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span></span></code></pre></div>
-<p><strong>B. Clean-slate host (Claude Code installed, no accounts
-yet):</strong></p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/claude-bootstrap.sh <span class="at">--count</span> 2 <span class="at">--yes</span>     <span class="co"># provision claude1, claude2</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span> /login <span class="kw">&amp;&amp;</span> <span class="ex">claude2</span> /login                      <span class="co"># authenticate each once</span></span></code></pre></div>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/install.sh         <span class="co"># symlink scripts onto PATH, write managed alias</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># file, source from rc files, unify existing</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>                                <span class="co"># accounts, install the TOON dep, refresh docs.</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span></span></code></pre></div>
+<p><strong>B. Clean-slate host (Claude Code installed, no accounts
+yet):</strong></p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> claude-toolkit</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/claude-bootstrap.sh <span class="at">--count</span> 2 <span class="at">--yes</span>     <span class="co"># provision claude1, claude2</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="va">$SHELL</span> <span class="at">-l</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude1</span> /login <span class="kw">&amp;&amp;</span> <span class="ex">claude2</span> /login                      <span class="co"># authenticate each once</span></span></code></pre></div>
 <p><code>--aliases personal,work</code> for custom names;
 <code>--dir-of NAME=PATH</code> to override a config dir. Both
 installers are <strong>idempotent</strong>.</p>
@@ -417,6 +453,68 @@ wrappers. See <a href="docs/SESSION_COLOR.md">SESSION_COLOR.md</a>.</td>
 file.</td>
 </tr>
 <tr>
+<td><code>claude-providers quota</code> / <code>limits</code></td>
+<td>Report usage/limit windows for every native account and provider
+alias. See <a href="docs/Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits">Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits</a>.</td>
+</tr>
+<tr>
+<td><code>kimi-add-account</code></td>
+<td>Add a Kimi Code account (<code>~/.kimi-code-&lt;name&gt;</code>);
+<code>--login</code> drives the interactive device flow.</td>
+</tr>
+<tr>
+<td><code>kimi-list-accounts</code></td>
+<td>Tabular status of detected Kimi accounts.</td>
+</tr>
+<tr>
+<td><code>kimi-unify</code></td>
+<td>Re-merge Kimi state into <code>$SHARED_DIR/kimi/</code>.</td>
+</tr>
+<tr>
+<td><code>kimi-remove-account</code></td>
+<td>Drop a Kimi account; archive (default) or <code>--delete</code> its
+dir.</td>
+</tr>
+<tr>
+<td><code>kimi-rollback</code></td>
+<td>Restore <code>.preunify.*</code> backups for the Kimi family.</td>
+</tr>
+<tr>
+<td><code>kimi-providers</code></td>
+<td>Kimi framing over <code>claude-providers</code>
+(<code>sync|list|show|verify|migrate-names</code>).</td>
+</tr>
+<tr>
+<td><code>kimi-providers quota</code> / <code>limits</code></td>
+<td>Same usage/limit report, reached via <code>kimi-providers</code>&#39;
+catch-all forward. See <a href="docs/Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits">Provider_Aliases_User_Guide.md#14-quota-and-limits-reporting-quota--limits</a>.</td>
+</tr>
+<tr>
+<td><code>claude-usage report</code></td>
+<td>Token/cost usage report built on the real <code>ccusage</code>
+binary (day/model/session/project/provider breakdowns; default last 4
+weeks; <code>json</code>/<code>md</code>/<code>csv</code>, written under
+<code>$SHARED_DIR/usage-reports/</code> by default). Native accounts are
+pooled (cannot be told apart) and &quot;provider&quot; is a best-effort catalog
+cross-reference — see <code>claude-usage --help</code> for the exact
+honesty contract. Auto-refreshed after every
+<code>claude-providers sync</code>/<code>sync --multi</code>
+(<code>CMA_SYNC_SKIP_USAGE_REFRESH=1</code> to opt out), not just on
+demand.</td>
+</tr>
+<tr>
+<td><code>claude-usage merge</code></td>
+<td>Combines <code>claude-usage report</code> JSON files from one or
+more source paths (<code>--from PATH[,PATH...]</code>, each a directory
+of <code>*.json</code> reports or a single file) into one consolidated
+report, re-summing any day/model/project/provider rows that key
+together. By default every project path is stripped to the placeholder
+<code>&quot;coding agents&quot;</code> (rows that collide after stripping are
+summed into one, not just relabeled) — <code>--anonymize-as NAME</code>
+picks a different label, <code>--real-names</code> opts out and keeps
+real paths distinct.</td>
+</tr>
+<tr>
 <td><code>claude-opencode-sync</code></td>
 <td>Expose Claude plugin Skills + MCP + <code>CLAUDE.md</code> to
 OpenCode.</td>
@@ -431,6 +529,29 @@ from markdown.</td>
 <td>Restore <code>.preunify.*</code> backups and move the shared store
 aside.</td>
 </tr>
+<tr>
+<td><code>claude-providers sync-jev</code></td>
+<td>Jev-only fast path: re-probe decision endpoints and refresh the
+ranked <code>jev-endpoints.json</code> cache.</td>
+</tr>
+<tr>
+<td><code>jev-setup</code></td>
+<td>Install/audit (<code>--check</code>) the Jev decision layer per
+agent (hooks, MCP, plugin); edits agent homes only with consent
+(<code>--yes</code> / <code>JEV_SETUP_CONSENT=1</code>, backups first);
+<code>--mode shadow|enforce</code>, <code>--uninstall</code>.</td>
+</tr>
+<tr>
+<td><code>jev-stats</code></td>
+<td>Decision-layer report from <code>decisions.jsonl</code>: verdicts,
+latency, shadow calibration, ESTIMATED tokens saved.
+<code>--days N</code>, <code>--json</code>.</td>
+</tr>
+<tr>
+<td><code>jev-spec-setup &lt;repo&gt;</code></td>
+<td>Opt-in: install jev-spec CI templates (config + PR-verify workflow)
+into a target repo.</td>
+</tr>
 </tbody>
 </table>
 <h2 id="books-documentation">📚 Documentation</h2>
@@ -443,10 +564,34 @@ aside.</td>
 </thead>
 <tbody>
 <tr>
+<td><a href="docs/User_Manual.md"><strong>User Manual (start
+here)</strong></a></td>
+<td>One index over every guide, FAQ, diagram and verification doc below,
+with the hub-engine, validation-gate and decision-model entry
+points.</td>
+</tr>
+<tr>
 <td><a href="docs/Provider_Aliases_User_Guide.md">Provider Aliases User
 Guide</a></td>
 <td>Turning LLM keys into aliases; transports, overrides,
 verification.</td>
+</tr>
+<tr>
+<td><a href="docs/llmctl/quickstart.md">llmctl Integration
+Quickstart</a> → <a href="docs/llmctl/user-guide.md">User Guide</a> → <a href="docs/llmctl/FAQ.md">FAQ</a></td>
+<td>Auto-recognizing local llmctl models as aliases; on-demand
+switching; honest context/LAN warnings; <a href="docs/diagrams/llmctl-detection-flow.svg">flow diagrams</a>.</td>
+</tr>
+<tr>
+<td><a href="Kimi_Accounts_User_Guide.md">Kimi Accounts User
+Guide</a></td>
+<td>Kimi Code accounts, <code>kimi-&lt;id&gt;</code> aliases, the
+one-time <code>kimi-*</code> → <code>kc-*</code> rename.</td>
+</tr>
+<tr>
+<td><a href="docs/jev/Jev_Quickstart.md">Jev Quickstart</a> → <a href="docs/jev/Jev_User_Guide.md">User Guide</a> → <a href="docs/jev/Jev_FAQ.md">FAQ</a></td>
+<td>The Jev decision layer: endpoint detection, the shadow-first
+permission gate, MCP server, per-agent installer, stats/calibration; <a href="docs/diagrams/jev-architecture.svg">architecture diagram</a>.</td>
 </tr>
 <tr>
 <td><a href="OpenCode_Integration.md">OpenCode Integration</a></td>
@@ -473,16 +618,85 @@ siblings).</td>
 </tr>
 </tbody>
 </table>
+<h2 id="bricks-constitution-hub-engine">🧱 Constitution hub engine</h2>
+<p>claude_toolkit is one of the <em>hub engines</em> of the Helix
+constitution
+(<code>constitution/submodules/{llmctl,claude_toolkit,open_design}</code>):</p>
+<ul>
+<li><strong>Consumed by reference.</strong> A project gets it at
+<code>constitution/submodules/claude_toolkit</code> (pinned by sha in
+the hub&#39;s <code>helix-deps.yaml</code>); it is never copied, never
+shipped inside a product artifact.</li>
+<li><strong>Never initialised recursively.</strong>
+<code>git submodule update --init</code> stops at the engine; the only
+submodules it carries are the third-party <code>submodules/go</code> and
+<code>submodules/ccusage</code>.</li>
+<li><strong>No nested own-org copies.</strong> Its dependencies are
+found by <a href="scripts/resolve_deps.sh"><code>scripts/resolve_deps.sh</code></a>:
+<code>CT_&lt;NAME&gt;_DIR</code> override → parent hub →
+<code>&lt;root&gt;/submodules/&lt;name&gt;</code> → sibling
+(Constitution §11.4.28(C), gate
+<code>CM-HUB-ENGINE-NO-OWNORG-NESTING</code>);
+<code>helix-deps.yaml</code> declares them (§11.4.31). Offline checks:
+<code>scripts/tests/test_helix_deps_manifest.sh</code>,
+<code>scripts/tests/test_gitmodules_no_ownorg.sh</code>.</li>
+<li><strong>Model governance it participates in.</strong> §11.4.277
+(llmctl model validation gate; STRICT mode,
+<code>llmctl require-validated</code>), §11.4.278 (HelixQA Vision UI QA,
+which reads screens through a gate-validated Vision model) and §11.4.279
+(the decision-models layer: typed, non-chat answers that never become
+aliases — the Jev layer here). The toolkit forwards the gate&#39;s
+environment and propagates its refusals; it does not re-implement the
+gate
+(<code>scripts/tests/test_llmctl_vision_gate_wiring.sh</code>).</li>
+</ul>
+<p>Diagram: <a href="docs/diagrams/hub-engine-placement.svg">hub-engine
+placement</a>.</p>
+<h2 id="compass-decision-models-jev-and-the-decide-gateway">🧭 Decision
+models (Jev) and the decide gateway</h2>
+<p>Decision models answer typed questions (choice / noul / score) with
+probabilities; they have no chat endpoint, so they are <strong>never
+aliases</strong> (<code>classification: decision</code>,
+<code>alias: null</code>). The local llmctl <em>decide gateway</em> is
+<strong>HTTPS with a mandatory bearer key</strong>
+(<code>Authorization: Bearer $LLMCTL_API_KEY</code>, local CA at
+<code>$LLMCTL_HOME/cert/ca/ca.crt</code>); <code>/healthz</code> and
+<code>/readyz</code> are the only unauthenticated routes. The detector,
+gate and MCP server speak that (TLS with the llmctl CA, key from the env
+var named in the pin, never printed and never on a command line; plain
+http is opt-in via <code>CMA_JEV_ALLOW_HTTP=1</code>, loopback-only,
+unauthenticated, never for other hosts). Verified against a hermetic TLS
+stand-in, not a real gateway. See the <a href="docs/jev/Jev_User_Guide.md">Jev guide</a> and the <a href="docs/diagrams/decide-gateway-flow.svg">decide-gateway
+flow</a>.</p>
 <h2 id="jigsaw-requirements">🧩 Requirements</h2>
 <p><code>bash</code>, <code>rsync</code>, <code>jq</code>,
 <code>awk</code>. Optional: <code>node</code>+<code>npm</code> (TOON
 utility), <code>pandoc</code> (+
 <code>weasyprint</code>/<code>wkhtmltopdf</code>/headless
 <code>chromium</code>) for doc regeneration.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># macOS (Homebrew)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">brew</span> install bash jq rsync gawk pandoc weasyprint</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># macOS (Homebrew)</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">brew</span> install bash jq rsync gawk pandoc weasyprint</span></code></pre></div>
 <p>macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash
 when needed, and only touch <code>~/.zshrc</code> on Darwin.</p>
+<p><strong>Own-org dependencies are flat, not nested.</strong> This repo
+tracks no <code>vasic-digital/*</code> or
+<code>HelixDevelopment/*</code> submodule (the only submodules are the
+third-party <code>submodules/go</code> and
+<code>submodules/ccusage</code>). The Go router
+(<code>claude-code-router</code>), the optional
+<code>LLMsVerifier</code>, and
+<code>constitution</code>/<code>containers</code>/<code>challenges</code>/<code>superspec</code>
+are found by <code>scripts/resolve_deps.sh &lt;name&gt;</code>:
+<code>CT_&lt;NAME&gt;_DIR</code> override → parent hub
+(<code>&lt;hub&gt;/submodules/&lt;name&gt;</code>) →
+<code>&lt;root&gt;/submodules/&lt;name&gt;</code> → sibling
+<code>../&lt;name&gt;</code>, with a loud error and the clone command
+when nothing resolves. A standalone <code>curl-install.sh</code> run (no
+parent hub) clones the router over https into
+<code>$(dirname INSTALL_DIR)/claude_code_router</code> for you. The
+own-org dependency manifest is <a href="helix-deps.yaml"><code>helix-deps.yaml</code></a> (§11.4.31;
+validated by
+<code>scripts/tests/test_helix_deps_manifest.sh</code>).</p>
 <h2 id="card_index_dividers-layout-after-unification">🗂️ Layout after
 unification</h2>
 <pre><code>~/.claude-shared/                   # single source of truth
@@ -494,6 +708,13 @@ unification</h2>
   .claude.json                      # per-account state (non-auth contents sync)
   mcp-needs-auth-cache.json         # PRIVATE
   projects -&gt; ~/.claude-shared/projects   # every shared item is a symlink
+
+~/.claude-shared/kimi/              # Kimi shared store (mirrors the above)
+  AGENTS.md  plugins/  skills/  sessions/  session_index.jsonl
+
+~/.kimi-code-&lt;account&gt;/             # per Kimi account — mostly symlinks
+  config.toml  credentials/  oauth/  device_id    # PRIVATE — per-account
+  sessions -&gt; ~/.claude-shared/kimi/sessions      # shared items are symlinks
 
 ~/.local/share/claude-multi-account/aliases.sh   # managed alias file</code></pre>
 <h2 id="arrows_counterclockwise-how-cross-account-sync-works">🔄 How
@@ -518,12 +739,15 @@ created in one account appear in the others on the next launch.</li>
 <code>firstStartTime</code>, <code>claudeCodeFirstTokenDate</code>)
 never cross accounts.</p>
 <h2 id="test_tube-testing">🧪 Testing</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                 <span class="co"># all hermetic suites (sandboxed $HOME)</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify session   <span class="co"># subset by suffix</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh               <span class="co"># hermetic + live verifiers + evidence bundle</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                 <span class="co"># all hermetic suites (sandboxed $HOME)</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify session   <span class="co"># subset by suffix</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh               <span class="co"># hermetic + live verifiers + evidence bundle</span></span></code></pre></div>
 <p>Tests use a sandboxed <code>$HOME</code> via <code>mktemp</code> —
 your real <code>~/.claude*</code> is never touched. The suite is
-<strong>58 files, all green</strong>, and
+<strong>119 test files</strong>
+(<code>ls scripts/tests/test_*.sh | wc -l</code>); a hermetic run on a
+host without a <code>claude-code-router</code> checkout fails the
+router-backed files (see CHANGELOG v1.32.0), and
 <code>shellcheck -S error</code> is clean (62 warning-level and 203
 style-level suggestions remain); live verifiers
 (<code>verify_*_live.sh</code>) prove behavior against the real
@@ -531,9 +755,9 @@ OpenCode/provider state and write inspectable evidence to
 <code>scripts/tests/proof/</code>.</p>
 <h2 id="vertical_traffic_light-releasing--the-live-gate-is-mandatory">🚦
 Releasing — the LIVE gate is mandatory</h2>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                       <span class="co"># sandbox suite + LIVE alias smoke</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>    <span class="co"># + full LLMsVerifier model scan</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--provider</span> poe        <span class="co"># smoke through a different provider</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span>                       <span class="co"># sandbox suite + LIVE alias smoke</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--verify-providers</span>    <span class="co"># + full LLMsVerifier model scan</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-release-gate</span> <span class="at">--provider</span> poe        <span class="co"># smoke through a different provider</span></span></code></pre></div>
 <p><strong>No release commit without a green
 <code>claude-release-gate</code>.</strong> The sandbox suite proves
 wrapper <em>logic</em> but is structurally blind to real-host state —
@@ -546,7 +770,7 @@ PATH → ccr → route-apply → proxy → backend and asserts the served reply
 plus the sink-side route. Fail-closed: any layer red = do not
 release.</p>
 <h2 id="leftwards_arrow_with_hook-rollback">↩︎️ Rollback</h2>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span>        <span class="co"># == claude-unify --rollback</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span>        <span class="co"># == claude-unify --rollback</span></span></code></pre></div>
 <p>Restores every <code>.preunify.&lt;timestamp&gt;</code> backup and
 moves the shared store aside to
 <code>~/.claude-shared.removed.&lt;timestamp&gt;</code>.</p>

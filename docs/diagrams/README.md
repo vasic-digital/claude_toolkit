@@ -12,13 +12,16 @@ display without a renderer.
 | Kimi + Claude family dispatch | [kimi-family.mmd](kimi-family.mmd) | [kimi-family.svg](kimi-family.svg) |
 | llmctl detection flow | [llmctl-detection-flow.mmd](llmctl-detection-flow.mmd) | [llmctl-detection-flow.svg](llmctl-detection-flow.svg) |
 | llmctl switch flow | [llmctl-switch-flow.mmd](llmctl-switch-flow.mmd) | [llmctl-switch-flow.svg](llmctl-switch-flow.svg) |
+| Quota limits flow | [quota-limits-flow.mmd](quota-limits-flow.mmd) | [quota-limits-flow.svg](quota-limits-flow.svg) |
 | Jev decision-layer architecture | [jev-architecture.mmd](jev-architecture.mmd) | [jev-architecture.svg](jev-architecture.svg) |
+| Constitution hub-engine placement (no nesting) | [hub-engine-placement.mmd](hub-engine-placement.mmd) | [hub-engine-placement.svg](hub-engine-placement.svg) |
+| llmctl decide gateway (HTTPS + bearer key) flow | [decide-gateway-flow.mmd](decide-gateway-flow.mmd) | [decide-gateway-flow.svg](decide-gateway-flow.svg) |
 
 Regenerate after editing a source:
 
 ```bash
 echo '{"args":["--no-sandbox"]}' > /tmp/pptr.json
-for d in architecture dataflow enable-policy kimi-family llmctl-detection-flow llmctl-switch-flow jev-architecture; do
+for d in architecture dataflow enable-policy kimi-family llmctl-detection-flow llmctl-switch-flow jev-architecture hub-engine-placement decide-gateway-flow; do
   mmdc -i docs/diagrams/$d.mmd -o docs/diagrams/$d.svg -p /tmp/pptr.json
 done
 ```

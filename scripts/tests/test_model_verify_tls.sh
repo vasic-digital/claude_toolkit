@@ -128,7 +128,7 @@ srv.serve_forever()
 PY
 
 SRV_PIDS=()
-start_server() {  # start_server tls|plain -> echoes the port
+start_server() {  # start_server tls|plain -> sets SRV_PORT
   local mode="$1" log; log="$(mktemp "${TMPDIR:-/tmp}/cma-tlsfix.XXXXXX")"
   if [[ "$mode" == tls ]]; then
     python3 "$FIX/server.py" tls "$FIX/cert.pem" "$FIX/key.pem" > "$log" 2>&1 &
@@ -143,7 +143,7 @@ start_server() {  # start_server tls|plain -> echoes the port
     sleep 0.1
   done
   rm -f "$log"
-  echo "$port"
+  SRV_PORT="$port"   # global (a $(...) call would lose SRV_PIDS+=)
 }
 
 # Reap only the fixture PIDs THIS file started — never a pattern kill, which
@@ -156,7 +156,7 @@ stop_servers() {
 }
 trap 'stop_servers; cleanup_sandbox' EXIT
 
-PORT="$(start_server tls)"
+start_server tls; PORT="$SRV_PORT"
 if [[ -z "$PORT" ]]; then
   echo "SKIP: the throwaway HTTPS fixture did not come up"; exit 0
 fi
@@ -261,7 +261,7 @@ fi
 
 # ---------------------------------------------------------------------------
 it "T6 a plain-HTTP endpoint is unaffected when the variable is set"
-_pport="$(start_server plain)"
+start_server plain; _pport="$SRV_PORT"
 if [[ -n "$_pport" ]]; then
   MV_EP="http://127.0.0.1:$_pport/v1" run_mv CMA_PROVIDER_CA_CERT="$FIX/cert.pem"
   assert_eq "1" "$(mv_field verified_count)" "T6 plain HTTP still verifies with the CA var set"

@@ -4,7 +4,7 @@ Dated investigation notes (`YYYY-MM-DD-topic.md`), dated evidence dirs
 (`<topic>_YYYYMMDD/`), and standing reference briefs. Research notes are
 point-in-time records: trust code and current docs over any claim here.
 
-## Jev decision layer (feature: specs/003-jev-decision-layer)
+## Jev decision layer (feature: [specs/003-jev-decision-layer](../../specs/003-jev-decision-layer/spec.md), with [plan](../../specs/003-jev-decision-layer/plan.md) and [tasks](../../specs/003-jev-decision-layer/tasks.md))
 
 | Brief | Contents |
 |-------|----------|

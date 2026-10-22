@@ -4,7 +4,7 @@
 # resolve via scripts/resolve_deps.sh (single source of truth). Gate:
 # scripts/tests/test_gitmodules_no_ownorg.sh.
 #
-# DELIBERATE EXCEPTION: the only HTTPS URL and the only submodule. It is
+# DELIBERATE EXCEPTION: the only HTTPS URLs (the third-party submodules). It is
 # third-party: go.googlesource.com is the canonical upstream of the Go toolchain;
 # no SSH mirror is used elsewhere in the fleet, so none is invented here.
 [submodule "submodules/go"]

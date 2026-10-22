@@ -31,6 +31,9 @@ make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
+# These suites drive plain-http loopback fixtures; since v1.32.0 plain http is an
+# explicit opt-in (TLS is the default). test_jev_detect_https.sh covers the default.
+export CMA_JEV_ALLOW_HTTP=1
 
 PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
 SHIPPED_PINS="$SCRIPTS_DIR/providers/jev.json"
@@ -119,7 +122,7 @@ assert_eq "20" "$(jq -r '.priority' <<<"$REC_D")" "lan priority = 20 (between lo
 assert_eq "decision" "$(jq -r '.classification' <<<"$REC_D")" "lan record classification = decision"
 assert_eq "null" "$(jq -c '.alias' <<<"$REC_D")" "lan record alias = null"
 assert_eq "http://127.0.0.1:$FIXTURE_PORT" "$(jq -r '.base_url' <<<"$REC_D")" "lan record base_url = the probed host:port"
-assert_eq "LAN_JEV_KEY" "$(jq -r '.key_var' <<<"$REC_D")" "lan record carries the pinned key var NAME"
+assert_eq "" "$(jq -r '.key_var' <<<"$REC_D")" "plain-http lan record carries NO key var (no consumer may send a bearer over http)"
 
 # ===========================================================================
 # CASE E — invalid lan id -> skipped with warning, never fabricated

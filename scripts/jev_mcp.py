@@ -41,6 +41,9 @@ import subprocess
 import sys
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import http_noredirect as _http  # noqa: E402  (the one shared credential-safe opener)
+
 _KEY_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -126,6 +129,25 @@ def _api_key():
     return _resolve_key_var(os.environ.get("JEV_KEY_VAR", ""))
 
 
+def _ssl_ctx():
+    """TLS context for an https decide gateway: trust JEV_CA_FILE (the local
+    llmctl CA) in ADDITION to the system store; verification is never off."""
+    import ssl
+    ca = os.environ.get("JEV_CA_FILE", "")
+    ctx = ssl.create_default_context()
+    if ca and os.path.isfile(ca):
+        ctx.load_verify_locations(cafile=ca)
+    return ctx
+
+
+def _open(req, timeout):
+    """urlopen with the CA-aware TLS context, no redirects, and the bearer
+    key only ever sent over https (stripped for any other scheme)."""
+    if not req.full_url.lower().startswith("https://"):
+        req.headers.pop("Authorization", None)
+    return _http.open_url(req, timeout=timeout, context=_ssl_ctx())
+
+
 def _post_systemone(state, questions, model=None, base=None, key=None):
     """POST one systemone request. base/key/model default to the single
     configured endpoint's env vars; a route candidate overrides any subset
@@ -143,7 +165,7 @@ def _post_systemone(state, questions, model=None, base=None, key=None):
         headers={"Content-Type": "application/json",
                  "Authorization": "Bearer " + (key if key is not None else _api_key())})
     timeout = float(os.environ.get("JEV_MCP_TIMEOUT", "4"))
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with _open(req, timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -290,7 +312,7 @@ def _tool_jev_models(_args):
     req = urllib.request.Request(base + "/v1/models",
                                  headers={"Authorization": "Bearer " + _api_key()})
     timeout = float(os.environ.get("JEV_MCP_TIMEOUT", "4"))
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with _open(req, timeout) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     return {"endpoint": base,
             "models": [m.get("id") for m in data.get("data", [])]}

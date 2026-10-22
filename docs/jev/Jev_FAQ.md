@@ -49,8 +49,9 @@ endpoint is down, so the most destructive patterns still get at least `ask`.
 ### Why did my `jev-local` endpoint disappear?
 
 The same reason llmctl aliases disappear: detection re-probes on every sync,
-and `jev-local` only exists while `127.0.0.1:8095` answers both `/healthz`
-and `/v1/models`. Stop the gateway and the next `claude-providers sync` (or
+and `jev-local` only exists while the pinned gateway (default `127.0.0.1:8095`;
+see `llmctl decide status` / `local_gateway.port`) answers both `/healthz` and
+the authenticated `/v1/models`. Stop the gateway and the next `claude-providers sync` (or
 the background `sync-jev` a launch kicks when the cache is stale) drops it.
 No endpoint is ever kept on the strength of a merely-open port.
 
@@ -142,3 +143,18 @@ licensing table.
 background refresh — identical to pre-Jev behavior), `JEV_GATE=off` to
 disable only the gate, or `jev-setup --uninstall` to remove the installed
 artifacts (state dir and evidence log are kept).
+
+## Gateway transport, governance
+
+### Is the llmctl decide gateway HTTP or HTTPS, and does it need a key?
+
+HTTPS with a mandatory bearer key. Every `/v1/*` call needs `Authorization: Bearer $LLMCTL_API_KEY` (401 otherwise); `/healthz` and `/readyz` are open. Since v1.32.0 the detector, `jev-gate.sh` and `jev_mcp.py` speak that: TLS first with CA trust from `CMA_JEV_CA_FILE` / `SSL_CERT_FILE` / `$LLMCTL_HOME/cert/ca/ca.crt`, the key from the env var named in the pin (else the keys file), never printed. Plain http is opt-in (`CMA_JEV_ALLOW_HTTP=1` or `scheme: "http"` in the pin), loopback-only, unauthenticated, and its record carries no key; it is refused for any other host. Verified against a hermetic TLS stand-in, not a real gateway (User Guide limitation 11). See [decide-gateway-flow](../diagrams/decide-gateway-flow.svg).
+
+### Why is my jev-local endpoint not showing up?
+
+Run `claude-providers sync-jev` and read its warnings: "no bearer key is available" (export `LLMCTL_API_KEY` or put it in `~/api_keys.sh`), "rejected the bearer key (HTTP 401)", "models request failed (HTTP n)", or "TLS certificate ... is not trusted" (set `CMA_JEV_CA_FILE` to the llmctl CA). The key value is never shown. Already-installed shells must re-run `claude-providers sync` once so the regenerated alias file exports `JEV_CA_FILE`.
+
+### Which constitution rules govern the decision layer?
+
+§11.4.279 (clause A detection before generation, C decision models are typed and never aliases, D validation through §11.4.277), §11.4.277 (model validation gate, which also applies to the decision profiles llmctl serves), §11.4.278 (Vision QA, a different consumer of validated models). The toolkit itself is a hub engine (§11.4.28(C), §11.4.31).
+

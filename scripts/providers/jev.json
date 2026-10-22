@@ -21,6 +21,7 @@
   "local_gateway": {
     "host": "127.0.0.1",
     "port": 8095,
+    "scheme": "https",
     "health_path": "/healthz",
     "models_path": "/v1/models",
     "systemone_path": "/v1/systemone",

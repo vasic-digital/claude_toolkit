@@ -332,3 +332,17 @@ No. `cma_jev_env` does zero network I/O on the launch path (one `stat` + one `jq
 ### The gate blocked (or would have blocked) a tool call — how do I tune or disable it?
 
 Defaults are shadow mode (log only) and fail-open (endpoint errors never block). Tuning knobs: `JEV_GATE_THRESHOLD` (0.8, deny floor), `JEV_RISKY_THRESHOLD` (0.7, allow→ask), `JEV_GATE_TIMEOUT` (2 s). Review `jev-stats` shadow verdicts for a calibration week before `jev-setup --mode enforce`. Kill switch: `JEV_GATE=off`. Full reference: [docs/jev/Jev_FAQ.md](jev/Jev_FAQ.md).
+
+## Governance: hub engine, validation, decision models
+
+### Is claude_toolkit a constitution hub engine?
+
+Yes. A project vendoring the Helix constitution gets it at `constitution/submodules/claude_toolkit`, consumed by reference, depth 1, never initialised recursively. Own-org dependencies are resolved flat by `scripts/resolve_deps.sh` and declared in `helix-deps.yaml`; nesting them is forbidden (Constitution §11.4.28(C), §11.4.31). See [the placement diagram](diagrams/hub-engine-placement.svg).
+
+### Are `llmctl-<profile>` aliases validated?
+
+By llmctl, not by this toolkit: llmctl's known-answer gate (Constitution §11.4.277) runs when the alias launch triggers `llmctl switch`. Export `LLMCTL_VALIDATE_STRICT=1` to make UNDETERMINED stop the launch, and use `llmctl require-validated <profile>` to check a profile (exit 0 = fresh PASS). A refusal aborts the launch. See [llmctl FAQ](llmctl/FAQ.md).
+
+### Why is there no alias for a decision model?
+
+Constitution §11.4.279 separates decision models (typed answers, no chat) from chat models. They are registered with `classification: decision` and `alias: null` and never become aliases; see [Jev FAQ](jev/Jev_FAQ.md).

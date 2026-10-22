@@ -9,11 +9,11 @@ across all of them. Plus turn any LLM API key into a Claude Code alias, share
 your whole plugin ecosystem with OpenCode, and auto-name a per-project session
 on every launch.
 
-[![version](https://img.shields.io/badge/version-v1.27.0-blue)](CHANGELOG.md)
-[![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#requirements)
-[![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#requirements)
-[![tests](https://img.shields.io/badge/tests-59%20suites%20green-success)](#testing)
-[![shellcheck](https://img.shields.io/badge/shellcheck-0%20errors-success)](#testing)
+[![version](https://img.shields.io/badge/version-v1.32.0-blue)](CHANGELOG.md)
+[![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#-requirements)
+[![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#-requirements)
+[![tests](https://img.shields.io/badge/tests-119%20suites-informational)](#-testing)
+[![shellcheck](https://img.shields.io/badge/shellcheck-0%20errors-success)](#-testing)
 [![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
 [Quick start](#-quick-start) · [Features](#-features) · [Commands](#-daily-commands) · [Guides](#-documentation) · [How it works](#-how-cross-account-sync-works)
@@ -74,6 +74,17 @@ kimi-deepseek  # Kimi Code on the SAME deepseek backend the no-prefix alias uses
   by TypeSafe's Jev decision models (local llmctl gateway, LAN pins,
   OpenRouter, or TypeSafe hosted) — never a chat alias, always a lightweight
   allow/ask/deny signal wired into every agent launch. [Jev guide →](docs/jev/Jev_Quickstart.md)
+- **🧱 Constitution hub engine.** claude_toolkit is a *hub engine* of the
+  Helix constitution: consumed **by reference** at
+  `constitution/submodules/claude_toolkit`, depth 1, **never initialised
+  recursively**, and it resolves its own dependencies (constitution,
+  containers, challenges, LLMsVerifier, claude-code-router) with
+  `scripts/resolve_deps.sh` instead of nesting them
+  (Constitution §11.4.28(C) / §11.4.31). [Hub-engine section →](#-constitution-hub-engine)
+- **✅ llmctl validation gate + Vision QA.** Local-model aliases run through
+  llmctl's known-answer validation gate (Constitution §11.4.277:
+  `LLMCTL_VALIDATE_STRICT=1`, `llmctl require-validated <profile>`), the gate
+  Vision QA (§11.4.278) depends on. [llmctl guide →](docs/llmctl/user-guide.md)
 - **🛟 Safe & reversible.** Every destructive step is backed up; `claude-rollback`
   restores everything. Idempotent installers. Verified on Linux and macOS.
 
@@ -161,7 +172,7 @@ config dir. Both installers are **idempotent**.
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
 | `claude-providers sync-jev` | Jev-only fast path: re-probe decision endpoints and refresh the ranked `jev-endpoints.json` cache. |
-| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); `--mode shadow\|enforce`, `--uninstall`. |
+| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); edits agent homes only with consent (`--yes` / `JEV_SETUP_CONSENT=1`, backups first); `--mode shadow\|enforce`, `--uninstall`. |
 | `jev-stats` | Decision-layer report from `decisions.jsonl`: verdicts, latency, shadow calibration, ESTIMATED tokens saved. `--days N`, `--json`. |
 | `jev-spec-setup <repo>` | Opt-in: install jev-spec CI templates (config + PR-verify workflow) into a target repo. |
 
@@ -169,6 +180,7 @@ config dir. Both installers are **idempotent**.
 
 | Guide | What it covers |
 | ----- | -------------- |
+| [**User Manual (start here)**](docs/User_Manual.md) | One index over every guide, FAQ, diagram and verification doc below, with the hub-engine, validation-gate and decision-model entry points. |
 | [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) | Turning LLM keys into aliases; transports, overrides, verification. |
 | [llmctl Integration Quickstart](docs/llmctl/quickstart.md) → [User Guide](docs/llmctl/user-guide.md) → [FAQ](docs/llmctl/FAQ.md) | Auto-recognizing local llmctl models as aliases; on-demand switching; honest context/LAN warnings; [flow diagrams](docs/diagrams/llmctl-detection-flow.svg). |
 | [Kimi Accounts User Guide](Kimi_Accounts_User_Guide.md) | Kimi Code accounts, `kimi-<id>` aliases, the one-time `kimi-*` → `kc-*` rename. |
@@ -178,6 +190,48 @@ config dir. Both installers are **idempotent**.
 | [TOON Integration](docs/TOON_Integration.md) | Token-efficient JSON encoding utility. |
 | [Fine-Tuning deep dive](Claude_Multi_Account_Fine_Tuning.md) | Full architecture walkthrough (`.html`/`.pdf` siblings). |
 | [CHANGELOG](CHANGELOG.md) | Release history. |
+
+## 🧱 Constitution hub engine
+
+claude_toolkit is one of the *hub engines* of the Helix constitution
+(`constitution/submodules/{llmctl,claude_toolkit,open_design}`):
+
+- **Consumed by reference.** A project gets it at
+  `constitution/submodules/claude_toolkit` (pinned by sha in the hub's
+  `helix-deps.yaml`); it is never copied, never shipped inside a product artifact.
+- **Never initialised recursively.** `git submodule update --init` stops at the
+  engine; the only submodules it carries are the third-party `submodules/go` and
+  `submodules/ccusage`.
+- **No nested own-org copies.** Its dependencies are found by
+  [`scripts/resolve_deps.sh`](scripts/resolve_deps.sh): `CT_<NAME>_DIR` override →
+  parent hub → `<root>/submodules/<name>` → sibling (Constitution §11.4.28(C),
+  gate `CM-HUB-ENGINE-NO-OWNORG-NESTING`); `helix-deps.yaml` declares them
+  (§11.4.31). Offline checks: `scripts/tests/test_helix_deps_manifest.sh`,
+  `scripts/tests/test_gitmodules_no_ownorg.sh`.
+- **Model governance it participates in.** §11.4.277 (llmctl model validation
+  gate; STRICT mode, `llmctl require-validated`), §11.4.278 (HelixQA Vision UI
+  QA, which reads screens through a gate-validated Vision model) and §11.4.279
+  (the decision-models layer: typed, non-chat answers that never become
+  aliases — the Jev layer here). The toolkit forwards the gate's environment and
+  propagates its refusals; it does not re-implement the gate
+  (`scripts/tests/test_llmctl_vision_gate_wiring.sh`).
+
+Diagram: [hub-engine placement](docs/diagrams/hub-engine-placement.svg).
+
+## 🧭 Decision models (Jev) and the decide gateway
+
+Decision models answer typed questions (choice / noul / score) with
+probabilities; they have no chat endpoint, so they are **never aliases**
+(`classification: decision`, `alias: null`). The local llmctl *decide gateway*
+is **HTTPS with a mandatory bearer key** (`Authorization: Bearer
+$LLMCTL_API_KEY`, local CA at `$LLMCTL_HOME/cert/ca/ca.crt`); `/healthz` and
+`/readyz` are the only unauthenticated routes. The detector, gate and MCP server speak that
+(TLS with the llmctl CA, key from the env var named in the pin, never printed
+and never on a command line; plain http is opt-in via `CMA_JEV_ALLOW_HTTP=1`,
+loopback-only, unauthenticated, never for other hosts). Verified
+against a hermetic TLS stand-in, not a real gateway. See the
+[Jev guide](docs/jev/Jev_User_Guide.md) and the
+[decide-gateway flow](docs/diagrams/decide-gateway-flow.svg).
 
 ## 🧩 Requirements
 
@@ -193,8 +247,8 @@ macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash when needed,
 and only touch `~/.zshrc` on Darwin.
 
 **Own-org dependencies are flat, not nested.** This repo tracks no
-`vasic-digital/*` or `HelixDevelopment/*` submodule (the only submodule is the
-third-party `submodules/go`). The Go router (`claude-code-router`), the optional
+`vasic-digital/*` or `HelixDevelopment/*` submodule (the only submodules are the
+third-party `submodules/go` and `submodules/ccusage`). The Go router (`claude-code-router`), the optional
 `LLMsVerifier`, and `constitution`/`containers`/`challenges`/`superspec` are found
 by `scripts/resolve_deps.sh <name>`: `CT_<NAME>_DIR` override → parent hub
 (`<hub>/submodules/<name>`) → `<root>/submodules/<name>` → sibling `../<name>`,
@@ -253,7 +307,7 @@ bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evid
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
-touched. The suite is **59 files, all green**, and `shellcheck -S error` is
+touched. The suite is **119 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and `shellcheck -S error` is
 clean (62 warning-level and 203 style-level suggestions remain); live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and
 write inspectable evidence to `scripts/tests/proof/`.

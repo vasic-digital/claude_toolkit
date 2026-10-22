@@ -145,7 +145,7 @@ srv.serve_forever()
 PY
 
 SRV_PIDS=()
-start_server() {  # start_server MODE -> echoes port
+start_server() {  # start_server MODE -> sets SRV_PORT
   local log; log="$(mktemp "${TMPDIR:-/tmp}/cma-layerfix.XXXXXX")"
   python3 "$FIX/server.py" "$1" > "$log" 2>&1 &
   SRV_PIDS+=("$!")
@@ -155,7 +155,7 @@ start_server() {  # start_server MODE -> echoes port
     [[ -n "$port" ]] && break
     sleep 0.1
   done
-  rm -f "$log"; echo "$port"
+  rm -f "$log"; SRV_PORT="$port"   # global: a $(...) call would lose SRV_PIDS+=
 }
 # Reap only the PIDs THIS file started (§11.4.174/§11.4.263 — never a pattern
 # kill, never a pgid, and never a pid <= 1).
@@ -199,7 +199,7 @@ assert_eq 1 "$cond" "L0 control: 'emit verified' is also found (grep works)"
 
 # ---------------------------------------------------------------------------
 it "L1 REAL verifier + REAL backend that chats but never tool-calls -> tool_call"
-PORT_NT="$(start_server notools)"
+start_server notools; PORT_NT="$SRV_PORT"
 if [[ -z "$PORT_NT" ]]; then
   echo "    SKIP-CASE: notools fixture did not come up"
 else
@@ -227,7 +227,7 @@ assert_eq "attribution" "$V_LAYER" "L2 layer is attribution, NOT existence"
 it "L6 control: where existence genuinely IS the layer, existence is recorded"
 # The fix must not relabel everything — this is the case the old literal got
 # RIGHT, and it must stay right.
-PORT_NS="$(start_server nosentinel)"
+start_server nosentinel; PORT_NS="$SRV_PORT"
 if [[ -z "$PORT_NS" ]]; then
   echo "    SKIP-CASE: nosentinel fixture did not come up"
 else

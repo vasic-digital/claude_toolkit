@@ -353,6 +353,10 @@ failure</a></li>
 honest absence — no documented endpoint, and a native account</a></li>
 <li><a href="#performance" id="toc-performance">Performance</a></li>
 </ul></li>
+<li><a href="#15-decision-endpoints-jev--non-launchable-records" id="toc-15-decision-endpoints-jev--non-launchable-records">15. Decision
+endpoints (Jev) — non-launchable records</a></li>
+<li><a href="#governance-context-hub-engine-validation-gate-decision-models" id="toc-governance-context-hub-engine-validation-gate-decision-models">Governance
+context: hub engine, validation gate, decision models</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -3052,5 +3056,80 @@ complete documentation and validation surface for this command — there
 is no separate <code>quickstart/</code>-style tutorial directory for it,
 and none is needed.</p>
 <hr />
+<h2 id="15-decision-endpoints-jev--non-launchable-records">15. Decision
+endpoints (Jev) — non-launchable records</h2>
+<p><code>claude-providers list</code> has a second section below the
+agent rows:</p>
+<pre><code>## Decision endpoints (Jev) — not launchable; decision layer</code></pre>
+<p>These rows are <strong>decision models</strong> (Jev System-One
+endpoints), not chat models. They answer typed questions
+(<code>choice</code> / <code>noul</code> / <code>score</code>) via
+<code>POST &lt;base&gt;/v1/systemone</code> and have no chat-completions
+API — so they are registered with
+<code>classification: &quot;decision&quot;</code> and <code>&quot;alias&quot;: null</code>,
+and the emission paths that would turn a record into
+<code>&lt;id&gt;</code> / <code>kimi-&lt;id&gt;</code> /
+<code>pi-&lt;id&gt;</code> aliases skip them by construction.
+<strong>There is no <code>jev-local</code> alias to launch, and there
+never will be</strong>; the <code>jev-*</code> namespace is reserved for
+the decision layer and rejected for account/provider alias names.</p>
+<p>What decision records DO get:</p>
+<ul>
+<li>a health row in <code>status.json</code> (same
+<code>status</code>/<code>reason</code> shape as providers, plus
+<code>&quot;classification&quot;: &quot;decision&quot;</code>), so endpoint health is
+visible in <code>claude-providers status</code>/<code>list</code>;</li>
+<li>a ranked entry in the endpoint cache
+<code>~/.local/share/claude-multi-account/providers/jev-endpoints.json</code>
+(written by <code>claude-providers sync</code> / <code>sync-jev</code>),
+which the launch wrappers read to export the
+<code>JEV_*</code>/<code>TYPESAFE_*</code> environment and print the
+<code>Jev decision layer: ACTIVE (…)</code> MOTD on every alias
+launch.</li>
+</ul>
+<p>Sources and ranking: local llmctl decision gateway at
+<code>127.0.0.1:8095</code> (10) &gt; LAN pins in
+<code>scripts/providers/jev.json</code> (20; LAN or remote cloud hosts
+you declare) &gt; OpenRouter (30) &gt; TypeSafe hosted (40); override
+with <code>CMA_JEV_PREFER</code>. Hosted sources are detected by key-var
+NAME presence in the keys file — no network call; local/LAN sources
+require a live <code>/healthz</code> + <code>/v1/models</code>
+probe.</p>
+<p>The decision layer built on these records (permission gate, MCP
+tools, installer, stats) is documented in <a href="jev/Jev_User_Guide.md">docs/jev/Jev_User_Guide.md</a>; the
+rationale for non-launchability and the shadow-first calibration policy
+is in <a href="jev/Jev_FAQ.md">docs/jev/Jev_FAQ.md</a>.</p>
+<hr />
+<h2 id="governance-context-hub-engine-validation-gate-decision-models">Governance
+context: hub engine, validation gate, decision models</h2>
+<ul>
+<li><strong>Hub engine.</strong> claude_toolkit is consumed by reference
+at <code>constitution/submodules/claude_toolkit</code> in a project that
+vendors the Helix constitution (depth 1, never initialised recursively).
+Its own-org dependencies are resolved flat by
+<code>scripts/resolve_deps.sh</code> and declared in
+<code>helix-deps.yaml</code> — never nested (Constitution §11.4.28(C),
+§11.4.31). <a href="diagrams/hub-engine-placement.svg">Placement
+diagram</a>.</li>
+<li><strong>Local models (<code>llmctl-&lt;profile&gt;</code>
+aliases).</strong> Their known-answer validation is llmctl&#39;s gate,
+Constitution §11.4.277 (<code>LLMCTL_VALIDATE_STRICT=1</code>,
+<code>llmctl require-validated &lt;profile&gt;</code>); Vision QA
+(§11.4.278) relies on it. See <a href="llmctl/user-guide.md#5a-model-validation-gate-114277-and-vision-qa-114278">llmctl
+user guide §5a</a>.</li>
+<li><strong>Decision models (Jev) are not aliases.</strong> Constitution
+§11.4.279 treats a decision model as a typed-answer layer (choice / noul
+/ score), separate from chat. Here they carry
+<code>classification: decision</code>, <code>alias: null</code>, and
+never produce a launchable alias. The llmctl decide gateway is HTTPS
+with a mandatory bearer key, which the detector, gate and MCP server
+speak (v1.32.0). See the <a href="jev/Jev_User_Guide.md">Jev guide</a>
+and the <a href="diagrams/decide-gateway-flow.svg">decide-gateway
+flow</a>.</li>
+<li><strong>Alias, provider and model stay consistent.</strong> An alias
+is only valid for the provider and model it was verified against. Re-run
+<code>claude-providers sync</code> after any provider or llmctl
+change.</li>
+</ul>
 </body>
 </html>

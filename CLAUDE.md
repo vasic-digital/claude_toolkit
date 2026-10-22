@@ -210,7 +210,7 @@ Claude hooks+MCP+CLAUDE.md block, kimi `[[hooks]]`+mcp.json, pi
 `TYPESAFE_AI_API_KEY`, not `TYPESAFE_API_KEY`).
 
 **Pipeline.** `detect_jev_records()` (claude-providers.sh; local llmctl
-gateway `127.0.0.1:8095` probed `/healthz`+`/v1/models`, LAN pins from
+gateway `127.0.0.1:8095` probed over HTTPS (`/healthz`, then `/v1/models` with the bearer key; plain http is opt-in loopback-only, see docs/jev/Jev_User_Guide.md §2.1), LAN pins from
 `providers/jev.json`, OpenRouter/TypeSafe by keys-file var presence;
 priorities 10/20/30/40, `CMA_JEV_PREFER` overrides) →
 `_cma_jev_write_endpoint_cache()` →

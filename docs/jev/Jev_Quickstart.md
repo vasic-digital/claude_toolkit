@@ -21,7 +21,7 @@ local gateway wins when present):
 
 | Source | What to do |
 |--------|-----------|
-| **Local llmctl decision gateway** | Run a llmctl profile that serves a `/v1/systemone`-compatible decision endpoint on `127.0.0.1:8095` (free, lowest latency). |
+| **Local llmctl decision gateway** | Run a llmctl profile that serves a `/v1/systemone`-compatible decision endpoint (default `127.0.0.1:8095`; if you changed `llmctl decide serve --port`, update `local_gateway.port` in the pins; free, lowest latency). llmctl's gateway is **HTTPS + bearer key**: export `LLMCTL_API_KEY` (or keep it in `~/api_keys.sh`) and, if the gateway uses llmctl's local CA, `CMA_JEV_CA_FILE=$LLMCTL_HOME/cert/ca/ca.crt`. See the [User Guide](./Jev_User_Guide.md) §2.1 (§11.4.279 clause A). |
 | **TypeSafe hosted key** | Add `TYPESAFE_API_KEY=<key>` to your keys file (`~/api_keys.sh`). Note: TypeSafe hosted has a signup waitlist. |
 | **OpenRouter key** | Add `OPENROUTER_API_KEY=<key>` to `~/api_keys.sh` — the hosted path with no waitlist. Serves `typesafe/jev-1.13` at `https://openrouter.ai/api/v1/systemone`. |
 

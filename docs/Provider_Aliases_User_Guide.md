@@ -1672,3 +1672,26 @@ installer, stats) is documented in
 non-launchability and the shadow-first calibration policy is in
 [docs/jev/Jev_FAQ.md](jev/Jev_FAQ.md).
 
+---
+
+## Governance context: hub engine, validation gate, decision models
+
+- **Hub engine.** claude_toolkit is consumed by reference at
+  `constitution/submodules/claude_toolkit` in a project that vendors the Helix
+  constitution (depth 1, never initialised recursively). Its own-org
+  dependencies are resolved flat by `scripts/resolve_deps.sh` and declared in
+  `helix-deps.yaml` — never nested (Constitution §11.4.28(C), §11.4.31).
+  [Placement diagram](diagrams/hub-engine-placement.svg).
+- **Local models (`llmctl-<profile>` aliases).** Their known-answer validation
+  is llmctl's gate, Constitution §11.4.277 (`LLMCTL_VALIDATE_STRICT=1`,
+  `llmctl require-validated <profile>`); Vision QA (§11.4.278) relies on it.
+  See [llmctl user guide §5a](llmctl/user-guide.md#5a-model-validation-gate-114277-and-vision-qa-114278).
+- **Decision models (Jev) are not aliases.** Constitution §11.4.279 treats a
+  decision model as a typed-answer layer (choice / noul / score), separate
+  from chat. Here they carry `classification: decision`, `alias: null`, and
+  never produce a launchable alias. The llmctl decide gateway is HTTPS with a
+  mandatory bearer key, which the detector, gate and MCP server speak (v1.32.0). See the [Jev guide](jev/Jev_User_Guide.md) and the
+  [decide-gateway flow](diagrams/decide-gateway-flow.svg).
+- **Alias, provider and model stay consistent.** An alias is only valid for the
+  provider and model it was verified against. Re-run `claude-providers sync`
+  after any provider or llmctl change.
