@@ -3421,6 +3421,25 @@ _cma_kimi_base_is_loopback() {
   _cma_is_ccr_gateway "$url" "$port"
 }
 
+# _cma_kimi_jev_gate_path — installed Jev gate (same path jev-setup.sh installs to).
+_cma_kimi_jev_gate_path() { echo "$HOME/.local/share/claude-multi-account/jev/jev-gate.sh"; }
+
+# _cma_kimi_jev_hooks_block — prints the marker-guarded Kimi `[[hooks]]` PreToolUse
+# block (T017), or NOTHING. Emitted only when the Jev endpoint cache (read only —
+# no network) has >=1 endpoint AND the installed gate is executable AND its path is
+# TOML-safe (no quote, backslash or control char). Exactly the four fields Kimi's
+# config accepts (event, matcher, command, timeout).
+_cma_kimi_jev_hooks_block() {
+  local cache gate
+  cache="$(_cma_jev_endpoint_cache)"; gate="$(_cma_kimi_jev_gate_path)"
+  [[ -s "$cache" && -x "$gate" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  jq -e '(.endpoints | type == "array") and (.endpoints | length > 0)' "$cache" >/dev/null 2>&1 || return 0
+  case "$gate" in *[\"[:cntrl:]]*) return 0 ;; esac
+  printf '\n# cma-jev:hooks BEGIN\n[[hooks]]\nevent = "PreToolUse"\nmatcher = "Bash|WriteFile|StrReplaceFile"\n'
+  printf 'command = "%s"\ntimeout = 5\n# cma-jev:hooks END\n' "$gate"
+}
+
 # Render the per-alias Kimi Code config (~/.kimi-prov-<id>/config.toml) from the
 # SYNC-time record. This function is the ONLY writer of that file: the launch
 # wrapper (lib.sh cma_run_kimi_provider) READS default_model/base_url out of it
@@ -3546,6 +3565,7 @@ _cma_kimi_render_config() {
     printf 'max_context_size = %s\n' "$ctx"
     printf 'max_output_size = %s\n' "$max_out"
     printf 'capabilities = [ "tool_use", "thinking" ]\n'
+    _cma_kimi_jev_hooks_block
   } > "$tmp"
   if ! ( umask 077; mv -f "$tmp" "$kdir/config.toml" ) 2>/dev/null; then
     rm -f "$tmp"

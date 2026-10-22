@@ -86,6 +86,12 @@ documentation, a user-manual index, two new diagrams and tests.
 
 ### Added
 
+- Kimi provider twins (`~/.kimi-prov-*/config.toml`) now carry the Jev `PreToolUse`
+  gate as a marker-guarded `[[hooks]]` block (`# cma-jev:hooks BEGIN/END`),
+  rendered by `_cma_kimi_render_config` only while the Jev endpoint cache has an
+  endpoint and the installed gate is executable (spec task T017, which earlier
+  docs described as done before it existed). Kimi's runtime acceptance of the
+  hook is not exercised live. Test: `test_kimi_render_config_jev_hooks.sh`.
 - `docs/User_Manual.md`: explicit manual index over every guide, FAQ and
   diagram (Constitution §11.4.257), linked from the README.
 - Diagrams `docs/diagrams/hub-engine-placement.{mmd,svg}` (hub-engine

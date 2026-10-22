@@ -9,8 +9,9 @@
 > searched (this repo, the constitution tree, the filesystem); UNCONFIRMED whether it was ever written.
 >
 > Task status was verified against the CURRENT code by grep on 2026-10-22 (not guessed).
-> Implemented (artifact present): T001-T016, T018-T025. NOT FOUND in current code: T017 (the additive
-> `# cma-jev:hooks BEGIN/END` block in `_cma_kimi_render_config`; the marker exists only in `scripts/jev-setup.sh`).
+> Implemented (artifact present): T001-T025. T017 (the additive `# cma-jev:hooks BEGIN/END` block in
+> `_cma_kimi_render_config`) was missing at the 2026-10-22 verification and was implemented afterwards
+> (`_cma_kimi_jev_hooks_block`, test `test_kimi_render_config_jev_hooks.sh`).
 
 ---
 

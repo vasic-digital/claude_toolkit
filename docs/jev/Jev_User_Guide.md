@@ -254,8 +254,13 @@ timeout = 5
 ```
 
 Provider homes `~/.kimi-prov-*` receive the same block from the config
-renderer on the next `claude-providers sync` (the renderer rewrites the file
-atomically each sync, so the block is regenerated, never duplicated). Every
+renderer on the next `claude-providers sync`, but only while the Jev endpoint
+cache holds at least one endpoint and the installed gate
+(`~/.local/share/claude-multi-account/jev/jev-gate.sh`, installed by
+`jev-setup`) is executable; with an empty cache the block is absent (the
+renderer rewrites the file atomically each sync, so the block is regenerated,
+never duplicated, and removed when no endpoint remains). Kimi's own runtime
+acceptance of the hook has not been exercised live. Every
 kimi home (native and provider) also gets `mcp.json` with the same
 `mcpServers.jev` entry as Claude. Note: the endpoint key is materialized
 into kimi `mcp.json` — it lives in a 0700 home, the same secrecy class as

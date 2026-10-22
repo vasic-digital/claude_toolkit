@@ -9,7 +9,9 @@
 > searched (this repo, the constitution tree, the filesystem); UNCONFIRMED whether it was ever written.
 >
 > Per-task verification (2026-10-22): T001-T016 and T018-T025 are present in the tree (files/functions grep-confirmed);
-> **T017 is NOT FOUND** (see spec.md). The [x] marks below are the original ones, kept verbatim.
+> T017 was NOT FOUND at that verification and has since been IMPLEMENTED (`_cma_kimi_jev_hooks_block` in
+> `scripts/claude-providers.sh`; test `scripts/tests/test_kimi_render_config_jev_hooks.sh`, RED on v1.31.0 / GREEN on the fix).
+> The [x] marks below are the original ones, kept verbatim.
 
 ---
 
@@ -57,7 +59,7 @@
 ## Phase 5: Installer + renderers (US2, depends on Phases 2–4)
 
 - [x] **T016 [US2]** `scripts/jev-setup.sh`: `--agents claude,kimi,pi,opencode` (default all), `--mode shadow|enforce`, `--check`, `--uninstall`, `--if-stale`, `--quiet`; backup-first atomic jq-merges; common (gate copies, `~/.config/jev/env` 0600, state dir); claude (PreToolUse `Bash|Agent|Task` hook merge + `claudeMdExcludes` union + `.mcp.json` `mcpServers.jev` + CLAUDE.md guarded block); kimi (marker-guarded `[[hooks]]` in native homes, renderer-owned block in kimi-prov homes, `mcp.json` both, key materialization documented); pi (`@riposta/pi-jev`, 3 s npm probe, honest offline SKIP, no homes → no probe); opencode (plugin copy content-addressed, `mcp.jev` + `plugin` entry, caveat printed).
-- [x] **T017 [US2]** `_cma_kimi_render_config` additive `# cma-jev:hooks BEGIN/END` block when the endpoint cache is non-empty (renderer reads cache only; whole-file rewrite keeps it idempotent; `default_model` ordering regression guard intact).
+- [x] **T017 [US2]** `_cma_kimi_render_config` additive `# cma-jev:hooks BEGIN/END` block when the endpoint cache is non-empty (renderer reads cache only; whole-file rewrite keeps it idempotent; `default_model` ordering regression guard intact). Implemented only when the cache has >=1 endpoint AND the installed gate is executable AND its path is TOML-safe; test `test_kimi_render_config_jev_hooks.sh`. Honest limit: Kimi runtime acceptance of the hook was not exercised (schema is doc-verified only).
 - [x] **T018 [US2]** Test `test_jev_setup_idempotent.sh` (32 assertions: double-run single blocks, `--check` MISSING reporting, `--uninstall` restores, mcp merges preserve existing entries).
 - [x] **T019 [US2]** `scripts/install.sh`: symlink `jev-*.sh` onto PATH (`jev-setup`, `jev-gate`, `jev-stats`, `jev-spec-setup`).
 

@@ -303,7 +303,9 @@ EOF
     fi
     # Additive [[hooks]] block, comment-marker guarded (TOML ignores comments;
     # skip when present). Native kimi homes only — kimi-prov homes get this
-    # block from the renderer at the next `claude-providers sync`.
+    # block from the renderer (_cma_kimi_jev_hooks_block) at the next
+    # `claude-providers sync`, only while the endpoint cache is non-empty and
+    # the installed gate is executable. --uninstall strips it from both kinds.
     case "$home" in
       */.kimi-code-*)
         if [ -f "$conf" ]; then
