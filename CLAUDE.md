@@ -38,6 +38,11 @@ kimi-providers sync                       # same sync, also emits kimi-<id> twin
 # Prove everything works: hermetic suite + live OpenCode/providers/aliases +
 # alias e2e + constitution (6 legs; evidence in scripts/tests/proof/).
 bash scripts/tests/run-proof.sh
+
+# Token/cost usage report (built on the real `ccusage` binary). Default: last
+# 4 weeks, all groupings, writes json+md under $SHARED_DIR/usage-reports/.
+claude-usage report
+claude-usage report --since 2026-10-01 --until 2026-10-22 --format csv
 ```
 
 The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`, `claude-providers`, `claude-sync-state`, `claude-bootstrap`, and the Kimi family `kimi-add-account`, `kimi-remove-account`, `kimi-list-accounts`, `kimi-unify`, `kimi-rollback`, `kimi-providers`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh` and `kimi-*.sh`).
