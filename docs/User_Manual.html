@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Claude Multi-Account Fine Tuning</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Claude Multi-Account Fine Tuning</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#claude-toolkit--user-manual" id="toc-claude-toolkit--user-manual">Claude Toolkit — User Manual</a>
+<ul>
+<li><a href="#1-orientation" id="toc-1-orientation">1.
+Orientation</a></li>
+<li><a href="#2-provider-aliases-any-llm-as-a-claude-code-alias" id="toc-2-provider-aliases-any-llm-as-a-claude-code-alias">2. Provider
+aliases (any LLM as a Claude Code alias)</a></li>
+<li><a href="#3-local-models-through-llmctl-and-the-validation-gate" id="toc-3-local-models-through-llmctl-and-the-validation-gate">3. Local
+models through llmctl (and the validation gate)</a></li>
+<li><a href="#4-decision-models-jev--the-114279-layer" id="toc-4-decision-models-jev--the-114279-layer">4. Decision models
+(Jev) — the §11.4.279 layer</a></li>
+<li><a href="#5-other-utilities" id="toc-5-other-utilities">5. Other
+utilities</a></li>
+<li><a href="#6-project" id="toc-6-project">6. Project</a></li>
+<li><a href="#7-honest-scope" id="toc-7-honest-scope">7. Honest
+scope</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="claude-toolkit--user-manual">Claude Toolkit — User Manual</h1>
+<p>This is the single entry point to the toolkit&#39;s documentation
+(Constitution §11.4.257: manual + guides + FAQ per feature, §11.4.212:
+everything reachable from the README). Each feature has a guide for
+doing the task and an FAQ for the questions people actually ask; the
+manual below indexes them in reading order.</p>
+<h2 id="1-orientation">1. Orientation</h2>
+<table>
+<thead>
+<tr>
+<th>You want to...</th>
+<th>Read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Install and run several Claude Code accounts on one host</td>
+<td><a href="../README.md#-quick-start">README quick start</a>, <a href="../Claude_Multi_Account_Fine_Tuning.md">Fine-Tuning deep
+dive</a></td>
+</tr>
+<tr>
+<td>Know where claude_toolkit sits in a constitution-governed
+project</td>
+<td><a href="../README.md#-constitution-hub-engine">README hub-engine
+section</a>, <a href="diagrams/hub-engine-placement.svg">placement
+diagram</a></td>
+</tr>
+<tr>
+<td>See every command</td>
+<td><a href="../README.md#-daily-commands">README daily
+commands</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-provider-aliases-any-llm-as-a-claude-code-alias">2. Provider
+aliases (any LLM as a Claude Code alias)</h2>
+<ul>
+<li>Guide: <a href="Provider_Aliases_User_Guide.md">Provider Aliases
+User Guide</a></li>
+<li>FAQ: <a href="Provider_FAQ.md">Provider FAQ</a></li>
+<li>Verification: <a href="Provider_Verification_Guide.md">Provider
+Verification Guide</a></li>
+<li>Kimi Code accounts: <a href="../Kimi_Accounts_User_Guide.md">Kimi
+Accounts User Guide</a></li>
+<li>Diagrams: <a href="diagrams/README.md">index</a> (<a href="diagrams/quota-limits-flow.svg">quota-limits-flow</a>, <a href="diagrams/kimi-family.svg">kimi-family</a>, <a href="diagrams/enable-policy.svg">enable-policy</a>)</li>
+</ul>
+<h2 id="3-local-models-through-llmctl-and-the-validation-gate">3. Local
+models through llmctl (and the validation gate)</h2>
+<ul>
+<li>Quickstart: <a href="llmctl/quickstart.md">llmctl
+quickstart</a></li>
+<li>Guide: <a href="llmctl/user-guide.md">llmctl user guide</a> —
+includes §5a, the §11.4.277 validation gate
+(<code>LLMCTL_VALIDATE_STRICT=1</code>,
+<code>llmctl require-validated</code>) and the §11.4.278 Vision QA
+relationship</li>
+<li>FAQ: <a href="llmctl/FAQ.md">llmctl FAQ</a></li>
+<li>Diagrams: <a href="diagrams/llmctl-detection-flow.svg">detection</a>, <a href="diagrams/llmctl-switch-flow.svg">switch</a></li>
+</ul>
+<h2 id="4-decision-models-jev--the-114279-layer">4. Decision models
+(Jev) — the §11.4.279 layer</h2>
+<ul>
+<li>Quickstart: <a href="jev/Jev_Quickstart.md">Jev quickstart</a></li>
+<li>Guide: <a href="jev/Jev_User_Guide.md">Jev user guide</a> (gate, MCP
+server, stats, calibration, the HTTPS + bearer-key decide gateway,
+honest limitations)</li>
+<li>FAQ: <a href="jev/Jev_FAQ.md">Jev FAQ</a></li>
+<li>Diagrams: <a href="diagrams/jev-architecture.svg">architecture</a>,
+<a href="diagrams/decide-gateway-flow.svg">decide-gateway flow</a></li>
+</ul>
+<h2 id="5-other-utilities">5. Other utilities</h2>
+<ul>
+<li><a href="../OpenCode_Integration.md">OpenCode Integration</a> —
+share Skills + MCP + <code>CLAUDE.md</code></li>
+<li><a href="SESSION_COLOR.md">Session &amp; Color</a> — per-project
+session naming</li>
+<li><a href="TOON_Integration.md">TOON Integration</a> — token-efficient
+JSON</li>
+<li><a href="MULTI_HOST_ROLLOUT.md">Multi-host rollout</a></li>
+</ul>
+<h2 id="6-project">6. Project</h2>
+<ul>
+<li><a href="../CHANGELOG.md">CHANGELOG</a> — release history</li>
+<li><a href="diagrams/README.md">Diagram index</a> — Mermaid sources and
+rendered SVGs</li>
+</ul>
+<h2 id="7-honest-scope">7. Honest scope</h2>
+<p>The manual indexes documentation that exists; it does not claim
+features beyond what the guides state. The decide-gateway transport
+(HTTPS + bearer key) is verified only against a hermetic TLS stand-in,
+not a real llmctl gateway (Jev guide, limitation 11). The toolkit
+forwards the llmctl validation gate&#39;s environment and honours its
+refusals but runs no Vision known-answer suite of its own.</p>
+</body>
+</html>

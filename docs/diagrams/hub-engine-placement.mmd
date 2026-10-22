@@ -1,0 +1,19 @@
+flowchart TB
+  subgraph PROJ["Consuming project (root)"]
+    HD["helix-deps.yaml<br/>(§11.4.31 manifest, sha pins)"]
+    subgraph HUB["constitution/ (the hub)"]
+      CM["Constitution.md + scripts/<br/>post_update_hook.sh<br/>(CM-HUB-ENGINE-NO-OWNORG-NESTING)"]
+      subgraph ENG["constitution/submodules/ — hub engines (depth 1)"]
+        LC["llmctl<br/>§11.4.277 validation gate<br/>decide gateway"]
+        CT["claude_toolkit<br/>provider aliases + Jev layer<br/>scripts/resolve_deps.sh"]
+        OD["open_design<br/>(third-party reference)"]
+      end
+    end
+    FLAT["submodules/ (flat own-org repos)<br/>containers · challenges · helix_qa · ..."]
+  end
+  HD -->|"declares + pins"| ENG
+  CT -.->|"resolve_deps.sh: CT_*_DIR override →<br/>parent hub → root/submodules → sibling"| CM
+  CT -.->|"resolved, never nested"| FLAT
+  LC -.->|"same resolver rule (§11.4.28(C))"| CM
+  CT -->|"llmctl switch (env forwarded,<br/>refusal aborts launch)"| LC
+  ENG -. "NEVER git submodule update --recursive" .-> X["third-party only:<br/>llmctl nests llama.cpp · colibri<br/>claude_toolkit carries go · ccusage"]

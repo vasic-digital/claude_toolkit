@@ -1,0 +1,24 @@
+sequenceDiagram
+  autonumber
+  participant AG as Agent (claude / kimi / pi / opencode)
+  participant GT as jev-gate.sh / jev_mcp.py
+  participant GW as llmctl decide gateway<br/>https://127.0.0.1:8095 (default port)
+  participant EN as decision engine (profile decide)
+  Note over GW: HTTPS only, bearer key mandatory<br/>/healthz and /readyz are the only open routes
+  AG->>GT: PreToolUse / jev_ask (typed questions)
+  GT->>GT: risk floor (deterministic), key from the env var named by JEV_KEY_VAR (else keys file)
+  GT->>GW: TLS handshake verified against JEV_CA_FILE (the local llmctl CA), no verify-off switch
+  GT->>GW: POST /v1/systemone, Authorization Bearer via curl header file (never argv)
+  alt certificate untrusted or gateway unreachable
+    GW-->>GT: TLS error or timeout
+    GT-->>AG: passthrough (no verdict asserted), fallback logged
+  else key missing or wrong
+    GW-->>GT: 401 (repeated failures 429 rate_limited)
+    GT-->>AG: passthrough, fallback logged
+  else valid key
+    GW->>EN: internal key (0600 file, never env or argv)
+    EN-->>GW: typed answers (choice, noul, score)
+    GW-->>GT: 200 decisions with probabilities
+    GT-->>AG: shadow: log only, enforce: allow / ask / deny
+  end
+  Note over GT,GW: Decision models are never aliases (Constitution 11.4.279).<br/>Detector: TLS first, each CA candidate in turn. Plain http is opt-in (CMA_JEV_ALLOW_HTTP=1),<br/>loopback only, and no consumer sends a key over it. Redirects are never followed.
