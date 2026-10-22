@@ -1243,6 +1243,31 @@ per-project breakdowns are all real and exact; only "which alias" is an
 inference, and the command says so in its own output rather than asserting a
 precision the underlying data cannot support.
 
+**Merging reports from multiple hosts/accounts (`claude-usage merge`).**
+Copy `$SHARED_DIR/usage-reports/` (or individual `*.json` reports) in from
+several machines or accounts, then combine them into one report:
+
+```bash
+claude-usage merge --from host-a/usage-reports,host-b/usage-reports --out combined.md
+claude-usage merge --from report1.json,report2.json --format csv
+```
+
+Each `--from` entry is either a directory (every `*.json` file directly
+inside it, one level deep, is used) or a single report file. Merging
+re-sums any day/model/project/provider rows that key together across
+sources — two sources covering the same date and model add up, they do not
+duplicate.
+
+**Project identity is stripped by default.** Every `projectPath` across all
+sources is replaced with the placeholder `"coding agents"`, and any project
+rows that become identical as a result are summed into **one** row rather
+than left as separate rows that merely share a label — the point is a
+single, non-identifying view suitable for sharing outside the team.
+`--anonymize-as "Internal Project"` picks a different placeholder. The
+non-default `--real-names` flag opts out entirely: each source's real
+project paths stay distinct, with no collapsing. Day/model/provider
+dimensions carry no project identity and are never affected either way.
+
 ## 12. Per-project auto-session & per-alias color
 
 A **bare** alias launch — native (`claude1`, `claude2`, …) or provider

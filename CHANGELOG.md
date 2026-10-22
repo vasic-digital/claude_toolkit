@@ -93,6 +93,20 @@ tracks no own-org nested submodule; own-org repos live flat in
   a failing refresh is a warning, neither ever fails the sync itself;
   `CMA_SYNC_SKIP_USAGE_REFRESH=1` opts out. Tests: `scripts/tests/
   test_sync_usage_refresh.sh`.
+- **`claude-usage merge`**: combines `claude-usage report` JSON files from
+  one or more `--from PATH[,PATH...]` sources (a directory of `*.json`
+  reports, or a single file) into one consolidated report, re-summing any
+  day/model/project/provider rows that key together across sources. Project
+  identity is stripped by **default**: every `projectPath` is replaced with
+  the placeholder `"coding agents"` (override via `--anonymize-as NAME`),
+  and project rows that become identical after stripping are summed into
+  one row rather than left duplicated under the same label. `--real-names`
+  opts out of stripping entirely (not the default) and keeps each source's
+  real paths distinct. Same three-mode output as `report`
+  (default writes both json+md under `$SHARED_DIR/usage-reports/`;
+  `--format` alone prints to stdout; `--out PATH` writes there). Tests:
+  `scripts/tests/test_claude_usage_merge.sh` (23 assertions, including
+  hand-computed expected sums for overlapping day/model keys).
 
 ### Security
 

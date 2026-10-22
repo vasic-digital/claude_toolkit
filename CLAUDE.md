@@ -45,6 +45,13 @@ bash scripts/tests/run-proof.sh
 # --multi` (CMA_SYNC_SKIP_USAGE_REFRESH=1 to opt out) -- never only on demand.
 claude-usage report
 claude-usage report --since 2026-10-01 --until 2026-10-22 --format csv
+
+# Merge report JSON from multiple source paths into one consolidated report.
+# By default project paths are STRIPPED and replaced with "coding agents"
+# (rows that become identical after stripping are summed, not just relabeled);
+# --anonymize-as NAME picks a different label, --real-names opts out entirely.
+claude-usage merge --from /path/to/host-a/usage-reports,/path/to/host-b/usage-reports --out merged.md
+claude-usage merge --from report1.json,report2.json --real-names --format json
 ```
 
 The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`, `claude-providers`, `claude-sync-state`, `claude-bootstrap`, and the Kimi family `kimi-add-account`, `kimi-remove-account`, `kimi-list-accounts`, `kimi-unify`, `kimi-rollback`, `kimi-providers`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh` and `kimi-*.sh`).

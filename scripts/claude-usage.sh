@@ -46,7 +46,19 @@
 #   claude-usage report [--since YYYY-MM-DD] [--until YYYY-MM-DD]
 #                        [--group-by day|model|session|project|provider|all]
 #                        [--format json|md|csv] [--out PATH] [--build]
+#   claude-usage merge --from PATH[,PATH...] [--out PATH] [--format json|md|csv]
+#                       [--anonymize-as NAME] [--real-names]
 #   claude-usage --help
+#
+# `merge` combines report JSON files from one or more source paths (each a
+# directory of previously-generated `claude-usage report` *.json files, or a
+# single *.json file directly) into ONE consolidated report, re-summing any
+# day/model/project/provider rows that key together across sources. By
+# DEFAULT every projectPath is stripped and replaced with the placeholder
+# "coding agents" (override with --anonymize-as NAME), and project rows that
+# become identical after stripping are summed into one row — never left as
+# separate same-labeled rows. --real-names opts out of stripping entirely
+# (NOT the default) and keeps each source's real project paths distinct.
 #
 # Default (no --format, no --out): last 4 weeks, --group-by all, writes BOTH
 #   $SHARED_DIR/usage-reports/<since>_<until>.json and .md, and prints the
@@ -84,6 +96,8 @@ Usage:
   claude-usage report [--since YYYY-MM-DD] [--until YYYY-MM-DD]
                        [--group-by day|model|session|project|provider|all]
                        [--format json|md|csv] [--out PATH] [--build]
+  claude-usage merge --from PATH[,PATH...] [--out PATH] [--format json|md|csv]
+                      [--anonymize-as NAME] [--real-names]
   claude-usage --help
 
 Default period (no --since/--until): the last 4 weeks (28 days) ending today.
@@ -114,6 +128,28 @@ against this toolkit's own provider catalog (scripts/providers/status.json)
 and can legitimately be many-to-one (ambiguous) or unmapped — see the report
 itself for exactly which. Native claude1..N accounts cannot be distinguished
 from each other at all and are pooled into one explicitly-labeled bucket.
+
+`merge` options:
+  --from PATH[,PATH...]
+      One or more source paths, comma-separated and/or repeated. Each is
+      either a directory (every *.json file directly inside it, one level
+      deep, is used as a source) or a single *.json report file. Every
+      source file must already be `claude-usage report`'s own JSON output
+      shape. Required.
+  --out PATH / --format json|md|csv
+      Same three-mode output semantics as `report` (above): neither given
+      writes BOTH json+md under $SHARED_DIR/usage-reports/ and prints md;
+      --format alone prints only that format to stdout; --out writes to
+      PATH (format inferred from extension unless --format also given).
+  --anonymize-as NAME
+      Replace every projectPath across all sources with NAME, then sum any
+      rows that become identical as a result into one row. This is the
+      DEFAULT behavior even without this flag — the default NAME is
+      "coding agents". Mutually exclusive with --real-names.
+  --real-names
+      Opt OUT of anonymization: keep each source's real project paths,
+      with no collapsing of distinct projects into one row. NOT the
+      default — anonymization is on unless this flag is given.
 EOF
 }
 
@@ -128,10 +164,128 @@ case "${1:-}" in
 esac
 
 cmd="$1"; shift
-if [[ "$cmd" != "report" ]]; then
-  printf 'claude-usage: unknown subcommand %q\n\n' "$cmd" >&2
-  usage >&2
-  exit 2
+case "$cmd" in
+  report|merge) : ;;
+  *)
+    printf 'claude-usage: unknown subcommand %q\n\n' "$cmd" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$cmd" == "merge" ]]; then
+  # -------------------------------------------------------------------------
+  # merge: combine N already-rendered `report` JSON files into one.
+  # -------------------------------------------------------------------------
+  m_from=""
+  m_out=""
+  m_format=""
+  m_anonymize_as=""
+  m_real_names=0
+
+  while (( $# )); do
+    case "$1" in
+      --from) m_from="$2"; shift 2 ;;
+      --out) m_out="$2"; shift 2 ;;
+      --format) m_format="$2"; shift 2 ;;
+      --anonymize-as) m_anonymize_as="$2"; shift 2 ;;
+      --real-names) m_real_names=1; shift ;;
+      -h|--help) usage; exit 0 ;;
+      *) printf 'claude-usage merge: unknown argument %q\n\n' "$1" >&2; usage >&2; exit 2 ;;
+    esac
+  done
+
+  if [[ -z "$m_from" ]]; then
+    printf 'claude-usage merge: --from is required (one or more comma-separated source paths)\n' >&2
+    exit 2
+  fi
+  if [[ -n "$m_format" ]]; then
+    case "$m_format" in
+      json|md|csv) : ;;
+      *) printf 'claude-usage merge: --format must be one of json|md|csv, got %q\n' "$m_format" >&2; exit 2 ;;
+    esac
+  fi
+  if [[ -n "$m_anonymize_as" && "$m_real_names" -eq 1 ]]; then
+    printf 'claude-usage merge: --anonymize-as and --real-names are mutually exclusive\n' >&2
+    exit 2
+  fi
+
+  # Expand --from into a flat list of *.json source files: a directory
+  # contributes every *.json file directly inside it (one level, not
+  # recursive); a file is used as-is.
+  m_inputs=()
+  IFS=',' read -r -a _m_from_list <<<"$m_from"
+  for _p in "${_m_from_list[@]}"; do
+    _p="${_p#"${_p%%[![:space:]]*}"}"; _p="${_p%"${_p##*[![:space:]]}"}"  # trim whitespace
+    [[ -z "$_p" ]] && continue
+    if [[ -d "$_p" ]]; then
+      _found=0
+      for _f in "$_p"/*.json; do
+        [[ -e "$_f" ]] || continue
+        m_inputs+=("$_f")
+        _found=1
+      done
+      if [[ "$_found" -eq 0 ]]; then
+        printf 'claude-usage merge: no *.json files found directly inside directory %q\n' "$_p" >&2
+        exit 2
+      fi
+    elif [[ -f "$_p" ]]; then
+      m_inputs+=("$_p")
+    else
+      printf 'claude-usage merge: source path %q is neither a file nor a directory\n' "$_p" >&2
+      exit 2
+    fi
+  done
+  if [[ "${#m_inputs[@]}" -eq 0 ]]; then
+    printf 'claude-usage merge: --from resolved to zero source files\n' >&2
+    exit 2
+  fi
+
+  m_render() {
+    # m_render FORMAT
+    _args=(--merge-inputs "${m_inputs[@]}" --format "$1")
+    if [[ "$m_real_names" -eq 1 ]]; then
+      _args+=(--real-names)
+    elif [[ -n "$m_anonymize_as" ]]; then
+      _args+=(--anonymize-as "$m_anonymize_as")
+    fi
+    python3 "$REPORT_HELPER" "${_args[@]}"
+  }
+
+  if [[ -n "$m_out" ]]; then
+    _fmt="$m_format"
+    if [[ -z "$_fmt" ]]; then
+      case "$m_out" in
+        *.json) _fmt="json" ;;
+        *.csv)  _fmt="csv" ;;
+        *)      _fmt="md" ;;
+      esac
+    fi
+    mkdir -p "$(dirname "$m_out")"
+    m_render "$_fmt" > "$m_out"
+    cma_log "wrote merged $_fmt report to $m_out"
+    exit 0
+  fi
+
+  if [[ -n "$m_format" ]]; then
+    m_render "$m_format"
+    exit 0
+  fi
+
+  # Default: write both JSON and MD under $SHARED_DIR/usage-reports/, print MD.
+  m_outdir="$SHARED_DIR/usage-reports"
+  mkdir -p "$m_outdir"
+  m_tag="merged_$(date +%Y%m%dT%H%M%S)"
+  m_json_path="$m_outdir/$m_tag.json"
+  m_md_path="$m_outdir/$m_tag.md"
+
+  m_render json > "$m_json_path"
+  m_render md > "$m_md_path"
+  cma_log "wrote $m_json_path"
+  cma_log "wrote $m_md_path"
+
+  cat "$m_md_path"
+  exit 0
 fi
 
 since=""

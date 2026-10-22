@@ -277,6 +277,242 @@ def aggregate_projects(session_rows):
     return rows
 
 
+def merge_day_rows(day_lists):
+    """Merge multiple sources' `report["day"]` arrays: sum same-date rows'
+    top-level numeric fields, union modelsUsed, and re-sum modelBreakdowns
+    per modelName within that date."""
+    agg = {}
+    for days in day_lists:
+        for d in days or []:
+            date = d.get("date", "")
+            row = agg.setdefault(
+                date,
+                {
+                    "date": date,
+                    "inputTokens": 0,
+                    "outputTokens": 0,
+                    "cacheCreationTokens": 0,
+                    "cacheReadTokens": 0,
+                    "totalTokens": 0,
+                    "totalCost": 0.0,
+                    "modelsUsed": set(),
+                    "modelBreakdowns": {},
+                },
+            )
+            for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens", "totalTokens"):
+                row[k] += d.get(k) or 0
+            row["totalCost"] += d.get("totalCost") or 0.0
+            row["modelsUsed"].update(d.get("modelsUsed") or [])
+            for mb in d.get("modelBreakdowns") or []:
+                name = mb.get("modelName") or "(unknown)"
+                mrow = row["modelBreakdowns"].setdefault(
+                    name,
+                    {
+                        "modelName": name,
+                        "inputTokens": 0,
+                        "outputTokens": 0,
+                        "cacheCreationTokens": 0,
+                        "cacheReadTokens": 0,
+                        "cost": 0.0,
+                    },
+                )
+                for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens"):
+                    mrow[k] += mb.get(k) or 0
+                mrow["cost"] += mb.get("cost") or 0.0
+    out = []
+    for date in sorted(agg):
+        row = agg[date]
+        row["modelsUsed"] = sorted(row["modelsUsed"])
+        row["modelBreakdowns"] = list(row["modelBreakdowns"].values())
+        out.append(row)
+    return out
+
+
+def merge_model_rows(model_lists):
+    """Merge multiple sources' `report["model"]` arrays: sum same-modelName
+    rows' numeric fields. providerBucket/providerMatchKind/providerCandidates
+    are carried over from the first source that names this model, NOT
+    re-resolved at merge time (merge has no --status catalog of its own)."""
+    agg = {}
+    for models in model_lists:
+        for m in models or []:
+            name = m.get("modelName") or "(unknown)"
+            row = agg.setdefault(
+                name,
+                {
+                    "modelName": name,
+                    "inputTokens": 0,
+                    "outputTokens": 0,
+                    "cacheCreationTokens": 0,
+                    "cacheReadTokens": 0,
+                    "cost": 0.0,
+                    "totalTokens": 0,
+                    "providerBucket": m.get("providerBucket", UNMAPPED_LABEL),
+                    "providerMatchKind": m.get("providerMatchKind", "unmapped"),
+                    "providerCandidates": m.get("providerCandidates", []),
+                },
+            )
+            for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens", "totalTokens"):
+                row[k] += m.get(k) or 0
+            row["cost"] += m.get("cost") or 0.0
+    rows = list(agg.values())
+    rows.sort(key=lambda r: r["cost"], reverse=True)
+    return rows
+
+
+def merge_provider_rows(provider_lists):
+    """Merge multiple sources' `report["provider"]` arrays: sum same-bucket
+    rows' numeric fields, union their `models` lists."""
+    agg = {}
+    for provs in provider_lists:
+        for p in provs or []:
+            bucket = p.get("providerBucket", UNMAPPED_LABEL)
+            row = agg.setdefault(
+                bucket,
+                {
+                    "providerBucket": bucket,
+                    "providerMatchKind": p.get("providerMatchKind", "unmapped"),
+                    "providerCandidates": p.get("providerCandidates", []),
+                    "models": set(),
+                    "inputTokens": 0,
+                    "outputTokens": 0,
+                    "cacheCreationTokens": 0,
+                    "cacheReadTokens": 0,
+                    "totalTokens": 0,
+                    "cost": 0.0,
+                },
+            )
+            row["models"].update(p.get("models") or [])
+            for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens", "totalTokens"):
+                row[k] += p.get(k) or 0
+            row["cost"] += p.get("cost") or 0.0
+    rows = []
+    for row in agg.values():
+        row["models"] = sorted(row["models"])
+        rows.append(row)
+    rows.sort(key=lambda r: r["cost"], reverse=True)
+    return rows
+
+
+def merge_project_rows(project_lists, anonymize_as):
+    """Merge multiple sources' `report["project"]` arrays, keyed by
+    projectPath. When anonymize_as is not None, EVERY row's key becomes that
+    one string before grouping — so distinct real project paths collapse
+    into exactly one summed row under the anonymized label, rather than
+    staying as separate rows that merely share a cosmetic name."""
+    agg = {}
+    for projs in project_lists:
+        for p in projs or []:
+            real_path = p.get("projectPath") or "(unknown project path)"
+            key = anonymize_as if anonymize_as is not None else real_path
+            row = agg.setdefault(
+                key,
+                {
+                    "projectPath": key,
+                    "sessionCount": 0,
+                    "inputTokens": 0,
+                    "outputTokens": 0,
+                    "cacheCreationTokens": 0,
+                    "cacheReadTokens": 0,
+                    "totalTokens": 0,
+                    "cost": 0.0,
+                },
+            )
+            row["sessionCount"] += p.get("sessionCount") or 0
+            for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens", "totalTokens"):
+                row[k] += p.get(k) or 0
+            row["cost"] += p.get("cost") or 0.0
+    rows = list(agg.values())
+    rows.sort(key=lambda r: r["cost"], reverse=True)
+    return rows
+
+
+def merge_session_rows(session_lists, anonymize_as):
+    """Merge multiple sources' `report["session"]` arrays by concatenation
+    (each session row is already individually identified by sessionId, so
+    there is nothing to sum). When anonymizing, mask projectPath on every
+    row in place — sessions are NOT collapsed/summed, only the identifying
+    field is replaced."""
+    out = []
+    for sessions in session_lists:
+        for s in sessions or []:
+            row = dict(s)
+            if anonymize_as is not None:
+                row["projectPath"] = anonymize_as
+            out.append(row)
+    return out
+
+
+def merge_reports(reports, anonymize_as):
+    """Combine N already-rendered `report["..."]`-shaped dicts (the JSON
+    `claude-usage report --format json` produces) into one. anonymize_as:
+    None keeps every source's real projectPath values, with no collapsing;
+    any string (including "") replaces every projectPath with it and sums
+    together whatever rows become identical as a result — the merge's
+    default caller passes "coding agents" unless --real-names was given."""
+    sinces = [r.get("meta", {}).get("since") for r in reports if r.get("meta", {}).get("since")]
+    untils = [r.get("meta", {}).get("until") for r in reports if r.get("meta", {}).get("until")]
+    since = min(sinces) if sinces else ""
+    until = max(untils) if untils else ""
+
+    totals = {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "totalTokens": 0,
+        "totalCost": 0.0,
+    }
+    for r in reports:
+        t = r.get("totals") or {}
+        for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens", "totalTokens"):
+            totals[k] += t.get(k) or 0
+        totals["totalCost"] += t.get("totalCost") or 0.0
+
+    if anonymize_as is not None:
+        honest = (
+            "Project identity has been STRIPPED: every projectPath below was "
+            f"replaced with {anonymize_as!r} before this report was generated; "
+            "rows that became identical after stripping were summed together, "
+            "not just relabeled."
+        )
+    else:
+        honest = "Real project paths are shown (merge run with --real-names)."
+    honest += (
+        " day/model/session/project groupings are real ccusage output carried "
+        "over from each source report unchanged; 'provider' buckets are each "
+        "source's own best-effort cross-reference, not re-resolved at merge "
+        "time."
+    )
+
+    merged = {
+        "meta": {
+            "since": since,
+            "until": until,
+            "generatedBy": f"claude-usage merge (combining {len(reports)} source report(s))",
+            "providerCatalogLoaded": any(r.get("meta", {}).get("providerCatalogLoaded") for r in reports),
+            "mergedSourceCount": len(reports),
+            "anonymized": anonymize_as is not None,
+            "anonymizedAs": anonymize_as,
+            "honestLabeling": honest,
+        },
+        "totals": totals,
+    }
+
+    if any("day" in r for r in reports):
+        merged["day"] = merge_day_rows([r.get("day") for r in reports])
+    if any("model" in r for r in reports):
+        merged["model"] = merge_model_rows([r.get("model") for r in reports])
+    if any("session" in r for r in reports):
+        merged["session"] = merge_session_rows([r.get("session") for r in reports], anonymize_as)
+    if any("project" in r for r in reports):
+        merged["project"] = merge_project_rows([r.get("project") for r in reports], anonymize_as)
+    if any("provider" in r for r in reports):
+        merged["provider"] = merge_provider_rows([r.get("provider") for r in reports])
+
+    return merged
+
+
 def money(v):
     return f"${v:,.2f}"
 
@@ -485,14 +721,65 @@ def render_md(report):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--daily", required=True, help="path to ccusage claude daily --json output")
-    ap.add_argument("--session", required=True, help="path to ccusage claude session --json output")
-    ap.add_argument("--status", default="", help="path to scripts/providers/status.json (optional)")
-    ap.add_argument("--since", required=True)
-    ap.add_argument("--until", required=True)
+    ap.add_argument("--daily", default=None, help="path to ccusage claude daily --json output (report mode)")
+    ap.add_argument("--session", default=None, help="path to ccusage claude session --json output (report mode)")
+    ap.add_argument("--status", default="", help="path to scripts/providers/status.json (optional, report mode)")
+    ap.add_argument("--since", default=None, help="required in report mode")
+    ap.add_argument("--until", default=None, help="required in report mode")
     ap.add_argument("--group-by", default="all", choices=["day", "model", "session", "project", "provider", "all"])
     ap.add_argument("--format", default="json", choices=["json", "md", "csv"])
+    ap.add_argument(
+        "--merge-inputs",
+        nargs="+",
+        default=None,
+        metavar="JSONFILE",
+        help="merge mode: two or more already-rendered "
+        "`claude-usage report --format json` files to combine into one report",
+    )
+    ap.add_argument(
+        "--anonymize-as",
+        default=None,
+        metavar="NAME",
+        help="merge mode: replace every projectPath with NAME and sum rows that "
+        "become identical as a result (default when --merge-inputs is given "
+        "and --real-names is absent: 'coding agents')",
+    )
+    ap.add_argument(
+        "--real-names",
+        action="store_true",
+        help="merge mode: keep each source's real projectPath values instead "
+        "of anonymizing (NOT the default)",
+    )
     args = ap.parse_args(argv)
+
+    if args.merge_inputs:
+        if args.anonymize_as is not None and args.real_names:
+            print("claude_usage_report.py: --anonymize-as and --real-names are mutually exclusive", file=sys.stderr)
+            return 2
+        anonymize_as = None if args.real_names else (args.anonymize_as if args.anonymize_as is not None else "coding agents")
+        reports = []
+        for path in args.merge_inputs:
+            rep = _load_json(path)
+            if rep is None:
+                print(f"claude_usage_report.py: could not read/parse merge input {path!r}", file=sys.stderr)
+                return 1
+            reports.append(rep)
+        merged = merge_reports(reports, anonymize_as)
+        if args.format == "json":
+            print(render_json(merged))
+        elif args.format == "csv":
+            print(render_csv(merged))
+        else:
+            print(render_md(merged))
+        return 0
+
+    if not args.daily or not args.session or not args.since or not args.until:
+        print(
+            "claude_usage_report.py: --daily, --session, --since and --until are "
+            "required unless --merge-inputs is given",
+            file=sys.stderr,
+        )
+        return 2
 
     daily = _load_json(args.daily)
     session = _load_json(args.session)
