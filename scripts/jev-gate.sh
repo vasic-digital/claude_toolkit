@@ -46,9 +46,17 @@ _emit_deny() {
   printf 'jev-gate: denied — %s\n' "$1" >&2
   exit 2
 }
+# Fail-open/shadow/kill-switch paths must never assert an active permission
+# decision Jev didn't actually evaluate — step aside instead (no JSON output,
+# so Claude's/Kimi's normal permission flow applies) rather than overriding it
+# with a blind "allow" (security review finding: Agent/Subprocess Permission
+# Bypass).
+_emit_passthrough() {
+  exit 0
+}
 
 # 1. Kill switch.
-[ "${JEV_GATE:-on}" = "off" ] && _emit_allow "gate off (JEV_GATE=off)"
+[ "${JEV_GATE:-on}" = "off" ] && _emit_passthrough
 
 # 2. Read + parse the hook event.
 _hook_json=$(cat 2>/dev/null || true)
@@ -91,7 +99,7 @@ _decide() { # _decide <answer> <risky_p> <confidence> <latency_ms> <endpoint> <f
   local answer="$1" risky="$2" conf="$3" lat="$4" ep="$5" fb="$6" reason="$7"
   _log "$answer" "$risky" "$conf" "$lat" "$ep" "$fb"
   if [ "$JEV_MODE" != "enforce" ]; then
-    _emit_allow "shadow mode — would-be decision: $answer ($reason)"
+    _emit_passthrough
   fi
   case "$answer" in
     deny) _emit_deny "$reason" ;;
@@ -108,9 +116,15 @@ case "$_state" in
     _floor=ask ;;
 esac
 
-# 4. Endpoint required; no endpoint => fail-open.
+# 4. Endpoint required; no endpoint => fail-open: step aside rather than
+# asserting an "allow" Jev never evaluated. The deterministic risk floor
+# (pure pattern match, not dependent on Jev) can still escalate to "ask".
 if [ -z "${JEV_BASE_URL:-}" ]; then
-  _decide "$_floor" 0 0 0 none "endpoint_error" "no JEV_BASE_URL — fail-open allow"
+  _log "$_floor" 0 0 0 none "endpoint_error"
+  if [ "$JEV_MODE" = "enforce" ] && [ "$_floor" = "ask" ]; then
+    _emit_ask "no JEV_BASE_URL — risk floor matched"
+  fi
+  _emit_passthrough
 fi
 
 # 5. Ask Jev: one request, two questions (choice gate + noul risky) in the
@@ -144,7 +158,13 @@ if [ $_curl_rc -ne 0 ] || [ -z "$_resp" ]; then
   if [ "${JEV_GATE_FAIL:-open}" = "closed" ]; then
     _decide deny 0 0 "$_latency" "${CMA_JEV_ENDPOINT_ID:-unknown}" "$_fb" "endpoint unreachable ($_fb) — fail-closed"
   fi
-  _decide "$_floor" 0 0 "$_latency" "${CMA_JEV_ENDPOINT_ID:-unknown}" "$_fb" "endpoint unreachable ($_fb) — fail-open allow"
+  # Fail-open: step aside rather than asserting an "allow" Jev never
+  # evaluated. The deterministic risk floor can still escalate to "ask".
+  _log "$_floor" 0 0 "$_latency" "${CMA_JEV_ENDPOINT_ID:-unknown}" "$_fb"
+  if [ "$JEV_MODE" = "enforce" ] && [ "$_floor" = "ask" ]; then
+    _emit_ask "endpoint unreachable ($_fb) — risk floor matched"
+  fi
+  _emit_passthrough
 fi
 
 # Verified response shape (research §1.2): {"answers":{"gate":{"type":"choice",

@@ -69,14 +69,17 @@ _backup() { # _backup <file> — copy once per run, only when we will write
 }
 
 # _jq_merge <file> <jq-program> [args...] — atomic, backup-first, no-op-safe.
+# Owner-only permissions throughout: these files can carry provider API keys
+# (security review finding: Insecure File Permissions on Credential Writes).
 _jq_merge() {
   local file="$1" prog="$2"; shift 2
-  [ -f "$file" ] || printf '{}\n' > "$file"
-  local tmp="$file.jevtmp.$$"
+  [ -f "$file" ] || (umask 077; printf '{}\n' > "$file")
+  local tmp; tmp=$(umask 077; mktemp "$file.jevtmp.XXXXXX")
   if jq "$@" "$prog" "$file" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
     if cmp -s "$tmp" "$file"; then rm -f "$tmp"; return 0; fi
     _backup "$file"
     mv "$tmp" "$file"
+    chmod 600 "$file" 2>/dev/null || true
   else
     rm -f "$tmp"
     printf 'jev-setup: jq merge failed for %s — left untouched\n' "$file" >&2
