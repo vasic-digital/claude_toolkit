@@ -51,12 +51,12 @@ _stop_fixture() { kill "$FIX_PID" 2>/dev/null; wait "$FIX_PID" 2>/dev/null; }
 
 HOOK_LS='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
 
-it "shadow mode logs the would-be decision and allows"
+it "shadow mode logs the would-be decision and passes through (never asserts allow)"
 _start_fixture '{"gate":"deny"}'
 out=$(printf '%s' "$HOOK_LS" | JEV_BASE_URL="http://127.0.0.1:$JEV_FIX_PORT" JEV_MODE=shadow bash "$GATE")
 rc=$?
 assert_eq 0 "$rc" "shadow gate exits 0"
-case "$out" in *'"permissionDecision":"allow"'*) _pass "shadow JSON says allow" ;; *) _fail "shadow JSON" "$out" ;; esac
+assert_eq "" "$out" "shadow mode emits no JSON (passthrough -- never asserts permissionDecision:allow)"
 assert_file "$JEV_STATE_DIR/decisions.jsonl" "shadow decision logged"
 line=$(tail -n1 "$JEV_STATE_DIR/decisions.jsonl")
 assert_eq '["deny","shadow",false]' "$(printf '%s' "$line" | jq -c '[.answer,.mode,.enforced]')" "shadow jsonl answer/mode/enforced"
@@ -86,14 +86,14 @@ out=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf / --no-pr
 case "$out" in *'"permissionDecision":"ask"'*|*'"permissionDecision":"deny"'*) _pass "pattern floor escalated" ;; *) _fail "pattern floor" "$out" ;; esac
 _stop_fixture
 
-it "timeout fail-open within budget"
+it "timeout fail-open within budget (passthrough, never asserts allow)"
 _start_fixture '{}' 3
 t0=$SECONDS
 out=$(printf '%s' "$HOOK_LS" | JEV_BASE_URL="http://127.0.0.1:$JEV_FIX_PORT" JEV_MODE=enforce JEV_GATE_TIMEOUT=1 bash "$GATE")
 dt=$(( SECONDS - t0 ))
 rc=$?
-assert_eq 0 "$rc" "timeout allows"
-case "$out" in *'"permissionDecision":"allow"'*) _pass "timeout JSON says allow" ;; *) _fail "timeout JSON" "$out" ;; esac
+assert_eq 0 "$rc" "timeout exits 0"
+assert_eq "" "$out" "timeout fail-open emits no JSON (passthrough -- never asserts permissionDecision:allow)"
 if (( dt < 3 )); then _pass "fail-open within ${dt}s (<3s)"; else _fail "fail-open too slow" "${dt}s"; fi
 assert_eq '"timeout"' "$(tail -n1 "$JEV_STATE_DIR/decisions.jsonl" | jq -c '.fallback')" "fallback recorded as timeout"
 _stop_fixture
