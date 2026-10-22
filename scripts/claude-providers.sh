@@ -2622,6 +2622,29 @@ _cma_jev_after_sync() {
   _cma_jev_write_endpoint_cache "$records"
 }
 
+# _cma_usage_refresh_after_sync
+# Fire-and-forget refresh of $SHARED_DIR/usage-reports/ after a sync, so the
+# reports `claude-usage report` writes never trail the just-synced provider
+# state (operator directive: usage reports MUST refresh automatically on
+# every sync). Fail-soft like _cma_jev_after_sync above: a missing/not-yet-
+# built claude-usage.sh (e.g. a fresh install before `scripts/install.sh` or
+# `claude-ccusage-build.sh` has run) or a failing refresh is a one-line
+# skip/warning, never a reason to fail the sync that triggered it.
+_cma_usage_refresh_after_sync() {
+  [[ "${CMA_SYNC_SKIP_USAGE_REFRESH:-0}" == "1" ]] && return 0
+  local script="${CMA_USAGE_REFRESH_SCRIPT:-$LIB_DIR/claude-usage.sh}"
+  if [[ ! -x "$script" ]]; then
+    cma_log "usage-refresh: claude-usage.sh not found or not executable, skipping (run: bash scripts/install.sh)"
+    return 0
+  fi
+  if bash "$script" report >/dev/null 2>&1; then
+    cma_log "usage-refresh: \$SHARED_DIR/usage-reports/ refreshed"
+  else
+    cma_warn "usage-refresh: claude-usage.sh report failed; continuing sync regardless (run it directly to see why)"
+  fi
+  return 0
+}
+
 # --- subcommand: sync-jev ---------------------------------------------------
 # claude-providers sync-jev [--quiet]
 # The LIGHT Jev-only path: run just detect_jev_records + the status/cache
@@ -3666,6 +3689,7 @@ cmd_sync() {
   # Reconcile stale kimi-<id> twin lines (removed/orphaned/no-longer-verified
   # providers) — after the orphan demotion so a just-orphaned id is dropped too.
   if (( ! DRY_RUN )) && (( KIMI_ALIASES )); then _cma_kimi_twin_reconcile; fi
+  (( DRY_RUN )) || _cma_usage_refresh_after_sync
 
   cma_log "sync done: $n_created active, $n_disabled disabled (failed verify), $n_skipped not-resolved"
   cma_log "reload your shell or: source $ALIAS_FILE"
@@ -4580,6 +4604,7 @@ cmd_sync_multi() {
   done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,(.transport // "null"),(.base_url // "null"),(.strong_model // "null"),(.fast_model // "null"),(.context_limit // "null"),(.max_output // "null"),(.lan_exposed // false),(.context_warning // "")] | @tsv' <<<"$records")
 
   if (( ! DRY_RUN )) && (( KIMI_ALIASES )); then _cma_kimi_twin_reconcile; fi
+  (( DRY_RUN )) || _cma_usage_refresh_after_sync
   cma_log "multi-sync done: $n_created aliases created across all providers"
   cma_log "reload your shell or: source $ALIAS_FILE"
 }

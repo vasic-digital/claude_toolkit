@@ -41,6 +41,8 @@ bash scripts/tests/run-proof.sh
 
 # Token/cost usage report (built on the real `ccusage` binary). Default: last
 # 4 weeks, all groupings, writes json+md under $SHARED_DIR/usage-reports/.
+# Also refreshed automatically after every `claude-providers sync`/`sync
+# --multi` (CMA_SYNC_SKIP_USAGE_REFRESH=1 to opt out) -- never only on demand.
 claude-usage report
 claude-usage report --since 2026-10-01 --until 2026-10-22 --format csv
 ```
