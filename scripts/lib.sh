@@ -1354,6 +1354,7 @@ _cma_emit_cma_jev_env() {
 cma_jev_env() {
   if [ "${CMA_JEV_DISABLE:-0}" = 1 ]; then
     export CMA_JEV_ACTIVE=0
+    unset JEV_BASE_URL TYPESAFE_BASE_URL JEV_KEY_VAR JEV_MODEL CMA_JEV_ENDPOINT_ID JEV_CA_FILE
     return 0
   fi
   local _jev_cache="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
@@ -1371,11 +1372,16 @@ cma_jev_env() {
   fi
   if [ ! -s "$_jev_cache" ]; then
     export CMA_JEV_ACTIVE=0
+    unset JEV_BASE_URL TYPESAFE_BASE_URL JEV_KEY_VAR JEV_MODEL CMA_JEV_ENDPOINT_ID JEV_CA_FILE
     [ "${CMA_JEV_QUIET:-0}" = 1 ] || \
       printf 'Jev decision layer: INACTIVE (no endpoint cache — run: claude-providers sync)\n' >&2
     return 0
   fi
-  command -v jq >/dev/null 2>&1 || { export CMA_JEV_ACTIVE=0; return 0; }
+  command -v jq >/dev/null 2>&1 || {
+    export CMA_JEV_ACTIVE=0
+    unset JEV_BASE_URL TYPESAFE_BASE_URL JEV_KEY_VAR JEV_MODEL CMA_JEV_ENDPOINT_ID JEV_CA_FILE
+    return 0
+  }
   local _jev_line
   _jev_line=$(jq -r '.endpoints[0] | [(.base_url // ""), (.key_var // ""), (.model // "jev-latest"), (.provider_id // "jev"), (.ca_file // "")] | @tsv' "$_jev_cache" 2>/dev/null)
   local _jev_base _jev_kv _jev_model _jev_pid
@@ -1387,6 +1393,7 @@ cma_jev_env() {
   _jev_ca=$(printf '%s' "$_jev_line" | cut -f5)
   if [ -z "$_jev_base" ]; then
     export CMA_JEV_ACTIVE=0
+    unset JEV_BASE_URL TYPESAFE_BASE_URL JEV_KEY_VAR JEV_MODEL CMA_JEV_ENDPOINT_ID JEV_CA_FILE
     [ "${CMA_JEV_QUIET:-0}" = 1 ] || \
       printf 'Jev decision layer: INACTIVE (endpoint cache has no resolved endpoints)\n' >&2
     return 0

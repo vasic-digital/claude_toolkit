@@ -166,7 +166,7 @@ M = [
  ("mcp: relative candidate ca_file resolved against the cwd", MCP, HARD,
   'ca_file=_route_ca_file(candidate.get("ca_file")),', 'ca_file=candidate.get("ca_file") or None,', 1),
  ("renderer refresh: write failure replaces the config (fail-closed check removed)", CP, KHOOK,
-  "    if ! { awk 'BEGIN{h=0}", "    if false && { awk 'BEGIN{h=0}", 1),
+  '    if ! { awk -v b=\'# cma-jev:hooks BEGIN\' -v e=\'# cma-jev:hooks END\' \'\n        (index($0, b) == 1 && $0 != b) || (index($0, e) == 1 && $0 != e) { bad = 1 }\n        skip { if ($0 == e) skip = 0; next }\n        $0 == b { skip = 1; pend = 0; next }\n        $0 == "" { pend++; next }\n        { while (pend > 0) { print ""; pend-- } print }\n        END { if (skip || bad) exit 7; while (pend > 0) { print ""; pend-- } }\' "$f" \\\n        && { [[ -z "$blk" ]] || printf \'%s\\n\' "$blk"; }; } > "$tmp" 2>/dev/null \\\n       || [[ ! -s "$tmp" ]] || ! grep -q \'^default_model = \' "$tmp" 2>/dev/null; then\n', '    if false; then\n', 1),
 # --- R4 reviewer mutations (round 4 review of v1.32.0): each MUST be killed by the named suite
  ("opencode inventory: plugin-file half dropped (o1)", SETUPSH, LIFE,
   """  if [ -e "$HOME/.config/opencode/plugins/jev-gate.js" ] \\
@@ -210,15 +210,15 @@ M = [
 }""", """  return 0
 }""", 1),
  ("lock: refresh block computed BEFORE the lock, stale under it (R4-1)", CP, LIFE,
-  """  local f tmp blk real
+  """  local f tmp blk real rrc=0
   if ! _cma_kimi_cfg_lock; then
     printf 'claude-providers: could not take the config lock - Kimi twin hooks not refreshed\\n' >&2
     return 0
   fi
   # Computed once per run but UNDER the lock; its warnings (unusable
   # jev-kimi-tools.txt ...) reach stderr.
-  blk="$(_cma_kimi_jev_hooks_block)""",
-  """  local f tmp blk real
+  blk="$(_cma_kimi_jev_hooks_block)\"""",
+  """  local f tmp blk real rrc=0
   blk="$(_cma_kimi_jev_hooks_block)"
   if ! _cma_kimi_cfg_lock; then
     printf 'claude-providers: could not take the config lock - Kimi twin hooks not refreshed\\n' >&2

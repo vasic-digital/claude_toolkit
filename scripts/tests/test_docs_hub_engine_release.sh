@@ -152,7 +152,17 @@ fi
 
 it "README facts: open routes, both third-party submodules, measured suite count"
 has "$R" "/healthz" && has "$R" "/readyz" && _pass "README names /healthz and /readyz" || _fail "README names both open routes" "missing"
-has "$R" "submodules/ccusage" && has "$R" "submodules/go" && _pass "README names both third-party submodules" || _fail "README names both submodules" "missing"
+# Scoped to the "only submodules it carries" sentence specifically (not a
+# document-wide substring search): the README mentions submodules/ccusage a
+# second time elsewhere (the hub-engine section), so a bare `has "$R" ...`
+# still passed when THIS sentence was mutated to drop one of the two names —
+# the second, unrelated mention masked the defect (R95 coverage gap).
+submod_ctx="$(grep -A1 -F 'only submodules it carries are the third-party' "$R" 2>/dev/null)"
+if printf '%s' "$submod_ctx" | grep -qF 'submodules/go' && printf '%s' "$submod_ctx" | grep -qF 'submodules/ccusage'; then
+  _pass "README names both third-party submodules in the same sentence"
+else
+  _fail "README names both submodules in the same sentence" "${submod_ctx:-sentence not found}"
+fi
 cnt="$(ls "$SCRIPTS_DIR"/tests/test_*.sh | wc -l | tr -d ' ')"
 badge="$(grep -o 'badge/tests-[0-9]*%20suites' "$R" | grep -o '[0-9]*' | head -1)"
 assert_eq "$cnt" "$badge" "README tests badge equals the measured suite count"

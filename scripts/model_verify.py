@@ -36,7 +36,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.request import Request
-from http_noredirect import open_url as _open_url
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from http_noredirect import open_url as _open_url  # noqa: E402
 
 
 def urlopen(req, timeout=None, context=None):

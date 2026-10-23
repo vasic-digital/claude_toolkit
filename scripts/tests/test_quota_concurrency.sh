@@ -35,7 +35,7 @@ source "$TESTS_DIR/lib/sandbox.sh"
 
 make_sandbox
 
-# --- isolated lib dir: a sandboxed copy of the 4 files _cma_quota_probe_all
+# --- isolated lib dir: a sandboxed copy of the 5 files _cma_quota_probe_all
 # actually needs at runtime, plus OUR OWN providers/quota-endpoints.json. ----
 ISO_LIB_DIR="$HOME/_iso_scripts"
 mkdir -p "$ISO_LIB_DIR/providers"
@@ -43,6 +43,7 @@ cp "$SCRIPTS_DIR/lib.sh" "$ISO_LIB_DIR/lib.sh"
 cp "$SCRIPTS_DIR/claude-providers.sh" "$ISO_LIB_DIR/claude-providers.sh"
 cp "$SCRIPTS_DIR/quota_probe.py" "$ISO_LIB_DIR/quota_probe.py"
 cp "$SCRIPTS_DIR/model_verify.py" "$ISO_LIB_DIR/model_verify.py"
+cp "$SCRIPTS_DIR/http_noredirect.py" "$ISO_LIB_DIR/http_noredirect.py"
 
 # Fixture provider ids used across the three scenarios below. Each test
 # scenario below documents exactly which ids it adds and why.

@@ -33,11 +33,12 @@ from datetime import datetime, timezone, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 
-import model_verify as _mv
-from model_verify import _dig, _walk, _dig_bool  # noqa: F401 (re-exported for later tasks)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import model_verify as _mv  # noqa: E402
+from model_verify import _dig, _walk, _dig_bool  # noqa: F401,E402 (re-exported for later tasks)
 
 
-from http_noredirect import NoRedirect as _NoRedirectHandler  # the one shared opener policy
+from http_noredirect import NoRedirect as _NoRedirectHandler  # noqa: E402  (the one shared opener policy)
 
 
 def http_get_json(url, headers=None, timeout=_mv.TIMEOUT_DEFAULT, follow_redirects=True):

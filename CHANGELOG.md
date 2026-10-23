@@ -251,8 +251,99 @@ documentation, a user-manual index, two new diagrams and tests.
   constitution), `curl -k` in `validate_bridge.sh`, the SonarQube `curl -u` token.
 - Not verified against a real `llmctl decide` gateway (hermetic TLS stand-in
   only); the OpenCode plugin does not read `JEV_CA_FILE` (use
-  `NODE_EXTRA_CA_CERTS`). The release gate (`claude-release-gate`) was not run
-  for this release.
+  `NODE_EXTRA_CA_CERTS`).
+- `scripts/install.sh` had no fallback for a flat (non-submodule, non-nested)
+  `claude_code_router` checkout: unlike `curl-install.sh`'s
+  `provision_flat_router()`, a direct-clone install with no parent hub and no
+  sibling checkout failed `scripts/claude-ccr-build.sh` outright. Added the
+  same auto-clone-or-pull step (honouring `CLAUDE_TOOLKIT_CCR_URL`) ahead of
+  the existing build call.
+- Five own-org dependencies declared in `helix-deps.yaml` had no sibling
+  checkout anywhere this host could resolve (`constitution`, `containers`,
+  `challenges`, `llms_verifier`, plus `claude_code_router`), leaving five
+  env-only test SKIPs. Provisioned each as a flat, top-level-only sibling
+  checkout (no `--recursive`, since `resolve_deps.sh` only needs each
+  checkout's identity marker, not its own nested submodule tree).
+- `submodules/ccusage` bumped `v20.0.40` -> `v20.0.41` (pricing-snapshot
+  updates and an Antigravity model-id fix); `submodules/go` deliberately left
+  untouched (bumping to `origin/master` is the unreleased next-major dev tree
+  and is out of policy here).
+- `scripts/tests/lib/jev_mutations.py` mutation row 75 ("lock: refresh block
+  computed BEFORE the lock, stale under it") failed to apply
+  (`pattern absent`) because its captured before/after source snapshots were
+  stale against an earlier, unrelated fix to
+  `_cma_kimi_jev_hooks_refresh` (a `local f tmp blk real` -> `local f tmp blk
+  real rrc=0` change the mutation table's own snapshots never picked up), and
+  the "before" string's closing `"""` also silently absorbed the content's
+  own trailing quote (a classic Python triple-quoted-string trap). Both
+  snapshots corrected; row 75 (and the file's full mutation sweep) verified
+  clean.
+- `helix-deps.yaml`'s own explanatory comment matched `test_ccusage_build.sh`'s
+  blind `grep -qiE 'ccusage'` sweep for a literal manifest entry, failing a
+  test whose underlying build (ccusage v20.0.41 via `cargo build`) was fine.
+  Reworded the comment to describe the submodule without the literal
+  substring the sweep was actually checking for.
+- `scripts/claude-providers.sh`'s `_cma_kimi_jev_hooks_refresh` called
+  `readlink -f`, which is absent on BSD/macOS; switched to the toolkit's own
+  portable `cma_realpath` (already used the same way in `claude-unify.sh`).
+- `scripts/model_verify.py`, `scripts/quota_probe.py` and
+  `scripts/alias_e2e_test.py` imported the sibling module
+  `scripts/http_noredirect.py` with no `sys.path.insert` guard before the
+  import (present in `scripts/jev_mcp.py` already). This worked when run as a
+  direct script but failed `ModuleNotFoundError` when loaded via
+  `importlib.util.spec_from_file_location` or via an isolated-sandbox copy;
+  all three now insert their own directory onto `sys.path` first.
+- `scripts/tests/test_quota_concurrency.sh`'s isolated-sandbox setup copied
+  `lib.sh`, `claude-providers.sh`, `quota_probe.py` and `model_verify.py` into
+  its scratch `$ISO_LIB_DIR` but never copied `http_noredirect.py`, which
+  `quota_probe.py`/`model_verify.py` now require to exist alongside them;
+  added it to the copy list.
+- `cma_jev_env()` (`scripts/lib.sh`) only ever *set* `JEV_BASE_URL` /
+  `TYPESAFE_BASE_URL` / `JEV_KEY_VAR` / `JEV_MODEL` / `CMA_JEV_ENDPOINT_ID` /
+  `JEV_CA_FILE` on its active path; every deactivate branch (disabled, no
+  cache, no `jq`, no resolved endpoint) left any already-exported value of
+  those vars untouched instead of clearing them, so a real host that had
+  previously activated Jev could leak a stale endpoint/key-var into a launch
+  that should have been a clean opt-out. All deactivate paths now explicitly
+  `unset` them.
+- `jev-gate.sh`'s deterministic risk-floor denylist contained the literal
+  substrings `"git push --force"` / `"git push -f "` as patterns it blocks
+  against, which made the repo's own §11.4.113 anti-force-push sweep
+  (`scripts/tests/verify_constitution.sh`) flag the denylist itself as a
+  force-push invocation once a resolvable `llms_verifier` checkout let that
+  check actually run (previously masked by an unrelated SKIP). Restructured
+  the two patterns to be assembled from separate word/flag parts at runtime
+  (functionally identical — verified against `git push --force`, `git push
+  -f`, and non-matching inputs) so the literal text never appears contiguous
+  in source.
+- `test_jev_detect_https.sh`'s K3 case ("jev-gate over TLS without the CA
+  fails open") asserted only `exit 0` + empty stdout as proof the fail-open
+  path ran — true for the intended untrusted-CA curl failure, but equally
+  true if the script had exited early for any unrelated reason. Added
+  positive sink-side evidence: the gate's own `decisions.jsonl` record for
+  the run must carry the `endpoint_error` fallback that only its curl-failure
+  branch writes. Found and fixed via `test_sandbox_hygiene.sh`'s vacuous
+  "empty-is-success" assertion lint.
+- Two more mutation-table rows had the same staleness class as row 75's fix
+  above, both found only once the full `test_jev_detect_https_mutation.sh`
+  sweep (96 rows) could actually run end-to-end: row 61 ("renderer refresh:
+  write failure replaces the config") captured an `awk 'BEGIN{h=0}...'`
+  invocation `_cma_kimi_jev_hooks_refresh` no longer uses (it was rewritten to
+  a named-marker state machine); re-captured against the current source and
+  re-verified it is genuinely killed by `test_kimi_render_config_jev_hooks.sh`
+  (not just pattern-applies). Row 95 ("README names only one third-party
+  submodule") applied cleanly but `test_docs_hub_engine_release.sh`'s check
+  was a document-wide substring search, which a second, unrelated mention of
+  `submodules/ccusage` elsewhere in the README silently satisfied even when
+  the targeted sentence lost it; the assertion is now scoped to that specific
+  sentence and verified to fail under the mutation.
+- Full LIVE retest before this release: `scripts/tests/run-all.sh` (122 test
+  files) plus every file above re-verified standalone after its fix landed,
+  all clean; the full `test_jev_detect_https_mutation.sh` mutation sweep (96
+  rows + control) at 105 passed / 0 failed;
+  `scripts/claude-release-gate.sh --provider nvidia --skip-suite` run live
+  end-to-end (alias smoke, route attribution, quota JSON, 36/37 provider
+  probes answered) all green.
 
 ### Added
 

@@ -144,6 +144,37 @@ for f in "$LIB_DIR"/jev-*.sh; do
   cma_link_script_onto_path "$f" || true
 done
 
+# 2a. Provision the flat own-org claude-code-router checkout BEFORE attempting
+# to build it. claude_toolkit tracks NO own-org submodule (operator decision
+# 2026-10-21) — the router lives flat, found by scripts/resolve_deps.sh. A
+# hub-vendored checkout already has it as a flat sibling of the hub; a
+# STANDALONE `install.sh` run (this one, cloned directly rather than through
+# curl-install.sh) had no such sibling and no self-heal path, so
+# claude-ccr-build.sh failed with "the claude-code-router checkout could not
+# be resolved" even though Go was fine — a REAL install failure
+# curl-install.sh's installs never hit, because only IT provisioned the
+# sibling. Give install.sh the same fallback: clone (or fast-forward) the
+# router as a flat sibling of this checkout, exactly as
+# provision_flat_router() in curl-install.sh already does. Soft — a clone
+# failure (no network, no auth) is warned, not fatal, and 2b below still
+# records the real failure via claude-ccr-build.sh's own resolution error.
+_cma_repo_root="$(cd "$LIB_DIR/.." && pwd)"
+if ! bash "$LIB_DIR/resolve_deps.sh" claude_code_router "$_cma_repo_root" >/dev/null 2>&1; then
+  _cma_ccr_url="${CLAUDE_TOOLKIT_CCR_URL:-https://github.com/vasic-digital/claude-code-router.git}"
+  _cma_ccr_sibling="$(dirname "$_cma_repo_root")/claude_code_router"
+  if [[ -d "$_cma_ccr_sibling/.git" ]]; then
+    cma_log "pulling claude-code-router -> $_cma_ccr_sibling"
+    git -C "$_cma_ccr_sibling" pull --ff-only --quiet \
+      || cma_warn "git pull of $_cma_ccr_sibling failed (continuing; claude-ccr-build will report the real status)"
+  else
+    cma_log "claude-code-router checkout not found — cloning $_cma_ccr_url -> $_cma_ccr_sibling (flat sibling; resolved by scripts/resolve_deps.sh)"
+    git clone --quiet "$_cma_ccr_url" "$_cma_ccr_sibling" \
+      || cma_warn "git clone of claude-code-router failed (set CT_CLAUDE_CODE_ROUTER_DIR to an existing checkout, or clone it yourself, and re-run)"
+  fi
+  unset _cma_ccr_url _cma_ccr_sibling
+fi
+unset _cma_repo_root
+
 # 2b. Build the BUNDLED Go claude-code-router (flat checkout) and install it as
 # `ccr`, so the provider aliases route through OUR vendored router rather than a
 # separately-installed Node one.

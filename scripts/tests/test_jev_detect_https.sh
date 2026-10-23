@@ -256,9 +256,16 @@ grep -q "POST /v1/systemone auth=Bearer $SECRET" "$TLSLOG" && _pass "sink-side: 
 : > "$KEYS"
 
 it "K3: jev-gate over TLS without the CA fails open (exit 0, no JSON)"
+: > "$JEV_STATE_DIR/decisions.jsonl"
 out="$(printf '%s' "$HOOK" | JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_API_KEY="$SECRET" JEV_MODE=enforce bash "$SCRIPTS_DIR/jev-gate.sh" 2>/dev/null)"; rc=$?
 assert_eq 0 "$rc" "untrusted CA -> fail-open exit 0"
 assert_eq "" "$out" "fail-open emits no decision JSON"
+# Positive evidence the fail-open path above was actually reached because the
+# curl call failed (untrusted CA), not because exit 0 + empty stdout happened
+# for some unrelated reason (e.g. an early, different return): the gate's own
+# decisions.jsonl record for this run must carry the "endpoint_error"
+# fallback it writes only from that curl-failure branch.
+assert_eq "endpoint_error" "$(tail -n1 "$JEV_STATE_DIR/decisions.jsonl" | jq -r '.fallback // "?"')" "sink-side: decisions.jsonl logs the untrusted-CA curl failure"
 
 # ---------------------------------------------------------------- cache / env
 it "H10: endpoint cache carries ca_file; cma_jev_env exports JEV_CA_FILE (not SSL_CERT_FILE)"

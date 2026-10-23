@@ -3507,7 +3507,7 @@ _cma_kimi_jev_hooks_refresh() {
   for f in "$HOME"/.kimi-prov-*/config.toml; do
     [[ -f "$f" ]] || continue
     # A symlinked config.toml is replaced THROUGH the link, never over it.
-    if [[ -L "$f" ]]; then real="$(readlink -f "$f" 2>/dev/null)" && [[ -f "$real" ]] && f="$real"; fi
+    if [[ -L "$f" ]]; then real="$(cma_realpath "$f" 2>/dev/null)" && [[ -f "$real" ]] && f="$real"; fi
     grep -q '^default_model = ' "$f" 2>/dev/null || continue
     tmp="$(mktemp "$(dirname "$f")/.hooks.XXXXXX")" || continue
     chmod 600 "$tmp" 2>/dev/null || true
