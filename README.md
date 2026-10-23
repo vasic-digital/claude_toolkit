@@ -12,8 +12,8 @@ on every launch.
 [![version](https://img.shields.io/badge/version-v1.32.0-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#-requirements)
 [![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#-requirements)
-[![tests](https://img.shields.io/badge/tests-119%20suites-informational)](#-testing)
-[![shellcheck](https://img.shields.io/badge/shellcheck-0%20errors-success)](#-testing)
+[![tests](https://img.shields.io/badge/tests-122%20suites-informational)](#-testing)
+[![shellcheck](https://img.shields.io/badge/shellcheck-not%20re--run%20for%20v1.32.0-lightgrey)](#-testing)
 [![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
 [Quick start](#-quick-start) · [Features](#-features) · [Commands](#-daily-commands) · [Guides](#-documentation) · [How it works](#-how-cross-account-sync-works)
@@ -307,8 +307,9 @@ bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evid
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
-touched. The suite is **119 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and `shellcheck -S error` is
-clean (62 warning-level and 203 style-level suggestions remain); live verifiers
+touched. The suite is **122 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.32.0
+(UNCONFIRMED; the historical v1.26.x figures were 62 warning-level and 203
+style-level suggestions over an unrecorded file set, and are not a current claim); live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and
 write inspectable evidence to `scripts/tests/proof/`.
 

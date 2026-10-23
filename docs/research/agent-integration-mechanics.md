@@ -189,7 +189,7 @@ A `.opencode/plugins/jev-gate.ts` implementing `tool.execute.before` → POST st
 ```toml
 [[hooks]]
 event = "PreToolUse"
-matcher = "Bash|WriteFile|StrReplaceFile"
+matcher = "Bash|Write|Edit"
 command = ".kimi/hooks/jev-gate.sh"
 timeout = 10
 ```
@@ -341,7 +341,7 @@ api_key = "local"
 
 [[hooks]]
 event = "PreToolUse"
-matcher = "Bash|WriteFile|StrReplaceFile"
+matcher = "Bash|Write|Edit"
 command = ".kimi/hooks/jev-gate.sh"
 timeout = 10
 ```

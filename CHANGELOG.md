@@ -4,6 +4,136 @@ All notable changes to the Claude multi-account toolkit.
 
 ## Unreleased
 
+- `jev-setup`: `--agents` is validated against the closed, case-sensitive set
+  `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
+  any write, no stamp); `--check --uninstall` is refused (exit 2); the native
+  Kimi block is rewritten as a whole file via one atomic, status-checked
+  `_kimi_block_write` (no blank-line growth, block-only configs work);
+  Claude `--check` resolves a `bash /path/jev-gate.sh` hook command, also
+  when the gate path contains spaces. Lifecycle cells L14-L20 cover the
+  opencode and claude/kimi inventory branches reached through `--uninstall`
+  and `--check`, scope derivation, argument validation, the stale-block
+  rewrite and `--check`; pi has no inventory branch (its wiring location is
+  UNCONFIRMED), so a consented pi install is protected only through the stamp
+  (L22).
+- Round 4 (independent review NO-GO, closed by class):
+  - Kimi config writers are serialised. `scripts/jev-kimi-lib.sh` gained
+    `jev_kimi_lock` (flock on `$JEV_STATE_DIR/kimi-config.lock`, wait budget
+    `JEV_KIMI_LOCK_WAIT`, default 30 s). The mkdir fallback written in this
+    round was NOT mutually exclusive under three or more contenders; that is
+    corrected in Round 6 below, and only flock serialisation was measured
+    for Round 4. The twin refresh (`_cma_kimi_jev_hooks_refresh`) and the
+    twin renderer take the lock, and the refresh recomputes the hook block
+    INSIDE it, so a refresh can no longer resurrect a block after
+    `--uninstall` or revert a model/key/URL written by a concurrent render
+    (cells L28-L30). Round 4 made `jev-setup` hold the lock for the whole
+    run; Round 6 narrows that (see below). A symlinked
+    `config.toml` is rewritten through the link by `jev-setup` and the
+    refresh (L27, L31).
+  - `_backup` is fail-closed: a backup that cannot be made aborts that write
+    (no partial copy left, nothing written, reported); L25.
+  - `--agents` rejects empty, separator-only, space-only and space-separated
+    lists with exit 2 before any write (L16). `--if-stale 0` no longer widens
+    the scope and a non-numeric `--if-stale` is a usage error (L23).
+    `--uninstall --agents X` keeps the shared gate for agents still named in
+    the stamp (pi, kimi included) (L22); a hand-edited stamp with only unknown
+    names never widens the scope (L26). Kimi `--check` reports a gate that is
+    not executable (L24).
+  - Mutation table: rows 19 and 41 had stale or too-weak needles and are
+    corrected (both verified killed); rows added for each reviewer mutation
+    (o1, o2, o3, o4, o6, o8, o12, o15), for the three lock removals and for
+    the spaced-gate-path parser. Reviewer mutation o3b (whitespace check in
+    `--agents`) is an EQUIVALENT mutant: with the check removed the same input
+    is still rejected as an unknown agent, so it has no row.
+  - Known limits, not fixed: the two races were reproduced with an `awk` shim
+    that widens the read-to-replace window (the natural window is
+    milliseconds); what Kimi does at run time with a hook whose command no
+    longer exists is UNKNOWN; pi install/uninstall is not exercised
+    hermetically; `shellcheck` was not run; the twin renderer still writes a
+    fresh file (it does not follow a symlinked twin `config.toml`); the
+    regenerated twin (.html/.pdf/.docx) of a changed .md can collapse blank
+    lines the exporter treats as insignificant.
+- Round 5/6 (independent review NO-GO on Round 5, closed by class):
+  - The mkdir lock backend is now a faithful port of the `lib.sh`
+    `_cma_alias_lock_*` algorithm in the new sourced library
+    `scripts/jev-lockdir-lib.sh` (breaker lock, observed-pid re-read before a
+    stale break, pid tie-break after `mkdir`, pid-less grace
+    `CMA_LOCKDIR_GRACE` default 10 s, deadline checked on every pass,
+    owner-checked release). It is a PORT, not a delegation: `lib.sh` uses
+    globals and `set -e` and was left unchanged. `scripts/jev-kimi-lib.sh`
+    keeps flock primary, re-entrancy (`_JEV_LOCK_DEPTH`) and the
+    `JEV_KIMI_LOCK_NO_FLOCK=1` seam. New suite `scripts/tests/test_jev_kimi_lock.sh`
+    drives the real scripts: 8 contenders, stale / fresh / live-holder /
+    pid-less cases, `JEV_LOCK_STRESS_RUNS` runs (default 20), max concurrency
+    asserted equal to 1, a no-lock positive control that must overlap, flock
+    as negative control, flock-timeout failure, block-decided-under-lock.
+  - `_cma_kimi_jev_hooks_refresh` matches its markers exactly. A BEGIN
+    without an END, or a variant marker line, leaves the file untouched,
+    prints a warning to stderr and returns non-zero (before: the awk range
+    deleted every following line). Blank lines outside the block are kept.
+  - `jev-setup` holds the Kimi config lock only around the config
+    read-modify-write sections; children (`pi install`, `npm view`, the
+    keys-file shell) run with fd 7 closed (`7>&-`; the endpoint-env command
+    substitutions use `$(exec 7>&-; ...)` because a redirect on a function
+    call makes bash park fd 7 on fd 10 in the forked copy, which still held the
+    lock; found by test K8d), so a concurrent render is
+    not blocked by a slow child and a child outliving the parent does not
+    keep the lock. A pre-flight lock probe fails fast with "nothing written".
+  - Mutation table: rows for each reviewer-surviving mutation (M2, M4, M5,
+    M9, M10) and for each new guard (breaker re-read, blind release, grace,
+    deadline, refresh rc, blank-line preservation, section lock, fd 7 leak);
+    `test_jev_detect_https_mutation.sh` no longer excludes `./specs` from its
+    freshness check and aborts loudly when an owning suite fails unmutated.
+  - ROOT CAUSE of the intermittent mkdir-lock overlap (found in Round 6,
+    measured): on this host `mkdir` is uutils coreutils 0.8.0
+    (`/usr/bin/mkdir` -> `../lib/cargo/bin/coreutils/mkdir`), and its
+    "directory exists" race is reported as SUCCESS: with 6 racing `mkdir d`
+    calls more than one caller won in 66 of 200 rounds, and an instrumented
+    trace showed five processes with `mkdir rc=0` within 1 ms after the
+    lockdir was removed. A mutex whose exclusion rests on mkdir's exit status
+    therefore admits several holders. `scripts/jev-lockdir-lib.sh` now takes
+    the lock (and the breaker role) with an O_EXCL pid-file create (bash
+    `set -C`, `_cma_lockdir_claim`); mkdir only provides the directory.
+    New case K1d in `test_jev_kimi_lock.sh` puts a fake `mkdir` that succeeds
+    on an existing directory on PATH, with positive and negative controls: it
+    failed 5/5 runs before the fix and passes after. Lock suite: 62
+    assertions pass; 240 parallel-load runs of the real library showed 0
+    overlaps (before the fix 1 in 240 and 3 in 240 in two comparable runs).
+  - Test hardening found while re-running the mutation rows: the O_EXCL claim
+    changed which state reaches the pid-less grace branch (a lockdir with no
+    pid file is now simply claimed), so the old K2c no longer exercised it and
+    its mutation survived; K2c now uses an EMPTY pid file (holder died between
+    the create and the write) with a not-broken-before-grace control. New K2f
+    holds the breaker with a live process under the fake racy `mkdir` and
+    asserts a second breaker does not enter (kills the "breaker not claimed
+    O_EXCL" row, which survived 62/0 before K2f). `_lockrc` is time-bounded so
+    a lock that never gives up fails an assertion (rc 124) instead of hanging.
+    `test_jev_detect_https_mutation.sh` bounds each suite run
+    (`JEV_MUT_SUITE_TIMEOUT`, default 900 s); a timeout counts as a kill.
+  - Mutation rows 77-92 (lock library, refresh, jev-setup lock) were each run
+    on a scratch copy: all killed. Rows 77 and 83 (stale lock never broken,
+    deadline never enforced) are killed by hanging, row 83 also by the K2c
+    assertion before it hangs. Row 95 (docs: README names one third-party
+    submodule) SURVIVES: `submodules/ccusage` appears in two other README
+    places, so the row is effectively an equivalent mutant; it predates this
+    round and was not changed. The full mutation harness was NOT run in one
+    pass this round (UNCONFIRMED; roughly 96 suite runs).
+  - Known limits, not fixed: `lib.sh` itself was not changed; its
+    `_cma_alias_lock_*` is also mkdir-based and very likely has the same
+    defect on this host (UNCONFIRMED, not measured), and its acquire loop
+    skips the deadline check after a stale break (the port checks it); lock
+    timing has whole-second granularity; the claim relies on the filesystem
+    honouring O_EXCL (not tested on NFS); the pi install path is not
+    exercised hermetically; Kimi's run-time behaviour on a hook whose command
+    is gone is UNKNOWN; `shellcheck` was not run; a mutation that waits for
+    the deadline (row 83) is killed by a timeout rather than by an assertion.
+- `jev_mcp.py`: a relative `ca_file` in a routes.json candidate resolves
+  against the routes.json directory (never the cwd); a candidate without
+  `ca_file` deliberately trusts `JEV_CA_FILE` as an extra root; an unreadable
+  explicit `ca_file` still fails closed.
+- Mutation table: rows for the inventory branches, the uninstall inventory
+  use, the renderer's model-less-rewrite guard and the relative-CA resolution.
+
 ## v1.32.0 — 2026-10-22
 
 The Jev local decide-gateway detector now speaks llmctl's real transport
@@ -68,14 +198,54 @@ documentation, a user-manual index, two new diagrams and tests.
   `jev_mcp.py`, `quota_probe.py`, `model_verify.py` (provider probes carrying the
   user's API key) and `alias_e2e_test.py`, replacing the duplicate handler and
   urllib's default redirect-following.
-- `cma_jq_edit` (lib.sh): one atomic, loud JSON edit used by `claude-providers add`,
-  `claude-unify` (enabledPlugins union) and `jev-setup` merges, instead of
-  swallowing jq errors.
+- `cma_jq_edit` (lib.sh): one atomic, loud JSON edit used by `claude-providers add`
+  and `claude-unify` (enabledPlugins union), instead of swallowing jq errors.
+  `jev-setup.sh` does NOT use it: it has its own `_jq_merge` (atomic, backup
+  first, owner-only permissions) which checks jq's exit status and is covered
+  by test J, which drives the real `jev-setup.sh`.
 - `assert.sh summary()` fails a test file that asserted nothing; two test fixtures
   no longer lose server PIDs in a `$(...)` subshell.
 - `specs/003-jev-decision-layer/{spec,plan,tasks}.md` ported (historical spec with a
   status header; the design file it cites was never found, UNCONFIRMED whether it
-  was written; task T017 is not present in the current code).
+  was written). Its task T017 (the Kimi hook block) is implemented in this
+  release; see Added.
+- Review-round fixes (independent review NO-GO, closed by class):
+  `jev-setup --uninstall` now removes the canonical gate copy and the renderer
+  honours the installed stamp, so the next render no longer re-adds the Kimi
+  hook block; `_jq_merge` in `jev-setup.sh` checks jq's exit status (a
+  `jq -e` false/null no longer overwrites a file); a `routes.json` candidate's
+  own `ca_file` is used for that candidate's TLS and an unreadable one fails
+  closed (no request is sent); IPv6 hosts are bracketed in detector URLs; a
+  non-loopback https gateway that fails `/healthz` for another reason now warns
+  `did not answer` (new diagnostic, alongside the four above). Tests added for
+  each: the plain-http and https Authorization sink-side checks, host-only and
+  scheme-only redirect hops, the matcher value, backslash TOML, the
+  install/render/uninstall/render lifecycle, the IPv6 table, `_jq_merge`
+  status and per-candidate CA. `test_jev_detect_https.sh` K2 no longer reads
+  an ambient `TYPESAFE_API_KEY`.
+- Review round 2 (NO-GO, closed by class). Agent scope and lifecycle:
+  `jev-setup` records WHICH agents were selected in `installed.stamp`
+  (`agents=<csv>`, union across runs); the Kimi twin renderer emits its hook
+  block only when the stamp lists `kimi` (or `all`), so a Claude-only install
+  no longer wires Kimi twins, and a legacy empty stamp (pre-1.32.1) names
+  nobody, so the renderer fails closed for it; `jev-setup --if-stale` and
+  `--check` without `--agents` derive their scope from the stamp (or, for a
+  legacy/empty stamp, from the wiring actually found in the agent homes)
+  instead of widening to all four agents, and `jev-setup --agents kimi` is
+  how a legacy install opts its Kimi twins in. `--uninstall --agents X` inventories the wiring
+  of every other agent and removes the shared gate, env file, bin links and
+  stamp only when none remains; otherwise it keeps them and rewrites the stamp.
+  `--check` verifies that each hook target exists and is executable (not only
+  that the string is present), flags a stale Kimi matcher, and exits non-zero
+  on any finding. The Kimi install rewrites an existing marker block whose
+  matcher differs (the native `~/.kimi-code-*` upgrade path). The matcher
+  constant file is the only source (no second hard-coded copy); a missing or
+  invalid file warns, naming `jev-kimi-tools.txt`. The twin refresh keeps the
+  original config unless the rewritten file is complete and mode 600.
+  Tests: `test_jev_setup_lifecycle.sh` (13 cells driven through the real
+  `jev-setup.sh` and the real renderer), matcher semantics checked with
+  node `RegExp.test`, a readable-but-wrong candidate CA with a good
+  `JEV_CA_FILE` yields no request, and 12 new mutation rows.
 - Out of this repository (reported, not changed here): the `validate_judge.py`
   redirect handler and `run_golden.py` / `review_translation.py` (llmctl,
   constitution), `curl -k` in `validate_bridge.sh`, the SonarQube `curl -u` token.
@@ -86,12 +256,25 @@ documentation, a user-manual index, two new diagrams and tests.
 
 ### Added
 
-- Kimi provider twins (`~/.kimi-prov-*/config.toml`) now carry the Jev `PreToolUse`
-  gate as a marker-guarded `[[hooks]]` block (`# cma-jev:hooks BEGIN/END`),
-  rendered by `_cma_kimi_render_config` only while the Jev endpoint cache has an
-  endpoint and the installed gate is executable (spec task T017, which earlier
-  docs described as done before it existed). Kimi's runtime acceptance of the
-  hook is not exercised live. Test: `test_kimi_render_config_jev_hooks.sh`.
+- Kimi hooks (spec task T017, implemented here; earlier docs described it as
+  done before it existed). Kimi provider twins (`~/.kimi-prov-*/config.toml`)
+  carry the Jev `PreToolUse` gate as a marker-guarded `[[hooks]]` block
+  (`# cma-jev:hooks BEGIN/END`), rendered by `_cma_kimi_render_config` only
+  while ALL hold: jev-setup's `installed.stamp` exists, the Jev endpoint cache
+  has an endpoint, and the installed gate is executable. The matcher is
+  `Bash|Write|Edit`, defined once in `scripts/jev-kimi-tools.txt` and read by
+  both the renderer and `jev-setup.sh` (the earlier `WriteFile|StrReplaceFile`
+  names are not Kimi tools: its real file tools are Write and Edit,
+  control-needled against the installed Kimi Code 2.2.0 binary, the only
+  version checked; Kimi tests the matcher with an unanchored
+  `RegExp.test(toolName)`, so the matcher is a plain `|` list of names). A gate
+  path containing a backslash, double quote or control character is refused by
+  BOTH writers (the renderer and `jev-setup.sh`), through one shared validator
+  in `scripts/jev-kimi-lib.sh`, because it cannot be written into a TOML
+  string. `claude-providers sync` and `sync-jev` re-render
+  the twins after the endpoint cache is written. Kimi's runtime acceptance of
+  the hook is not exercised live. Tests:
+  `test_kimi_render_config_jev_hooks.sh`, `test_jev_setup_idempotent.sh`.
 - `docs/User_Manual.md`: explicit manual index over every guide, FAQ and
   diagram (Constitution §11.4.257), linked from the README.
 - Diagrams `docs/diagrams/hub-engine-placement.{mmd,svg}` (hub-engine
@@ -117,8 +300,9 @@ documentation, a user-manual index, two new diagrams and tests.
   positive control, gate env-key resolution, jev_mcp TLS trust and redirect
   refusal, cache/env with a missing CA, server-leak assertion; H8 is a counted
   skip on hosts without a non-loopback address) and
-  `test_jev_detect_https_mutation.sh` (every reviewer mutation, each must fail
-  its suite). `assert.sh` gains a counted `_skip`. `scripts/tests/test_llmctl_vision_gate_wiring.sh` (fake llmctl:
+  `test_jev_detect_https_mutation.sh` (every table mutation, each must fail
+  its suite; the unmutated control runs every suite the table owns; count is
+  `python3 scripts/tests/lib/jev_mutations.py list | wc -l`, currently 65). `assert.sh` gains a counted `_skip`. `scripts/tests/test_llmctl_vision_gate_wiring.sh` (fake llmctl:
   `LLMCTL_VALIDATE_STRICT` is forwarded, gate exits 1/2/75 abort the launch,
   non-llmctl aliases untouched) and `scripts/tests/test_docs_hub_engine_release.sh`
   (manual/README link lint, required topics, diagram presence, doc twins

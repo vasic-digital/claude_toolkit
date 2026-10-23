@@ -243,12 +243,13 @@ routing, and truncation judgments and to never disable the gate silently.
 
 **Kimi Code:** native homes `~/.kimi-code-*/config.toml` get an additive
 block between `# cma-jev:hooks BEGIN/END` comment markers (TOML ignores
-comments; skipped when present):
+comments; an identical block is left alone, a differing one is rewritten
+in place, atomically and after a `*.prejev.<ts>` backup):
 
 ```toml
 [[hooks]]
 event = "PreToolUse"
-matcher = "Bash|WriteFile|StrReplaceFile"
+matcher = "Bash|Write|Edit"
 command = "<abs>/jev-gate.sh"
 timeout = 5
 ```
@@ -257,7 +258,11 @@ Provider homes `~/.kimi-prov-*` receive the same block from the config
 renderer on the next `claude-providers sync`, but only while the Jev endpoint
 cache holds at least one endpoint and the installed gate
 (`~/.local/share/claude-multi-account/jev/jev-gate.sh`, installed by
-`jev-setup`) is executable; with an empty cache the block is absent (the
+`jev-setup`) is executable and `jev-setup` has been run for Kimi (its
+`installed.stamp` must exist AND list `kimi` or `all`; a legacy empty stamp or
+one listing only other agents does not count; `jev-setup --uninstall` removes
+it, so the block is not re-added). The matcher string lives once in `scripts/jev-kimi-tools.txt`
+and is read by both the renderer and `jev-setup`; with an empty cache the block is absent (the
 renderer rewrites the file atomically each sync, so the block is regenerated,
 never duplicated, and removed when no endpoint remains). Kimi's own runtime
 acceptance of the hook has not been exercised live. Every
@@ -413,6 +418,13 @@ mapping a `decision_type` string to an ordered list of candidate endpoints
   honestly — it reports `degraded: true, agreement: false` and falls back
   to the highest-priority live answer rather than silently trusting one
   candidate.
+
+**Per-candidate CA:** a candidate may carry its own `ca_file`. A relative
+path resolves against the directory of the `JEV_ROUTES_FILE` that names it
+(never the process working directory). A candidate with no `ca_file`
+deliberately trusts `JEV_CA_FILE` as an extra root on top of the system store.
+An explicit `ca_file` that is unreadable fails closed; TLS verification is
+never off.
 
 **Honest limitation:** this environment has no second real decision model
 (Kev, Laya, etc. — surveyed in `docs/research/jev-ecosystem.md`) reachable

@@ -30,20 +30,33 @@ JEV_STATE_DIR="${JEV_STATE_DIR:-$HOME/.local/state/jev}"
 JEV_CONFIG_DIR="$HOME/.config/jev"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 GATE_INSTALLED="$JEV_DIR/jev-gate.sh"
+# Shared Kimi helpers (ONE validator + ONE constant file for BOTH TOML writers:
+# this script and claude-providers.sh).
+# shellcheck source=jev-kimi-lib.sh
+if ! . "$SCRIPTS_DIR/jev-kimi-lib.sh"; then
+  printf 'jev-setup: cannot load %s/jev-kimi-lib.sh\n' "$SCRIPTS_DIR" >&2
+  exit 1
+fi
+KIMI_MATCHER=""        # resolved lazily by _kimi_matcher_init (no built-in fallback copy)
+_KIMI_MATCHER_TRIED=0
 MCP_SERVER="$SCRIPTS_DIR/jev_mcp.py"
 CACHE="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
 
 AGENTS="claude,kimi,pi,opencode"
-MODE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0 CONSENT="${JEV_SETUP_CONSENT:-0}"
+AGENTS_EXPLICIT=0
+ALL_AGENTS="claude,kimi,pi,opencode"
+MODE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0 IF_STALE_ON=0 CONSENT="${JEV_SETUP_CONSENT:-0}"
+_usage_err() { printf 'jev-setup: %s\n' "$*" >&2; exit 2; }
+_need_val() { [ "$1" -ge 2 ] || _usage_err "$2 needs a value"; }
 while [ $# -gt 0 ]; do
   case "$1" in
-    --agents|--agent) AGENTS="$2"; shift 2 ;;
-    --agents=*|--agent=*) AGENTS="${1#*=}"; shift ;;
-    --mode) MODE="$2"; shift 2 ;;
+    --agents|--agent) _need_val $# "$1"; AGENTS="$2"; AGENTS_EXPLICIT=1; shift 2 ;;
+    --agents=*|--agent=*) AGENTS="${1#*=}"; AGENTS_EXPLICIT=1; shift ;;
+    --mode) _need_val $# "$1"; MODE="$2"; shift 2 ;;
     --check) CHECK=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
-    --if-stale) IF_STALE="$2"; shift 2 ;;
+    --if-stale) _need_val $# "$1"; IF_STALE="$2"; IF_STALE_ON=1; shift 2 ;;
     --quiet) QUIET=1; shift ;;
     --yes|-y) CONSENT=1; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -51,13 +64,40 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# ---- argument validation (usage errors, rc 2, before ANY write) -------------
+# --check is an audit and --uninstall is a write: the combination is ambiguous
+# (it used to really uninstall), so it is refused rather than half-honoured.
+if [ "$CHECK" = 1 ] && [ "$UNINSTALL" = 1 ]; then
+  _usage_err "--check and --uninstall cannot be combined (--check never writes; run them separately)"
+fi
+case "$IF_STALE" in ''|*[!0-9]*) _usage_err "--if-stale needs a number of seconds, got '$IF_STALE'" ;; esac
+# Agent names are an exact, case-sensitive closed set. An unknown or miscased
+# value used to be dropped silently and produced an empty `agents=` stamp.
+_validate_agents() { # _validate_agents <csv>
+  local csv="$1" a
+  local -a _arr
+  [ -n "$csv" ] || _usage_err "--agents needs a non-empty list (claude,kimi,pi,opencode or all)"
+  # A comma list only: whitespace would be word-split (and glob-expanded) and an
+  # empty entry (',' ',,' 'claude,') names nobody - both used to pass silently.
+  case "$csv" in *[[:space:]]*) _usage_err "--agents '$csv' contains whitespace: use a comma separated list (claude,kimi,pi,opencode or all)" ;; esac
+  case ",$csv," in *,,*) _usage_err "--agents '$csv' has an empty entry: needs a non-empty list (claude,kimi,pi,opencode or all)" ;; esac
+  IFS=, read -r -a _arr <<<"$csv"
+  for a in "${_arr[@]}"; do
+    case "$a" in
+      claude|kimi|pi|opencode|all) : ;;
+      *) _usage_err "unknown agent '$a' in --agents '$csv' (known, case-sensitive: claude, kimi, pi, opencode, all)" ;;
+    esac
+  done
+}
+_validate_agents "$AGENTS"
+
 # CONSENT GATE. This script edits files in agent homes (~/.claude, ~/.kimi-code,
 # ~/.pi, ~/.config/opencode ...). It does so only with explicit consent:
 # --yes, JEV_SETUP_CONSENT=1, an interactive "y", or - for the launch-time lazy
 # --if-stale refresh only - a consent stamp left by an earlier consented run.
 # --check never writes and --uninstall only restores, so neither needs it.
 if [ "$CHECK" = 0 ] && [ "$UNINSTALL" = 0 ] && [ "$CONSENT" != 1 ]; then
-  if [ "$IF_STALE" -gt 0 ] && [ -f "$JEV_STATE_DIR/consent" ]; then
+  if [ "$IF_STALE_ON" = 1 ] && [ -f "$JEV_STATE_DIR/consent" ]; then
     CONSENT=1
   elif [ -t 0 ] && [ -t 1 ] && [ "$QUIET" = 0 ]; then
     printf 'jev-setup will edit agent configuration under your home (a backup is made first). Continue? [y/N] ' >&2
@@ -65,7 +105,7 @@ if [ "$CHECK" = 0 ] && [ "$UNINSTALL" = 0 ] && [ "$CONSENT" != 1 ]; then
     case "$_ans" in y|Y|yes|YES) CONSENT=1 ;; esac
   fi
   if [ "$CONSENT" != 1 ]; then
-    if [ "$IF_STALE" -le 0 ] && [ "$QUIET" = 0 ]; then
+    if [ "$IF_STALE_ON" = 0 ] && [ "$QUIET" = 0 ]; then
       printf 'jev-setup: not editing any agent home without consent.\n  Preview: jev-setup --check\n  Apply:   jev-setup --yes   (or JEV_SETUP_CONSENT=1); every edited file is backed up first (*.prejev.<timestamp>)\n' >&2
     fi
     exit 3
@@ -76,21 +116,49 @@ if [ "$CONSENT" = 1 ] && [ "$CHECK" = 0 ] && [ "$UNINSTALL" = 0 ]; then
 fi
 
 _say() { [ "$QUIET" = 1 ] || printf '%s\n' "$*"; }
+_warn() { printf '%s\n' "$*" >&2; }      # never silenced by --quiet
 _want() { case ",$AGENTS," in *,"$1",*|*,all,*) return 0 ;; *) return 1 ;; esac }
 
-# --if-stale: launch-time lazy refresh hook (cma_jev_env calls this).
-if [ "$IF_STALE" -gt 0 ] && [ "$UNINSTALL" = 0 ] && [ "$CHECK" = 0 ]; then
-  _stamp="$JEV_STATE_DIR/installed.stamp"
-  if [ -f "$_stamp" ]; then
-    _now=$(date +%s); _mt=$(stat -c %Y "$_stamp" 2>/dev/null || stat -f %m "$_stamp" 2>/dev/null || echo 0)
-    [ $(( _now - _mt )) -lt "$IF_STALE" ] && exit 0
-  fi
-fi
+# ---- the install stamp records WHICH agents were consented to ---------------
+# File format: one line `agents=<comma list>`. Its mtime is the --if-stale clock.
+# A legacy/empty stamp names nobody (the twin renderer then fails closed).
+STAMP_FILE="$JEV_STATE_DIR/installed.stamp"
+_canon_agents() { # <csv or all> -> canonical ordered csv of known agents
+  local want=",$1," a out=""
+  for a in ${ALL_AGENTS//,/ }; do
+    case "$want" in *,"$a",*|*,all,*) out="${out:+$out,}$a" ;; esac
+  done
+  printf '%s' "$out"
+}
+# Canonicalised: a hand-edited stamp naming only unknown agents reads as EMPTY
+# (never widens the scope, never round-trips into an empty `agents=` stamp).
+_stamp_agents() { _canon_agents "$(jev_kimi_stamp_agents "$STAMP_FILE")"; }
+_stamp_write() { # _stamp_write <csv> — atomic, owner-only
+  local csv="$1" tmp
+  mkdir -p "$JEV_STATE_DIR" 2>/dev/null || return 0
+  tmp="$(umask 077; mktemp "$STAMP_FILE.tmp.XXXXXX")" || return 0
+  printf 'agents=%s\n' "$csv" > "$tmp" && mv -f "$tmp" "$STAMP_FILE" || rm -f "$tmp"
+}
+_csv_union() { _canon_agents "$1,$2"; }
+_csv_minus() { # _csv_minus <csv> <remove-csv>
+  local a out="" rm_=",$2,"
+  for a in ${1//,/ }; do
+    case "$rm_" in *,"$a",*|*,all,*) : ;; *) out="${out:+$out,}$a" ;; esac
+  done
+  printf '%s' "$out"
+}
 
+# FAIL-CLOSED: returns 1 (and warns) when the backup cannot be made, and every
+# caller then leaves the file untouched - "a backup is made first" must hold.
 _backup() { # _backup <file> — copy once per run, only when we will write
   [ -f "$1" ] || return 0
   local dst="$1.prejev.$(date +%Y%m%d%H%M%S)"
-  [ -e "$dst" ] || cp -p "$1" "$dst" 2>/dev/null || true
+  [ -e "$dst" ] && return 0
+  if ! cp -p "$1" "$dst" 2>/dev/null; then
+    rm -f "$dst" 2>/dev/null
+    printf 'jev-setup: backup of %s failed - left untouched (nothing written)\n' "$1" >&2
+    return 1
+  fi
 }
 
 # _jq_merge <file> <jq-program> [args...] — atomic, backup-first, no-op-safe.
@@ -100,15 +168,16 @@ _jq_merge() {
   local file="$1" prog="$2"; shift 2
   [ -f "$file" ] || (umask 077; printf '{}\n' > "$file")
   local tmp; tmp=$(umask 077; mktemp "$file.jevtmp.XXXXXX")
-  local _jqerr; _jqerr="$(jq "$@" "$prog" "$file" 2>&1 >"$tmp")"
-  if [ -z "$_jqerr" ] && [ -s "$tmp" ]; then
+  local _jqerr _jqrc=0
+  _jqerr="$(jq "$@" "$prog" "$file" 2>&1 >"$tmp")" || _jqrc=$?
+  if [ "$_jqrc" -eq 0 ] && [ -z "$_jqerr" ] && [ -s "$tmp" ]; then
     if cmp -s "$tmp" "$file"; then rm -f "$tmp"; return 0; fi
-    _backup "$file"
+    _backup "$file" || { rm -f "$tmp"; return 1; }
     mv "$tmp" "$file"
     chmod 600 "$file" 2>/dev/null || true
   else
     rm -f "$tmp"
-    printf 'jev-setup: jq merge failed for %s - left untouched: %s\n' "$file" "${_jqerr:-empty result}" >&2
+    printf 'jev-setup: jq merge failed for %s - left untouched (jq rc=%s): %s\n' "$file" "$_jqrc" "${_jqerr:-empty result}" >&2
     return 1
   fi
 }
@@ -122,7 +191,7 @@ _jev_endpoint_env() { # echoes TAB-separated base_url, api_key
     kv=$(jq -r '.endpoints[0].key_var // ""' "$CACHE" 2>/dev/null)
   fi
   if [ -n "$kv" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
-    key=$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$kv"':-}"')
+    key=$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$kv"':-}"' 7>&-)
   fi
   printf '%s\t%s' "$base" "${key:-local}"
 }
@@ -130,12 +199,6 @@ _jev_endpoint_env() { # echoes TAB-separated base_url, api_key
 # ---------------------------------------------------------------------------
 # common
 install_common() {
-  if [ "$UNINSTALL" = 1 ]; then
-    rm -f "$BIN_DIR/jev_mcp.py" "$BIN_DIR/jev-gate.sh" "$BIN_DIR/jev-stats.sh" 2>/dev/null || true
-    rm -f "$JEV_CONFIG_DIR/env" "$JEV_STATE_DIR/installed.stamp" 2>/dev/null || true
-    _say "jev-setup: removed common artifacts (state dir $JEV_STATE_DIR kept)"
-    return 0
-  fi
   [ "$CHECK" = 1 ] && { _say "common: would install gate copy, env file, bin links"; return 0; }
   mkdir -p "$JEV_DIR" "$JEV_STATE_DIR" "$JEV_CONFIG_DIR" "$BIN_DIR" "$SHARED_DIR/jev" 2>/dev/null || true
   # Canonical shared gate copy (content-addressed).
@@ -153,7 +216,50 @@ install_common() {
   # Convenience bin links (real install.sh links the .sh names; the MCP
   # server is registered by absolute repo path, the link is a convenience).
   [ -e "$BIN_DIR/jev_mcp.py" ] || ln -s "$MCP_SERVER" "$BIN_DIR/jev_mcp.py" 2>/dev/null || true
-  touch "$JEV_STATE_DIR/installed.stamp"
+  # Consent record: WHICH agents were selected (union with earlier runs).
+  _stamp_write "$(_csv_union "$(_stamp_agents)" "$AGENTS")"
+}
+
+# Inventory of the wiring that is ACTUALLY present for each agent, read from the
+# agent homes themselves (never from the stamp alone). Prints a canonical csv.
+_inventory_wiring() {
+  local found="" home sf
+  while IFS= read -r home; do
+    sf="$home/settings.json"
+    [ -f "$sf" ] && jq -e '[ .hooks.PreToolUse[]? | [ .hooks[]?.command? // "" | contains("jev-gate.sh") ] | any ] | any' "$sf" >/dev/null 2>&1 \
+      && { found="$found,claude"; break; }
+  done < <(_claude_homes)
+  while IFS= read -r home; do
+    [ -f "$home/config.toml" ] && grep -qF "$KIMI_HOOK_BEGIN" "$home/config.toml" 2>/dev/null \
+      && { found="$found,kimi"; break; }
+  done < <(_kimi_homes)
+  if [ -e "$HOME/.config/opencode/plugins/jev-gate.js" ] \
+     || jq -e '.mcp.jev' "$OPENCODE_CONFIG" >/dev/null 2>&1; then
+    found="$found,opencode"
+  fi
+  _canon_agents "$found"
+}
+
+# Shared artifacts are removed ONLY when no agent wiring remains: the canonical
+# gate is the target of the Claude hook, the Kimi hook blocks and the twin
+# renderer, so deleting it for one agent would dangle the others (review round 2).
+uninstall_common() {
+  local remaining inv keep
+  remaining="$(_csv_minus "$(_stamp_agents)" "$AGENTS")"
+  inv="$(_inventory_wiring)"
+  keep="$(_csv_union "$remaining" "$inv")"
+  if [ -n "$keep" ]; then
+    _stamp_write "$keep"
+    _say "jev-setup: kept shared artifacts (gate, env, stamp): still wired for: $keep"
+    return 0
+  fi
+  rm -f "$BIN_DIR/jev_mcp.py" "$BIN_DIR/jev-gate.sh" "$BIN_DIR/jev-stats.sh" 2>/dev/null || true
+  rm -f "$JEV_CONFIG_DIR/env" "$STAMP_FILE" 2>/dev/null || true
+  # The canonical gate copy too: the Kimi twin renderer keys on it (plus the
+  # stamp above), so leaving it behind would let the next `claude-providers
+  # sync` re-add the hooks block this uninstall just stripped.
+  rm -f "$GATE_INSTALLED" 2>/dev/null || true
+  _say "jev-setup: removed common artifacts (state dir $JEV_STATE_DIR kept)"
 }
 
 # ---------------------------------------------------------------------------
@@ -177,6 +283,7 @@ _claude_homes() { # one dir per line: shared seed + all account/provider homes
   [ -d "$SHARED_DIR" ] && printf '%s\n' "$SHARED_DIR"
   local d
   for d in "$HOME"/.claude-* "$HOME"/.claude-prov-*; do
+    case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
     [ -d "$d" ] && printf '%s\n' "$d"
   done
 }
@@ -188,7 +295,7 @@ install_claude() {
   local home sf mcpf changed=0
   local ep_base ep_key IFS_SAVE="$IFS"
   IFS="$(printf '\t')"; read -r ep_base ep_key <<EOF
-$(_jev_endpoint_env)
+$(exec 7>&-; _jev_endpoint_env)
 EOF
   IFS="$IFS_SAVE"
   while IFS= read -r home; do
@@ -207,7 +314,26 @@ EOF
     fi
     if [ "$CHECK" = 1 ]; then
       if jq -e '[ .hooks.PreToolUse[]? | [ .hooks[]?.command? // "" | contains("jev-gate.sh") ] | any ] | any' "$sf" >/dev/null 2>&1; then
-        _say "claude: $sf hooks OK"
+        # The string being present is not enough: every registered gate command
+        # must resolve to an executable file, or the hook fails open silently.
+        local _c _bad=0
+        while IFS= read -r _c; do
+          [ -n "$_c" ] || continue
+          # The hook "command" is a command line, not necessarily a bare path
+          # (`bash /x/jev-gate.sh`): the whole string if it is a file, else the
+          # token naming the gate.
+          if [ ! -e "$_c" ]; then
+            # Drop leading words (the interpreter) until the rest names a file, so
+            # a gate path that contains spaces still resolves; quotes are stripped.
+            local _w="${_c%%jev-gate.sh*}jev-gate.sh"
+            while [ ! -e "$_w" ] && [[ "$_w" == *" "* ]]; do _w="${_w#* }"; done
+            _w="${_w#[\"\']}"; _w="${_w%[\"\']}"
+            case "$_w" in *jev-gate.sh) _c="$_w" ;; esac
+          fi
+          if [ ! -e "$_c" ]; then _say "claude: $sf hook target $_c MISSING"; _bad=1
+          elif [ ! -x "$_c" ]; then _say "claude: $sf hook target $_c not executable"; _bad=1; fi
+        done < <(jq -r '.hooks.PreToolUse[]? | .hooks[]?.command? // empty | select(contains("jev-gate.sh"))' "$sf" 2>/dev/null)
+        if [ "$_bad" = 0 ]; then _say "claude: $sf hooks OK"; else changed=1; fi
       else
         _say "claude: $sf MISSING jev hook"; changed=1
       fi
@@ -233,12 +359,14 @@ EOF
   local cmd_file="$SHARED_DIR/CLAUDE.md"
   if [ "$UNINSTALL" = 1 ]; then
     if [ -f "$cmd_file" ] && grep -qF "$CLAUDE_MD_BEGIN" "$cmd_file"; then
-      _backup "$cmd_file"
       local tmp="$cmd_file.jevtmp.$$"
-      awk -v b="$CLAUDE_MD_BEGIN" -v e="$CLAUDE_MD_END" '
-        $0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip { print }
-      ' "$cmd_file" > "$tmp" && mv "$tmp" "$cmd_file"
-      _say "jev-setup: removed CLAUDE.md decision-architecture block"
+      if _backup "$cmd_file"; then
+        awk -v b="$CLAUDE_MD_BEGIN" -v e="$CLAUDE_MD_END" '
+          $0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip { print }
+        ' "$cmd_file" > "$tmp" && mv "$tmp" "$cmd_file"
+        rm -f "$tmp"
+        _say "jev-setup: removed CLAUDE.md decision-architecture block"
+      fi
     fi
   elif [ "$CHECK" = 1 ]; then
     if [ -f "$cmd_file" ] && grep -qF "$CLAUDE_MD_BEGIN" "$cmd_file"; then
@@ -249,8 +377,7 @@ EOF
   else
     mkdir -p "$SHARED_DIR" 2>/dev/null || true
     [ -f "$cmd_file" ] || printf '# Shared Claude Instructions\n' > "$cmd_file"
-    if ! grep -qF "$CLAUDE_MD_BEGIN" "$cmd_file"; then
-      _backup "$cmd_file"
+    if ! grep -qF "$CLAUDE_MD_BEGIN" "$cmd_file" && _backup "$cmd_file"; then
       cat >> "$cmd_file" <<'CLAUDE_MD_EOF'
 
 <!-- cma-jev:decision-architecture BEGIN -->
@@ -277,59 +404,129 @@ KIMI_HOOK_END='# cma-jev:hooks END'
 _kimi_homes() {
   local d
   for d in "$HOME"/.kimi-code-* "$HOME"/.kimi-prov-*; do
+    case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
     [ -d "$d" ] && printf '%s\n' "$d"
   done
 }
 
+# Resolve the matcher from the ONE constant file (warns, once, when it is
+# missing or invalid: there is deliberately no private fallback copy).
+_kimi_matcher_init() {
+  [ "$_KIMI_MATCHER_TRIED" = 1 ] && { [ -n "$KIMI_MATCHER" ]; return; }
+  _KIMI_MATCHER_TRIED=1
+  local err
+  if KIMI_MATCHER="$(jev_kimi_matcher "$SCRIPTS_DIR" 2>/dev/null)" && [ -n "$KIMI_MATCHER" ]; then
+    return 0
+  fi
+  KIMI_MATCHER=""
+  err="$(jev_kimi_matcher "$SCRIPTS_DIR" 2>&1 >/dev/null)"
+  _warn "jev-setup: kimi - ${err:-jev-kimi-tools.txt unusable}; no hook block is written or verified (fix jev-kimi-tools.txt)"
+  return 1
+}
+
+# The exact [[hooks]] block this version wants (BEGIN..END, no leading blank).
+_kimi_block_desired() {
+  printf '%s\n[[hooks]]\nevent = "PreToolUse"\nmatcher = "%s"\ncommand = "%s"\ntimeout = 5\n%s\n' \
+    "$KIMI_HOOK_BEGIN" "$KIMI_MATCHER" "$GATE_INSTALLED" "$KIMI_HOOK_END"
+}
+_kimi_block_current() { # BEGIN..END lines of the existing block
+  awk -v b="$KIMI_HOOK_BEGIN" -v e="$KIMI_HOOK_END" '
+    $0 == b { on = 1 } on { print } $0 == e { on = 0 }' "$1"
+}
+# _kimi_block_write <file> strip|set — atomic, backup-first rewrite of the
+# marker block. The WHOLE new file is built in a temp (block removed together
+# with the blank lines directly in front of it, so repeated rewrites never grow
+# the file; then, for `set`, one separator blank line when anything precedes it,
+# and the desired block) and moved into place only when every step succeeded.
+# An empty remainder is legitimate (a block-only config): only a failed awk/
+# write/mv refuses, leaving the original untouched.
+_kimi_block_write() {
+  local f="$1" mode="$2" tmp
+  # A symlinked config.toml is rewritten THROUGH the link (mv over the link
+  # would replace the link itself with a regular file and orphan its target).
+  [ -L "$f" ] && f="$(readlink -f "$f" 2>/dev/null || printf '%s' "$f")"
+  tmp="$(umask 077; mktemp "$f.jevtmp.XXXXXX")" || { _warn "jev-setup: cannot create a temp file next to $f - left untouched"; return 1; }
+  if awk -v b="$KIMI_HOOK_BEGIN" -v e="$KIMI_HOOK_END" '
+       skip { if ($0 == e) skip = 0; next }
+       $0 == b { skip = 1; pend = 0; next }
+       $0 == "" { pend++; next }
+       { while (pend > 0) { print ""; pend-- } print }
+       END { while (pend > 0) { print ""; pend-- } }' "$f" > "$tmp" \
+     && { [ "$mode" != set ] || {
+            { [ ! -s "$tmp" ] || printf '\n' >> "$tmp"; } && _kimi_block_desired >> "$tmp"
+          }; }; then
+    if cmp -s "$tmp" "$f"; then rm -f "$tmp"; return 0; fi
+    if _backup "$f" && mv -f "$tmp" "$f"; then chmod 600 "$f" 2>/dev/null || true; return 0; fi
+  fi
+  rm -f "$tmp"
+  _warn "jev-setup: could not rewrite the hooks block of $f - left untouched"
+  return 1
+}
+
 install_kimi() {
-  local home conf mcpf changed=0 ep_base ep_key IFS_SAVE="$IFS"
+  local home conf mcpf changed=0 ep_base ep_key IFS_SAVE="$IFS" hooks_ok=0
   IFS="$(printf '\t')"; read -r ep_base ep_key <<EOF
-$(_jev_endpoint_env)
+$(exec 7>&-; _jev_endpoint_env)
 EOF
   IFS="$IFS_SAVE"
+  if [ "$UNINSTALL" = 0 ]; then
+    # Same validator as the twin renderer: the gate path is emitted inside a TOML
+    # basic string, so a backslash, quote or control character would corrupt the
+    # config (or inject keys). Refuse loudly instead of writing.
+    if ! jev_kimi_gate_path_safe "$GATE_INSTALLED"; then
+      _warn "jev-setup: kimi - refusing to write a hook block: the gate path contains a backslash, quote or control character (unsafe in a TOML string): $(printf '%q' "$GATE_INSTALLED")"
+    elif _kimi_matcher_init; then
+      hooks_ok=1
+    fi
+  fi
   while IFS= read -r home; do
     conf="$home/config.toml"
     if [ "$UNINSTALL" = 1 ]; then
       if [ -f "$conf" ] && grep -qF "$KIMI_HOOK_BEGIN" "$conf"; then
-        _backup "$conf"
-        local tmp="$conf.jevtmp.$$"
-        awk -v b="$KIMI_HOOK_BEGIN" -v e="$KIMI_HOOK_END" '
-          $0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip { print }
-        ' "$conf" > "$tmp" && mv "$tmp" "$conf"
+        _kimi_block_write "$conf" strip
       fi
       mcpf="$home/mcp.json"
       [ -f "$mcpf" ] && _jq_merge "$mcpf" 'del(.mcpServers.jev) | if .mcpServers == {} then del(.mcpServers) else . end'
       continue
     fi
-    # Additive [[hooks]] block, comment-marker guarded (TOML ignores comments;
-    # skip when present). Native kimi homes only — kimi-prov homes get this
-    # block from the renderer (_cma_kimi_jev_hooks_block) at the next
-    # `claude-providers sync`, only while the endpoint cache is non-empty and
-    # the installed gate is executable. --uninstall strips it from both kinds.
+    # Additive [[hooks]] block, comment-marker guarded (TOML ignores comments).
+    # Native kimi homes only - kimi-prov homes get this block from the renderer
+    # (_cma_kimi_jev_hooks_block) at the next `claude-providers sync`, only while
+    # the endpoint cache is non-empty, the stamp lists kimi and the installed gate
+    # is executable. --uninstall strips it from both kinds. An existing block that
+    # differs from the desired one (an older matcher/command, e.g. the v1.31.0
+    # `Bash|WriteFile|StrReplaceFile`) is REWRITTEN, not skipped.
     case "$home" in
       */.kimi-code-*)
         if [ -f "$conf" ]; then
           if [ "$CHECK" = 1 ]; then
-            grep -qF "$KIMI_HOOK_BEGIN" "$conf" \
-              && _say "kimi: $conf hooks OK" || { _say "kimi: $conf MISSING hooks"; changed=1; }
-          elif ! grep -qF "$KIMI_HOOK_BEGIN" "$conf"; then
-            _backup "$conf"
-            cat >> "$conf" <<KIMI_HOOK_EOF
-
-$KIMI_HOOK_BEGIN
-[[hooks]]
-event = "PreToolUse"
-matcher = "Bash|WriteFile|StrReplaceFile"
-command = "$GATE_INSTALLED"
-timeout = 5
-$KIMI_HOOK_END
-KIMI_HOOK_EOF
+            if ! grep -qF "$KIMI_HOOK_BEGIN" "$conf"; then
+              _say "kimi: $conf MISSING hooks"; changed=1
+            elif ! _kimi_matcher_init; then
+              changed=1
+            elif [ "$(_kimi_block_current "$conf")" != "$(_kimi_block_desired)" ]; then
+              _say "kimi: $conf hooks STALE (matcher/command differ from this version: re-run jev-setup --agents kimi)"; changed=1
+            elif [ ! -e "$GATE_INSTALLED" ]; then
+              _say "kimi: $conf hook target $GATE_INSTALLED MISSING"; changed=1
+            elif [ ! -x "$GATE_INSTALLED" ]; then
+              _say "kimi: $conf hook target $GATE_INSTALLED not executable"; changed=1
+            else
+              _say "kimi: $conf hooks OK"
+            fi
+          elif [ "$hooks_ok" = 1 ]; then
+            if grep -qF "$KIMI_HOOK_BEGIN" "$conf"; then
+              if [ "$(_kimi_block_current "$conf")" != "$(_kimi_block_desired)" ]; then
+                _kimi_block_write "$conf" set || changed=1
+              fi
+            else
+              _kimi_block_write "$conf" set || changed=1
+            fi
           fi
         fi
         ;;
     esac
     # mcp.json for BOTH native and provider homes (create if absent). NOTE:
-    # TYPESAFE_API_KEY is materialized here — kimi mcp.json lives in a 0700
+    # TYPESAFE_API_KEY is materialized here - kimi mcp.json lives in a 0700
     # home, the same secrecy class as kimi's own resolved api_key in
     # config.toml, which the toolkit already writes.
     mcpf="$home/mcp.json"
@@ -369,14 +566,14 @@ install_pi() {
     _say "jev-setup: pi — SKIP (npm not found). Manual: PI_CODING_AGENT_DIR=<home> pi install npm:@riposta/pi-jev"
     return 0
   fi
-  if timeout 3 npm view @riposta/pi-jev version >/dev/null 2>&1; then
+  if timeout 3 npm view @riposta/pi-jev version >/dev/null 2>&1 7>&-; then
     if [ "$CHECK" = 1 ]; then
       _say "jev-setup: pi — would run: pi install npm:@riposta/pi-jev for each ~/.pi-*/ ~/.pi-prov-*/"
       return 0
     fi
     for d in "$HOME"/.pi-* "$HOME"/.pi-prov-*; do
       [ -d "$d" ] || continue
-      PI_CODING_AGENT_DIR="$d" pi install npm:@riposta/pi-jev >/dev/null 2>&1 \
+      PI_CODING_AGENT_DIR="$d" pi install npm:@riposta/pi-jev >/dev/null 2>&1 7>&- \
         && _say "jev-setup: pi — installed @riposta/pi-jev into $d" \
         || _say "jev-setup: pi — install FAILED for $d; manual: PI_CODING_AGENT_DIR=$d pi install npm:@riposta/pi-jev"
     done
@@ -393,7 +590,7 @@ install_opencode() {
   local plugin_dst="$HOME/.config/opencode/plugins/jev-gate.js"
   local changed=0 ep_base ep_key IFS_SAVE="$IFS"
   IFS="$(printf '\t')"; read -r ep_base ep_key <<EOF
-$(_jev_endpoint_env)
+$(exec 7>&-; _jev_endpoint_env)
 EOF
   IFS="$IFS_SAVE"
   if [ "$UNINSTALL" = 1 ]; then
@@ -431,10 +628,77 @@ EOF
   return 0
 }
 
+# ---- serialise the config writes (R4-1, narrowed in R5-6) ---------------------
+# The stamp/consent state and every Kimi config rewrite are read-modify-write units:
+# a concurrent `claude-providers sync-jev` (twin refresh) or a second jev-setup must
+# not interleave with them. The twin writers take the same lock (jev_kimi_lock) and
+# recompute the hook block under it, so whichever runs second sees the first one's
+# result. The lock is held ONLY around those sections (_lk .. _ulk): never across the
+# pi/npm installers, and `7>&-` keeps lock fd 7 away from every child that could
+# outlive us (the pi/npm calls and the keys-file sourcing). --check never writes and takes none.
+_lk() {
+  [ "$CHECK" = 1 ] && return 0
+  if ! jev_kimi_lock "$JEV_STATE_DIR"; then
+    printf 'jev-setup: could not take the config lock %s/kimi-config.lock (another run holds it?) - remaining steps skipped\n' "$JEV_STATE_DIR" >&2
+    exit 1
+  fi
+}
+_ulk() { [ "$CHECK" = 1 ] || jev_kimi_unlock; }
+if [ "$CHECK" = 0 ]; then
+  trap jev_kimi_unlock_force EXIT
+  # Pre-flight: fail BEFORE anything is written when the lock cannot be taken.
+  if ! jev_kimi_lock "$JEV_STATE_DIR"; then
+    printf 'jev-setup: could not take the config lock %s/kimi-config.lock (another run holds it?) - nothing written\n' "$JEV_STATE_DIR" >&2
+    exit 1
+  fi
+  jev_kimi_unlock
+fi
+
+# ---- scope resolution (needs _inventory_wiring, defined above) --------------
+# --if-stale: launch-time lazy refresh. Nothing in the toolkit calls it today
+# (cma_jev_env only spawns `claude-providers sync-jev --quiet` in the
+# background); it exists for an explicit/cron-style refresh. It NEVER widens the
+# consented scope: without --agents it refreshes exactly the agents the stamp
+# records, and for a legacy/empty/absent stamp exactly the agents whose wiring is
+# really present (the inventory) - and nothing at all when nothing is wired.
+if [ "$IF_STALE_ON" = 1 ] && [ "$UNINSTALL" = 0 ] && [ "$CHECK" = 0 ]; then
+  if [ -f "$STAMP_FILE" ]; then
+    _now=$(date +%s); _mt=$(stat -c %Y "$STAMP_FILE" 2>/dev/null || stat -f %m "$STAMP_FILE" 2>/dev/null || echo 0)
+    [ $(( _now - _mt )) -lt "$IF_STALE" ] && exit 0
+  fi
+  if [ "$AGENTS_EXPLICIT" = 0 ]; then
+    _sa="$(_stamp_agents)"
+    [ -n "$_sa" ] || _sa="$(_inventory_wiring)"
+    [ -n "$_sa" ] || exit 0
+    AGENTS="$_sa"
+  fi
+fi
+# --check without --agents audits the recorded scope (stamp), else what is
+# really wired, and only when neither exists every agent.
+if [ "$CHECK" = 1 ] && [ "$AGENTS_EXPLICIT" = 0 ]; then
+  _sa="$(_stamp_agents)"
+  [ -n "$_sa" ] || _sa="$(_inventory_wiring)"
+  [ -n "$_sa" ] && AGENTS="$_sa"
+fi
+
 # ---------------------------------------------------------------------------
-install_common
-_want claude   && install_claude
-_want kimi     && install_kimi
-_want pi       && install_pi
-_want opencode && install_opencode
+if [ "$UNINSTALL" = 1 ]; then
+  # Per-agent uninstalls FIRST; shared artifacts only afterwards, and only when
+  # no wiring (stamp or inventory) remains.
+  _want claude   && install_claude
+  _want kimi     && { _lk; install_kimi; _ulk; }
+  _want pi       && install_pi
+  _want opencode && install_opencode
+  [ "$CHECK" = 1 ] || { _lk; uninstall_common; _ulk; }
+  exit 0
+fi
+_lk; install_common; _ulk
+_rc=0
+_want claude   && { install_claude   || _rc=1; }
+_want kimi     && { _lk; install_kimi || _rc=1; _ulk; }
+_want pi       && { install_pi       || _rc=1; }
+_want opencode && { install_opencode || _rc=1; }
+# --check is an audit: a finding is a non-zero exit (install modes always return 0
+# from the agent installers, so this changes nothing for them).
+[ "$CHECK" = 1 ] && exit "$_rc"
 exit 0

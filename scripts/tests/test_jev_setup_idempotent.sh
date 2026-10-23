@@ -79,6 +79,20 @@ rc=$?
 assert_eq 0 "$rc" "--check exits 0 when installed"
 if grep -q MISSING "$HOME/.check-out"; then _fail "--check reports MISSING" "$(cat "$HOME/.check-out")"; else _pass "--check reports nothing missing"; fi
 
+it "kimi-prov twin: render after install adds the hooks block exactly once with the shared matcher"
+PROVS="$SCRIPTS_DIR/claude-providers.sh"
+mkdir -p "$HOME/.local/share/claude-multi-account/providers"
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"https://127.0.0.1:1","model":"m","priority":1}]}\n' \
+  > "$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
+_render_bar() { bash -c 'source "$1" >/dev/null 2>&1; set +e; _cma_kimi_render_config bar BAR_KEY native https://api.example.invalid m-1 8192' _ "$PROVS"; }
+_render_bar; _render_bar
+BARC="$HOME/.kimi-prov-bar/config.toml"
+assert_eq 1 "$(grep -c 'cma-jev:hooks BEGIN' "$BARC")" "twin: hooks block exactly once after two renders"
+assert_eq "$(tr -d '[:space:]' < "$SCRIPTS_DIR/jev-kimi-tools.txt")" \
+  "$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["hooks"][0]["matcher"])' "$BARC")" "twin: matcher == shared constant"
+assert_eq "$(tr -d '[:space:]' < "$SCRIPTS_DIR/jev-kimi-tools.txt")" \
+  "$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["hooks"][0]["matcher"])' "$HOME/.kimi-code-1/config.toml")" "native: matcher == shared constant"
+
 it "--uninstall removes all blocks, preserves other keys"
 bash "$SETUP" --quiet --uninstall
 rc=$?
@@ -95,5 +109,16 @@ if jq -e '.mcp.jev' "$HOME/.config/opencode/opencode.json" >/dev/null 2>&1; then
 assert_jq "$HOME/.config/opencode/opencode.json" '.mcp.other.type' 'local' "opencode other mcp survives"
 if [ -e "$HOME/.config/opencode/plugins/jev-gate.js" ]; then
   _fail "opencode plugin file still present"; else _pass "opencode plugin file removed"; fi
+
+assert_file_not_contains "$HOME/.kimi-prov-bar/config.toml" "cma-jev:hooks" "kimi-prov twin: block removed by --uninstall"
+
+it "uninstall sticks: the next render does NOT re-add the hook (install -> render -> uninstall -> render)"
+assert_eq "no" "$([ -e "$HOME/.local/share/claude-multi-account/jev/jev-gate.sh" ] && echo yes || echo no)" "canonical gate copy removed by --uninstall"
+_render_bar
+assert_file_not_contains "$HOME/.kimi-prov-bar/config.toml" "cma-jev:hooks" "post-uninstall render leaves no hook block"
+python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$HOME/.kimi-prov-bar/config.toml"; assert_eq 0 "$?" "twin config still valid TOML"
+bash "$SETUP" --quiet --yes
+_render_bar
+assert_eq 1 "$(grep -c 'cma-jev:hooks BEGIN' "$HOME/.kimi-prov-bar/config.toml")" "re-install then render -> hook is back, once"
 
 summary

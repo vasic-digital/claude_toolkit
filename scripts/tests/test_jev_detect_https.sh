@@ -199,6 +199,24 @@ localhost.|other
 a b|invalid
 TBL
 
+it "H8c: IPv6 literal hosts are bracketed in URLs (exact table)"
+uh() { HH="$1" bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; _cma_jev_url_host "$HH"'; }
+while IFS='|' read -r h want; do
+  assert_eq "$want" "$(uh "$h")" "url host '$h' -> $want"
+done <<'TBL'
+127.0.0.1|127.0.0.1
+localhost|localhost
+::1|[::1]
+[::1]|[::1]
+fe80::1|[fe80::1]
+TBL
+
+it "H8d: non-loopback https gateway that fails /healthz (not cert, not plain-http) warns"
+jq -n '{hosted:{}, local_gateway:{enabled:false}, lan:[{id:"lan-1",host:"192.0.2.1",port:9,scheme:"https",enabled:true}]}' > "$PINS"
+OUT="$(detect CMA_JEV_HTTP_TIMEOUT=1)"
+assert_eq "0" "$(jq 'length' <<<"$OUT")" "no record"
+err_has "did not answer" && _pass "warning says the gateway did not answer /healthz" || _fail "unreachable-gateway warning" "$(cat "$ERRF")"
+
 it "H9: unreachable port -> []"
 mkpins 1
 assert_eq "0" "$(jq 'length' <<<"$(detect LLMCTL_API_KEY="$SECRET")")" "no records, no crash"
@@ -232,7 +250,7 @@ grep -qF -- "$SECRET" "$ARGV" && _fail "key absent from every curl argv" "$(grep
 it "K2: jev-gate resolves JEV_KEY_VAR from the environment when there is no keys file"
 mkpins "$TLS_PORT"; : > "$TLSLOG"
 rm -f "$KEYS"
-out="$(printf '%s' "$HOOK" | JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$SECRET" JEV_MODE=enforce bash "$SCRIPTS_DIR/jev-gate.sh" 2>/dev/null)"; rc=$?
+out="$(printf '%s' "$HOOK" | JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$SECRET" JEV_API_KEY= TYPESAFE_API_KEY= JEV_MODE=enforce bash "$SCRIPTS_DIR/jev-gate.sh" 2>/dev/null)"; rc=$?
 assert_eq 2 "$rc" "TLS + CA + env key (no keys file) -> real deny decision"
 grep -q "POST /v1/systemone auth=Bearer $SECRET" "$TLSLOG" && _pass "sink-side: the gateway saw the real bearer" || _fail "gateway saw the real bearer" "$(cat "$TLSLOG")"
 : > "$KEYS"

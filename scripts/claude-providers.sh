@@ -2356,6 +2356,17 @@ _cma_jev_host_class() {
   esac
 }
 
+# _cma_jev_url_host <host> -> host as it must appear in a URL authority:
+# an IPv6 literal (contains ':') is wrapped in [] unless already bracketed.
+_cma_jev_url_host() {
+  local h="${1-}"
+  case "$h" in
+    \[*\]) printf '%s' "$h" ;;
+    *:*) printf '[%s]' "$h" ;;
+    *) printf '%s' "$h" ;;
+  esac
+}
+
 detect_jev_records() {
   local _jev_json="${CMA_JEV_PINS_FILE:-$LIB_DIR/providers/jev.json}"
   command -v jq   >/dev/null 2>&1 || { printf '[]\n'; return 0; }
@@ -2525,6 +2536,7 @@ detect_jev_records() {
               exit 0
             fi
             _loop=0; [[ "$_hc" == "loopback" ]] && _loop=1
+            _uh="$(_cma_jev_url_host "$_thost")"
             _cas=()
             for _c in "${CMA_JEV_CA_FILE:-}" "${SSL_CERT_FILE:-}" \
                       "${LLMCTL_HOME:+$LLMCTL_HOME/cert/ca/ca.crt}"; do
@@ -2535,7 +2547,7 @@ detect_jev_records() {
             if [[ "$_tscheme" == "https" ]]; then
               for _c in "${_cas[@]}"; do
                 _co=(); [[ -n "$_c" ]] && _co=(--cacert "$_c")
-                _hz="$(curl -sf --max-time "$_t" ${_co[@]+"${_co[@]}"} "https://${_thost}:${_tport}${_thpath}" 2>/dev/null)"; _r=$?
+                _hz="$(curl -sf --max-time "$_t" ${_co[@]+"${_co[@]}"} "https://${_uh}:${_tport}${_thpath}" 2>/dev/null)"; _r=$?
                 if [[ -n "$_hz" ]]; then _okca="$_c"; break; fi
                 _tlsrc=$_r
                 case "$_r" in 51|58|59|60|77|83|90|91) _certrc=$_r ;; esac
@@ -2551,26 +2563,26 @@ detect_jev_records() {
                 fi
                 if [[ -z "$_key" ]]; then
                   printf 'gateway at https://%s:%s answers %s but no bearer key is available (%s unset) - cannot verify, not registered\n' \
-                    "$_thost" "$_tport" "$_thpath" "${_tkeyvar:-no key var}" > "$_note"
+                    "$_uh" "$_tport" "$_thpath" "${_tkeyvar:-no key var}" > "$_note"
                   exit 0
                 fi
                 _body="$(curl -s -w '\n%{http_code}' --max-time "$_t" ${_co[@]+"${_co[@]}"} \
                   -H @<(printf 'Authorization: Bearer %s\n' "$_key") \
-                  "https://${_thost}:${_tport}${_tmpath}" 2>/dev/null)" || _body=""
+                  "https://${_uh}:${_tport}${_tmpath}" 2>/dev/null)" || _body=""
                 _code="${_body##*$'\n'}"; _body="${_body%$'\n'*}"
                 case "$_code" in
                   200) : ;;
                   401|403|429)
                     printf 'gateway at https://%s:%s rejected the bearer key (HTTP %s) - not registered\n' \
-                      "$_thost" "$_tport" "$_code" > "$_note"; exit 0 ;;
+                      "$_uh" "$_tport" "$_code" > "$_note"; exit 0 ;;
                   *)
                     printf 'gateway at https://%s:%s: models request failed (HTTP %s) - not registered\n' \
-                      "$_thost" "$_tport" "${_code:-none}" > "$_note"; exit 0 ;;
+                      "$_uh" "$_tport" "${_code:-none}" > "$_note"; exit 0 ;;
                 esac
-                _base="https://${_thost}:${_tport}"; _auth=1
+                _base="https://${_uh}:${_tport}"; _auth=1
               elif (( _certrc != 0 )); then
                 printf 'TLS certificate of https://%s:%s is not trusted (curl rc %s) - set CMA_JEV_CA_FILE to the llmctl CA ($LLMCTL_HOME/cert/ca/ca.crt); not registered\n' \
-                  "$_thost" "$_tport" "$_certrc" > "$_note"
+                  "$_uh" "$_tport" "$_certrc" > "$_note"
                 exit 0
               elif (( _tlsrc == 35 && ! _loop )); then
                 printf '%s:%s does not speak TLS; plain http to a non-loopback host is refused - not registered\n' \
@@ -2580,12 +2592,17 @@ detect_jev_records() {
             fi
             if [[ -z "$_base" ]]; then
               if (( ! _loop )); then
-                [[ "$_tscheme" == "http" ]] && printf 'plain http to non-loopback host %s refused (TLS + bearer key required) - not registered\n' "$_thost" > "$_note"
+                if [[ "$_tscheme" == "http" ]]; then
+                  printf 'plain http to non-loopback host %s refused (TLS + bearer key required) - not registered\n' "$_thost" > "$_note"
+                else
+                  printf 'gateway at https://%s:%s did not answer %s (curl rc %s) - not registered\n' \
+                    "$_uh" "$_tport" "$_thpath" "$_tlsrc" > "$_note"
+                fi
                 exit 0
               fi
               # Plain-http fallback: loopback only AND opt-in.
               [[ "${CMA_JEV_ALLOW_HTTP:-0}" == "1" || "$_tscheme" == "http" ]] || exit 0
-              _b="http://${_thost}:${_tport}"
+              _b="http://${_uh}:${_tport}"
               _hz="$(curl -sf --max-time "$_t" "${_b}${_thpath}" 2>/dev/null)" || _hz=""
               [[ -n "$_hz" ]] || exit 0
               _body="$(curl -sf --max-time "$_t" "${_b}${_tmpath}" 2>/dev/null)" || _body=""
@@ -2732,6 +2749,7 @@ _cma_jev_after_sync() {
     [.provider_id, .status, (.strong_model // ""), (.reason // "")] | @tsv' \
     <<<"$records" 2>/dev/null)
   _cma_jev_write_endpoint_cache "$records"
+  _cma_kimi_jev_hooks_refresh || true
 }
 
 # _cma_usage_refresh_after_sync
@@ -3430,14 +3448,100 @@ _cma_kimi_jev_gate_path() { echo "$HOME/.local/share/claude-multi-account/jev/je
 # TOML-safe (no quote, backslash or control char). Exactly the four fields Kimi's
 # config accepts (event, matcher, command, timeout).
 _cma_kimi_jev_hooks_block() {
-  local cache gate
+  local cache gate matcher stamp err
+  # ONE shared validator + ONE constant file (jev-kimi-lib.sh), the same code the
+  # native writer in jev-setup.sh uses: a rule fixed there is fixed for both.
+  if ! . "$LIB_DIR/jev-kimi-lib.sh" 2>/dev/null; then
+    printf 'claude-providers: %s/jev-kimi-lib.sh is missing; no Kimi jev hook block is rendered\n' "$LIB_DIR" >&2
+    return 0
+  fi
+  # jev-setup's installed stamp is the consent/lifecycle switch: an executable
+  # gate file alone must not resurrect the hook after `jev-setup --uninstall`,
+  # and the stamp must LIST kimi - `jev-setup --agents claude` never consented
+  # to hooks in the Kimi twin homes (a legacy empty stamp names nobody: closed).
+  stamp="${JEV_STATE_DIR:-$HOME/.local/state/jev}/installed.stamp"
+  jev_kimi_stamp_has "$stamp" kimi || return 0
   cache="$(_cma_jev_endpoint_cache)"; gate="$(_cma_kimi_jev_gate_path)"
   [[ -s "$cache" && -x "$gate" ]] || return 0
   command -v jq >/dev/null 2>&1 || return 0
   jq -e '(.endpoints | type == "array") and (.endpoints | length > 0)' "$cache" >/dev/null 2>&1 || return 0
-  case "$gate" in *[\"[:cntrl:]]*) return 0 ;; esac
-  printf '\n# cma-jev:hooks BEGIN\n[[hooks]]\nevent = "PreToolUse"\nmatcher = "Bash|WriteFile|StrReplaceFile"\n'
+  # The matcher is ONE constant (scripts/jev-kimi-tools.txt): the real Kimi
+  # mutating tool names, never a guessed list. Unusable -> warn, emit nothing.
+  if ! matcher="$(jev_kimi_matcher "$LIB_DIR" 2>/dev/null)"; then
+    err="$(jev_kimi_matcher "$LIB_DIR" 2>&1 >/dev/null)"
+    printf 'claude-providers: %s; no Kimi jev hook block is rendered\n' "${err:-jev-kimi-tools.txt unusable}" >&2
+    return 0
+  fi
+  jev_kimi_gate_path_safe "$gate" || return 0
+  printf '\n# cma-jev:hooks BEGIN\n[[hooks]]\nevent = "PreToolUse"\nmatcher = "%s"\n' "$matcher"
   printf 'command = "%s"\ntimeout = 5\n# cma-jev:hooks END\n' "$gate"
+}
+
+# _cma_kimi_jev_hooks_refresh — re-sync the hooks block of every rendered
+# ~/.kimi-prov-*/config.toml with the CURRENT cache/stamp/gate state. cmd_sync
+# renders the twins BEFORE the endpoint cache is (re)written, and sync-jev never
+# renders them at all, so without this the hook state lags one sync behind.
+# Touches only files this renderer wrote (they carry a default_model line); strips
+# the marker block and appends a fresh one (or none); atomic, 0600, no-op when
+# unchanged.
+# Lock + recompute (R4-1): the config lock is taken for the WHOLE loop and the
+# block is computed INSIDE it, from the consent/stamp/gate state as it is when
+# the lock is held - never from a read taken before a concurrent render or
+# `jev-setup --uninstall` landed (that was a lost update: a reverted model, or a
+# hook block resurrected after --uninstall pointing at a removed gate).
+_cma_kimi_cfg_lock() {
+  . "$LIB_DIR/jev-kimi-lib.sh" 2>/dev/null || return 0     # no lib -> no hook block either: nothing to serialise
+  jev_kimi_lock "${JEV_STATE_DIR:-$HOME/.local/state/jev}"
+}
+_cma_kimi_cfg_unlock() { declare -F jev_kimi_unlock >/dev/null && jev_kimi_unlock; return 0; }
+
+_cma_kimi_jev_hooks_refresh() {
+  local f tmp blk real rrc=0
+  if ! _cma_kimi_cfg_lock; then
+    printf 'claude-providers: could not take the config lock - Kimi twin hooks not refreshed\n' >&2
+    return 0
+  fi
+  # Computed once per run but UNDER the lock; its warnings (unusable
+  # jev-kimi-tools.txt ...) reach stderr.
+  blk="$(_cma_kimi_jev_hooks_block)"
+  for f in "$HOME"/.kimi-prov-*/config.toml; do
+    [[ -f "$f" ]] || continue
+    # A symlinked config.toml is replaced THROUGH the link, never over it.
+    if [[ -L "$f" ]]; then real="$(readlink -f "$f" 2>/dev/null)" && [[ -f "$real" ]] && f="$real"; fi
+    grep -q '^default_model = ' "$f" 2>/dev/null || continue
+    tmp="$(mktemp "$(dirname "$f")/.hooks.XXXXXX")" || continue
+    chmod 600 "$tmp" 2>/dev/null || true
+    # Fail closed: keep the ORIGINAL unless the new file was written completely
+    # and still carries the model line (a full disk or a killed awk must never
+    # replace a working config with a truncated one).
+    # Exact-match markers (like the jev-setup writer): a variant such as
+    # "# cma-jev:hooks BEGIN-stale" is NOT a marker, and a BEGIN with no END before
+    # EOF - or any variant line that merely starts with a marker - makes awk exit 7
+    # so the file is left untouched (never truncated, never silently re-blocked).
+    if ! { awk -v b='# cma-jev:hooks BEGIN' -v e='# cma-jev:hooks END' '
+        (index($0, b) == 1 && $0 != b) || (index($0, e) == 1 && $0 != e) { bad = 1 }
+        skip { if ($0 == e) skip = 0; next }
+        $0 == b { skip = 1; pend = 0; next }
+        $0 == "" { pend++; next }
+        { while (pend > 0) { print ""; pend-- } print }
+        END { if (skip || bad) exit 7; while (pend > 0) { print ""; pend-- } }' "$f" \
+        && { [[ -z "$blk" ]] || printf '%s\n' "$blk"; }; } > "$tmp" 2>/dev/null \
+       || [[ ! -s "$tmp" ]] || ! grep -q '^default_model = ' "$tmp" 2>/dev/null; then
+      rm -f "$tmp"
+      printf 'claude-providers: could not refresh the jev hooks block of %s - left untouched\n' "$f" >&2
+      rrc=1
+      continue
+    fi
+    if cmp -s "$tmp" "$f"; then
+      rm -f "$tmp"
+    elif ! mv -f "$tmp" "$f" 2>/dev/null; then
+      rm -f "$tmp"
+      printf 'claude-providers: could not replace %s - left untouched\n' "$f" >&2
+      rrc=1
+    fi
+  done
+  _cma_kimi_cfg_unlock
+  return "$rrc"
 }
 
 # Render the per-alias Kimi Code config (~/.kimi-prov-<id>/config.toml) from the
@@ -3565,13 +3669,23 @@ _cma_kimi_render_config() {
     printf 'max_context_size = %s\n' "$ctx"
     printf 'max_output_size = %s\n' "$max_out"
     printf 'capabilities = [ "tool_use", "thinking" ]\n'
-    _cma_kimi_jev_hooks_block
   } > "$tmp"
+  # The hooks block depends on consent/lifecycle state (stamp, gate, cache) that a
+  # concurrent `jev-setup --uninstall` changes: decide it, and replace the file,
+  # under the SAME lock every other Kimi config writer takes (R4-1).
+  if ! _cma_kimi_cfg_lock; then
+    rm -f "$tmp"
+    cma_warn "kimi config: could not take the config lock — $kdir/config.toml not rewritten"
+    return 1
+  fi
+  _cma_kimi_jev_hooks_block >> "$tmp"
   if ! ( umask 077; mv -f "$tmp" "$kdir/config.toml" ) 2>/dev/null; then
     rm -f "$tmp"
+    _cma_kimi_cfg_unlock
     cma_warn "kimi config: could not write $kdir/config.toml — kimi-$id twin will be refused"
     return 1
   fi
+  _cma_kimi_cfg_unlock
   return 0
 }
 

@@ -129,26 +129,38 @@ def _api_key():
     return _resolve_key_var(os.environ.get("JEV_KEY_VAR", ""))
 
 
-def _ssl_ctx():
-    """TLS context for an https decide gateway: trust JEV_CA_FILE (the local
-    llmctl CA) in ADDITION to the system store; verification is never off."""
+def _ssl_ctx(ca_file=None):
+    """TLS context for an https decide gateway: trust a CA in ADDITION to the
+    system store; verification is never off. ca_file None -> JEV_CA_FILE (the
+    single configured endpoint). A routes.json candidate WITHOUT its own
+    ca_file also reaches this branch, so it trusts JEV_CA_FILE as an extra root
+    on top of the system store - deliberate and documented (the operator's own
+    configured CA; see the Jev User Guide, routes.json). An EXPLICIT ca_file
+    (a candidate's own CA) must be a readable file: otherwise raise (fail
+    closed) instead of silently falling back to a different trust root."""
     import ssl
-    ca = os.environ.get("JEV_CA_FILE", "")
     ctx = ssl.create_default_context()
+    if ca_file:
+        if not os.path.isfile(ca_file) or not os.access(ca_file, os.R_OK):
+            raise RuntimeError("candidate ca_file is not a readable file")
+        ca = ca_file
+        ctx.load_verify_locations(cafile=ca)
+        return ctx
+    ca = os.environ.get("JEV_CA_FILE", "")
     if ca and os.path.isfile(ca):
         ctx.load_verify_locations(cafile=ca)
     return ctx
 
 
-def _open(req, timeout):
+def _open(req, timeout, ca_file=None):
     """urlopen with the CA-aware TLS context, no redirects, and the bearer
     key only ever sent over https (stripped for any other scheme)."""
     if not req.full_url.lower().startswith("https://"):
         req.headers.pop("Authorization", None)
-    return _http.open_url(req, timeout=timeout, context=_ssl_ctx())
+    return _http.open_url(req, timeout=timeout, context=_ssl_ctx(ca_file))
 
 
-def _post_systemone(state, questions, model=None, base=None, key=None):
+def _post_systemone(state, questions, model=None, base=None, key=None, ca_file=None):
     """POST one systemone request. base/key/model default to the single
     configured endpoint's env vars; a route candidate overrides any subset
     to call a different endpoint without touching the process environment."""
@@ -165,7 +177,7 @@ def _post_systemone(state, questions, model=None, base=None, key=None):
         headers={"Content-Type": "application/json",
                  "Authorization": "Bearer " + (key if key is not None else _api_key())})
     timeout = float(os.environ.get("JEV_MCP_TIMEOUT", "4"))
-    with _open(req, timeout) as resp:
+    with _open(req, timeout, ca_file) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -185,6 +197,15 @@ def _load_routes():
         return {}
 
 
+def _route_ca_file(ca):
+    """A candidate's relative ca_file is relative to the routes.json that names
+    it (never to the process cwd, which is attacker/launcher-controlled)."""
+    if not ca or os.path.isabs(ca):
+        return ca or None
+    base = os.path.dirname(os.path.abspath(os.environ.get("JEV_ROUTES_FILE", "")))
+    return os.path.join(base, ca)
+
+
 def _candidate_answer(candidate, state, questions):
     """Query one route candidate; returns the raw answers dict for the
     'ask' question, or None on any failure (never raises — a candidate
@@ -195,6 +216,7 @@ def _candidate_answer(candidate, state, questions):
             model=candidate.get("model"),
             base=candidate.get("base_url", ""),
             key=_resolve_key_var(candidate.get("key_var", "")),
+            ca_file=_route_ca_file(candidate.get("ca_file")),
         )
         return (data.get("answers") or {}).get("ask")
     except Exception:
