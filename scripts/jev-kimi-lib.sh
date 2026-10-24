@@ -20,15 +20,16 @@ jev_realpath() {
   while [ -L "$p" ]; do
     hops=$((hops + 1))
     [ "$hops" -le 40 ] || return 1
-    t="$(readlink "$p")" || return 1
+    t="$(readlink -- "$p")" || return 1
     case "$t" in
       /*) p="$t" ;;
-      *) p="$(dirname "$p")/$t" ;;
+      *) p="$(dirname -- "$p")/$t" ;;
     esac
   done
   [ -e "$p" ] || return 1
-  d="$(cd -P "$(dirname "$p")" 2>/dev/null && pwd -P)" || return 1
-  printf '%s/%s\n' "$d" "$(basename "$p")"
+  # CDPATH= : an exported CDPATH must never redirect a relative `cd` (it would also print the dir)
+  d="$(CDPATH= cd -P -- "$(dirname -- "$p")" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$d" "$(basename -- "$p")"
 }
 
 # jev_kimi_gate_path_safe <path> — 0 when <path> can be emitted inside a TOML

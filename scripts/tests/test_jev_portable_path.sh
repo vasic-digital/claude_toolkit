@@ -49,6 +49,16 @@ assert_eq "$CANON" "$got" "relative"
 got="$(cd "$B/real" && jev_realpath ./sub/../sub/file.txt)"; rc=$?
 assert_eq "$CANON" "$got" "dot-dot relative"
 
+it "P3b a hostile exported CDPATH cannot change a relative resolution"
+mkdir -p "$B/decoy/real/sub"; : > "$B/decoy/real/sub/file.txt"
+got="$(cd "$B" && CDPATH="$B/decoy" jev_realpath real/sub/file.txt)"; rc=$?
+assert_eq 0 "$rc" "rc"
+assert_eq "$CANON" "$got" "CDPATH ignored (single line, the real file)"
+it "P3c a relative path starting with a dash is a path, not an option"
+mkdir -p "$B/dash"; : > "$B/dash/-odd"
+got="$(cd "$B/dash" && jev_realpath ./-odd)"; assert_eq "$B/dash/-odd" "$got" "dash path with ./"
+got="$(cd "$B/dash" && jev_realpath -- 2>/dev/null)"; rc=$?; assert_eq 1 "$rc" "bare -- is not a path"
+
 it "P4 missing path and dangling symlink fail with rc 1 and no stdout"
 got="$(jev_realpath "$B/nope/none.txt")"; rc=$?
 assert_eq 1 "$rc" "missing rc"
