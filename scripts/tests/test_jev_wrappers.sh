@@ -14,6 +14,12 @@ source "$TESTS_DIR/lib/assert.sh"
 # shellcheck source=lib/sandbox.sh
 source "$TESTS_DIR/lib/sandbox.sh"
 
+# HERMETICITY: scrub inherited JEV_*/LLMCTL_* so a developer shell (which may export
+# JEV_BASE_URL, JEV_MODE, LLMCTL_* ...) cannot change the outcome. Done before
+# make_sandbox and before this file sets its own vars (JEV_TEST_DUMP etc.).
+for _v in $(compgen -A variable JEV_) $(compgen -A variable LLMCTL_); do unset "$_v"; done
+unset _v
+
 make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"

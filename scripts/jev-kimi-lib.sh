@@ -8,6 +8,29 @@
 #
 # No side effects when sourced; nothing here writes a file.
 
+# jev_realpath <path> — portable replacement for `readlink -f` (BSD/macOS readlink has
+# no -f: it prints "illegal option" and yields nothing). Walks the symlink chain with
+# single-argument `readlink` (supported everywhere), then canonicalises the directory
+# with `cd -P`/`pwd -P`. Prints the canonical absolute path and returns 0; returns 1
+# with NO stdout for an empty argument, a missing path, a dangling symlink, or a
+# symlink loop (more than 40 hops) — callers decide their own fallback.
+jev_realpath() {
+  local p="${1-}" t d hops=0
+  [ -n "$p" ] || return 1
+  while [ -L "$p" ]; do
+    hops=$((hops + 1))
+    [ "$hops" -le 40 ] || return 1
+    t="$(readlink "$p")" || return 1
+    case "$t" in
+      /*) p="$t" ;;
+      *) p="$(dirname "$p")/$t" ;;
+    esac
+  done
+  [ -e "$p" ] || return 1
+  d="$(cd -P "$(dirname "$p")" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$d" "$(basename "$p")"
+}
+
 # jev_kimi_gate_path_safe <path> — 0 when <path> can be emitted inside a TOML
 # basic string unescaped: non-empty, and no backslash, double quote or control
 # character (newline, tab, DEL ...). 1 otherwise.
@@ -87,8 +110,9 @@ jev_kimi_stamp_has() {
 # through symlinks so the installed ~/.local/lib copy finds it). Missing => fail closed.
 _jev_lockdir_load() {
   declare -F cma_lockdir_acquire >/dev/null 2>&1 && return 0
-  local here
-  here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" 2>/dev/null && pwd)" || return 1
+  local here self
+  self="$(jev_realpath "${BASH_SOURCE[0]}")" || return 1
+  here="$(cd "$(dirname "$self")" 2>/dev/null && pwd)" || return 1
   # shellcheck source=jev-lockdir-lib.sh
   . "$here/jev-lockdir-lib.sh" 2>/dev/null || return 1
   declare -F cma_lockdir_acquire >/dev/null 2>&1

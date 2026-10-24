@@ -4,6 +4,16 @@ All notable changes to the Claude multi-account toolkit.
 
 ## Unreleased
 
+- Portability: `jev_realpath` (new, `scripts/jev-kimi-lib.sh`) replaces the two
+  `readlink -f` uses in `scripts/jev-setup.sh` and `scripts/jev-kimi-lib.sh`
+  (BSD/macOS `readlink` has no `-f`); covered by `test_jev_portable_path.sh`.
+- Tests: `test_jev_wrappers.sh` scrubs inherited `JEV_*` / `LLMCTL_*` variables
+  before it starts (a developer shell exporting them made 13 assertions fail);
+  `test_jev_wrappers_env_hermetic.sh` proves it. `test_llmctl_ondemand_switch.sh`
+  gained the jev opt-out that removed a rare flaky failure (`74820fe`).
+
+## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
+
 - `jev-setup`: `--agents` is validated against the closed, case-sensitive set
   `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
   any write, no stamp); `--check --uninstall` is refused (exit 2); the native

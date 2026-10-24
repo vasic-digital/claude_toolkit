@@ -1,17 +1,25 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-10-09
-**Last commit:** `fix/post-006-review` on top of `main @ dadd8b1` (*merge: feature/006-hardware-aware-model-management (spec-006 WS-C) into main*) — the post-merge review fixes in §6.5; the commit that carries this line cannot name its own hash, so read `git log -1` for it
-**Working tree:** clean apart from the commit above
-**Active branch:** `fix/post-006-review` (fast-forwarded onto local `main` only when its suites are green; not pushed). The `feat/llmctl-integration-hardening` state described in §0.1 is dated 2026-10-03 and has NOT been re-verified in this update.
-**Declared version:** next release is `v1.29.0` (draft `CHANGELOG.md` entry exists) — **not tagged, not released**
-**Next action:** see §0.1 below — this supersedes the rest of this file, which describes the OLD `v1.26.7` cycle (shipped long ago; this file was simply never updated after).
+**Last updated:** 2026-10-24
+**Base commit:** `74820fe` (*Fix rare flaky failure in test_llmctl_ondemand_switch.sh*), one commit after the `v1.32.0` / `claude_toolkit-1.32.0` tags (both resolve to `adae02d`); read `git log -1` for the commit that carries this file
+**Working tree:** clean apart from the commit that carries this update
+**Active branch:** `fix/portability-2026-10-24` (worktree branch; not pushed, not tagged)
+**Declared version:** `1.32.0` (`package.json`); tagged and released as `v1.32.0` and `claude_toolkit-1.32.0`. The earlier "next release is `v1.29.0`, not tagged" statement was stale: `v1.29.0` and `claude_toolkit-1.29.0` both exist.
+**Next action:** `CHANGELOG.md` `## Unreleased` carries only post-tag changes; see §0.2 below. Sections §0.1 and §1-§5 are HISTORICAL (2026-10-03 and 2026-07-28 snapshots) and are kept only as an archive.
 
-> **§0.1 is the CURRENT state as of 2026-10-03 — trust it over everything below.** Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §7 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
+> **§0.1 is a HISTORICAL snapshot (2026-10-03) — superseded by the header above and §0.2.** It was the current state when written. Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §7 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
 
 ---
 
-## 0.1 Current state (2026-10-03) — feature `001-llmctl-integration-hardening`
+## 0.2 Current state (2026-10-24)
+
+- Version `1.32.0` is tagged (`v1.32.0`, `claude_toolkit-1.32.0`, both at `adae02d`); `main` is one commit ahead (`74820fe`, a test-only fix).
+- Verified by `git tag`, `git rev-parse`, `package.json`; the suite result for `74820fe` is NOT re-verified in this update.
+- Nothing about `v1.29.0` below is pending: it shipped.
+
+---
+
+## 0.1 Historical state (2026-10-03) — feature `001-llmctl-integration-hardening`
 
 **What this feature is**: hardens claude_toolkit's existing llmctl-model auto-detection/provider-alias integration — honest context/LAN warnings, safe on-demand model switching, a live Superpowers-command verification matrix across CLI agent families, and a full linked documentation set. Spec/plan/tasks live under `specs/001-llmctl-integration-hardening/`.
 

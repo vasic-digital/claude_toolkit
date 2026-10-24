@@ -444,7 +444,7 @@ _kimi_block_write() {
   local f="$1" mode="$2" tmp
   # A symlinked config.toml is rewritten THROUGH the link (mv over the link
   # would replace the link itself with a regular file and orphan its target).
-  [ -L "$f" ] && f="$(readlink -f "$f" 2>/dev/null || printf '%s' "$f")"
+  [ -L "$f" ] && f="$(jev_realpath "$f" 2>/dev/null || printf '%s' "$f")"
   tmp="$(umask 077; mktemp "$f.jevtmp.XXXXXX")" || { _warn "jev-setup: cannot create a temp file next to $f - left untouched"; return 1; }
   if awk -v b="$KIMI_HOOK_BEGIN" -v e="$KIMI_HOOK_END" '
        skip { if ($0 == e) skip = 0; next }
