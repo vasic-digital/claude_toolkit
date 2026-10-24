@@ -263,9 +263,10 @@ assert_eq "" "$out" "fail-open emits no decision JSON"
 # Positive evidence the fail-open path above was actually reached because the
 # curl call failed (untrusted CA), not because exit 0 + empty stdout happened
 # for some unrelated reason (e.g. an early, different return): the gate's own
-# decisions.jsonl record for this run must carry the "endpoint_error"
-# fallback it writes only from that curl-failure branch.
-assert_eq "endpoint_error" "$(tail -n1 "$JEV_STATE_DIR/decisions.jsonl" | jq -r '.fallback // "?"')" "sink-side: decisions.jsonl logs the untrusted-CA curl failure"
+# decisions.jsonl record for this run must carry the "tls_untrusted"
+# fallback it writes only from that curl-failure branch (curl rc 60; before
+# 2026-10-24 every curl failure was lumped together as "endpoint_error").
+assert_eq "tls_untrusted" "$(tail -n1 "$JEV_STATE_DIR/decisions.jsonl" | jq -r '.fallback // "?"')" "sink-side: decisions.jsonl logs the untrusted-CA curl failure as tls_untrusted"
 
 # ---------------------------------------------------------------- cache / env
 it "H10: endpoint cache carries ca_file; cma_jev_env exports JEV_CA_FILE (not SSL_CERT_FILE)"

@@ -135,7 +135,12 @@ for hosted records.
 
 Presence of `TYPESAFE_API_KEY` in the keys file emits `jev-typesafe`: base
 `https://api.typesafe.ai`, model `jev-latest` (last in the pins `models`
-list, behind the pinned `jev-1.13.0`), context 64000. TypeSafe hosted has a
+list, behind the pinned `jev-1.13.0` and `jev-1.14.0`), context 64000.
+Observed live on 2026-10-24: `jev-latest` now resolves server-side to
+`jev-1.14.0` (the response `model` field says so); `jev-1.13.0` is still
+served. Numeric scores of `jev-latest` can jitter in the second decimal
+between calls (the discrete decision did not change in the validation run), so
+pin `JEV_MODEL=jev-1.13.0` when bitwise-stable scores matter. TypeSafe hosted has a
 signup waitlist, which is why it ranks below OpenRouter.
 
 ### 2.5 Ranking and `CMA_JEV_PREFER`
@@ -149,7 +154,11 @@ for determinism.
 ## 3. The endpoint cache
 
 Path: `~/.local/share/claude-multi-account/providers/jev-endpoints.json`
-(the directory is `CMA_PROVIDERS_DIR`-overridable in tests). Written
+(the directory is `CMA_PROVIDERS_DIR`-overridable; `sync-jev` then also keeps
+`status.json`, the Jev lock/stamp directory (`jev-state/`, unless
+`JEV_STATE_DIR` is set) and the kimi twin hook refresh
+(`kimi-twins/.kimi-prov-*/config.toml`) under it, so an isolated run touches
+nothing outside it). Written
 atomically by `claude-providers sync` and by the Jev-only fast path
 `claude-providers sync-jev [--quiet]`. Format:
 
@@ -319,8 +328,11 @@ Decision flow:
    `{"hookSpecificOutput":{"hookEventName":"PreToolUse",
    "permissionDecision":"allow|ask|deny","permissionDecisionReason":"jev: …"}}`.
 6. **Fail-open:** any transport/parse error or curl timeout
-   (`JEV_GATE_TIMEOUT`, 2 s) → allow, logged with `fallback:
-   "timeout"|"endpoint_error"`. Fail-closed is available via
+   (`JEV_GATE_TIMEOUT`, 2 s) → allow, logged with a `fallback` reason:
+   `timeout`, `unreachable` (connection refused / unresolvable host),
+   `tls_untrusted` (certificate not trusted: set `JEV_CA_FILE`),
+   `auth_rejected` (HTTP 401/403), `no_key` (https and no key found: no request
+   is made, so no bearer is ever sent blind) or the residual `endpoint_error`. Fail-closed is available via
    `JEV_GATE_FAIL=closed` and is documented as risky: an endpoint outage then
    blocks all gated tool calls.
 
@@ -330,13 +342,16 @@ Evidence log — one JSON line per gated call in
 
 ```json
 {"ts": 1759700000123, "agent": "claude", "tool": "Bash",
- "state_hash": "0123abcd4567ef89", "question": "gate", "answer": "allow",
- "risky_p": 0.12, "confidence": 0.93, "latency_ms": 141,
+ "state_hash": "0123abcd4567ef89", "question": "gate", "class": "gate",
+ "answer": "allow", "risky_p": 0.12, "confidence": 0.93, "latency_ms": 141,
  "endpoint": "jev-local", "mode": "shadow", "enforced": false,
  "fallback": null}
 ```
 
-`fallback` is `null`, `"timeout"`, or `"endpoint_error"`. The raw state is
+`class` is the decision class the canon token-reduction gate counts (always
+`gate` for this hook); `latency_ms` has millisecond resolution. `fallback` is
+`null`, `"timeout"`, `"unreachable"`, `"tls_untrusted"`, `"auth_rejected"`,
+`"no_key"` or `"endpoint_error"`. The raw state is
 never logged — only its truncated sha256 prefix — so secrets in tool inputs
 cannot land in the log.
 

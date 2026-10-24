@@ -3739,7 +3739,10 @@ CMA_SHARED_ITEMS=(
 # daemon/roster.json is union-merged (not last-wins) — see
 # merge_daemon_roster in claude-unify.sh.
 
-cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
+# CMA_PROVIDERS_DIR is the documented isolation seam (Jev User Guide; canon
+# bootstrap.sh reads the same variable). Honour it here, in the single resolver,
+# so every writer (endpoint cache, status.json, *.env, tokens) follows it.
+cma_providers_dir() { echo "${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}"; }
 
 # _cma_quota_group_accounts: one JSON object per line, one per distinct
 # REAL account (data-model.md §2). Two dedup axes, both real:

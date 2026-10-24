@@ -5,7 +5,7 @@
       "key_var": "TYPESAFE_API_KEY",
       "base_url": "https://api.typesafe.ai",
       "systemone_path": "/v1/systemone",
-      "models": ["jev-1.13.0", "jev-latest"],
+      "models": ["jev-1.13.0", "jev-1.14.0", "jev-latest"],
       "context_limit": 64000,
       "enabled": true
     },

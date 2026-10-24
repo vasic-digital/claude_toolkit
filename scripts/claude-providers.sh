@@ -2435,8 +2435,12 @@ detect_jev_records() {
       local _h_secret _h_probe_rc=0 _h_body
       _h_secret="$( set +e; set -a +u; . "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; set -a
                     eval "printf '%s' \"\${$_h_keyvar:-}\"" )" || _h_secret=""
+      # Wire format (verified against the live server 2026-10-24): `questions` is a
+      # MAP name -> {type, instructions[, criteria]}; the server answers the old
+      # ARRAY-with-name form with HTTP 422 "questions: Input should be a valid
+      # dictionary", which downgraded a working endpoint to unverified.
       _h_body="$(jq -cn --arg m "$_h_model" '{model:$m, state:"probe",
-        questions:[{name:"probe", type:"noul", instructions:"Is this endpoint reachable? Answer yes."}]}')"
+        questions:{probe:{type:"noul", instructions:"Is this endpoint reachable? Answer yes."}}}')"
       if curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
            -H @<(printf 'Authorization: Bearer %s\n' "$_h_secret") -H "Content-Type: application/json" \
            -d "$_h_body" 2>/dev/null | jq -e . >/dev/null 2>&1; then
@@ -3439,6 +3443,21 @@ _cma_kimi_base_is_loopback() {
   _cma_is_ccr_gateway "$url" "$port"
 }
 
+# _cma_jev_state_dir / _cma_kimi_twin_root — CMA_PROVIDERS_DIR isolation for the
+# Jev lock/stamp directory and the kimi twin homes the hook refresh rewrites.
+# Unset CMA_PROVIDERS_DIR keeps the historical $HOME locations bit for bit; set,
+# an isolated sync-jev run reads and writes only beneath it (an explicit
+# JEV_STATE_DIR still wins).
+_cma_jev_state_dir() {
+  if [[ -n "${JEV_STATE_DIR:-}" ]]; then printf '%s' "$JEV_STATE_DIR"
+  elif [[ -n "${CMA_PROVIDERS_DIR:-}" ]]; then printf '%s' "$CMA_PROVIDERS_DIR/jev-state"
+  else printf '%s' "$HOME/.local/state/jev"; fi
+}
+_cma_kimi_twin_root() {
+  if [[ -n "${CMA_PROVIDERS_DIR:-}" ]]; then printf '%s' "$CMA_PROVIDERS_DIR/kimi-twins"
+  else printf '%s' "$HOME"; fi
+}
+
 # _cma_kimi_jev_gate_path — installed Jev gate (same path jev-setup.sh installs to).
 _cma_kimi_jev_gate_path() { echo "$HOME/.local/share/claude-multi-account/jev/jev-gate.sh"; }
 
@@ -3459,7 +3478,7 @@ _cma_kimi_jev_hooks_block() {
   # gate file alone must not resurrect the hook after `jev-setup --uninstall`,
   # and the stamp must LIST kimi - `jev-setup --agents claude` never consented
   # to hooks in the Kimi twin homes (a legacy empty stamp names nobody: closed).
-  stamp="${JEV_STATE_DIR:-$HOME/.local/state/jev}/installed.stamp"
+  stamp="$(_cma_jev_state_dir)/installed.stamp"
   jev_kimi_stamp_has "$stamp" kimi || return 0
   cache="$(_cma_jev_endpoint_cache)"; gate="$(_cma_kimi_jev_gate_path)"
   [[ -s "$cache" && -x "$gate" ]] || return 0
@@ -3491,7 +3510,7 @@ _cma_kimi_jev_hooks_block() {
 # hook block resurrected after --uninstall pointing at a removed gate).
 _cma_kimi_cfg_lock() {
   . "$LIB_DIR/jev-kimi-lib.sh" 2>/dev/null || return 0     # no lib -> no hook block either: nothing to serialise
-  jev_kimi_lock "${JEV_STATE_DIR:-$HOME/.local/state/jev}"
+  jev_kimi_lock "$(_cma_jev_state_dir)"
 }
 _cma_kimi_cfg_unlock() { declare -F jev_kimi_unlock >/dev/null && jev_kimi_unlock; return 0; }
 
@@ -3504,7 +3523,7 @@ _cma_kimi_jev_hooks_refresh() {
   # Computed once per run but UNDER the lock; its warnings (unusable
   # jev-kimi-tools.txt ...) reach stderr.
   blk="$(_cma_kimi_jev_hooks_block)"
-  for f in "$HOME"/.kimi-prov-*/config.toml; do
+  for f in "$(_cma_kimi_twin_root)"/.kimi-prov-*/config.toml; do
     [[ -f "$f" ]] || continue
     # A symlinked config.toml is replaced THROUGH the link, never over it.
     if [[ -L "$f" ]]; then real="$(cma_realpath "$f" 2>/dev/null)" && [[ -f "$real" ]] && f="$real"; fi

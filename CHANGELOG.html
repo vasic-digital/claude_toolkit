@@ -995,7 +995,8 @@ inherited <code>JEV_*</code> / <code>LLMCTL_*</code> variables.</li>
 instead of <code>readlink -f</code> (two call sites).</li>
 <li><code>docs/CONTINUATION.md</code> and this changelog corrected to
 the real tag state; the README tests badge and test-file count now match
-the measured count (124).</li>
+the measured count (125, including the new
+<code>test_jev_hosted_live_fixes.sh</code>).</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -1009,6 +1010,44 @@ treats leading-dash names as paths by passing <code>--</code> to
 developer shell exporting them made 13 assertions fail).</li>
 <li><code>test_llmctl_ondemand_switch.sh</code> gained the jev opt-out
 that removed a rare flaky failure (<code>74820fe</code>).</li>
+</ul>
+<p>Defects found by live validation of the hosted Jev endpoint (TypeSafe
+<code>/v1/systemone</code>, 2026-10-24), each with a regression test in
+the new <code>test_jev_hosted_live_fixes.sh</code> (43 assertions, stub
+servers and dummy keys only):</p>
+<ul>
+<li><code>claude-providers sync-jev</code> with
+<code>CMA_JEV_LIVE=1</code> sent <code>questions</code> as an array; the
+server requires a map (name -&gt; {type, instructions, criteria}) and
+answered HTTP 422, so a working hosted endpoint was downgraded to
+<code>unverified</code> and no endpoint resolved. The probe now sends
+the map form.</li>
+<li><code>sync-jev</code> ignored <code>CMA_PROVIDERS_DIR</code>
+(<code>cma_providers_dir</code> was hard-wired to <code>$HOME</code>).
+It is honoured now for the endpoint cache, <code>status.json</code>, the
+Jev lock/stamp directory (<code>&lt;dir&gt;/jev-state</code>, unless
+<code>JEV_STATE_DIR</code> is set) and the kimi twin hook refresh
+(<code>&lt;dir&gt;/kimi-twins/.kimi-prov-*</code>). With it unset
+nothing changes. Verified against a read-only, checksummed HOME
+stand-in.</li>
+<li>Pins and docs: <code>jev-latest</code> now answers as
+<code>jev-1.14.0</code> on the hosted server (<code>jev-1.13.0</code> is
+still served). <code>providers/jev.json</code> lists both;
+<code>jev-latest</code> stays the default.</li>
+<li><code>jev-gate.sh</code>: <code>latency_ms</code> had 1 s
+granularity (<code>date +%s</code>); it now uses a millisecond clock
+(<code>EPOCHREALTIME</code>, then <code>date +%s%3N</code>, python3,
+perl). Each <code>decisions.jsonl</code> line also carries
+<code>class</code> (= <code>gate</code>), the field the canon
+token-reduction gate (clause 4) counts.</li>
+<li><code>jev-gate.sh</code>: every curl failure was logged
+<code>endpoint_error</code>, and with no key it sent a literal bearer
+<code>local</code> over https. It now logs <code>auth_rejected</code>
+(HTTP 401/403), <code>tls_untrusted</code>, <code>unreachable</code> and
+<code>timeout</code> separately, and with no key over https it makes no
+request and logs <code>no_key</code> (<code>endpoint_error</code>
+remains the residual). <code>test_jev_detect_https.sh</code> K3 now
+expects <code>tls_untrusted</code> for the untrusted-CA case.</li>
 </ul>
 <h2 id="v1320-addendum--jev-setup--kimi-lock-review-rounds-already-in-the-v1320-tag">v1.32.0
 (addendum) — jev-setup / Kimi-lock review rounds, already in the

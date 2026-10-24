@@ -26,8 +26,11 @@
 #   JEV_RISKY_THRESHOLD=0.7 risky-probability floor that escalates allow->ask
 #   JEV_STATE_DIR=$HOME/.local/state/jev   evidence log directory
 #
-# Fail-open by design: any transport/parse error allows the call and logs
-# fallback="endpoint_error". Availability beats enforcement; fail-closed is
+# Fail-open by design: any transport/parse error allows the call and logs a
+# fallback reason: timeout (curl 28), unreachable (curl 6/7), tls_untrusted
+# (curl 51/58/59/60/77/83), auth_rejected (HTTP 401/403), no_key (https with no
+# key found: no request is made, so no bearer is ever sent blind), else
+# endpoint_error. Availability beats enforcement; fail-closed is
 # possible via JEV_GATE_FAIL=closed but is NOT the default.
 set -u
 
@@ -100,6 +103,24 @@ _state_hash=$(printf '%s' "$_state" | sha256sum 2>/dev/null | cut -c1-16)
 [ -n "$_state_hash" ] || _state_hash=$(printf '%s' "$_state" | shasum -a 256 2>/dev/null | cut -c1-16)
 [ -n "$_state_hash" ] || _state_hash="nohash"
 
+# Millisecond wall clock, portable: bash>=5 EPOCHREALTIME, else GNU date %3N,
+# else python3 / perl, else (last resort) whole seconds * 1000. The
+# non-numeric check rejects BSD/macOS date printing a literal "3N".
+_now_ms() {
+  local t
+  if [ -n "${EPOCHREALTIME:-}" ]; then
+    t="${EPOCHREALTIME/[.,]/}"
+    case "$t" in ''|*[!0-9]*) ;; *) printf '%s' "${t:0:${#t}-3}"; return 0 ;; esac
+  fi
+  t=$(date +%s%3N 2>/dev/null)
+  case "$t" in ''|*[!0-9]*) ;; *) printf '%s' "$t"; return 0 ;; esac
+  t=$(python3 -c 'import time; print(int(time.time()*1000))' 2>/dev/null)
+  case "$t" in ''|*[!0-9]*) ;; *) printf '%s' "$t"; return 0 ;; esac
+  t=$(perl -MTime::HiRes=time -e 'printf "%d", time()*1000' 2>/dev/null)
+  case "$t" in ''|*[!0-9]*) ;; *) printf '%s' "$t"; return 0 ;; esac
+  printf '%s' "$(( $(date +%s) * 1000 ))"
+}
+
 _log() { # _log <answer> <risky_p> <confidence> <latency_ms> <endpoint> <fallback>
   mkdir -p "$JEV_STATE_DIR" 2>/dev/null || return 0
   local _enforced=false
@@ -107,13 +128,13 @@ _log() { # _log <answer> <risky_p> <confidence> <latency_ms> <endpoint> <fallbac
   jq -cn \
     --argjson ts "$(($(date +%s) * 1000))" \
     --arg agent "$_agent" --arg tool "$_tool" --arg state_hash "$_state_hash" \
-    --arg question "gate" --arg answer "$1" \
+    --arg question "gate" --arg class "gate" --arg answer "$1" \
     --argjson risky_p "${2:-0}" --argjson confidence "${3:-0}" \
     --argjson latency_ms "${4:-0}" --arg endpoint "${5:-unknown}" \
     --arg mode "$JEV_MODE" --argjson enforced "$_enforced" \
     --arg fallback "${6:-}" \
     '{ts:$ts, agent:$agent, tool:$tool, state_hash:$state_hash, question:$question,
-      answer:$answer, risky_p:$risky_p, confidence:$confidence, latency_ms:$latency_ms,
+      class:$class, answer:$answer, risky_p:$risky_p, confidence:$confidence, latency_ms:$latency_ms,
       endpoint:$endpoint, mode:$mode, enforced:$enforced,
       fallback:(if $fallback == "" then null else $fallback end)}' \
     >> "$JEV_STATE_DIR/decisions.jsonl" 2>/dev/null || true
@@ -185,29 +206,53 @@ if [ -z "$_key" ] && printf '%s' "${JEV_KEY_VAR:-}" | grep -qE '^[A-Za-z_][A-Za-
     _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$JEV_KEY_VAR"':-}"')"
   fi
 fi
-_key="${_key:-local}"
-_start_ms=$(( $(date +%s) * 1000 ))
+# No key found: over https NO request is made (a literal placeholder bearer
+# would be sent blind to a remote server and could only ever fail); over plain
+# http no Authorization header is sent at all, so a key is not needed there.
+_no_key=0
+if [[ "$JEV_BASE_URL" == https://* ]] && [ -z "$_key" ]; then _no_key=1; fi
+_start_ms=$(_now_ms)
+_resp="" _curl_rc=0 _http_code=000
 # The bearer key is sent ONLY over https and NEVER on a command line (curl
 # reads the header from a process-substitution file); over plain http no
-# Authorization header is sent at all.
-if [[ "$JEV_BASE_URL" == https://* ]]; then
-  _resp=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
+# Authorization header is sent at all. -w appends the HTTP status after a
+# newline so 401/403 can be told apart from a transport failure (curl -f exits
+# 22 for both).
+if [ "$_no_key" = 1 ]; then
+  _curl_rc=99
+elif [[ "$JEV_BASE_URL" == https://* ]]; then
+  _raw=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
     -H "Content-Type: application/json" \
     -H @<(printf 'Authorization: Bearer %s\n' "$_key") \
     ${JEV_CA_FILE:+--cacert "$JEV_CA_FILE"} \
+    -w '\n%{http_code}' \
     -d "$_req" "$JEV_BASE_URL/v1/systemone" 2>/dev/null)
+  _curl_rc=$?
 else
-  _resp=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
+  _raw=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
     -H "Content-Type: application/json" \
+    -w '\n%{http_code}' \
     -d "$_req" "$JEV_BASE_URL/v1/systemone" 2>/dev/null)
+  _curl_rc=$?
 fi
-_curl_rc=$?
-_end_ms=$(( $(date +%s) * 1000 ))
+if [ "$_no_key" != 1 ]; then
+  _http_code="${_raw##*$'\n'}"
+  _resp="${_raw%$'\n'*}"
+  [ "$_raw" = "$_http_code" ] && _resp=""   # no newline at all: nothing but a code
+fi
+_end_ms=$(_now_ms)
 _latency=$(( _end_ms - _start_ms ))
+[ "$_latency" -ge 0 ] 2>/dev/null || _latency=0
 
 if [ $_curl_rc -ne 0 ] || [ -z "$_resp" ]; then
   _fb="endpoint_error"
-  [ $_curl_rc -eq 28 ] && _fb="timeout"
+  case "$_curl_rc" in
+    99)                       _fb="no_key" ;;
+    28)                       _fb="timeout" ;;
+    6|7)                      _fb="unreachable" ;;
+    51|58|59|60|77|83)        _fb="tls_untrusted" ;;
+    22) case "$_http_code" in 401|403) _fb="auth_rejected" ;; esac ;;
+  esac
   if [ "${JEV_GATE_FAIL:-open}" = "closed" ]; then
     _decide deny 0 0 "$_latency" "${CMA_JEV_ENDPOINT_ID:-unknown}" "$_fb" "endpoint unreachable ($_fb) — fail-closed"
   fi
