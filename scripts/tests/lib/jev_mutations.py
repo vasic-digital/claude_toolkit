@@ -206,7 +206,7 @@ M = [
     printf 'jev-setup: could not take the config lock %s/kimi-config.lock (another run holds it?) - remaining steps skipped""", """  if ! true; then
     printf 'jev-setup: could not take the config lock %s/kimi-config.lock (another run holds it?) - remaining steps skipped""", 1),
  ("lock: refresh takes no lock (R4-1)", CP, LIFE,
-  """  jev_kimi_lock "${JEV_STATE_DIR:-$HOME/.local/state/jev}"
+  """  jev_kimi_lock "$(_cma_jev_state_dir)"
 }""", """  return 0
 }""", 1),
  ("lock: refresh block computed BEFORE the lock, stale under it (R4-1)", CP, LIFE,
