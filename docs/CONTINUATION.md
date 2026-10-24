@@ -1,11 +1,11 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-10-24
-**Base commit:** `74820fe` (*Fix rare flaky failure in test_llmctl_ondemand_switch.sh*), one commit after the `v1.32.0` / `claude_toolkit-1.32.0` tags (both resolve to `adae02d`); read `git log -1` for the commit that carries this file
+**Base commit:** `74820fe` (*Fix rare flaky failure in test_llmctl_ondemand_switch.sh*), one commit after the `v1.32.0` / `claude_toolkit-1.32.0` tags (both resolve to `adae02d`); the v1.33.0 release prep sits on top of it on branch `fix/portability-2026-10-24`; read `git log -1` for the commit that carries this file
 **Working tree:** clean apart from the commit that carries this update
 **Active branch:** `fix/portability-2026-10-24` (worktree branch; not pushed, not tagged)
-**Declared version:** `1.32.0` (`package.json`); tagged and released as `v1.32.0` and `claude_toolkit-1.32.0`. The earlier "next release is `v1.29.0`, not tagged" statement was stale: `v1.29.0` and `claude_toolkit-1.29.0` both exist.
-**Next action:** `CHANGELOG.md` `## Unreleased` carries only post-tag changes; see §0.2 below. Sections §0.1 and §1-§5 are HISTORICAL (2026-10-03 and 2026-07-28 snapshots) and are kept only as an archive.
+**Declared version:** `1.33.0` (`package.json`), prepared for release as `v1.33.0` and `claude_toolkit-1.33.0` (NOT yet tagged or published at the time of writing); the previous release `1.32.0` is tagged as `v1.32.0` and `claude_toolkit-1.32.0`. The earlier "next release is `v1.29.0`, not tagged" statement was stale: `v1.29.0` and `claude_toolkit-1.29.0` both exist.
+**Next action:** tag `v1.33.0` and `claude_toolkit-1.33.0` after merge and publish the GitHub and GitLab releases (conductor); `CHANGELOG.md` has a `## v1.33.0 (2026-10-24)` section; see §0.2 below. Sections §0.1 and §1-§5 are HISTORICAL (2026-10-03 and 2026-07-28 snapshots) and are kept only as an archive.
 
 > **§0.1 is a HISTORICAL snapshot (2026-10-03) — superseded by the header above and §0.2.** It was the current state when written. Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §7 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
 
@@ -13,7 +13,7 @@
 
 ## 0.2 Current state (2026-10-24)
 
-- Version `1.32.0` is tagged (`v1.32.0`, `claude_toolkit-1.32.0`, both at `adae02d`); `main` is one commit ahead (`74820fe`, a test-only fix).
+- Version `1.32.0` is tagged (`v1.32.0`, `claude_toolkit-1.32.0`, both at `adae02d`); `main` is one commit ahead (`74820fe`, a test-only fix). The release branch carries `f7d1e44`, the CDPATH fix and the 1.33.0 version bump on top.
 - Verified by `git tag`, `git rev-parse`, `package.json`; the suite result for `74820fe` is NOT re-verified in this update.
 - Nothing about `v1.29.0` below is pending: it shipped.
 

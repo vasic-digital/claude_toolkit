@@ -2,15 +2,39 @@
 
 All notable changes to the Claude multi-account toolkit.
 
-## Unreleased
+## v1.33.0 (2026-10-24)
 
-- Portability: `jev_realpath` (new, `scripts/jev-kimi-lib.sh`) replaces the two
-  `readlink -f` uses in `scripts/jev-setup.sh` and `scripts/jev-kimi-lib.sh`
-  (BSD/macOS `readlink` has no `-f`); covered by `test_jev_portable_path.sh`.
-- Tests: `test_jev_wrappers.sh` scrubs inherited `JEV_*` / `LLMCTL_*` variables
-  before it starts (a developer shell exporting them made 13 assertions fail);
-  `test_jev_wrappers_env_hermetic.sh` proves it. `test_llmctl_ondemand_switch.sh`
-  gained the jev opt-out that removed a rare flaky failure (`74820fe`).
+Minor release on top of v1.32.0 (tags `v1.32.0` / `claude_toolkit-1.32.0`, both
+at `adae02d`). It is a minor, not a patch, release by operator decision because
+it adds a feature set: the portable `jev_realpath` path helper and the hermetic
+wrapper tests, alongside fixes. The `jev-setup` validation and Kimi-lock items
+listed in the "v1.32.0 (addendum)" section below were already shipped in the
+`v1.32.0` tag and are NOT new in this release.
+
+### Added
+
+- `jev_realpath` (`scripts/jev-kimi-lib.sh`): a portable canonical-path helper
+  that resolves symlink chains without `readlink -f` (BSD/macOS `readlink` has
+  no `-f`); covered by the new `test_jev_portable_path.sh` (20 assertions).
+- `test_jev_wrappers_env_hermetic.sh`: proves `test_jev_wrappers.sh` gives the
+  same result under hostile inherited `JEV_*` / `LLMCTL_*` variables.
+
+### Changed
+
+- `scripts/jev-setup.sh` and `scripts/jev-kimi-lib.sh` use `jev_realpath` instead
+  of `readlink -f` (two call sites).
+- `docs/CONTINUATION.md` and this changelog corrected to the real tag state; the
+  README tests badge and test-file count now match the measured count (124).
+
+### Fixed
+
+- `jev_realpath` ignores an exported `CDPATH` (a relative `cd` was redirected
+  and printed an extra line) and treats leading-dash names as paths by passing
+  `--` to `readlink`, `dirname`, `basename` and `cd` (cells P3b/P3c).
+- `test_jev_wrappers.sh` scrubs inherited `JEV_*` / `LLMCTL_*` variables before
+  it starts (a developer shell exporting them made 13 assertions fail).
+- `test_llmctl_ondemand_switch.sh` gained the jev opt-out that removed a rare
+  flaky failure (`74820fe`).
 
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
 
