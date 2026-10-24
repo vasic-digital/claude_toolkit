@@ -51,6 +51,17 @@ make_sandbox
 source "$SCRIPTS_DIR/lib.sh"
 set +e   # lib.sh sets -e; the harness asserts on failures, so relax it.
 
+# This file tests llmctl on-demand switching, not Jev, so a missing jev
+# endpoint cache in the fresh sandbox $HOME would otherwise make every
+# cma_run_provider/cma_run_kimi_provider/cma_run_pi_provider call below fork
+# a real, undisowned background `claude-providers sync-jev` subprocess
+# (cma_jev_env in lib.sh) — occasionally still alive (and doing real
+# file/process work against this sandbox) when a LATER `it` block runs,
+# which cost an intermittent (~1/44 runs measured) false failure on an
+# unrelated assertion under host load. Opt out entirely, as the jev-specific
+# test files already do per-case for their own non-jev assertions.
+export CMA_JEV_DISABLE=1
+
 PDIR="$(cma_providers_dir)"; mkdir -p "$PDIR"
 PROVIDER_ID="llmctl-fast"
 PROFILE="fast"
