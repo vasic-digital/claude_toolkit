@@ -107,10 +107,11 @@ fi
 # fabricated one).
 _alias_file="${ALIAS_FILE:-$HOME/.local/share/claude-multi-account/aliases.sh}"
 wired=" "
+_kp_root="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"   # twins follow CMA_PROVIDERS_DIR
 if [[ -f "$_alias_file" ]]; then
   while IFS= read -r t; do
     [[ -n "$t" ]] || continue
-    [[ -f "$HOME/.kimi-prov-$t/config.toml" ]] && wired+="$t "
+    [[ -f "${_kp_root:-$HOME}/.kimi-prov-$t/config.toml" ]] && wired+="$t "
   done < <(grep -oE '^alias kimi-[A-Za-z0-9._-]+=' "$_alias_file" 2>/dev/null \
            | sed -e 's/^alias kimi-//' -e 's/=$//')
 fi

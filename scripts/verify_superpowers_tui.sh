@@ -13,7 +13,7 @@
 #   --agent:   claude (default, full route-attribution gate) | kimi (native-only launch, no ccr/router layer — see the --agent kimi branch below for why no route gate applies)
 set -uo pipefail
 TESTS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PDIR="$HOME/.local/share/claude-multi-account/providers"
+PDIR="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}"
 ALIASES_FILE="${ALIAS_FILE:-$HOME/.local/share/claude-multi-account/aliases.sh}"
 
 ALIAS_ID="" PROMPT="" TIMEOUT=180 OUT="" COMMAND="using-superpowers" AGENT="claude"

@@ -40,7 +40,7 @@ fi
 KIMI_MATCHER=""        # resolved lazily by _kimi_matcher_init (no built-in fallback copy)
 _KIMI_MATCHER_TRIED=0
 MCP_SERVER="$SCRIPTS_DIR/jev_mcp.py"
-CACHE="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
+CACHE="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/jev-endpoints.json"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
 
 AGENTS="claude,kimi,pi,opencode"
@@ -402,8 +402,8 @@ KIMI_HOOK_BEGIN='# cma-jev:hooks BEGIN'
 KIMI_HOOK_END='# cma-jev:hooks END'
 
 _kimi_homes() {
-  local d
-  for d in "$HOME"/.kimi-code-* "$HOME"/.kimi-prov-*; do
+  local d _tr="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"
+  for d in "$HOME"/.kimi-code-* "${_tr:-$HOME}"/.kimi-prov-*; do
     case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
     [ -d "$d" ] && printf '%s\n' "$d"
   done

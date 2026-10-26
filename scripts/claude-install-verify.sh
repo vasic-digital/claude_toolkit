@@ -237,7 +237,8 @@ fi
 # must carry what the kimi CLI needs to start: a providers block plus a
 # default_model. TOML parsing itself lives in the kimi binary at launch time,
 # so this clamps at the two anchors rather than pretending to be a TOML parser.
-for _kd in "$HOME"/.kimi-prov-*; do
+_kd_root="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"
+for _kd in "${_kd_root:-$HOME}"/.kimi-prov-*; do
   [[ -d "$_kd" ]] || continue
   _id="$(basename "$_kd" | sed 's/^\.kimi-prov-//')"
   _cfg="$_kd/config.toml"

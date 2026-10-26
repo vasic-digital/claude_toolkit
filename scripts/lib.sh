@@ -1357,7 +1357,7 @@ cma_jev_env() {
     unset JEV_BASE_URL TYPESAFE_BASE_URL JEV_KEY_VAR JEV_MODEL CMA_JEV_ENDPOINT_ID JEV_CA_FILE
     return 0
   fi
-  local _jev_cache="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
+  local _jev_cache="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/jev-endpoints.json"
   local _jev_ttl="${CMA_JEV_CACHE_TTL:-300}" _jev_now _jev_mtime
   _jev_now=$(date +%s)
   _jev_mtime=$(stat -c %Y "$_jev_cache" 2>/dev/null || stat -f %m "$_jev_cache" 2>/dev/null || echo 0)
@@ -1782,7 +1782,7 @@ cma_run_provider() {
   # it to `shift 2 || true` — that would silently eat the first user arg (-p).
   local id="$1"; shift 2>/dev/null || true
   if [[ "${1:-}" == "--force" ]]; then _cma_force=1; shift; fi
-  local pdir="$HOME/.local/share/claude-multi-account/providers"
+  local pdir="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}"
   local envf="$pdir/$id.env"
   if [[ ! -f "$envf" ]]; then
     printf 'claude-providers: unknown provider %s (missing %s)\n' "$id" "$envf" >&2
@@ -3204,7 +3204,7 @@ cma_providers_session_refresh() {
   CMA_ALIAS_LOCK_WAIT=0 CMA_ALIAS_SKIP_ON_CONTENTION=1 claude-providers list --quiet --refresh-aliases >/dev/null 2>&1 || true
   # TTL-triggered background full sync (detached; never blocks the shell).
   local ttl="${CMA_PROVIDERS_SYNC_TTL:-86400}"
-  local sf="$HOME/.local/share/claude-multi-account/providers/status.json"
+  local sf="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/status.json"
   if [ -f "$sf" ]; then
     local now mtime age
     now="$(date +%s)"
@@ -4571,7 +4571,11 @@ KIMI_SHARED_SUBDIR="kimi"
 
 cma_kimi_home()          { printf '%s\n' "$HOME/.kimi-code"; }
 cma_kimi_account_home()  { printf '%s\n' "$HOME/$KIMI_ACCOUNT_PREFIX$1"; }
-cma_kimi_provider_home() { printf '%s\n' "$HOME/$KIMI_PROVIDER_PREFIX$1"; }
+# cma_kimi_twin_root: where the kimi twin homes live. Under CMA_PROVIDERS_DIR the
+# twins move with it (<dir>/kimi-twins) so an isolated sync/launch never touches
+# the real $HOME; unset keeps the historical $HOME location.
+cma_kimi_twin_root() { if [[ -n "${CMA_PROVIDERS_DIR:-}" ]]; then printf '%s' "$CMA_PROVIDERS_DIR/kimi-twins"; else printf '%s' "$HOME"; fi; }
+cma_kimi_provider_home() { printf '%s\n' "$(cma_kimi_twin_root)/$KIMI_PROVIDER_PREFIX$1"; }
 
 CMA_KIMI_SHARED_ITEMS=(AGENTS.md plugins skills sessions session_index.jsonl)
 
@@ -4754,7 +4758,7 @@ cma_run_kimi_provider() {
   # isolation contract as cma_run_provider, which unconditionally exports
   # CLAUDE_CONFIG_DIR (spec §6.3). Self-contained body: never sources lib.sh,
   # so the literal path stands in for cma_kimi_provider_home.
-  _ckhome="$HOME/.kimi-prov-$_ckpid"
+  _ckhome="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"; _ckhome="${_ckhome:-$HOME}/.kimi-prov-$_ckpid"
   _ckconf="$_ckhome/config.toml"
   _ckbin="${KIMI_BIN:-}"
   if ! command -v "$_ckbin" >/dev/null 2>&1; then
@@ -4770,7 +4774,7 @@ cma_run_kimi_provider() {
   # Shared activation gate (same record as the claude twin) — only a 'verified'
   # id launches, unless the operator passes --force.
   if (( ! _ckf )); then
-    local _ck_sf="$HOME/.local/share/claude-multi-account/providers/status.json" _ck_st="pending"
+    local _ck_sf="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/status.json" _ck_st="pending"
     if command -v jq >/dev/null 2>&1 && [[ -s "$_ck_sf" ]]; then
       _ck_st="$(jq -r --arg i "$_ckpid" '.[$i].status // "pending"' "$_ck_sf" 2>/dev/null)"
       [[ -n "$_ck_st" && "$_ck_st" != "null" ]] || _ck_st="pending"
@@ -4808,7 +4812,7 @@ cma_run_kimi_provider() {
   # Pick up per-id launch metadata from the provider env record (tls CA cert, …
   # ). config.toml carries the wire/API material; the env record carries host
   # config. Optional — a record is not required for kimi launch.
-  local _ck_envf="$HOME/.local/share/claude-multi-account/providers/$_ckpid.env"
+  local _ck_envf="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/$_ckpid.env"
   if [[ -f "$_ck_envf" ]]; then source "$_ck_envf"; fi
   # default_model / base_url are read at launch from what sync rendered — never
   # hardcoded here. Portable strip: take the value after the first `=`, drop
@@ -5096,7 +5100,7 @@ cma_run_pi_provider() {
   # Shared activation gate (same record as the claude twin) — only a 'verified'
   # id launches, unless the operator passes --force.
   if (( ! _cpf )); then
-    local _cp_sf="$HOME/.local/share/claude-multi-account/providers/status.json" _cp_st="pending"
+    local _cp_sf="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/status.json" _cp_st="pending"
     if command -v jq >/dev/null 2>&1 && [[ -s "$_cp_sf" ]]; then
       _cp_st="$(jq -r --arg i "$_cppid" '.[$i].status // "pending"' "$_cp_sf" 2>/dev/null)"
       [[ -n "$_cp_st" && "$_cp_st" != "null" ]] || _cp_st="pending"
@@ -5120,7 +5124,7 @@ cma_run_pi_provider() {
   fi
   # Pick up per-id launch metadata from the provider env record (tls CA cert, …).
   # models.json carries the wire/API material; the env record carries host config.
-  local _cp_envf="$HOME/.local/share/claude-multi-account/providers/$_cppid.env"
+  local _cp_envf="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/$_cppid.env"
   if [[ -f "$_cp_envf" ]]; then source "$_cp_envf"; fi
   # provider/model id and base_url are read at launch from what sync rendered.
   # _cma_pi_render_config (claude-providers.sh) is the ONLY writer and always

@@ -87,7 +87,7 @@ unset _cma_src _cma_tgt
 source "$LIB_DIR/lib.sh"
 
 REPORT_HELPER="$LIB_DIR/claude_usage_report.py"
-STATUS_JSON="$HOME/.local/share/claude-multi-account/providers/status.json"
+STATUS_JSON="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/status.json"
 BUILD_SCRIPT="$LIB_DIR/claude-ccusage-build.sh"
 
 usage() {
