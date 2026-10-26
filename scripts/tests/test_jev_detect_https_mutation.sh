@@ -62,6 +62,10 @@ while IFS=$'\t' read -r idx suite label; do
   if (( rc != 0 )); then _fail "mutation applies" "$(cat "$WORK/err.txt") (rc=$rc)"; continue; fi
   runsuite "$suite"; src=$?
   if (( src != 0 )); then _pass "$suite FAILs under the mutation"
+  elif gate_line="$(python3 "$TBL" envgate "$idx" "$WORK/out.txt")"; then
+    # the suite stayed green because the check that kills this row is an environment-gated SKIP of its own (see ENV_GATED in the
+    # table): reported as SKIP - the kill is unproven on this host - never as a pass
+    _skip "$suite kills this row only where its own gated check runs: ${gate_line}"
   else _fail "$suite FAILs under the mutation" "suite stayed green: the defect class is not covered"; fi
 done < <(python3 "$TBL" list)
 want_n="$(python3 "$TBL" list | wc -l)"

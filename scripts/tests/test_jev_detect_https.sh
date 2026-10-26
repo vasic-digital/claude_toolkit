@@ -163,7 +163,11 @@ assert_eq "0" "$(jq 'length' <<<"$OUT")" "no record"
 err_has "refused" && _pass "warning says refused" || _fail "refusal warning" "$(cat "$ERRF")"
 
 it "H8: a real plain-http server on the host's LAN address is refused, with and without scheme"
+# The first non-loopback IPv4 address. `hostname -I` is net-tools/inetutils only: the GNU coreutils `hostname` of this host rejects
+# it ("invalid option -- 'I'"), which silently skipped H8 and then failed the 'suite started >= 5 servers' positive control.
 LANIP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[[ -n "$LANIP" ]] || LANIP="$(ip -4 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')"
+[[ -n "$LANIP" ]] || LANIP="$(ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')"
 if [[ -n "$LANIP" && "$LANIP" != 127.* ]]; then
   start_srv plain "$LANIP"; NL_PORT="$SRV_PORT"
   jq -n --argjson p "$NL_PORT" --arg h "$LANIP" '{hosted:{}, local_gateway:{enabled:false},
@@ -174,7 +178,7 @@ if [[ -n "$LANIP" && "$LANIP" != 127.* ]]; then
   assert_eq "0" "$(jq 'length' <<<"$(detect CMA_JEV_ALLOW_HTTP=1)")" "default-scheme LAN pin never downgrades to http"
   err_has "does not speak TLS" && _pass "warning explains the TLS-only policy" || _fail "TLS-only warning" "$(cat "$ERRF")"
 else
-  _skip "H8: this host has no non-loopback address (hostname -I empty); covered only by H7"
+  _skip "H8: this host has no non-loopback address (neither hostname -I nor ip/ifconfig report one); covered only by H7"
 fi
 
 it "H8b: host grammar table (exact loopback match; userinfo and look-alikes rejected)"

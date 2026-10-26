@@ -21,6 +21,16 @@ All notable changes to the Claude multi-account toolkit.
     detector, `jev_mcp.py` and the OpenCode plugin parse that one variable out of the file at call time. New
     `scripts/jev-keyfile-lib.sh`. The MCP server treats a baked `JEV_API_KEY=local` placeholder as "no direct key" and
     learns the key variable name from the endpoint cache. Docs: User Guide §2.1 (Model selection, Key files), §5, §10; FAQ; Quickstart.
+  - **Tests** found by the full-suite run: `scripts/tests/test_jev_detect_https.sh` resolved its LAN address with `hostname -I`,
+    which GNU coreutils' `hostname` does not have, so the LAN-address case (H8) was skipped and the positive control (>= 5
+    fixture servers) failed on such a host - it now falls back to `ip -4 -o addr show scope global`, then `ifconfig`;
+    `scripts/tests/test_quota_concurrency.sh` copies `jev-keyfile-lib.sh` into its isolation directory (the sourced library
+    is a new dependency of `claude-providers.sh`); the README test badge/count follows the three new test files.
+    `scripts/tests/test_jev_detect_https_mutation.sh`: the full 96-row run kills 95 rows; row 94 (mermaid statement broken by a
+    semicolon) can only be killed by the docs suite's `mmdc` render check, which SKIPs on a host whose `mmdc` cannot render (no
+    browser), so the suite stays green and the harness counted a defect. A row listed in `ENV_GATED` (scripts/tests/lib/jev_mutations.py)
+    whose suite output carries that suite's own SKIP line is now reported SKIP (the kill is unproven on that host, never a pass);
+    a row without that line, or any other row, still fails.
 
 - `jev-setup`: `--agents` is validated against the closed, case-sensitive set
   `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
