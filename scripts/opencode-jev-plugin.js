@@ -46,9 +46,9 @@ const FLOOR_PATTERNS = [/rm -rf \//, /rm -fr \//, /mkfs/, /:\(\)\{/, /> \/dev\/s
 // SAME key variable, or listed by the operator in CMA_JEV_TRUSTED_ORIGINS
 // ("origin=KEYVAR" pairs). Plain http never carries a key. The cache file is
 // NOT an attestation. A test keeps this list equal to providers/jev.json.
-// SHIPPED_ORIGINS: https://api.typesafe.ai=TYPESAFE_API_KEY https://openrouter.ai/api=OPENROUTER_API_KEY
+// SHIPPED_ORIGINS: https://api.typesafe.ai=TYPESAFE_API_KEY https://openrouter.ai=OPENROUTER_API_KEY
 const SHIPPED_ORIGINS = ["https://api.typesafe.ai=TYPESAFE_API_KEY",
-  "https://openrouter.ai/api=OPENROUTER_API_KEY"];
+  "https://openrouter.ai=OPENROUTER_API_KEY"];
 const KEYVAR_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function originAllowsKey(baseUrl, keyVar) {
@@ -60,10 +60,9 @@ function originAllowsKey(baseUrl, keyVar) {
   const host = hostport.startsWith("[") ? hostport.split("]")[0] + "]" : hostport.split(":")[0];
   if (/^(127(\.[0-9]{1,3}){3}|localhost|\[::1\])$/.test(host)
       && !host.split(".").some((o) => /^\d+$/.test(o) && Number(o) > 255)) return true;
-  // The shipped list is matched on the PATH-bearing base too (openrouter lives under /api).
-  const pair = `${origin}=${keyVar}`;
-  const base = `${(baseUrl || "").replace(/\/+$/, "")}=${keyVar}`;
-  if (SHIPPED_ORIGINS.includes(pair) || SHIPPED_ORIGINS.includes(base)) return true;
+  // ONE comparison everywhere: ORIGIN (scheme://authority) of the configured base
+  // against the ORIGIN of the shipped base (openrouter's base carries /api).
+  if (SHIPPED_ORIGINS.includes(`${origin}=${keyVar}`)) return true;
   for (const t of (process.env.CMA_JEV_TRUSTED_ORIGINS || "").split(/\s+/)) {
     const i = t.indexOf("=");
     if (i > 0 && t.slice(0, i) === origin && t.slice(i + 1) === keyVar) return true;
@@ -155,6 +154,7 @@ export const JevGate = async ({ client }) => ({
     try {
       const resp = await fetch(`${ep.base_url}/v1/systemone`, {
         method: "POST",
+        redirect: "error",     // a bearer must never follow a redirect to another origin
         signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: ep.key
           ? { "Content-Type": "application/json", Authorization: `Bearer ${ep.key}` }

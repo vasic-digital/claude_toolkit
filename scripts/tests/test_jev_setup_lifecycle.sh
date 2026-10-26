@@ -611,4 +611,46 @@ assert_eq 0 "$(cat "$HOME/.rc")" "rc 0 for a spaced gate path"
 rm -f "$SP/jev-gate.sh"; _check --agents claude
 grep -q 'claude:.*MISSING' "$HOME/.out" && _pass "control: the spaced gate removed is still reported MISSING" || _fail "dangling spaced gate reported OK" "$(cat "$HOME/.out")"
 
+it "L33: a hostile endpoint cache cannot make jev-setup write a real key for an unpinned origin (R3 I-1)"
+_cell
+DUMMYK="dummy-secret-key-L33"
+printf 'export TYPESAFE_API_KEY=%s\nexport OPENROUTER_API_KEY=%s\n' "$DUMMYK" "$DUMMYK" > "$HOME/keys.sh"
+export CMA_KEYS_FILE="$HOME/keys.sh"
+EPC="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"https://evil.example.invalid","key_var":"TYPESAFE_API_KEY","model":"m","priority":1}]}\n' > "$EPC"
+_setup --yes --agents claude,kimi,opencode
+leaked=0
+for f in "$HOME/.claude-acct1/.mcp.json" "$HOME/.kimi-code-1/mcp.json" "$HOME/.config/opencode/opencode.json"; do
+  grep -q "$DUMMYK" "$f" 2>/dev/null && leaked=$((leaked + 1))
+done
+assert_eq 0 "$leaked" "no MCP config carries the real key for an unpinned https origin"
+assert_eq yes "$([ -s "$HOME/.claude-acct1/.mcp.json" ] && grep -q evil.example.invalid "$HOME/.claude-acct1/.mcp.json" && echo yes || echo no)" "control: the claude MCP entry was still written (base recorded)"
+# injection through key_var in the cache must not execute
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"https://api.typesafe.ai","key_var":"X}; touch %s/pwned; echo ${Y","model":"m","priority":1}]}\n' "$HOME" > "$EPC"
+_setup --yes --agents claude
+assert_eq no "$([ -e "$HOME/pwned" ] && echo yes || echo no)" "a hostile key_var in the cache is never executed"
+# positive control: the shipped pin with its own key variable still gets its key
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"https://api.typesafe.ai","key_var":"TYPESAFE_API_KEY","model":"m","priority":1}]}\n' > "$EPC"
+_setup --yes --agents claude
+assert_eq yes "$(grep -q "$DUMMYK" "$HOME/.claude-acct1/.mcp.json" && echo yes || echo no)" "control: a shipped-pin origin with its own key variable keeps its key"
+# the shipped pin with ANOTHER key variable must not
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"https://api.typesafe.ai","key_var":"OPENROUTER_API_KEY","model":"m","priority":1}]}\n' > "$EPC"
+_setup --yes --agents claude
+assert_eq no "$(grep -q "$DUMMYK" "$HOME/.claude-acct1/.mcp.json" && echo yes || echo no)" "a shipped origin with a different key variable gets no key"
+unset CMA_KEYS_FILE
+
+it "L34: jev-setup and claude-providers resolve the SAME state dir under CMA_PROVIDERS_DIR (R3 minor b)"
+_cell
+export CMA_PROVIDERS_DIR="$HOME/isolated-providers"
+mkdir -p "$CMA_PROVIDERS_DIR"
+_setup --yes --agents claude
+assert_file "$CMA_PROVIDERS_DIR/jev-state/installed.stamp" "stamp written under CMA_PROVIDERS_DIR/jev-state"
+assert_eq no "$([ -e "$HOME/.local/state/jev/installed.stamp" ] && echo yes || echo no)" "and not in the real home state dir"
+SD="$(bash -c 'source "$1" >/dev/null 2>&1; _cma_jev_state_dir' _ "$PROVS")"
+assert_eq "$CMA_PROVIDERS_DIR/jev-state" "$SD" "claude-providers resolves the same directory"
+JEV_STATE_DIR="$HOME/explicit-state" ; export JEV_STATE_DIR
+_setup --yes --agents claude
+assert_file "$HOME/explicit-state/installed.stamp" "explicit JEV_STATE_DIR still wins"
+unset JEV_STATE_DIR CMA_PROVIDERS_DIR
+
 summary

@@ -16,6 +16,7 @@
 - Version `1.32.0` is tagged (`v1.32.0`, `claude_toolkit-1.32.0`, both at `adae02d`); `main` is one commit ahead (`74820fe`, a test-only fix). The release branch carries `f7d1e44`, the CDPATH fix and the 1.33.0 version bump on top.
 - Verified by `git tag`, `git rev-parse`, `package.json`; the suite result for `74820fe` is NOT re-verified in this update.
 - Nothing about `v1.29.0` below is pending: it shipped.
+- Hosted-Jev round-3 review (NO-GO 0/3/4/1) closed on `fix/hosted-jev-2026-10-24`, local commits only (not pushed, not tagged): single origin-vs-origin key rule in gate/MCP/plugin/probe and `jev-setup` (cache untrusted), enabled-pin jq bug, routes candidates, glob-safe trusted origins, `redirect: "error"`, shared state-dir resolution, non-vacuous `test_claude_usage.sh` file-scope check. Details and counts in `CHANGELOG.md` (v1.33.0, Security round-3 entry). Final mutation run and full suite on the last commit are recorded in the hand-back report, not here.
 
 ---
 

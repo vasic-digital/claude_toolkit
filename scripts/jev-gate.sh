@@ -241,10 +241,13 @@ elif [ -n "$_kvar" ]; then
       fi
       _pinsf="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/providers/jev.json"
       if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
-           '[(.hosted // {})[] | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v and (.enabled // true))] | length > 0' \
+           '[(.hosted // {})[] | select((try (.base_url | capture("^(?<o>https://[^/?#]+)").o) catch "") == $o and (.key_var // "") == $v and (.enabled != false))] | length > 0' \
            "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
       if [ "$_key_pinned" = 0 ] && [ -n "${CMA_JEV_TRUSTED_ORIGINS:-}" ]; then
-        for _t in $CMA_JEV_TRUSTED_ORIGINS; do
+        # split on whitespace WITHOUT pathname expansion: a '*' in the value must never glob
+        # against the working directory into a trusted-looking pair
+        read -r -a _tlist <<<"$CMA_JEV_TRUSTED_ORIGINS"
+        for _t in "${_tlist[@]}"; do
           if [ "${_t%%=*}" = "$_origin" ] && [ "${_t#*=}" = "$_kvar" ] && [ "${_t%%=*}" != "$_t" ]; then _key_pinned=1; fi
         done
       fi

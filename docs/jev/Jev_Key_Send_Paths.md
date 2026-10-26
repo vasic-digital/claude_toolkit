@@ -36,6 +36,7 @@ is appended to a base.
 |---|---|---|---|
 | `scripts/jev-gate.sh` | bearer via `curl -H @<(...)` (~line 274) | Jev origin rule above | covered |
 | `scripts/jev_mcp.py` | `_post_systemone`, `_tool_jev_models` | `_key_for_base` (same rule; `JEV_API_KEY` explicit override sent as given) | covered |
+| `scripts/jev-setup.sh` | `_jev_endpoint_env` writes `JEV_API_KEY`/`TYPESAFE_API_KEY` into the claude `.mcp.json`, the kimi `mcp.json` and the opencode config | the cache is untrusted: `key_var` must be a plain name, and the real key is written only when `jev_mcp._origin_allows_key(base, key_var)` holds; otherwise the placeholder `local` | covered |
 | `scripts/opencode-jev-plugin.js` | `fetch` Authorization | `originAllowsKey` (same rule; shipped list embedded, kept equal to `providers/jev.json` by test; no header when no key or http; `key_var` passed as data, never in script text) | covered; the JS scenarios are SKIPPED where `node` is absent |
 | `scripts/claude-providers.sh` | hosted live probe in `detect_jev_records` (~line 2482) | path validated; loopback base + loopback final URL, or shipped pin with matching key variable | covered |
 | `scripts/claude-providers.sh` | local/LAN gateway probe (~line 2611) | host declared by the pins; the key is sent only after the gateway answered `/healthz` over TLS with a trusted certificate | residual risk: a LAN pin is operator-declared trust |
@@ -48,8 +49,10 @@ is appended to a base.
 
 ## Residual risks (stated, not hidden)
 
-- A `routes.json` candidate that carries an explicit key from the operator's own
-  routes file is sent where that file says (the operator authored both).
+- A `routes.json` candidate names a `key_var` (a variable NAME, never a secret); the
+  bearer is that variable's value from the keys file. `_candidate_answer` applies the
+  same origin rule per candidate: an https candidate whose origin is not loopback, a
+  shipped pin for that key variable, or operator-trusted is skipped (no request).
 - A LAN pin is operator-declared trust: whoever can edit the pins file picks the host.
 - Without `node`, the JS plugin scenarios of the test are skipped (reported as such).
 - Non-Jev provider paths send the key to the endpoint the operator configured for

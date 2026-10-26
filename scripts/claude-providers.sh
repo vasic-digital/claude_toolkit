@@ -2473,8 +2473,8 @@ detect_jev_records() {
       if [[ "$_h_spath" =~ ^/[A-Za-z0-9._~/-]*$ && "$_h_spath" != *..* ]]; then _h_pathok=1; fi
       if (( ! _h_pathok )); then _h_send=0
       elif [[ "$(_cma_jev_base_host_class "${_h_base%/}")" == "loopback" && "$(_cma_jev_base_host_class "${_h_base%/}$_h_spath")" == "loopback" ]]; then _h_send=1
-      elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs" --arg o "${_h_base%/}" --arg v "$_h_keyvar" \
-             '(.hosted[$h] // {}) as $p | (($p.base_url // "") | sub("/+$";"")) == $o and ($p.key_var // "") == $v' \
+      elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs" --arg o "$(printf '%s' "${_h_base%/}" | sed -E 's#^(https://[^/?#]+).*#\1#')" --arg v "$_h_keyvar" \
+             '(.hosted[$h] // {}) as $p | (try ($p.base_url | capture("^(?<o>https://[^/?#]+)").o) catch "") == $o and ($p.key_var // "") == $v and ($p.enabled != false)' \
              "$LIB_DIR/providers/jev.json" >/dev/null 2>&1; then _h_send=1; fi
       if (( ! _h_send )); then
         _h_status="unverified"

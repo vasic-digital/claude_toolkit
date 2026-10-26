@@ -8,7 +8,8 @@ import { JevGate } from "../opencode-jev-plugin.js";
 const calls = [];
 globalThis.fetch = async (url, init) => {
   const h = (init && init.headers) || {};
-  calls.push({ url: String(url), auth: h.Authorization || h.authorization || null });
+  calls.push({ url: String(url), auth: h.Authorization || h.authorization || null,
+    redirect: (init && init.redirect) || null });
   return { json: async () => ({ answers: { gate: { choice: "allow" }, risky: { noul: 0 } } }) };
 };
 

@@ -148,8 +148,14 @@ def _shipped_pins():
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")
         with open(path, "r", encoding="utf-8") as fh:
             hosted = (json.load(fh).get("hosted") or {})
-        return {((h.get("base_url") or "").rstrip("/"), h.get("key_var") or "")
-                for h in hosted.values() if h.get("enabled", True)}
+        out = set()
+        for h in hosted.values():
+            if not h.get("enabled", True):
+                continue
+            m = re.match(r"^(https://[^/?#]+)", h.get("base_url") or "")
+            if m:                      # ORIGIN of the shipped base (openrouter lives under /api)
+                out.add((m.group(1), h.get("key_var") or ""))
+        return out
     except Exception:
         return set()
 
@@ -276,11 +282,20 @@ def _candidate_answer(candidate, state, questions):
     'ask' question, or None on any failure (never raises — a candidate
     going down must not abort the route, just fall through to the next)."""
     try:
+        base = candidate.get("base_url", "")
+        kv = candidate.get("key_var", "")
+        key = _resolve_key_var(kv)
+        # Same origin rule as the single endpoint: an https candidate gets a
+        # key only at loopback, a shipped pin for this key variable, or an
+        # operator-trusted origin. A candidate whose key_var names a secret
+        # but whose origin fails the rule is skipped, never sent unauthenticated.
+        if key and (base or "").lower().startswith("https://") and not _origin_allows_key(base, kv):
+            return None
         data = _post_systemone(
             state, questions,
             model=candidate.get("model"),
-            base=candidate.get("base_url", ""),
-            key=_resolve_key_var(candidate.get("key_var", "")),
+            base=base,
+            key=key,
             ca_file=_route_ca_file(candidate.get("ca_file")),
         )
         return (data.get("answers") or {}).get("ask")

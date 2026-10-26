@@ -301,7 +301,7 @@ M = [
  ("gate: shipped-pin check dropped (api.typesafe.ai no longer released its own key)", GATE, KORIG,
   """if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e""", """if false && jq -e""", 1),
  ("gate: pin matches the origin but not the key variable", GATE, KORIG,
-  """and (.key_var // "") == $v and (.enabled // true))]""", """and (.enabled // true))]""", 1),
+  """and (.key_var // "") == $v and (.enabled != false))]""", """and (.enabled != false))]""", 1),
  ("gate: operator trusted-origin list ignores the key variable", GATE, KORIG,
   """[ "${_t#*=}" = "$_kvar" ] && """, """true && """, 1),
  ("gate: loopback octets above 255 accepted (127.999.0.1)", GATE, KORIG,
@@ -326,7 +326,7 @@ M = [
  ("plugin: key released to any https base (origin rule removed)", PLUGIN, KORIG,
   "    if (!originAllowsKey(base, keyVar)) { out.key_unpinned = true; return out; }", "    if (false) { out.key_unpinned = true; return out; }", 1),
  ("plugin: pin matches the origin but not the key variable", PLUGIN, KORIG,
-  "  const pair = `${origin}=${keyVar}`;", "  const pair = SHIPPED_ORIGINS.find((s) => s.startsWith(origin + \"=\")) || \"\";", 1),
+  "  if (SHIPPED_ORIGINS.includes(`${origin}=${keyVar}`)) return true;", "  if (SHIPPED_ORIGINS.some((s) => s.startsWith(origin + \"=\"))) return true;", 1),
  ("plugin: key_var unvalidated and interpolated into the shell script text", PLUGIN, KORIG,
   r"""  if (!KEYVAR_RE.test(keyVar)) return "";
   if (process.env[keyVar]) return process.env[keyVar];
@@ -363,6 +363,32 @@ M = [
     "") printf 'invalid'; return 0 ;;
   esac
   if [[ "$auth" =~ ^(\[[^]]+\]|[^:]+)(:.*)?$ ]]; then host=""", 1),
+ # --- round-3 review set (I-1, I-2, minors a/b/c/d, redirect nit)
+ ("gate: disabled shipped pin still attests (enabled check removed)", GATE, KORIG,
+  """ and (.enabled != false))] | length > 0'""", """)] | length > 0'""", 1),
+ ("probe: disabled shipped pin still attests (enabled check removed)", CP, KORIG,
+  """ and ($p.enabled != false)'""", """'""", 1),
+ ("gate: origin compare replaced by full base_url equality (openrouter path breaks)", GATE, KORIG,
+  """select((try (.base_url | capture("^(?<o>https://[^/?#]+)").o) catch "") == $o""",
+  """select((.base_url // "") == $o""", 1),
+ ("mcp: shipped pins keep the full base_url instead of the origin", MCP, KORIG,
+  """out.add((m.group(1), h.get("key_var") or ""))""", """out.add((h.get("base_url"), h.get("key_var") or ""))""", 1),
+ ("gate: trusted-origins list pathname-globbed again", GATE, KORIG,
+  """for _t in "${_tlist[@]}"; do""", """for _t in $CMA_JEV_TRUSTED_ORIGINS; do""", 1),
+ ("plugin: fetch follows redirects with the bearer", PLUGIN, KORIG,
+  """        redirect: "error",""", """        redirect: "follow",""", 1),
+ ("mcp: routes candidate sends its key to any https origin", MCP, KORIG,
+  """        if key and (base or "").lower().startswith("https://") and not _origin_allows_key(base, kv):
+            return None
+""", "", 1),
+ ("jev-setup: key materialised for an unpinned origin (cache trusted)", SETUPSH, LIFE,
+  """ \\
+     && [ "$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import jev_mcp; print(1 if jev_mcp._origin_allows_key(sys.argv[2], sys.argv[3]) else 0)' "$SCRIPTS_DIR" "$base" "$kv" 2>/dev/null)" = 1 ]; then""",
+  """; then""", 1),
+ ("jev-setup: state dir ignores CMA_PROVIDERS_DIR", SETUPSH, LIFE,
+  """  if [ -n "${CMA_PROVIDERS_DIR:-}" ]; then JEV_STATE_DIR="$CMA_PROVIDERS_DIR/jev-state"
+  else JEV_STATE_DIR="$HOME/.local/state/jev"; fi""",
+  """  JEV_STATE_DIR="$HOME/.local/state/jev\"""", 1),
 ]
 
 def main():

@@ -1087,10 +1087,37 @@ validates <code>systemone_path</code>
 the base and the final URL, and sends its bearer only to loopback or to
 a shipped pin. <code>JEV_API_KEY</code> as an explicit operator override
 is sent as given (documented residual). New
-<code>test_jev_key_origin_class.sh</code> (91 assertions, including a
+<code>test_jev_key_origin_class.sh</code> (122 assertions, including a
 drift guard that every script building a bearer header is listed in the
 new <code>docs/jev/Jev_Key_Send_Paths.md</code>); mutation catalogue
 re-anchored and extended.</li>
+<li>Security (round-3 review, no-go 0/3/4/1, all closed): ONE comparison
+everywhere - the ORIGIN (<code>https://authority</code>) of the
+configured base against the ORIGIN of an ENABLED shipped pin with the
+same key variable - in <code>jev-gate</code>, <code>jev_mcp.py</code>,
+the opencode plugin and the <code>sync-jev</code> probe;
+<code>https://openrouter.ai</code> (any path) is now attested for
+<code>OPENROUTER_API_KEY</code>. Bug found on the way: jq
+<code>.enabled // true</code> treats <code>false</code> as missing, so a
+DISABLED pin still attested; now <code>.enabled != false</code> (gate,
+probe; tests use a copy of the scripts with every pin disabled).
+<code>jev-setup</code> no longer trusts the endpoint cache:
+<code>key_var</code> must be a plain name and the real key is written
+into the claude/kimi/opencode MCP configs only when the origin rule
+holds (else the placeholder <code>local</code>). A
+<code>routes.json</code> candidate is held to the same rule (an https
+candidate at an unpinned origin is skipped).
+<code>CMA_JEV_TRUSTED_ORIGINS</code> is split without pathname
+expansion; the plugin fetch uses <code>redirect: &quot;error&quot;</code>.
+<code>jev-setup</code> and <code>claude-providers</code> now share one
+state-dir resolution (<code>JEV_STATE_DIR</code>, else
+<code>$CMA_PROVIDERS_DIR/jev-state</code>, else
+<code>~/.local/state/jev</code>). <code>test_claude_usage.sh</code>
+file-scope check now inspects the named usage-feature commits with a
+positive-control commit (no longer vacuous). Tests: key_origin_class
+122, setup_lifecycle 263 (L33, L34); 10 new mutations plus 2
+re-anchored, all killed. Residual: an explicit <code>JEV_API_KEY</code>
+override is sent as given; LAN pins are operator-declared trust.</li>
 <li>Security (review finding): the live-probe host check uses an
 anchored authority parse (<code>_cma_jev_base_host_class</code>):
 userinfo (<code>@</code>), backslash, whitespace, percent bytes, empty

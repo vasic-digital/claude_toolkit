@@ -89,9 +89,28 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   (`^/[A-Za-z0-9._~/-]*$`, no `..`), classifies both the base and the final URL, and
   sends its bearer only to loopback or to a shipped pin. `JEV_API_KEY` as an explicit
   operator override is sent as given (documented residual). New
-  `test_jev_key_origin_class.sh` (91 assertions, including a drift guard that every
+  `test_jev_key_origin_class.sh` (122 assertions, including a drift guard that every
   script building a bearer header is listed in the new
   `docs/jev/Jev_Key_Send_Paths.md`); mutation catalogue re-anchored and extended.
+- Security (round-3 review, no-go 0/3/4/1, all closed): ONE comparison everywhere - the
+  ORIGIN (`https://authority`) of the configured base against the ORIGIN of an ENABLED
+  shipped pin with the same key variable - in `jev-gate`, `jev_mcp.py`, the opencode
+  plugin and the `sync-jev` probe; `https://openrouter.ai` (any path) is now attested
+  for `OPENROUTER_API_KEY`. Bug found on the way: jq `.enabled // true` treats `false`
+  as missing, so a DISABLED pin still attested; now `.enabled != false` (gate, probe;
+  tests use a copy of the scripts with every pin disabled). `jev-setup` no longer
+  trusts the endpoint cache: `key_var` must be a plain name and the real key is
+  written into the claude/kimi/opencode MCP configs only when the origin rule holds
+  (else the placeholder `local`). A `routes.json` candidate is held to the same rule
+  (an https candidate at an unpinned origin is skipped). `CMA_JEV_TRUSTED_ORIGINS` is
+  split without pathname expansion; the plugin fetch uses `redirect: "error"`.
+  `jev-setup` and `claude-providers` now share one state-dir resolution
+  (`JEV_STATE_DIR`, else `$CMA_PROVIDERS_DIR/jev-state`, else `~/.local/state/jev`).
+  `test_claude_usage.sh` file-scope check now inspects the named usage-feature commits
+  with a positive-control commit (no longer vacuous). Tests: key_origin_class 122,
+  setup_lifecycle 263 (L33, L34); 10 new mutations plus 2 re-anchored, all killed.
+  Residual: an explicit `JEV_API_KEY` override is sent as given; LAN pins are
+  operator-declared trust.
 - Security (review finding): the live-probe host check uses an anchored authority parse (`_cma_jev_base_host_class`): userinfo (`@`), backslash, whitespace, percent bytes, empty host, malformed/duplicate port and look-alike hosts (`127.0.0.1.evil`, `localhost.`) are refused, so the bearer can no longer reach a host other than the one classified loopback; `jev-gate` never key-pins an https origin containing such characters. Tests T7e (4 assertions) and T9 (18 assertions).
 
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag

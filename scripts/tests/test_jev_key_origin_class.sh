@@ -34,7 +34,7 @@ GATE="$SCRIPTS_DIR/jev-gate.sh"
 SHIPPED_PINS="$SCRIPTS_DIR/providers/jev.json"
 DUMMY="dum""my-k""ey-$$-0123456789"
 KEYS="$HOME/api_keys.sh"
-printf "export TYPESAFE_API_KEY='%s'\nexport LLMCTL_API_KEY='%s'\n" "$DUMMY" "$DUMMY" > "$KEYS"
+printf "export TYPESAFE_API_KEY='%s'\nexport LLMCTL_API_KEY='%s'\nexport OPENROUTER_API_KEY='%s'\n" "$DUMMY" "$DUMMY" "$DUMMY" > "$KEYS"
 
 # --- PATH shim curl: records every URL and every header FILE it is handed ------
 SHIM="$HOME/shim"; mkdir -p "$SHIM"
@@ -61,10 +61,10 @@ lastfb() { tail -n1 "$JEV_STATE_DIR/decisions.jsonl" | jq -r '.fallback // "none
 
 # ===========================================================================
 it "C1: live probe - a hostile systemone_path never moves the request off the pinned host"
-c1() { # c1 <base> <path> <expect: send|nosend>
-  local base="$1" path="$2" want="$3" pins="$HOME/pinsc1.json" log="$HOME/curlc1.log"
+c1() { # c1 <base> <path> <expect: send|nosend> [slot] [key_var]
+  local base="$1" path="$2" want="$3" slot="${4:-typesafe}" kv="${5:-TYPESAFE_API_KEY}" pins="$HOME/pinsc1.json" log="$HOME/curlc1.log"
   rm -f "$log"
-  jq -n --arg b "$base" --arg p "$path" '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:$b,systemone_path:$p,
+  jq -n --arg b "$base" --arg p "$path" --arg s "$slot" --arg k "$kv" '{hosted:{($s):{key_var:$k,base_url:$b,systemone_path:$p,
     models:["jev-latest"],context_limit:64000,enabled:true}}, local_gateway:{enabled:false}, lan:[]}' > "$pins"
   env -u LLMCTL_API_KEY CMA_JEV_PINS_FILE="$pins" CMA_KEYS_FILE="$KEYS" CMA_JEV_LIVE=1 CMA_JEV_HTTP_TIMEOUT=1 \
     bash -c 'curl() { printf "%s\n" "$*" >>"'"$log"'"; return 7; }; export -f curl; source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_jev_records' >/dev/null 2>&1
@@ -84,6 +84,10 @@ done
 c1 "https://api.typesafe.ai" "/v1/systemone" send
 c1 "https://openrouter.ai/api" "/v1/systemone" nosend   # slot is typesafe: origin+key_var must equal the typesafe pin
 c1 "http://127.0.0.1:8095" "/api/v1/systemone" send
+# I-2: the shipped OpenRouter pin carries a path (/api); the probe must accept it exactly like the gate
+c1 "https://openrouter.ai/api" "/v1/systemone" send openrouter OPENROUTER_API_KEY
+c1 "https://openrouter.ai/api" "/v1/systemone" nosend openrouter TYPESAFE_API_KEY
+c1 "https://evil.example.invalid/api" "/v1/systemone" nosend openrouter OPENROUTER_API_KEY
 
 # ===========================================================================
 it "C2: pins override origin -> sync-jev (cache) -> gate : the real key never reaches the override origin"
@@ -121,6 +125,19 @@ gate JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAF
 assert_eq "1" "$(shim_urls)" "shipped TypeSafe pin: one request"
 assert_eq "yes" "$(shim_keyseen)" "shipped TypeSafe pin: key sent"
 shim_reset
+gate JEV_BASE_URL="https://openrouter.ai/api" JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY"
+assert_eq "1" "$(shim_urls)" "I-2 shipped OpenRouter pin (base carries /api): one request"
+assert_eq "yes" "$(shim_keyseen)" "I-2 shipped OpenRouter pin: key sent"
+shim_reset
+gate JEV_BASE_URL="https://openrouter.ai/api/" JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY"
+assert_eq "yes" "$(shim_keyseen)" "I-2 shipped OpenRouter pin with a trailing slash: key sent"
+shim_reset
+gate JEV_BASE_URL="https://openrouter.ai/api" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "no" "$(shim_keyseen)" "OpenRouter origin with the TypeSafe key variable: refused"
+shim_reset
+gate JEV_BASE_URL="https://openrouter.ai.evil.example.invalid/api" JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY"
+assert_eq "no" "$(shim_keyseen)" "look-alike OpenRouter host: refused"
+shim_reset
 gate JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY"
 assert_eq "0" "$(shim_urls)" "shipped origin with the OTHER slot's key variable: refused"
 shim_reset
@@ -149,6 +166,40 @@ for hb in "${HOSTILE_BASES[@]}"; do
   assert_eq "0" "$(shim_urls)" "gate: hostile authority [$hb]: no request"
   assert_eq "no" "$(shim_keyseen)" "gate: hostile authority [$hb]: key not handed to curl"
 done
+
+# minor (d): the trusted-origin list is split WITHOUT glob expansion. A '*' in the value must not
+# expand against the working directory (dir "https:" holding a file named like a trusted pair).
+GLOBDIR="$HOME/globdir"; mkdir -p "$GLOBDIR/https:"
+: > "$GLOBDIR/https:/evil.example.invalid=TYPESAFE_API_KEY"
+shim_reset
+( cd "$GLOBDIR" && gate JEV_BASE_URL="https://evil.example.invalid" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" \
+    CMA_JEV_TRUSTED_ORIGINS='https://*' )
+assert_eq "no" "$(shim_keyseen)" "glob: a '*' in CMA_JEV_TRUSTED_ORIGINS never expands into a trusted pair"
+assert_eq "0" "$(shim_urls)" "glob: zero requests to the origin a glob would have produced"
+shim_reset
+( cd "$GLOBDIR" && gate JEV_BASE_URL="https://llm.lan.example:8443" JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY" \
+    CMA_JEV_TRUSTED_ORIGINS='https://*  https://llm.lan.example:8443=LLMCTL_API_KEY' )
+assert_eq "yes" "$(shim_keyseen)" "glob: a real entry next to a '*' entry is still honoured (no false refusal)"
+
+# minor (a): a DISABLED shipped pin attests nothing - gate, mcp and probe. The shipped file is not
+# overridable, so run copies of the scripts next to a providers/jev.json with the pins disabled.
+DIS="$HOME/scripts-dis"; mkdir -p "$DIS"
+cp -r "$SCRIPTS_DIR"/. "$DIS"/ 2>/dev/null; rm -rf "$DIS/tests"
+jq '.hosted |= with_entries(.value.enabled=false)' "$SHIPPED_PINS" > "$DIS/providers/jev.json"
+GATE_SAVE="$GATE"; GATE="$DIS/jev-gate.sh"
+shim_reset
+gate JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "key_unpinned" "$(lastfb)" "disabled shipped pin: gate refuses (key_unpinned)"
+assert_eq "0" "$(shim_urls)" "disabled shipped pin: zero requests"
+shim_reset
+gate JEV_BASE_URL="https://openrouter.ai/api" JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY"
+assert_eq "0" "$(shim_urls)" "disabled OpenRouter pin: zero requests"
+GATE="$GATE_SAVE"
+PROVIDERS_SAVE="$PROVIDERS_SH"; PROVIDERS_SH="$DIS/claude-providers.sh"
+c1 "https://api.typesafe.ai" "/v1/systemone" nosend
+c1 "https://openrouter.ai/api" "/v1/systemone" nosend openrouter OPENROUTER_API_KEY
+PROVIDERS_SH="$PROVIDERS_SAVE"
+c1 "https://api.typesafe.ai" "/v1/systemone" send   # control: the enabled copy still sends
 
 # ===========================================================================
 it "C4: jev_mcp.py applies the same origin rule (patched urlopen records the Authorization header)"
@@ -182,12 +233,46 @@ print("auth=%s err=%d" % (a, err))' "$SCRIPTS_DIR" 2>/dev/null
 assert_eq "auth=none err=1" "$(mcp https://evil.example.invalid -)" "unpinned https origin: no request, error"
 assert_eq "auth=yes err=0" "$(mcp https://api.typesafe.ai -)" "shipped pin: key sent"
 assert_eq "auth=none err=1" "$(mcp https://api.typesafe.ai OPENROUTER_API_KEY)" "shipped origin, wrong key variable: refused"
+assert_eq "auth=yes err=0" "$(mcp https://openrouter.ai/api OPENROUTER_API_KEY CMA_KEYS_FILE="$KEYS")" "I-2 shipped OpenRouter pin (base carries /api): key sent"
+assert_eq "auth=none err=1" "$(mcp https://openrouter.ai/api TYPESAFE_API_KEY CMA_KEYS_FILE="$KEYS")" "OpenRouter origin, TypeSafe key variable: refused"
 assert_eq "auth=yes err=0" "$(mcp https://127.0.0.1:9 -)" "loopback https: key sent"
 assert_eq "auth=yes err=0" "$(mcp https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY")" "operator-trusted origin: key sent"
 assert_eq "auth=none err=1" "$(mcp 'https://127.0.0.1@evil.example.invalid' -)" "userinfo base: refused"
 for hb in "${HOSTILE_BASES[@]}"; do
   assert_eq "auth=none err=1" "$(mcp "$hb" -)" "mcp: hostile authority [$hb]: refused"
 done
+SCRIPTS_SAVE="$SCRIPTS_DIR"; SCRIPTS_DIR="$DIS"
+assert_eq "auth=none err=1" "$(mcp https://api.typesafe.ai -)" "disabled shipped pin: mcp refuses"
+assert_eq "auth=none err=1" "$(mcp https://openrouter.ai/api OPENROUTER_API_KEY CMA_KEYS_FILE="$KEYS")" "disabled OpenRouter pin: mcp refuses"
+SCRIPTS_DIR="$SCRIPTS_SAVE"
+assert_eq "auth=yes err=0" "$(mcp https://api.typesafe.ai -)" "control: the enabled shipped pin still sends"
+# minor (c): a routes.json candidate names a key_var that _candidate_answer resolves to the secret;
+# the same origin rule applies per candidate (https only to loopback / shipped pin / trusted origin).
+cand() { # cand <base> <key_var> [env...] -> "auth=<yes|no|none>"
+  local base="$1" kv="$2"; shift 2
+  env -u JEV_API_KEY -u JEV_KEY_VAR -u CMA_JEV_TRUSTED_ORIGINS CMA_KEYS_FILE="$KEYS" DUM="$DUMMY" CB="$base" CK="$kv" "$@" \
+    python3 -c '
+import sys, os
+sys.path.insert(0, sys.argv[1])
+import jev_mcp
+seen = []
+class R:
+    def __enter__(s): return s
+    def __exit__(s, *a): return False
+    def read(s): return b"{\"answers\":{\"ask\":{\"choice\":\"allow\"}}}"
+def fake_open(req, timeout, ca_file=None):
+    seen.append(req.headers.get("Authorization", ""))
+    return R()
+jev_mcp._open = fake_open
+jev_mcp._candidate_answer({"base_url": os.environ["CB"], "key_var": os.environ["CK"], "model": "m"}, {}, {})
+print("auth=" + ("none" if not seen else ("yes" if os.environ["DUM"] in seen[0] else "no")))' "$SCRIPTS_DIR" 2>/dev/null
+}
+assert_eq "auth=none" "$(cand https://evil.example.invalid TYPESAFE_API_KEY)" "route candidate, unpinned https origin: no request, key not sent"
+assert_eq "auth=none" "$(cand 'https://127.0.0.1:9@evil.example.invalid' TYPESAFE_API_KEY)" "route candidate, userinfo authority: refused"
+assert_eq "auth=yes" "$(cand https://api.typesafe.ai TYPESAFE_API_KEY)" "route candidate, shipped pin + its key variable: key sent"
+assert_eq "auth=none" "$(cand https://api.typesafe.ai LLMCTL_API_KEY)" "route candidate, shipped origin with another key variable: refused"
+assert_eq "auth=yes" "$(cand https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)" "route candidate, operator-trusted origin: key sent"
+assert_eq "auth=no" "$(cand http://127.0.0.1:9 '')" "route candidate, loopback http with no key: request still made, no bearer (no false refusal)"
 PINS_EVIL="$HOME/pins-mcp-evil.json"
 jq -n '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:"https://evil.example.invalid",systemone_path:"/v1/systemone",models:["jev-latest"],context_limit:64000,enabled:true}},local_gateway:{enabled:false},lan:[]}' > "$PINS_EVIL"
 assert_eq "auth=none err=1" "$(mcp https://evil.example.invalid - CMA_JEV_PINS_FILE="$PINS_EVIL")" "mcp: a pins-file override never attests a key"
@@ -215,6 +300,11 @@ else
   assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "shipped pin: key sent"
   R="$(PLUG JEV_BASE_URL=https://api.typesafe.ai JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY")"
   assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "shipped origin with the other slot's key variable: refused"
+  R="$(PLUG JEV_BASE_URL=https://openrouter.ai/api JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY")"
+  assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "I-2 shipped OpenRouter pin (base carries /api): key sent"
+  assert_eq "error" "$(jq -r '.calls[0].redirect' <<<"$R" 2>/dev/null || echo ERR)" "NIT: the plugin's fetch refuses redirects (redirect:error)"
+  R="$(PLUG JEV_BASE_URL=https://openrouter.ai/api JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY")"
+  assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "OpenRouter origin with the TypeSafe key variable: refused"
   R="$(PLUG JEV_BASE_URL=https://127.0.0.1:9 TYPESAFE_API_KEY="$DUMMY")"
   assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "loopback https: key sent"
   R="$(PLUG JEV_BASE_URL=https://llm.lan.example:8443 JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY" CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)"
@@ -254,9 +344,9 @@ missing=""
 while IFS= read -r f; do
   b="$(basename "$f")"
   grep -q "$b" "$TABLE" 2>/dev/null || missing="$missing $b"
-done < <(grep -lE "Bearer |x-api-key|X-Api-Key" "$SCRIPTS_DIR"/*.sh "$SCRIPTS_DIR"/*.py "$SCRIPTS_DIR"/*.js 2>/dev/null)
+done < <(grep -lE "Bearer |x-api-key|X-Api-Key|JEV_API_KEY: \\\$key" "$SCRIPTS_DIR"/*.sh "$SCRIPTS_DIR"/*.py "$SCRIPTS_DIR"/*.js 2>/dev/null)
 [[ -z "$missing" ]] && _pass "every file with a bearer/api-key header is in the table" || _fail "every file with a bearer/api-key header is in the table" "missing:$missing"
-shipped="$(jq -r '[.hosted[] | select(.enabled // true) | ((.base_url|sub("/+$";""))+"="+.key_var)] | sort | join(" ")' "$SHIPPED_PINS")"
+shipped="$(jq -r '[.hosted[] | select(.enabled // true) | ((.base_url|capture("^(?<o>https://[^/?#]+)").o)+"="+.key_var)] | sort | join(" ")' "$SHIPPED_PINS")"
 plug="$(grep -E '^// SHIPPED_ORIGINS:' "$SCRIPTS_DIR/opencode-jev-plugin.js" | sed -E 's#^// SHIPPED_ORIGINS: ##' | tr ' ' '\n' | sort | paste -sd' ' -)"
 assert_eq "$shipped" "$plug" "plugin SHIPPED_ORIGINS marker equals providers/jev.json hosted (origin=key_var)"
 

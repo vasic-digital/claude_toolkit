@@ -563,7 +563,7 @@ refuses to overwrite without `--force` and never runs npm itself — it prints
 | `JEV_RISKY_THRESHOLD` | `0.7` | Risky-probability floor that escalates allow→ask. |
 | `JEV_GATE_TIMEOUT` | `2` | Gate curl timeout (seconds). |
 | `JEV_GATE_FAIL` | `open` | `closed` = fail-closed on endpoint error (risky; §6). |
-| `JEV_STATE_DIR` | `~/.local/state/jev` | Evidence log directory. |
+| `JEV_STATE_DIR` | `~/.local/state/jev` (`<CMA_PROVIDERS_DIR>/jev-state` when that is set) | Evidence log directory. |
 | `JEV_MCP_TIMEOUT` | `4` | MCP server HTTP timeout (seconds). |
 | `JEV_AGENT` | `unknown` | Agent name fallback in the evidence log. |
 | `JEV_EST_INPUT_TOKENS` / `JEV_EST_OUTPUT_TOKENS` | `1500` / `200` | Savings-estimate constants (§8). |

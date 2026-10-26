@@ -26,7 +26,12 @@ unset _src _dir
 
 SHARED_DIR="${SHARED_DIR:-$HOME/.claude-shared}"
 JEV_DIR="$HOME/.local/share/claude-multi-account/jev"
-JEV_STATE_DIR="${JEV_STATE_DIR:-$HOME/.local/state/jev}"
+# Same resolution order as claude-providers.sh _cma_jev_state_dir: explicit
+# JEV_STATE_DIR, else the isolated providers dir, else the real home.
+if [ -z "${JEV_STATE_DIR:-}" ]; then
+  if [ -n "${CMA_PROVIDERS_DIR:-}" ]; then JEV_STATE_DIR="$CMA_PROVIDERS_DIR/jev-state"
+  else JEV_STATE_DIR="$HOME/.local/state/jev"; fi
+fi
 JEV_CONFIG_DIR="$HOME/.config/jev"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 GATE_INSTALLED="$JEV_DIR/jev-gate.sh"
@@ -182,16 +187,22 @@ _jq_merge() {
   fi
 }
 
-# Endpoint material for MCP registrations (cache + keys file; key var NAME
-# resolved at install time into agent-local config only).
+# Endpoint material for MCP registrations. The cache is NOT trusted: the key
+# variable must be a plain name and the real key is materialised only when the
+# base origin is allowed to receive it (loopback, a shipped pin for that same
+# key variable, or CMA_JEV_TRUSTED_ORIGINS) - the same rule the gate, the MCP
+# server and the plugin apply at send time. Otherwise the placeholder "local"
+# is written, never the secret.
 _jev_endpoint_env() { # echoes TAB-separated base_url, api_key
   local base="" key="" kv=""
   if [ -s "$CACHE" ] && command -v jq >/dev/null 2>&1; then
     base=$(jq -r '.endpoints[0].base_url // ""' "$CACHE" 2>/dev/null)
     kv=$(jq -r '.endpoints[0].key_var // ""' "$CACHE" 2>/dev/null)
   fi
-  if [ -n "$kv" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
-    key=$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$kv"':-}"' 7>&-)
+  case "$kv" in ''|[!A-Za-z_]*|*[!A-Za-z0-9_]*) kv="" ;; esac
+  if [ -n "$kv" ] && [ -n "$base" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ] \
+     && [ "$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import jev_mcp; print(1 if jev_mcp._origin_allows_key(sys.argv[2], sys.argv[3]) else 0)' "$SCRIPTS_DIR" "$base" "$kv" 2>/dev/null)" = 1 ]; then
+    key=$(KV="$kv" bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"' 7>&-)
   fi
   printf '%s\t%s' "$base" "${key:-local}"
 }
