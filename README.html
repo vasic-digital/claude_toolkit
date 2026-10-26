@@ -744,7 +744,7 @@ never cross accounts.</p>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh               <span class="co"># hermetic + live verifiers + evidence bundle</span></span></code></pre></div>
 <p>Tests use a sandboxed <code>$HOME</code> via <code>mktemp</code> —
 your real <code>~/.claude*</code> is never touched. The suite is
-<strong>126 test files</strong>
+<strong>128 test files</strong>
 (<code>ls scripts/tests/test_*.sh | wc -l</code>); a hermetic run on a
 host without a <code>claude-code-router</code> checkout fails the
 router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT
