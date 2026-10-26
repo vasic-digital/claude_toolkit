@@ -53,18 +53,31 @@ done
 if [[ "$_matched" == 1 ]]; then _pass "claude-usage.sh matches install.sh's symlink glob"
 else _fail "claude-usage.sh does NOT match the glob" "install.sh would never symlink it"; fi
 
-it "never edits lib.sh / claude-providers.sh / install.sh (file-scope constraint)"
-# This test file itself is the proof artifact for that constraint in CI-less
-# review: assert those three files are UNCHANGED relative to the merge-base
-# with main, i.e. this change touched none of their lines.
+it "the usage-feature commits never edited lib.sh / claude-providers.sh / install.sh (file-scope constraint)"
+# The constraint belongs to the commits that BUILT the usage feature, not to every
+# later branch: a branch may legitimately change lib.sh (1.33.0 does). So inspect
+# the named feature commits themselves, with a control that the instrument sees a
+# commit that DID touch a protected file. Never vacuous: unresolvable commits SKIP
+# loudly instead of passing.
+_prot='^scripts/(lib\.sh|claude-providers\.sh|install\.sh)$'
+_touch() { git -C "$REPO_ROOT" diff-tree --no-commit-id --name-only -r "$1" 2>/dev/null | grep -cE "$_prot"; }
 if command -v git >/dev/null 2>&1 && git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  _base="$(git -C "$REPO_ROOT" merge-base HEAD main 2>/dev/null || true)"
-  if [[ -n "$_base" ]]; then
-    _changed="$(git -C "$REPO_ROOT" diff --name-only "$_base"...HEAD -- scripts/lib.sh scripts/claude-providers.sh scripts/install.sh 2>/dev/null)"
-    if [[ -z "$_changed" ]]; then _pass "lib.sh/claude-providers.sh/install.sh unchanged since merge-base with main"
-    else _fail "one of the protected files changed" "$_changed"; fi
+  _ctl=adae02d   # known to change lib.sh + claude-providers.sh (positive control)
+  if git -C "$REPO_ROOT" cat-file -e "$_ctl^{commit}" 2>/dev/null; then
+    _n="$(_touch "$_ctl")"
+    [[ "${_n:-0}" -ge 1 ]] && _pass "control: commit $_ctl is seen touching a protected file ($_n)" \
+      || _fail "control: commit $_ctl is seen touching a protected file" "instrument is blind"
+    for _c in 5b27915 47b98ff; do
+      if git -C "$REPO_ROOT" cat-file -e "$_c^{commit}" 2>/dev/null; then
+        _n="$(_touch "$_c")"
+        [[ "${_n:-0}" -eq 0 ]] && _pass "usage-feature commit $_c touched none of lib.sh/claude-providers.sh/install.sh" \
+          || _fail "usage-feature commit $_c touched a protected file" "$_n file(s)"
+      else
+        echo "SKIP: usage-feature commit $_c not present in this checkout"
+      fi
+    done
   else
-    echo "SKIP: no merge-base with 'main' resolvable in this checkout"
+    echo "SKIP: control commit $_ctl not present (shallow clone?)"
   fi
 else
   echo "SKIP: not a git worktree"
