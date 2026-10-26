@@ -69,7 +69,7 @@ M = [
  ("live probe: bearer also sent over plain http (round-5 R4)", CP, "test_jev_probe_http_nokey.sh",
   r"""-H @<(if [[ "${_h_base%/}" == https://* ]];""", r"""-H @<(if [[ "${_h_base%/}" != http://* ]];""", 1),
  ("gate: pins looked up relative to the unresolved symlink path (round-5 m1)", GATE, KORIG,
-  '_selfp="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null)" || _selfp=""', '_selfp=""', 1),
+  'while [ -L "$_selfp" ] && [ "$_hops" -lt 40 ]; do', 'while false; do', 1),
  ("mcp: shipped pins looked up via abspath, not realpath (round-5 m1)", MCP, KORIG,
   'os.path.dirname(os.path.realpath(__file__)), "providers", "jev.json")\n        with', 'os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")\n        with', 1),
  ("mcp: keys-file path interpolated into shell text (round-5 N3)", MCP, KORIG,

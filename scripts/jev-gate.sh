@@ -239,8 +239,13 @@ elif [ -n "$_kvar" ]; then
          && ! printf '%s' "$_h" | grep -qE '(^|\.)(25[6-9]|2[6-9][0-9]|[3-9][0-9][0-9])(\.|$)'; then
         _key_pinned=1
       fi
-      _selfp="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null)" || _selfp=""
-      [ -n "$_selfp" ] || _selfp="${BASH_SOURCE[0]}"
+      # resolve PATH symlinks portably (no 'readlink -f': BSD/macOS lack it); bounded
+      _selfp="${BASH_SOURCE[0]}"; _hops=0
+      while [ -L "$_selfp" ] && [ "$_hops" -lt 40 ]; do
+        _lnk="$(readlink "$_selfp" 2>/dev/null)" || break
+        case "$_lnk" in /*) _selfp="$_lnk" ;; *) _selfp="$(dirname "$_selfp")/$_lnk" ;; esac
+        _hops=$((_hops+1))
+      done
       _pinsf="$(cd "$(dirname "$_selfp")" 2>/dev/null && pwd -P)/providers/jev.json"
       if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
            '[(.hosted // {})[] | select((try (.base_url | capture("^(?<o>https://[^/?#]+)").o) catch "") == $o and (.key_var // "") == $v and (.enabled != false))] | length > 0' \
