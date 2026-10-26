@@ -18,6 +18,9 @@ HTTPS = "test_jev_detect_https.sh"
 WIRING = "test_llmctl_vision_gate_wiring.sh"
 DOCS = "test_docs_hub_engine_release.sh"
 HARD = "test_hardening_r2.sh"
+KORIG = "test_jev_key_origin_class.sh"
+HLIVE = "test_jev_hosted_live_fixes.sh"
+PLUGIN = "scripts/opencode-jev-plugin.js"
 KHOOK = "test_kimi_render_config_jev_hooks.sh"
 SETUP = "test_jev_setup_idempotent.sh"
 SETUPSH = "scripts/jev-setup.sh"
@@ -69,9 +72,9 @@ M = [
  ("gate: drops --cacert", GATE, HTTPS,
   """${JEV_CA_FILE:+--cacert "$JEV_CA_FILE"}""", "", 1),
  ("gate: sends the bearer over http too", GATE, HTTPS,
-  """if [[ "$JEV_BASE_URL" == https://* ]]; then""", "if true; then", 1),
+  """elif [[ "$JEV_BASE_URL" == https://* ]]; then""", "elif true; then", 1),
  ("gate: ignores JEV_KEY_VAR in the environment", GATE, HTTPS,
-  '_key="${!JEV_KEY_VAR:-}"', '_key=""', 1),
+  '  _key="${!_kvar:-}"', '  _key=""', 1),
  # --- jev_mcp
  ("mcp: TLS verification off (R5)", MCP, HTTPS,
   "ctx = ssl.create_default_context()", "ctx = ssl._create_unverified_context()", 1),
@@ -291,6 +294,53 @@ M = [
   "Note over GW: HTTPS only, bearer key mandatory", "Note over GW: HTTPS only; bearer key mandatory", 1),
  ("docs: README names only one third-party submodule", "README.md", DOCS,
   "and\n  `submodules/ccusage`.", ".", 1),
+
+# --- round-3 class: "a key can reach a host that was never validated" (review r2 I-1..I-3)
+ ("gate: every https origin counts as pinned (key released anywhere)", GATE, KORIG,
+  "    _key_pinned=0\n    # Userinfo", "    _key_pinned=1\n    # Userinfo", 1),
+ ("gate: shipped-pin check dropped (api.typesafe.ai no longer released its own key)", GATE, KORIG,
+  """if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e""", """if false && jq -e""", 1),
+ ("gate: pin matches the origin but not the key variable", GATE, KORIG,
+  """and (.key_var // "") == $v and (.enabled // true))]""", """and (.enabled // true))]""", 1),
+ ("gate: operator trusted-origin list ignores the key variable", GATE, KORIG,
+  """[ "${_t#*=}" = "$_kvar" ] && """, """true && """, 1),
+ ("gate: loopback octets above 255 accepted (127.999.0.1)", GATE, KORIG,
+  r""" \
+         && ! printf '%s' "$_h" | grep -qE '(^|\.)(25[6-9]|2[6-9][0-9]|[3-9][0-9][0-9])(\.|$)'; then""", """; then""", 1),
+ ("gate: userinfo/backslash/percent authority not refused", GATE, KORIG,
+  r"""case "$_origin" in *[@\\%[:space:]]*) _origin="" ;; esac""", ":", 1),
+ ("gate: unpinned origin still makes the request (key_unpinned ignored)", GATE, KORIG,
+  """  elif [ "$_key_pinned" != 1 ]; then _no_key=2; fi""", "  fi", 1),
+ ("gate: endpoint cache attests a key (cache used as a pin)", GATE, HLIVE,
+  "    _key_pinned=0\n    # Userinfo", "    _key_pinned=$( [ -s \"${CMA_PROVIDERS_DIR:-/nonexistent}/jev-endpoints.json\" ] && echo 1 || echo 0 )\n    # Userinfo", 1),
+ ("mcp: key released to any https base (origin rule removed)", MCP, KORIG,
+  "        if not _origin_allows_key(base, kv):", "        if False:", 1),
+ ("mcp: shipped pins read from an environment override", MCP, KORIG,
+  """path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")""",
+  """path = os.environ.get("CMA_JEV_PINS_FILE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")""", 1),
+ ("mcp: pin matches the origin but not the key variable", MCP, KORIG,
+  "    if (origin, key_var) in _shipped_pins():", "    if any(o == origin for o, _k in _shipped_pins()):", 1),
+ ("mcp: userinfo/backslash/percent authority accepted", MCP, KORIG,
+  r"""    if re.search(r"[@\\%\s]", hostport):
+        return False""", "    pass", 1),
+ ("plugin: key released to any https base (origin rule removed)", PLUGIN, KORIG,
+  "    if (!originAllowsKey(base, keyVar)) { out.key_unpinned = true; return out; }", "    if (false) { out.key_unpinned = true; return out; }", 1),
+ ("plugin: pin matches the origin but not the key variable", PLUGIN, KORIG,
+  "  const pair = `${origin}=${keyVar}`;", "  const pair = SHIPPED_ORIGINS.find((s) => s.startsWith(origin + \"=\")) || \"\";", 1),
+ ("plugin: key_var interpolated into the shell script text", PLUGIN, KORIG,
+  """printf %s "${!KV:-}"'],""", """printf %s "${' + keyVar + ':-}"'],""", 1),
+ ("plugin: key_var not validated before use", PLUGIN, KORIG,
+  "  if (!KEYVAR_RE.test(keyVar)) return \"\";", "", 1),
+ ("plugin: providers dir hardcoded (CMA_PROVIDERS_DIR ignored)", PLUGIN, KORIG,
+  "process.env.CMA_PROVIDERS_DIR", "process.env.CMA_PROVIDERS_DIR_IGNORED", 1),
+ ("probe: systemone_path not validated (userinfo path reaches curl)", CP, KORIG,
+  """if [[ "$_h_spath" =~ ^/[A-Za-z0-9._~/-]*$ && "$_h_spath" != *..* ]]; then _h_pathok=1; fi""", "_h_pathok=1", 1),
+ ("probe: final URL host not re-classified (only the base is)", CP, KORIG,
+  """ && "$(_cma_jev_base_host_class "${_h_base%/}$_h_spath")" == "loopback" ]]; then _h_send=1""", """ ]]; then _h_send=1""", 1),
+ ("probe: shipped-pin check dropped (any https base receives the key)", CP, KORIG,
+  """elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs\"""", """elif [[ "${_h_base%/}" == https://* ]] && true || jq -e --arg h "$_hs\"""", 1),
+ ("host classifier: userinfo in the authority accepted", CP, KORIG,
+  r"""    ""|*[@\\%[:space:]]*) printf 'invalid'; return 0 ;;""", """    "") printf 'invalid'; return 0 ;;""", 1),
 ]
 
 def main():
