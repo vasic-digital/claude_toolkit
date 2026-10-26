@@ -89,7 +89,7 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   (`^/[A-Za-z0-9._~/-]*$`, no `..`), classifies both the base and the final URL, and
   sends its bearer only to loopback or to a shipped pin. `JEV_API_KEY` as an explicit
   operator override is sent as given (documented residual). New
-  `test_jev_key_origin_class.sh` (61 assertions, including a drift guard that every
+  `test_jev_key_origin_class.sh` (91 assertions, including a drift guard that every
   script building a bearer header is listed in the new
   `docs/jev/Jev_Key_Send_Paths.md`); mutation catalogue re-anchored and extended.
 - Security (review finding): the live-probe host check uses an anchored authority parse (`_cma_jev_base_host_class`): userinfo (`@`), backslash, whitespace, percent bytes, empty host, malformed/duplicate port and look-alike hosts (`127.0.0.1.evil`, `localhost.`) are refused, so the bearer can no longer reach a host other than the one classified loopback; `jev-gate` never key-pins an https origin containing such characters. Tests T7e (4 assertions) and T9 (18 assertions).

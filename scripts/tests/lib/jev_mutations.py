@@ -327,20 +327,42 @@ M = [
   "    if (!originAllowsKey(base, keyVar)) { out.key_unpinned = true; return out; }", "    if (false) { out.key_unpinned = true; return out; }", 1),
  ("plugin: pin matches the origin but not the key variable", PLUGIN, KORIG,
   "  const pair = `${origin}=${keyVar}`;", "  const pair = SHIPPED_ORIGINS.find((s) => s.startsWith(origin + \"=\")) || \"\";", 1),
- ("plugin: key_var interpolated into the shell script text", PLUGIN, KORIG,
-  """printf %s "${!KV:-}"'],""", """printf %s "${' + keyVar + ':-}"'],""", 1),
+ ("plugin: key_var unvalidated and interpolated into the shell script text", PLUGIN, KORIG,
+  r"""  if (!KEYVAR_RE.test(keyVar)) return "";
+  if (process.env[keyVar]) return process.env[keyVar];
+  try {
+    // key_var travels as DATA in the environment, never inside the script text.
+    return execFileSync("bash", ["-c",
+      'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],""",
+  r"""  if (process.env[keyVar]) return process.env[keyVar];
+  try {
+    // key_var travels as DATA in the environment, never inside the script text.
+    return execFileSync("bash", ["-c",
+      'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${' + keyVar + ':-}"'],""", 1),
  ("plugin: key_var not validated before use", PLUGIN, KORIG,
   "  if (!KEYVAR_RE.test(keyVar)) return \"\";", "", 1),
  ("plugin: providers dir hardcoded (CMA_PROVIDERS_DIR ignored)", PLUGIN, KORIG,
   "process.env.CMA_PROVIDERS_DIR", "process.env.CMA_PROVIDERS_DIR_IGNORED", 1),
  ("probe: systemone_path not validated (userinfo path reaches curl)", CP, KORIG,
   """if [[ "$_h_spath" =~ ^/[A-Za-z0-9._~/-]*$ && "$_h_spath" != *..* ]]; then _h_pathok=1; fi""", "_h_pathok=1", 1),
- ("probe: final URL host not re-classified (only the base is)", CP, KORIG,
-  """ && "$(_cma_jev_base_host_class "${_h_base%/}$_h_spath")" == "loopback" ]]; then _h_send=1""", """ ]]; then _h_send=1""", 1),
+ ("probe: path validation and final-URL host re-classification both removed", CP, KORIG,
+  r"""      if [[ "$_h_spath" =~ ^/[A-Za-z0-9._~/-]*$ && "$_h_spath" != *..* ]]; then _h_pathok=1; fi
+      if (( ! _h_pathok )); then _h_send=0
+      elif [[ "$(_cma_jev_base_host_class "${_h_base%/}")" == "loopback" && "$(_cma_jev_base_host_class "${_h_base%/}$_h_spath")" == "loopback" ]]; then _h_send=1""",
+  r"""      _h_pathok=1
+      if false; then _h_send=0
+      elif [[ "$(_cma_jev_base_host_class "${_h_base%/}")" == "loopback" ]]; then _h_send=1""", 1),
  ("probe: shipped-pin check dropped (any https base receives the key)", CP, KORIG,
   """elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs\"""", """elif [[ "${_h_base%/}" == https://* ]] && true || jq -e --arg h "$_hs\"""", 1),
- ("host classifier: userinfo in the authority accepted", CP, KORIG,
-  r"""    ""|*[@\\%[:space:]]*) printf 'invalid'; return 0 ;;""", """    "") printf 'invalid'; return 0 ;;""", 1),
+ ("host classifier: userinfo guard removed and port grammar loosened", CP, KORIG,
+  r"""  case "$auth" in
+    ""|*[@\\%[:space:]]*) printf 'invalid'; return 0 ;;
+  esac
+  if [[ "$auth" =~ ^(\[[^]]+\]|[^:]+)(:[0-9]+)?$ ]]; then host=""",
+  r"""  case "$auth" in
+    "") printf 'invalid'; return 0 ;;
+  esac
+  if [[ "$auth" =~ ^(\[[^]]+\]|[^:]+)(:.*)?$ ]]; then host=""", 1),
 ]
 
 def main():

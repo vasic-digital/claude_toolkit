@@ -78,6 +78,9 @@ for p in '@evil.example/x' '\@evil.example/x' '%40evil.example/x' '/v1/x?y=1' '/
   c1 "https://api.typesafe.ai" "$p" nosend
   c1 "http://127.0.0.1:8095" "$p" nosend
 done
+for hb in 'http://127.0.0.1:9@evil.example.invalid' 'https://127.0.0.1:9@evil.example.invalid' 'http://127.0.0.1:9%40evil.example.invalid'; do
+  c1 "$hb" "/api/v1/systemone" nosend
+done
 c1 "https://api.typesafe.ai" "/v1/systemone" send
 c1 "https://openrouter.ai/api" "/v1/systemone" nosend   # slot is typesafe: origin+key_var must equal the typesafe pin
 c1 "http://127.0.0.1:8095" "/api/v1/systemone" send
@@ -137,6 +140,16 @@ gate JEV_BASE_URL="http://llm.lan.example:8443" JEV_KEY_VAR=LLMCTL_API_KEY LLMCT
   CMA_JEV_TRUSTED_ORIGINS="http://llm.lan.example:8443=LLMCTL_API_KEY"
 assert_eq "no" "$(shim_keyseen)" "plain http never carries a key, trusted or not"
 
+# hostile authorities: the text looks loopback, the connection would not be (or the octets are not an address)
+HOSTILE_BASES=('https://127.999.0.1' 'https://127.0.0.1:9@evil.example.invalid' 'https://127.0.0.1:9%40evil.example.invalid'
+  'https://127.0.0.1:9\@evil.example.invalid' 'https://localhost.evil.example.invalid' 'https://127.0.0.1.evil.example.invalid')
+for hb in "${HOSTILE_BASES[@]}"; do
+  shim_reset
+  gate JEV_BASE_URL="$hb" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+  assert_eq "0" "$(shim_urls)" "gate: hostile authority [$hb]: no request"
+  assert_eq "no" "$(shim_keyseen)" "gate: hostile authority [$hb]: key not handed to curl"
+done
+
 # ===========================================================================
 it "C4: jev_mcp.py applies the same origin rule (patched urlopen records the Authorization header)"
 mcp() { # mcp <base> <keyvar|-> [env...] -> prints "auth=<yes|no|none> err=<0|1>"
@@ -172,6 +185,12 @@ assert_eq "auth=none err=1" "$(mcp https://api.typesafe.ai OPENROUTER_API_KEY)" 
 assert_eq "auth=yes err=0" "$(mcp https://127.0.0.1:9 -)" "loopback https: key sent"
 assert_eq "auth=yes err=0" "$(mcp https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY")" "operator-trusted origin: key sent"
 assert_eq "auth=none err=1" "$(mcp 'https://127.0.0.1@evil.example.invalid' -)" "userinfo base: refused"
+for hb in "${HOSTILE_BASES[@]}"; do
+  assert_eq "auth=none err=1" "$(mcp "$hb" -)" "mcp: hostile authority [$hb]: refused"
+done
+PINS_EVIL="$HOME/pins-mcp-evil.json"
+jq -n '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:"https://evil.example.invalid",systemone_path:"/v1/systemone",models:["jev-latest"],context_limit:64000,enabled:true}},local_gateway:{enabled:false},lan:[]}' > "$PINS_EVIL"
+assert_eq "auth=none err=1" "$(mcp https://evil.example.invalid - CMA_JEV_PINS_FILE="$PINS_EVIL")" "mcp: a pins-file override never attests a key"
 
 # ===========================================================================
 it "C5: opencode-jev-plugin.js - same rule, CMA_PROVIDERS_DIR, no 'Bearer local', no shell interpolation of key_var"
@@ -207,6 +226,21 @@ else
   assert_eq "1" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "cache under CMA_PROVIDERS_DIR is honoured (HOME has none)"
   assert_eq "false" "$(jq -r '.exploit' <<<"$R" 2>/dev/null || echo ERR)" "a hostile key_var is never interpreted by a shell"
   [[ ! -e "$EXP" ]] && _pass "sink-side: the injected command did not run" || _fail "injected command did not run" "flag file exists"
+  # bash indirect expansion evaluates an array subscript: KV='NAME[$(cmd)]' would run cmd
+  EXP2="$HOME/pwned2.flag"; rm -f "$EXP2"
+  jq -n --arg k "TYPESAFE_API_KEY[\$(touch $EXP2)]" '{endpoints:[{base_url:"https://127.0.0.1:9",key_var:$k,provider_id:"jev-x"}]}' > "$PD/jev-endpoints.json"
+  R="$(PLUG CMA_PROVIDERS_DIR="$PD" JEV_TEST_EXPLOIT_FILE="$EXP2")"
+  assert_eq "false" "$(jq -r '.exploit' <<<"$R" 2>/dev/null || echo ERR)" "a subscript/command-substitution key_var is rejected before bash sees it"
+  [[ ! -e "$EXP2" ]] && _pass "sink-side: the subscript command did not run" || _fail "subscript command did not run" "flag file exists"
+  EXP3="$HOME/pwned3.flag"; rm -f "$EXP3"
+  jq -n --arg k "TYPESAFE_API_KEY}\"; touch $EXP3; echo \"" '{endpoints:[{base_url:"https://127.0.0.1:9",key_var:$k,provider_id:"jev-x"}]}' > "$PD/jev-endpoints.json"
+  R="$(PLUG CMA_PROVIDERS_DIR="$PD" JEV_TEST_EXPLOIT_FILE="$EXP3")"
+  assert_eq "false" "$(jq -r '.exploit' <<<"$R" 2>/dev/null || echo ERR)" "brace-injection key_var on a reached https loopback origin is never interpreted"
+  [[ ! -e "$EXP3" ]] && _pass "sink-side: the brace-injected command did not run" || _fail "brace-injected command did not run" "flag file exists"
+  for hb in 'https://127.999.0.1' 'https://127.0.0.1:9@evil.example.invalid' 'https://127.0.0.1:9%40evil.example.invalid' 'https://localhost.evil.example.invalid'; do
+    R="$(PLUG JEV_BASE_URL="$hb" TYPESAFE_API_KEY="$DUMMY")"
+    assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "hostile authority [$hb]: fetch never called"
+  done
   jq -n '{endpoints:[{base_url:"https://evil.example.invalid",key_var:"TYPESAFE_API_KEY",provider_id:"jev-x"}]}' > "$PD/jev-endpoints.json"
   R="$(PLUG CMA_PROVIDERS_DIR="$PD" TYPESAFE_API_KEY="$DUMMY")"
   assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "a cache entry for an unpinned https origin never attests a key"
