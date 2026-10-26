@@ -24,7 +24,7 @@ listed in the "v1.32.0 (addendum)" section below were already shipped in the
 - `scripts/jev-setup.sh` and `scripts/jev-kimi-lib.sh` use `jev_realpath` instead
   of `readlink -f` (two call sites).
 - `docs/CONTINUATION.md` and this changelog corrected to the real tag state; the
-  README tests badge and test-file count now match the measured count (125, including the new `test_jev_hosted_live_fixes.sh`).
+  README tests badge and test-file count now match the measured count (126, including the new `test_jev_hosted_live_fixes.sh` and `test_jev_key_origin_class.sh`).
 
 ### Fixed
 
@@ -38,7 +38,7 @@ listed in the "v1.32.0 (addendum)" section below were already shipped in the
 
 Defects found by live validation of the hosted Jev endpoint (TypeSafe
 `/v1/systemone`, 2026-10-24), each with a regression test in the new
-`test_jev_hosted_live_fixes.sh` (65 assertions pass, 1 skipped; stub servers and dummy keys only):
+`test_jev_hosted_live_fixes.sh` (85 assertions pass, 1 skipped; stub servers and dummy keys only):
 
 - `claude-providers sync-jev` with `CMA_JEV_LIVE=1` sent `questions` as an array;
   the server requires a map (name -> {type, instructions, criteria}) and answered
@@ -55,8 +55,10 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   `claude-usage`, `verify_superpowers_tui`), and the kimi twin homes live under
   `<dir>/kimi-twins` for every writer and reader (`cma_kimi_twin_root`,
   `cma_kimi_provider_home`, the self-contained kimi launcher, `kimi-providers`,
-  `claude-install-verify`, `jev-setup`). A lint test fails on any remaining
-  hard-coded default directory.
+  `claude-install-verify`, `jev-setup`). Test T6c scans every shell, JavaScript and Python
+  script and fails on any hard-coded default directory that is not an override-aware
+  expansion or an entry of its explicit, reasoned allow-list. `claude-release-gate.sh`
+  honours the override too.
 - Pins and docs: `jev-latest` was observed answering as `jev-1.14.0` on the hosted
   server during the 2026-10-24 live validation (`jev-1.13.0` still served).
   UNCONFIRMED: not re-verified by an independent check (no network in the review
@@ -74,21 +76,26 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   https gateway used to receive `Authorization: Bearer local`; it now receives no
   request at all (`no_key`). Plain-http gateways are unchanged (no header, no key
   needed). A 403 is mapped to `auth_rejected` like a 401 (regression test added).
-- Key-to-host binding (review follow-up). `jev-gate.sh` used to send an exported
-  `TYPESAFE_API_KEY` to whatever https endpoint `JEV_BASE_URL` named. A key is now
-  looked up by the variable the endpoint declares (`JEV_KEY_VAR`, default
-  `TYPESAFE_API_KEY`; `JEV_API_KEY` stays the explicit override) and over https is
-  released only to an origin attested for that variable by the endpoint cache
-  (`jev-endpoints.json`) or the pins file; otherwise no request is made and the
-  fallback is the new `key_unpinned`. The `sync-jev` live probe (`CMA_JEV_LIVE=1`)
-  sends its bearer only to a loopback host or to the https origin of the SHIPPED
-  pin for that slot, so a pins-file override cannot redirect a real key. `jev_mcp.py`
-  no longer falls back to `TYPESAFE_API_KEY` when another key variable is declared
-  (origin pinning is not mirrored there).
+- Key-to-host binding (review follow-ups, two rounds). A Jev key is released over
+  https only when (1) the host is loopback (exact authority grammar; userinfo,
+  backslash, percent, whitespace and octets above 255 are refused), (2) the origin
+  AND the key variable equal a SHIPPED pin in `providers/jev.json`, or (3) the
+  operator listed `origin=KEYVAR` in `CMA_JEV_TRUSTED_ORIGINS`. The endpoint cache
+  and a `CMA_JEV_PINS_FILE` override do NOT attest a key. Plain http never carries a
+  key. Anything else makes no request (`jev-gate` fallback `key_unpinned`; no key at
+  all stays `no_key`). `jev_mcp.py` and the opencode plugin apply the same rule (the
+  plugin passes the key variable as data, never inside shell text, and honours
+  `CMA_PROVIDERS_DIR`). The `sync-jev` live probe validates `systemone_path`
+  (`^/[A-Za-z0-9._~/-]*$`, no `..`), classifies both the base and the final URL, and
+  sends its bearer only to loopback or to a shipped pin. `JEV_API_KEY` as an explicit
+  operator override is sent as given (documented residual). New
+  `test_jev_key_origin_class.sh` (61 assertions, including a drift guard that every
+  script building a bearer header is listed in the new
+  `docs/jev/Jev_Key_Send_Paths.md`); mutation catalogue re-anchored and extended.
+- Security (review finding): the live-probe host check uses an anchored authority parse (`_cma_jev_base_host_class`): userinfo (`@`), backslash, whitespace, percent bytes, empty host, malformed/duplicate port and look-alike hosts (`127.0.0.1.evil`, `localhost.`) are refused, so the bearer can no longer reach a host other than the one classified loopback; `jev-gate` never key-pins an https origin containing such characters. Tests T7e (4 assertions) and T9 (18 assertions).
 
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
 
-- Security (review finding): the live-probe host check now uses an anchored authority parse (`_cma_jev_base_host_class`): userinfo (`@`), backslash, whitespace, percent bytes, empty host, malformed/duplicate port and look-alike hosts (`127.0.0.1.evil`, `localhost.`) are refused, so the bearer can no longer reach a host other than the one classified loopback; `jev-gate` never key-pins an https origin containing such characters. Tests T7e and T9 (18 cases).
 - `jev-setup`: `--agents` is validated against the closed, case-sensitive set
   `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
   any write, no stamp); `--check --uninstall` is refused (exit 2); the native

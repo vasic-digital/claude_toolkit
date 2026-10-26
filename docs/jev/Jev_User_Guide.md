@@ -332,8 +332,9 @@ Decision flow:
    `timeout`, `unreachable` (connection refused / unresolvable host),
    `tls_untrusted` (certificate not trusted: set `JEV_CA_FILE`),
    `auth_rejected` (HTTP 401/403), `key_unpinned` (https key whose origin and
-   key variable no pin or endpoint-cache entry attests: no request is made, so
-   a key never reaches an unattested host), `no_key` (https and no key found:
+   key variable are not loopback, not a shipped pin and not in
+   `CMA_JEV_TRUSTED_ORIGINS`: no request is made, so a key never reaches an
+   unattested host; the endpoint cache and a pins override do not attest), `no_key` (https and no key found:
    no request is made, so no bearer is ever sent blind) or the residual `endpoint_error`. Fail-closed is available via
    `JEV_GATE_FAIL=closed` and is documented as risky: an endpoint outage then
    blocks all gated tool calls.
@@ -353,7 +354,11 @@ Evidence log — one JSON line per gated call in
 `class` is the decision class the canon token-reduction gate counts (always
 `gate` for this hook); `latency_ms` has millisecond resolution. `fallback` is
 `null`, `"timeout"`, `"unreachable"`, `"tls_untrusted"`, `"auth_rejected"`,
-`"no_key"` or `"endpoint_error"`. The raw state is
+`"no_key"`, `"key_unpinned"` or `"endpoint_error"`. `key_unpinned` means a key exists
+but the https origin is not loopback, not a shipped pin for that key variable and not
+listed in `CMA_JEV_TRUSTED_ORIGINS` (`origin=KEYVAR`, space-separated); no request is
+made. The endpoint cache and `CMA_JEV_PINS_FILE` never attest a key. See
+`docs/jev/Jev_Key_Send_Paths.md`. The raw state is
 never logged — only its truncated sha256 prefix — so secrets in tool inputs
 cannot land in the log.
 
