@@ -153,7 +153,7 @@ it "T3: shipped pins list jev-1.13.0 and jev-1.14.0, jev-latest stays the defaul
 assert_jq "$SHIPPED_PINS" '.hosted.typesafe.models | index("jev-1.13.0") != null' "true" "jev-1.13.0 still listed (server still serves it)"
 assert_jq "$SHIPPED_PINS" '.hosted.typesafe.models | index("jev-1.14.0") != null' "true" "jev-1.14.0 listed (what jev-latest resolves to now)"
 assert_jq "$SHIPPED_PINS" '.hosted.typesafe.models[-1]' "jev-latest" "jev-latest is last = detector default model"
-tr '\n' ' ' < "$SCRIPTS_DIR/../docs/jev/Jev_User_Guide.md" | grep -q 'jev-latest. now resolves server-side to .jev-1\.14\.0' && _pass "user guide states jev-latest -> jev-1.14.0" || _fail "user guide states jev-latest -> jev-1.14.0" "not found"
+tr '\n' ' ' < "$SCRIPTS_DIR/../docs/jev/Jev_User_Guide.md" | grep -q 'jev-latest. resolved server-side to .jev-1\.14\.0.*UNCONFIRMED' && _pass "user guide states jev-latest -> jev-1.14.0 as an UNCONFIRMED observation" || _fail "user guide states jev-latest -> jev-1.14.0 as an UNCONFIRMED observation" "not found"
 
 # ===========================================================================
 # T4 - latency + class

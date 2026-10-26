@@ -221,7 +221,7 @@ elif [ -n "$_kvar" ]; then
     _origin="$(printf '%s' "$JEV_BASE_URL" | sed -E 's#^(https://[^/?#]+).*#\1#')"
     _key_pinned=0
     _cache="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/jev-endpoints.json"
-    _pinsf="${CMA_JEV_PINS_FILE:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")")/providers/jev.json}"
+    _pinsf="${CMA_JEV_PINS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/providers/jev.json}"
     if [ -f "$_cache" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
          '[(.endpoints // .)[]? | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v)] | length > 0' \
          "$_cache" >/dev/null 2>&1; then _key_pinned=1; fi

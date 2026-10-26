@@ -250,6 +250,8 @@ grep -qF -- "$SECRET" "$ARGV" && _fail "key absent from every curl argv" "$(grep
 it "K2: jev-gate resolves JEV_KEY_VAR from the environment when there is no keys file"
 mkpins "$TLS_PORT"; : > "$TLSLOG"
 rm -f "$KEYS"
+# the https origin + key variable must be attested by a pin before the key is released
+jq --arg o "https://127.0.0.1:$TLS_PORT" '.hosted.t = {base_url:$o, key_var:"LLMCTL_API_KEY", enabled:true}' "$PINS" > "$PINS.x" && mv "$PINS.x" "$PINS"
 out="$(printf '%s' "$HOOK" | JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$SECRET" JEV_API_KEY= TYPESAFE_API_KEY= JEV_MODE=enforce bash "$SCRIPTS_DIR/jev-gate.sh" 2>/dev/null)"; rc=$?
 assert_eq 2 "$rc" "TLS + CA + env key (no keys file) -> real deny decision"
 grep -q "POST /v1/systemone auth=Bearer $SECRET" "$TLSLOG" && _pass "sink-side: the gateway saw the real bearer" || _fail "gateway saw the real bearer" "$(cat "$TLSLOG")"
