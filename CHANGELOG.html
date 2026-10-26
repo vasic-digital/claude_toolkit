@@ -1085,6 +1085,14 @@ for that slot, so a pins-file override cannot redirect a real key.
 (addendum) — jev-setup / Kimi-lock review rounds, already in the
 <code>v1.32.0</code> tag</h2>
 <ul>
+<li>Security (review finding): the live-probe host check now uses an
+anchored authority parse (<code>_cma_jev_base_host_class</code>):
+userinfo (<code>@</code>), backslash, whitespace, percent bytes, empty
+host, malformed/duplicate port and look-alike hosts
+(<code>127.0.0.1.evil</code>, <code>localhost.</code>) are refused, so
+the bearer can no longer reach a host other than the one classified
+loopback; <code>jev-gate</code> never key-pins an https origin
+containing such characters. Tests T7e and T9 (18 cases).</li>
 <li><code>jev-setup</code>: <code>--agents</code> is validated against
 the closed, case-sensitive set <code>claude|kimi|pi|opencode|all</code>
 (unknown, miscased or empty -&gt; exit 2 before any write, no stamp);

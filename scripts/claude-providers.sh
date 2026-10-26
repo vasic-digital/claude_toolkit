@@ -2356,6 +2356,23 @@ _cma_jev_host_class() {
   esac
 }
 
+# _cma_jev_base_host_class <base_url> -> loopback | other | invalid (stdout).
+# Anchored parse of the URL authority so the host that is CLASSIFIED is the
+# host curl CONNECTS to: no userinfo (@), no backslash/whitespace/percent
+# bytes, no empty host, port digits only, a single optional port; the host
+# is then judged by _cma_jev_host_class (exact grammar, no look-alikes).
+_cma_jev_base_host_class() {
+  local b="${1-}" auth host
+  [[ "$b" =~ ^[Hh][Tt][Tt][Pp][Ss]?://([^/?#]*)([/?#].*)?$ ]] || { printf 'invalid'; return 0; }
+  auth="${BASH_REMATCH[1]}"
+  case "$auth" in
+    ""|*[@\\%[:space:]]*) printf 'invalid'; return 0 ;;
+  esac
+  if [[ "$auth" =~ ^(\[[^]]+\]|[^:]+)(:[0-9]+)?$ ]]; then host="${BASH_REMATCH[1]}"
+  else printf 'invalid'; return 0; fi
+  _cma_jev_host_class "$host"
+}
+
 # _cma_jev_url_host <host> -> host as it must appear in a URL authority:
 # an IPv6 literal (contains ':') is wrapped in [] unless already bracketed.
 _cma_jev_url_host() {
@@ -2445,10 +2462,8 @@ detect_jev_records() {
       # https origin whose (origin, key variable) equals the SHIPPED pin for
       # this slot - so a pins-file override can never redirect a real key to
       # an arbitrary host.
-      local _h_authority _h_hostonly _h_send=0
-      _h_authority="$(printf '%s' "${_h_base%/}" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?\#]*).*$#\1#')"
-      _h_hostonly="${_h_authority%%:[0-9]*}"
-      if [[ "$(_cma_jev_host_class "$_h_hostonly")" == "loopback" ]]; then _h_send=1
+      local _h_send=0
+      if [[ "$(_cma_jev_base_host_class "${_h_base%/}")" == "loopback" ]]; then _h_send=1
       elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs" --arg o "${_h_base%/}" --arg v "$_h_keyvar" \
              '(.hosted[$h] // {}) as $p | (($p.base_url // "") | sub("/+$";"")) == $o and ($p.key_var // "") == $v' \
              "$LIB_DIR/providers/jev.json" >/dev/null 2>&1; then _h_send=1; fi

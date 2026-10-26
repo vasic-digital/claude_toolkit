@@ -220,12 +220,15 @@ elif [ -n "$_kvar" ]; then
   if [ -n "$_key" ] && [[ "$JEV_BASE_URL" == https://* ]]; then
     _origin="$(printf '%s' "$JEV_BASE_URL" | sed -E 's#^(https://[^/?#]+).*#\1#')"
     _key_pinned=0
+    # Userinfo, backslash, whitespace or percent bytes make the URL authority
+    # ambiguous (curl may connect elsewhere than the text suggests): never pinned.
+    case "$_origin" in *[@\\%[:space:]]*) _origin="" ;; esac
     _cache="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/jev-endpoints.json"
     _pinsf="${CMA_JEV_PINS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/providers/jev.json}"
-    if [ -f "$_cache" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
+    if [ -n "$_origin" ] && [ -f "$_cache" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
          '[(.endpoints // .)[]? | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v)] | length > 0' \
          "$_cache" >/dev/null 2>&1; then _key_pinned=1; fi
-    if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
+    if [ "$_key_pinned" = 0 ] && [ -n "$_origin" ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
          '[(.hosted // {})[] | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v and (.enabled // true))] | length > 0' \
          "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
   fi

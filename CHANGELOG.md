@@ -88,6 +88,7 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
 
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
 
+- Security (review finding): the live-probe host check now uses an anchored authority parse (`_cma_jev_base_host_class`): userinfo (`@`), backslash, whitespace, percent bytes, empty host, malformed/duplicate port and look-alike hosts (`127.0.0.1.evil`, `localhost.`) are refused, so the bearer can no longer reach a host other than the one classified loopback; `jev-gate` never key-pins an https origin containing such characters. Tests T7e and T9 (18 cases).
 - `jev-setup`: `--agents` is validated against the closed, case-sensitive set
   `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
   any write, no stamp); `--check --uninstall` is refused (exit 2); the native

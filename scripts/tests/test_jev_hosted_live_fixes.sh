@@ -323,6 +323,16 @@ gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_
 assert_eq "key_unpinned" "$(fb)" "variable is not the pin's own"
 assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: zero requests"
 
+it "T7e: an https base with userinfo is never key-pinned, even if a cache lists that literal string"
+for ub in "https://127.0.0.1@127.0.0.1:$TLS_PORT" "https://127.0.0.1:$TLS_PORT\\@evil"; do
+  jq -n --arg b "$ub" '{endpoints:[{base_url:$b,key_var:"TYPESAFE_API_KEY"}]}' > "$T7P/jev-endpoints.json"
+  : > "$TLSLOG"
+  gate "$HOOK" JEV_BASE_URL="$ub" JEV_CA_FILE="$CERT" JEV_KEY_VAR=TYPESAFE_API_KEY \
+    TYPESAFE_API_KEY="$DUMMY" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
+  assert_eq "key_unpinned" "$(fb)" "userinfo/backslash base refused [$ub]"
+  assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: zero requests"
+done
+
 # ===========================================================================
 # T8 - the live probe never sends a bearer off a non-https non-loopback or unpinned URL
 # ===========================================================================
@@ -345,5 +355,25 @@ OUT8B="$(env -u LLMCTL_API_KEY CMA_JEV_PINS_FILE="$PINS8B" CMA_KEYS_FILE="$KEYS"
   bash -c 'curl() { echo "CURL-CALLED $*" >>"'"$HOME"'/curl8.log"; return 7; }; export -f curl; source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_jev_records' 2>/dev/null)"
 assert_eq "unverified" "$(jq -r '[.[] | select(.provider_id=="jev-typesafe")][0].status // "absent"' <<<"$OUT8B")" "record is unverified"
 [[ ! -e "$HOME/curl8.log" ]] && _pass "curl was never invoked" || _fail "curl was never invoked" "$(cat "$HOME/curl8.log")"
+
+it "T9: live-probe host parsing - userinfo/look-alike/odd hosts never receive a bearer; real loopback still does"
+t9() { # t9 <base> <expect: send|nosend>
+  local base="$1" want="$2" pins="$HOME/pins9.json" log="$HOME/curl9.log"
+  rm -f "$log"
+  jq -n --arg b "$base" '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:$b,systemone_path:"/v1/systemone",
+    models:["jev-latest"],context_limit:64000,enabled:true}}, local_gateway:{enabled:false}, lan:[]}' > "$pins"
+  env -u LLMCTL_API_KEY CMA_JEV_PINS_FILE="$pins" CMA_KEYS_FILE="$KEYS" CMA_JEV_LIVE=1 CMA_JEV_HTTP_TIMEOUT=1 \
+    bash -c 'curl() { echo "CURL-CALLED" >>"'"$log"'"; return 7; }; export -f curl; source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_jev_records' >/dev/null 2>&1
+  if [[ "$want" == nosend ]]; then
+    [[ ! -e "$log" ]] && _pass "no curl for [$base]" || _fail "no curl for [$base]" "curl was invoked"
+  else
+    [[ -e "$log" ]] && _pass "curl invoked for [$base]" || _fail "curl invoked for [$base]" "probe was skipped"
+  fi
+}
+for b in 'http://127.0.0.1@evil.example/' 'http://localhost:80@evil/' 'http://user:pw@127.0.0.1.evil/' \
+         'http://127.0.0.1.evil/' 'http://localhost./' 'http://127.0.0.1\@evil/' 'http://127.0.0.1 evil/' \
+         'http://%31%32%37.0.0.1/' 'http://127.0.0.1%2eevil/' 'http:///' 'http://:8095/' 'http://127.0.0.1:80a/' \
+         'http://[::1]x/' 'http://127.0.0.1:8095:9/'; do t9 "$b" nosend; done
+for b in 'http://127.0.0.1:8095' 'http://localhost:8095/' 'http://[::1]:8095' 'http://127.0.0.1'; do t9 "$b" send; done
 
 summary
