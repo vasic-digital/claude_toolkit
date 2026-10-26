@@ -38,7 +38,7 @@ listed in the "v1.32.0 (addendum)" section below were already shipped in the
 
 Defects found by live validation of the hosted Jev endpoint (TypeSafe
 `/v1/systemone`, 2026-10-24), each with a regression test in the new
-`test_jev_hosted_live_fixes.sh` (43 assertions, stub servers and dummy keys only):
+`test_jev_hosted_live_fixes.sh` (65 assertions pass, 1 skipped; stub servers and dummy keys only):
 
 - `claude-providers sync-jev` with `CMA_JEV_LIVE=1` sent `questions` as an array;
   the server requires a map (name -> {type, instructions, criteria}) and answered
@@ -48,10 +48,19 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   `$HOME`). It is honoured now for the endpoint cache, `status.json`, the Jev
   lock/stamp directory (`<dir>/jev-state`, unless `JEV_STATE_DIR` is set) and the
   kimi twin hook refresh (`<dir>/kimi-twins/.kimi-prov-*`). With it unset nothing
-  changes. Verified against a read-only, checksummed HOME stand-in.
-- Pins and docs: `jev-latest` now answers as `jev-1.14.0` on the hosted server
-  (`jev-1.13.0` is still served). `providers/jev.json` lists both; `jev-latest`
-  stays the default.
+  changes. Verified against a checksummed, writable hostile HOME (any stray write
+  shows in the before/after snapshot). Review follow-up: the READERS now use the
+  same directory, so a `sync-jev` under `CMA_PROVIDERS_DIR` is seen at launch
+  (`cma_jev_env`, the `run` wrapper, the status/TTL checks, `jev-setup`,
+  `claude-usage`, `verify_superpowers_tui`), and the kimi twin homes live under
+  `<dir>/kimi-twins` for every writer and reader (`cma_kimi_twin_root`,
+  `cma_kimi_provider_home`, the self-contained kimi launcher, `kimi-providers`,
+  `claude-install-verify`, `jev-setup`). A lint test fails on any remaining
+  hard-coded default directory.
+- Pins and docs: `jev-latest` was observed answering as `jev-1.14.0` on the hosted
+  server during the 2026-10-24 live validation (`jev-1.13.0` still served).
+  UNCONFIRMED: not re-verified by an independent check (no network in the review
+  pass). `providers/jev.json` lists both; `jev-latest` stays the default.
 - `jev-gate.sh`: `latency_ms` had 1 s granularity (`date +%s`); it now uses a
   millisecond clock (`EPOCHREALTIME`, then `date +%s%3N`, python3, perl). Each
   `decisions.jsonl` line also carries `class` (= `gate`), the field the canon
@@ -61,7 +70,21 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   (HTTP 401/403), `tls_untrusted`, `unreachable` and `timeout` separately, and
   with no key over https it makes no request and logs `no_key`
   (`endpoint_error` remains the residual). `test_jev_detect_https.sh` K3 now
-  expects `tls_untrusted` for the untrusted-CA case.
+  expects `tls_untrusted` for the untrusted-CA case. Behaviour change: a keyless
+  https gateway used to receive `Authorization: Bearer local`; it now receives no
+  request at all (`no_key`). Plain-http gateways are unchanged (no header, no key
+  needed). A 403 is mapped to `auth_rejected` like a 401 (regression test added).
+- Key-to-host binding (review follow-up). `jev-gate.sh` used to send an exported
+  `TYPESAFE_API_KEY` to whatever https endpoint `JEV_BASE_URL` named. A key is now
+  looked up by the variable the endpoint declares (`JEV_KEY_VAR`, default
+  `TYPESAFE_API_KEY`; `JEV_API_KEY` stays the explicit override) and over https is
+  released only to an origin attested for that variable by the endpoint cache
+  (`jev-endpoints.json`) or the pins file; otherwise no request is made and the
+  fallback is the new `key_unpinned`. The `sync-jev` live probe (`CMA_JEV_LIVE=1`)
+  sends its bearer only to a loopback host or to the https origin of the SHIPPED
+  pin for that slot, so a pins-file override cannot redirect a real key. `jev_mcp.py`
+  no longer falls back to `TYPESAFE_API_KEY` when another key variable is declared
+  (origin pinning is not mirrored there).
 
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
 

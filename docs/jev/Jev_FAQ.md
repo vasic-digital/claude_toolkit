@@ -38,7 +38,7 @@ the `risky` noul probability for its thresholds, not confidence.
 Availability over enforcement, deliberately. If the endpoint times out
 (`JEV_GATE_TIMEOUT=2`s) or errors, the gate allows the call and logs
 `fallback: "timeout"` / `"unreachable"` / `"tls_untrusted"` /
-`"auth_rejected"` / `"no_key"` / `"endpoint_error"` — an endpoint outage must never
+`"auth_rejected"` / `"key_unpinned"` / `"no_key"` / `"endpoint_error"` — an endpoint outage must never
 freeze every tool call in every agent session. The trade-off: enforcement
 has holes during outages. `JEV_GATE_FAIL=closed` flips this (deny on
 endpoint error) and is documented as risky. The deterministic risk floor

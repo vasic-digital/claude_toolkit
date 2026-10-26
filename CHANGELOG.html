@@ -1013,8 +1013,8 @@ that removed a rare flaky failure (<code>74820fe</code>).</li>
 </ul>
 <p>Defects found by live validation of the hosted Jev endpoint (TypeSafe
 <code>/v1/systemone</code>, 2026-10-24), each with a regression test in
-the new <code>test_jev_hosted_live_fixes.sh</code> (43 assertions, stub
-servers and dummy keys only):</p>
+the new <code>test_jev_hosted_live_fixes.sh</code> (65 assertions pass,
+1 skipped; stub servers and dummy keys only):</p>
 <ul>
 <li><code>claude-providers sync-jev</code> with
 <code>CMA_JEV_LIVE=1</code> sent <code>questions</code> as an array; the
@@ -1028,12 +1028,24 @@ It is honoured now for the endpoint cache, <code>status.json</code>, the
 Jev lock/stamp directory (<code>&lt;dir&gt;/jev-state</code>, unless
 <code>JEV_STATE_DIR</code> is set) and the kimi twin hook refresh
 (<code>&lt;dir&gt;/kimi-twins/.kimi-prov-*</code>). With it unset
-nothing changes. Verified against a read-only, checksummed HOME
-stand-in.</li>
-<li>Pins and docs: <code>jev-latest</code> now answers as
-<code>jev-1.14.0</code> on the hosted server (<code>jev-1.13.0</code> is
-still served). <code>providers/jev.json</code> lists both;
-<code>jev-latest</code> stays the default.</li>
+nothing changes. Verified against a checksummed, writable hostile HOME
+(any stray write shows in the before/after snapshot). Review follow-up:
+the READERS now use the same directory, so a <code>sync-jev</code> under
+<code>CMA_PROVIDERS_DIR</code> is seen at launch
+(<code>cma_jev_env</code>, the <code>run</code> wrapper, the status/TTL
+checks, <code>jev-setup</code>, <code>claude-usage</code>,
+<code>verify_superpowers_tui</code>), and the kimi twin homes live under
+<code>&lt;dir&gt;/kimi-twins</code> for every writer and reader
+(<code>cma_kimi_twin_root</code>, <code>cma_kimi_provider_home</code>,
+the self-contained kimi launcher, <code>kimi-providers</code>,
+<code>claude-install-verify</code>, <code>jev-setup</code>). A lint test
+fails on any remaining hard-coded default directory.</li>
+<li>Pins and docs: <code>jev-latest</code> was observed answering as
+<code>jev-1.14.0</code> on the hosted server during the 2026-10-24 live
+validation (<code>jev-1.13.0</code> still served). UNCONFIRMED: not
+re-verified by an independent check (no network in the review pass).
+<code>providers/jev.json</code> lists both; <code>jev-latest</code>
+stays the default.</li>
 <li><code>jev-gate.sh</code>: <code>latency_ms</code> had 1 s
 granularity (<code>date +%s</code>); it now uses a millisecond clock
 (<code>EPOCHREALTIME</code>, then <code>date +%s%3N</code>, python3,
@@ -1047,7 +1059,27 @@ token-reduction gate (clause 4) counts.</li>
 <code>timeout</code> separately, and with no key over https it makes no
 request and logs <code>no_key</code> (<code>endpoint_error</code>
 remains the residual). <code>test_jev_detect_https.sh</code> K3 now
-expects <code>tls_untrusted</code> for the untrusted-CA case.</li>
+expects <code>tls_untrusted</code> for the untrusted-CA case. Behaviour
+change: a keyless https gateway used to receive
+<code>Authorization: Bearer local</code>; it now receives no request at
+all (<code>no_key</code>). Plain-http gateways are unchanged (no header,
+no key needed). A 403 is mapped to <code>auth_rejected</code> like a 401
+(regression test added).</li>
+<li>Key-to-host binding (review follow-up). <code>jev-gate.sh</code>
+used to send an exported <code>TYPESAFE_API_KEY</code> to whatever https
+endpoint <code>JEV_BASE_URL</code> named. A key is now looked up by the
+variable the endpoint declares (<code>JEV_KEY_VAR</code>, default
+<code>TYPESAFE_API_KEY</code>; <code>JEV_API_KEY</code> stays the
+explicit override) and over https is released only to an origin attested
+for that variable by the endpoint cache
+(<code>jev-endpoints.json</code>) or the pins file; otherwise no request
+is made and the fallback is the new <code>key_unpinned</code>. The
+<code>sync-jev</code> live probe (<code>CMA_JEV_LIVE=1</code>) sends its
+bearer only to a loopback host or to the https origin of the SHIPPED pin
+for that slot, so a pins-file override cannot redirect a real key.
+<code>jev_mcp.py</code> no longer falls back to
+<code>TYPESAFE_API_KEY</code> when another key variable is declared
+(origin pinning is not mirrored there).</li>
 </ul>
 <h2 id="v1320-addendum--jev-setup--kimi-lock-review-rounds-already-in-the-v1320-tag">v1.32.0
 (addendum) — jev-setup / Kimi-lock review rounds, already in the

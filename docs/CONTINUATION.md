@@ -1,9 +1,9 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-26
 **Base commit:** `74820fe` (*Fix rare flaky failure in test_llmctl_ondemand_switch.sh*), one commit after the `v1.32.0` / `claude_toolkit-1.32.0` tags (both resolve to `adae02d`); the v1.33.0 release prep sits on top of it on branch `fix/portability-2026-10-24`; read `git log -1` for the commit that carries this file
 **Working tree:** clean apart from the commit that carries this update
-**Active branch:** `fix/portability-2026-10-24` (worktree branch; not pushed, not tagged)
+**Active branch:** `fix/portability-2026-10-24` (worktree branch; not pushed, not tagged). Hosted-Jev fixes live on `fix/hosted-jev-2026-10-24` (on top of `210091e`): `46324b2` (probe wire format, `CMA_PROVIDERS_DIR`, pins, gate latency/class/fallbacks), `f2e5488` (mutation anchor update) and the round-1-review follow-up commit (provider-dir readers, key-to-host binding, 403 test); not pushed, not tagged, release gate not run
 **Declared version:** `1.33.0` (`package.json`), prepared for release as `v1.33.0` and `claude_toolkit-1.33.0` (NOT yet tagged or published at the time of writing); the previous release `1.32.0` is tagged as `v1.32.0` and `claude_toolkit-1.32.0`. The earlier "next release is `v1.29.0`, not tagged" statement was stale: `v1.29.0` and `claude_toolkit-1.29.0` both exist.
 **Next action:** tag `v1.33.0` and `claude_toolkit-1.33.0` after merge and publish the GitHub and GitLab releases (conductor); `CHANGELOG.md` has a `## v1.33.0 (2026-10-24)` section; see §0.2 below. Sections §0.1 and §1-§5 are HISTORICAL (2026-10-03 and 2026-07-28 snapshots) and are kept only as an archive.
 

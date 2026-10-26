@@ -40,7 +40,7 @@ Full real response (OpenRouter, verified):
 - Sources: https://openrouter.ai/blog/insights/what-is-jev/ [VERIFIED w/ real responses], https://openrouter.ai/docs/guides/community/jev-tutorial , https://jevaiguide.com/channels/
 
 ### 1.3 Model IDs
-- TypeSafe 1P: `jev-1.13.0` (current), aliases `jev-latest`, `jev-preview` (both resolved to 1.13.0 as of 2026-09-21; on 2026-10-24 a live call showed `jev-latest` answering as `jev-1.14.0` while `jev-1.13.0` was still served)
+- TypeSafe 1P: `jev-1.13.0` (current), aliases `jev-latest`, `jev-preview` (both resolved to 1.13.0 as of 2026-09-21; on 2026-10-24 a live call showed `jev-latest` answering as `jev-1.14.0` while `jev-1.13.0` was still served; UNCONFIRMED by an independent check)
 - OpenRouter: `typesafe/jev-1.13`, alias `~typesafe/jev-latest`; also `typesafe/jev-router` (1M-context chat router built on Jev). Note: Jev does **not** appear in `GET /api/v1/models` and cannot be called via `/api/v1/chat/completions`.
 - Vercel AI Gateway: `typesafe-ai/jev`; Cloudflare Workers AI: `typesafe/jev`
 - Sources: https://jevaiguide.com/channels/ [VERIFIED table], https://openrouter.ai/typesafe

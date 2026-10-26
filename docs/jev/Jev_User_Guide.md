@@ -136,9 +136,9 @@ for hosted records.
 Presence of `TYPESAFE_API_KEY` in the keys file emits `jev-typesafe`: base
 `https://api.typesafe.ai`, model `jev-latest` (last in the pins `models`
 list, behind the pinned `jev-1.13.0` and `jev-1.14.0`), context 64000.
-Observed live on 2026-10-24: `jev-latest` now resolves server-side to
-`jev-1.14.0` (the response `model` field says so); `jev-1.13.0` is still
-served. Numeric scores of `jev-latest` can jitter in the second decimal
+Observed live on 2026-10-24: `jev-latest` resolved server-side to
+`jev-1.14.0` (the response `model` field said so); `jev-1.13.0` was still
+served. UNCONFIRMED: this has not been re-checked independently. Numeric scores of `jev-latest` can jitter in the second decimal
 between calls (the discrete decision did not change in the validation run), so
 pin `JEV_MODEL=jev-1.13.0` when bitwise-stable scores matter. TypeSafe hosted has a
 signup waitlist, which is why it ranks below OpenRouter.
@@ -331,8 +331,10 @@ Decision flow:
    (`JEV_GATE_TIMEOUT`, 2 s) → allow, logged with a `fallback` reason:
    `timeout`, `unreachable` (connection refused / unresolvable host),
    `tls_untrusted` (certificate not trusted: set `JEV_CA_FILE`),
-   `auth_rejected` (HTTP 401/403), `no_key` (https and no key found: no request
-   is made, so no bearer is ever sent blind) or the residual `endpoint_error`. Fail-closed is available via
+   `auth_rejected` (HTTP 401/403), `key_unpinned` (https key whose origin and
+   key variable no pin or endpoint-cache entry attests: no request is made, so
+   a key never reaches an unattested host), `no_key` (https and no key found:
+   no request is made, so no bearer is ever sent blind) or the residual `endpoint_error`. Fail-closed is available via
    `JEV_GATE_FAIL=closed` and is documented as risky: an endpoint outage then
    blocks all gated tool calls.
 
