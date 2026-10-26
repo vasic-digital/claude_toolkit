@@ -2481,7 +2481,8 @@ detect_jev_records() {
         if (( ! _h_pathok )); then _h_reason="live probe skipped, refused: systemone_path is not a plain absolute path"
         else _h_reason="live probe skipped, refused: bearer only sent to https pinned origin or loopback (${_h_base%/} is neither)"; fi
       elif curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
-           -H @<(printf 'Authorization: Bearer %s\n' "$_h_secret") -H "Content-Type: application/json" \
+           -H @<(if [[ "${_h_base%/}" == https://* ]]; then printf 'Authorization: Bearer %s\n' "$_h_secret"; fi) \
+           -H "Content-Type: application/json" \
            -d "$_h_body" 2>/dev/null | jq -e . >/dev/null 2>&1; then
         _h_status="resolved"; _h_reason="live systemone probe ok at ${_h_base%/}$_h_spath"
       else
