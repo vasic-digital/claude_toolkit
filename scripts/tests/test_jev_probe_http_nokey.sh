@@ -34,4 +34,7 @@ assert_eq "calls=1 key=yes" "$(probe https://127.0.0.1:8095)" "https loopback: p
 it "M1: plain-http loopback probe never carries the key (rule 1)"
 R="$(probe http://127.0.0.1:8095)"
 case "$R" in *"key=no") _pass "http loopback: key not handed to curl [$R]" ;; *) _fail "http loopback: key not handed to curl" "$R" ;; esac
+it "R5-R4: an upper-case HTTP:// loopback base never carries the key either"
+R="$(probe HTTP://127.0.0.1:8095)"
+case "$R" in *"key=no") _pass "HTTP:// loopback: key not handed to curl [$R]" ;; *) _fail "HTTP:// loopback: key not handed to curl" "$R" ;; esac
 summary

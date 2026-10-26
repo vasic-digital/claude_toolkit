@@ -360,4 +360,53 @@ shipped="$(jq -r '[.hosted[] | select(.enabled // true) | ((.base_url|capture("^
 plug="$(grep -E '^// SHIPPED_ORIGINS:' "$SCRIPTS_DIR/opencode-jev-plugin.js" | sed -E 's#^// SHIPPED_ORIGINS: ##' | tr ' ' '\n' | sort | paste -sd' ' -)"
 assert_eq "$shipped" "$plug" "plugin SHIPPED_ORIGINS marker equals providers/jev.json hosted (origin=key_var)"
 
+# ===========================================================================
+it "R5-m1: gate and MCP run through a PATH symlink still find the shipped pins (readlink -f)"
+LNK="$HOME/linkbin"; mkdir -p "$LNK"
+ln -s "$GATE" "$LNK/jev-gate"
+ln -s "$SCRIPTS_DIR/jev_mcp.py" "$LNK/jev_mcp.py"
+shim_reset
+gate_via() { # gate_via <path-to-gate> <env...>
+  local g="$1"; shift
+  printf '%s' "$HOOK" | env -u JEV_API_KEY -u TYPESAFE_API_KEY -u JEV_KEY_VAR -u JEV_CA_FILE -u CMA_JEV_TRUSTED_ORIGINS \
+    -u CMA_JEV_ENDPOINT_ID -u JEV_GATE_FAIL -u JEV_GATE -u LLMCTL_API_KEY -u CMA_PROVIDERS_DIR -u CMA_JEV_PINS_FILE \
+    CMA_KEYS_FILE="$HOME/no-such-keys.sh" PATH="$SHIM:$PATH" SHIM_LOG="$HOME/shim.log" JEV_MODE=shadow "$@" bash "$g" >/dev/null 2>&1
+}
+gate_via "$LNK/jev-gate" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "1" "$(shim_urls)" "gate via symlink: shipped pin found -> one request"
+assert_eq "yes" "$(shim_keyseen)" "gate via symlink: shipped pin found -> key sent"
+shim_reset
+gate_via "$LNK/jev-gate" JEV_BASE_URL="https://evil.example.invalid" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "0" "$(shim_urls)" "gate via symlink: unpinned origin still refused (fail closed)"
+R="$(python3 -c '
+import sys, runpy
+g = runpy.run_path(sys.argv[1])
+print(sorted(g["_shipped_pins"]()) and "pins" or "none")' "$LNK/jev_mcp.py" 2>/dev/null)"
+assert_eq "pins" "$R" "mcp via symlink: _shipped_pins found next to the REAL script"
+
+# ===========================================================================
+it "R5-m2: reviewer mutants R3 / R4 / R8 are killed by tests"
+# R3: a trusted-origins entry WITHOUT =KEYVAR must not accept any key variable (mcp, candidate, gate)
+assert_eq "auth=none err=1" "$(mcp https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443 LLMCTL_API_KEY="$DUMMY")" "R3 mcp: bare trusted-origin entry (no =KEYVAR) accepts no key variable"
+assert_eq "auth=none" "$(cand https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443)" "R3 candidate: bare trusted-origin entry accepts no key variable"
+shim_reset
+gate JEV_BASE_URL="https://llm.lan.example:8443" JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY" CMA_JEV_TRUSTED_ORIGINS="https://llm.lan.example:8443"
+assert_eq "no" "$(shim_keyseen)" "R3 gate: bare trusted-origin entry (no =KEYVAR) accepts no key variable"
+# R8: an upper-case scheme must not slip past the origin check on the candidate path
+assert_eq "auth=none" "$(cand HTTPS://evil.example.invalid TYPESAFE_API_KEY)" "R8 candidate: HTTPS:// unpinned origin is still origin-checked (no key)"
+assert_eq "auth=none err=1" "$(mcp HTTPS://evil.example.invalid -)" "R8 mcp: HTTPS:// unpinned origin: no key"
+
+# N3: the keys-file path reaches bash as a positional argument, never as shell text
+it "R5-N3: _resolve_key_var never evaluates the keys-file path as shell text"
+N3FLAG="$HOME/n3.flag"; rm -f "$N3FLAG"
+N3KEYS="$HOME/ke\"y\$(touch n3.flag).sh"   # relative touch: the flag lands in the cwd ($HOME)
+printf "export TYPESAFE_API_KEY='%s'\n" "$DUMMY" > "$N3KEYS"
+R="$(cd "$HOME" && DUM="$DUMMY" env -u JEV_API_KEY CMA_KEYS_FILE="$N3KEYS" python3 -c '
+import sys, os
+sys.path.insert(0, sys.argv[1])
+import jev_mcp
+print("got" if jev_mcp._resolve_key_var("TYPESAFE_API_KEY") == os.environ["DUM"] else "other")' "$SCRIPTS_DIR" 2>/dev/null)"
+assert_eq "got" "$R" "N3: a keys file with metacharacters in its path still resolves the key"
+[[ ! -e "$N3FLAG" ]] && _pass "N3: command substitution in the keys-file path did not run" || _fail "N3: command substitution in the keys-file path did not run" "flag file created"
+
 summary

@@ -41,7 +41,7 @@ import subprocess
 import sys
 import urllib.request
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import http_noredirect as _http  # noqa: E402  (the one shared credential-safe opener)
 
 _KEY_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -113,8 +113,10 @@ def _resolve_key_var(key_var):
     keys_file = os.environ.get("CMA_KEYS_FILE") or os.path.expanduser("~/api_keys.sh")
     try:
         out = subprocess.run(
-            ["bash", "-c",
-             'source "{0}" >/dev/null 2>&1; printf %s "${{{1}:-}}"'.format(keys_file, key_var)],
+            # the keys-file path and the (regex-validated) variable name are
+            # positional arguments, never shell text
+            ["bash", "-c", 'f=$1; v=$2; source "$f" >/dev/null 2>&1; printf %s "${!v:-}"',
+             "_", keys_file, key_var],
             capture_output=True, text=True, timeout=4,
         )
         return out.stdout.strip() or "local"
@@ -145,7 +147,7 @@ def _shipped_pins():
     script. Deliberately NOT overridable by environment or cache: an override
     file must never be able to attest where a key may go."""
     try:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")
+        path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "providers", "jev.json")
         with open(path, "r", encoding="utf-8") as fh:
             hosted = (json.load(fh).get("hosted") or {})
         out = set()

@@ -239,7 +239,9 @@ elif [ -n "$_kvar" ]; then
          && ! printf '%s' "$_h" | grep -qE '(^|\.)(25[6-9]|2[6-9][0-9]|[3-9][0-9][0-9])(\.|$)'; then
         _key_pinned=1
       fi
-      _pinsf="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/providers/jev.json"
+      _selfp="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null)" || _selfp=""
+      [ -n "$_selfp" ] || _selfp="${BASH_SOURCE[0]}"
+      _pinsf="$(cd "$(dirname "$_selfp")" 2>/dev/null && pwd -P)/providers/jev.json"
       if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
            '[(.hosted // {})[] | select((try (.base_url | capture("^(?<o>https://[^/?#]+)").o) catch "") == $o and (.key_var // "") == $v and (.enabled != false))] | length > 0' \
            "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
