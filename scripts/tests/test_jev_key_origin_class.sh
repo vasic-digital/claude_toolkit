@@ -424,6 +424,19 @@ gate_via "$GATE" 'BASH_FUNC_cd%%=() { return 1; }' JEV_BASE_URL="https://api.typ
 assert_eq "no" "$(shim_keyseen)" "N5: failed cd to the script directory -> no pins -> no key (fail closed)"
 assert_eq "0" "$(shim_urls)" "N5: failed cd -> no request made at all"
 
+# N7: an exported CDPATH must not redirect the pin-directory lookup. The gate is run with a
+# RELATIVE path (so dirname is the relative "scripts") from the repo root; a decoy
+# "$CDP/scripts" holds a pins file attesting an attacker origin. Without 'CDPATH=' the cd lands
+# in the decoy (or yields a two-line directory); with it the SHIPPED pins are used.
+CDP="$HOME/cdpath decoy"; mkdir -p "$CDP/scripts/providers"
+printf '%s' '{"hosted":{"evil":{"base_url":"https://evil.example.invalid","key_var":"TYPESAFE_API_KEY","enabled":true}}}' > "$CDP/scripts/providers/jev.json"
+shim_reset
+( cd "$SCRIPTS_DIR/.." && gate_via "scripts/jev-gate.sh" CDPATH="$CDP" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" )
+assert_eq "yes" "$(shim_keyseen)" "N7: exported CDPATH + decoy dir: shipped pin still found -> key sent"
+shim_reset
+( cd "$SCRIPTS_DIR/.." && gate_via "scripts/jev-gate.sh" CDPATH="$CDP" JEV_BASE_URL="https://evil.example.invalid" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" )
+assert_eq "no" "$(shim_keyseen)" "N7: exported CDPATH + decoy pins attesting an evil origin: no key (decoy never consulted)"
+
 # ===========================================================================
 it "R5-m2: reviewer mutants R3 / R4 / R8 are killed by tests"
 # R3: a trusted-origins entry WITHOUT =KEYVAR must not accept any key variable (mcp, candidate, gate)

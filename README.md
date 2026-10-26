@@ -307,7 +307,7 @@ bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evid
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
-touched. The suite is **128 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.33.0
+touched. The suite is **129 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.33.0
 (UNCONFIRMED; the historical v1.26.x figures were 62 warning-level and 203
 style-level suggestions over an unrecorded file set, and are not a current claim); live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and

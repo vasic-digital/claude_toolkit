@@ -2,6 +2,9 @@
 """Mutation table for test_jev_detect_https_mutation.sh.
 
 usage: jev_mutations.py list                -> "<idx>\t<suite>\t<label>" per line
+       jev_mutations.py check <root>        -> fast static check: every row's anchor is
+                                               present in <root> at least as often as the
+                                               row expects (rc 3 + the stale rows on stderr)
        jev_mutations.py apply <idx> <root>  -> apply mutation <idx> inside <root>
                                                (a COPY of the repo; exit 3 if the
                                                pattern is absent = stale table)
@@ -312,7 +315,7 @@ M = [
  ("gate: every https origin counts as pinned (key released anywhere)", GATE, KORIG,
   "    _key_pinned=0\n    # Userinfo", "    _key_pinned=1\n    # Userinfo", 1),
  ("gate: shipped-pin check dropped (api.typesafe.ai no longer released its own key)", GATE, KORIG,
-  """if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e""", """if false && jq -e""", 1),
+  """if [ "$_key_pinned" = 0 ] && [ -n "$_pinsf" ] && [ -f "$_pinsf" ] && jq -e""", """if false && jq -e""", 1),
  ("gate: pin matches the origin but not the key variable", GATE, KORIG,
   """and (.key_var // "") == $v and (.enabled != false))]""", """and (.enabled != false))]""", 1),
  ("gate: operator trusted-origin list ignores the key variable", GATE, KORIG,
@@ -408,6 +411,8 @@ M = [
   '[ "$_hops" -lt 40 ]', '[ "$_hops" -lt 1 ]', 1),
  ("gate: failed cd falls back to the lexical directory instead of failing closed (round-6 N5)", GATE, KORIG,
   '[ -n "$_pinsd" ] && _pinsf="$_pinsd/providers/jev.json"', '_pinsf="${_pinsd:-$(dirname "$_selfp")}/providers/jev.json"', 1),
+ ("gate: pin-directory cd honours an exported CDPATH (round-7 N7)", GATE, KORIG,
+  'CDPATH= cd -P -- "$(dirname -- "$_selfp")"', 'cd "$(dirname "$_selfp")"', 1),
 ]
 
 def main():
@@ -415,6 +420,20 @@ def main():
         for i, m in enumerate(M):
             print("%d\t%s\t%s" % (i, m[2], m[0]))
         return 0
+    if sys.argv[1] == "check":
+        stale = []
+        for i, (label, f, suite, old, new, count) in enumerate(M):
+            try:
+                s = open(sys.argv[2] + "/" + f, encoding="utf-8").read()
+            except OSError:
+                stale.append("%d\t%s\tfile missing: %s" % (i, label, f)); continue
+            if old == new:
+                stale.append("%d\t%s\told == new" % (i, label))
+            elif s.count(old) < (1 if count is None else count):
+                stale.append("%d\t%s\tanchor present %d time(s), row expects %s" % (i, label, s.count(old), "1+" if count is None else count))
+        for r in stale:
+            print("stale row " + r, file=sys.stderr)
+        return 3 if stale else 0
     idx, root = int(sys.argv[2]), sys.argv[3]
     label, f, suite, old, new, count = M[idx]
     p = root + "/" + f
