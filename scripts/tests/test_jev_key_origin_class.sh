@@ -237,6 +237,7 @@ assert_eq "auth=yes err=0" "$(mcp https://openrouter.ai/api OPENROUTER_API_KEY C
 assert_eq "auth=none err=1" "$(mcp https://openrouter.ai/api TYPESAFE_API_KEY CMA_KEYS_FILE="$KEYS")" "OpenRouter origin, TypeSafe key variable: refused"
 assert_eq "auth=yes err=0" "$(mcp https://127.0.0.1:9 -)" "loopback https: key sent"
 assert_eq "auth=yes err=0" "$(mcp https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY")" "operator-trusted origin: key sent"
+assert_eq "auth=none err=1" "$(mcp https://llm.lan.example:8443 TYPESAFE_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)" "I1 mcp: a trusted origin is bound to ITS key variable only"
 assert_eq "auth=none err=1" "$(mcp 'https://127.0.0.1@evil.example.invalid' -)" "userinfo base: refused"
 for hb in "${HOSTILE_BASES[@]}"; do
   assert_eq "auth=none err=1" "$(mcp "$hb" -)" "mcp: hostile authority [$hb]: refused"
@@ -272,6 +273,7 @@ assert_eq "auth=none" "$(cand 'https://127.0.0.1:9@evil.example.invalid' TYPESAF
 assert_eq "auth=yes" "$(cand https://api.typesafe.ai TYPESAFE_API_KEY)" "route candidate, shipped pin + its key variable: key sent"
 assert_eq "auth=none" "$(cand https://api.typesafe.ai LLMCTL_API_KEY)" "route candidate, shipped origin with another key variable: refused"
 assert_eq "auth=yes" "$(cand https://llm.lan.example:8443 LLMCTL_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)" "route candidate, operator-trusted origin: key sent"
+assert_eq "auth=none" "$(cand https://llm.lan.example:8443 TYPESAFE_API_KEY CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)" "I1 route candidate: a trusted origin is bound to ITS key variable only"
 assert_eq "auth=no" "$(cand http://127.0.0.1:9 '')" "route candidate, loopback http with no key: request still made, no bearer (no false refusal)"
 PINS_EVIL="$HOME/pins-mcp-evil.json"
 jq -n '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:"https://evil.example.invalid",systemone_path:"/v1/systemone",models:["jev-latest"],context_limit:64000,enabled:true}},local_gateway:{enabled:false},lan:[]}' > "$PINS_EVIL"
@@ -284,7 +286,7 @@ if ! command -v node >/dev/null 2>&1; then
 else
   PLUG() { # PLUG [env...] -> JSON line
     env -u JEV_BASE_URL -u JEV_API_KEY -u TYPESAFE_API_KEY -u JEV_KEY_VAR -u CMA_PROVIDERS_DIR -u CMA_JEV_TRUSTED_ORIGINS \
-      -u JEV_GATE -u JEV_MODE HOME="$HOME/plughome" JEV_STATE_DIR="$HOME/plugstate" CMA_KEYS_FILE="$HOME/no-such-keys.sh" "$@" \
+      -u JEV_GATE -u JEV_MODE HOME="$HOME/plughome" JEV_TEST_SCRATCH_HOME="$HOME/plughome" JEV_TEST_DUMMY="$DUMMY" JEV_STATE_DIR="$HOME/plugstate" CMA_KEYS_FILE="$HOME/no-such-keys.sh" "$@" \
       node "$TESTS_DIR/jev_plugin_origin_test.mjs" 2>&1 | tail -n1
   }
   mkdir -p "$HOME/plughome"
@@ -297,18 +299,26 @@ else
   R="$(PLUG JEV_BASE_URL=http://127.0.0.1:9 TYPESAFE_API_KEY="$DUMMY")"
   assert_eq "null" "$(jq -c '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "plain http with an exported key: still no Authorization header"
   R="$(PLUG JEV_BASE_URL=https://api.typesafe.ai TYPESAFE_API_KEY="$DUMMY")"
-  assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "shipped pin: key sent"
+  assert_eq "true" "$(jq -r '.calls[0].auth_is_dummy' <<<"$R" 2>/dev/null || echo ERR)" "shipped pin: key sent"
   R="$(PLUG JEV_BASE_URL=https://api.typesafe.ai JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY")"
   assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "shipped origin with the other slot's key variable: refused"
   R="$(PLUG JEV_BASE_URL=https://openrouter.ai/api JEV_KEY_VAR=OPENROUTER_API_KEY OPENROUTER_API_KEY="$DUMMY")"
-  assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "I-2 shipped OpenRouter pin (base carries /api): key sent"
+  assert_eq "true" "$(jq -r '.calls[0].auth_is_dummy' <<<"$R" 2>/dev/null || echo ERR)" "I-2 shipped OpenRouter pin (base carries /api): key sent"
   assert_eq "error" "$(jq -r '.calls[0].redirect' <<<"$R" 2>/dev/null || echo ERR)" "NIT: the plugin's fetch refuses redirects (redirect:error)"
   R="$(PLUG JEV_BASE_URL=https://openrouter.ai/api JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY")"
   assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "OpenRouter origin with the TypeSafe key variable: refused"
+  R="$(PLUG JEV_BASE_URL=https://llm.lan.example:8443 JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)"
+  assert_eq "0" "$(jq '.calls|length' <<<"$R" 2>/dev/null || echo ERR)" "I1 plugin: a trusted origin is bound to ITS key variable only"
+  # M2: the harness refuses to run without a scratch HOME and never prints an Authorization value
+  RG="$(env -u JEV_TEST_SCRATCH_HOME HOME="$HOME/plughome" JEV_BASE_URL=https://api.typesafe.ai TYPESAFE_API_KEY="$DUMMY" node "$TESTS_DIR/jev_plugin_origin_test.mjs" 2>&1; echo "rc=$?")"
+  case "$RG" in *"rc=2") _pass "M2: harness refuses without JEV_TEST_SCRATCH_HOME" ;; *) _fail "M2: harness refuses without JEV_TEST_SCRATCH_HOME" "$RG" ;; esac
+  case "$RG" in *"$DUMMY"*|*Bearer*) _fail "M2: refusal output carries no credential" "leak" ;; *) _pass "M2: refusal output carries no credential" ;; esac
+  R="$(PLUG JEV_BASE_URL=https://api.typesafe.ai TYPESAFE_API_KEY="$DUMMY")"
+  case "$R" in *Bearer*|*"$DUMMY"*) _fail "M2: harness output has no Authorization value" "leak" ;; *) _pass "M2: harness output has no Authorization value" ;; esac
   R="$(PLUG JEV_BASE_URL=https://127.0.0.1:9 TYPESAFE_API_KEY="$DUMMY")"
-  assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "loopback https: key sent"
+  assert_eq "true" "$(jq -r '.calls[0].auth_is_dummy' <<<"$R" 2>/dev/null || echo ERR)" "loopback https: key sent"
   R="$(PLUG JEV_BASE_URL=https://llm.lan.example:8443 JEV_KEY_VAR=LLMCTL_API_KEY LLMCTL_API_KEY="$DUMMY" CMA_JEV_TRUSTED_ORIGINS=https://llm.lan.example:8443=LLMCTL_API_KEY)"
-  assert_eq "Bearer $DUMMY" "$(jq -r '.calls[0].auth' <<<"$R" 2>/dev/null || echo ERR)" "operator-trusted origin: key sent"
+  assert_eq "true" "$(jq -r '.calls[0].auth_is_dummy' <<<"$R" 2>/dev/null || echo ERR)" "operator-trusted origin: key sent"
   # cache read from CMA_PROVIDERS_DIR (HOME is empty), key_var shell-injection attempt
   PD="$HOME/plugprov"; mkdir -p "$PD"; EXP="$HOME/pwned.flag"; rm -f "$EXP"
   jq -n --arg k "TYPESAFE_API_KEY}\"; touch $EXP; echo \"" '{endpoints:[{base_url:"http://127.0.0.1:9",key_var:$k,provider_id:"jev-x"}]}' > "$PD/jev-endpoints.json"

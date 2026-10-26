@@ -653,4 +653,19 @@ _setup --yes --agents claude
 assert_file "$HOME/explicit-state/installed.stamp" "explicit JEV_STATE_DIR still wins"
 unset JEV_STATE_DIR CMA_PROVIDERS_DIR
 
+it "L35: a plain-http endpoint base never gets the real key written to an MCP config (round-4 M3)"
+_cell
+DUMMYK="dummy-secret-key-L35"
+printf 'export TYPESAFE_API_KEY=%s\n' "$DUMMYK" > "$HOME/keys.sh"
+export CMA_KEYS_FILE="$HOME/keys.sh"
+EPC="$HOME/.local/share/claude-multi-account/providers/jev-endpoints.json"
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"http://api.typesafe.ai","key_var":"TYPESAFE_API_KEY","model":"m","priority":1}]}\n' > "$EPC"
+_setup --yes --agents claude
+assert_eq no "$(grep -q "$DUMMYK" "$HOME/.claude-acct1/.mcp.json" && echo yes || echo no)" "http base (even the shipped host + its key variable): no real key on disk"
+assert_eq yes "$(grep -q 'http://api.typesafe.ai' "$HOME/.claude-acct1/.mcp.json" && echo yes || echo no)" "control: the entry itself was written with the http base"
+printf '{"version":1,"generated_at":1,"ttl":300,"endpoints":[{"provider_id":"p","base_url":"https://api.typesafe.ai","key_var":"TYPESAFE_API_KEY","model":"m","priority":1}]}\n' > "$EPC"
+_setup --yes --agents claude
+assert_eq yes "$(grep -q "$DUMMYK" "$HOME/.claude-acct1/.mcp.json" && echo yes || echo no)" "control: the same host over https keeps its key"
+unset CMA_KEYS_FILE
+
 summary
