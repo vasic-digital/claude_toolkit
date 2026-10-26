@@ -218,6 +218,14 @@ install_common() {
   fi
   cp "$SCRIPTS_DIR/jev-gate.sh" "$SHARED_DIR/jev/jev-gate.sh" 2>/dev/null || true
   chmod +x "$SHARED_DIR/jev/jev-gate.sh" 2>/dev/null || true
+  # The gate reads the SHIPPED pins from providers/jev.json next to itself (never
+  # from env or cache), so the pins must travel with every installed gate copy;
+  # without them the installed gate refuses every hosted endpoint (key_unpinned).
+  local _d
+  for _d in "$JEV_DIR" "$SHARED_DIR/jev"; do
+    mkdir -p "$_d/providers" 2>/dev/null || true
+    cp "$SCRIPTS_DIR/providers/jev.json" "$_d/providers/jev.json" 2>/dev/null || true
+  done
   # Mode env (non-secret, umask-safe).
   local mode="${MODE:-shadow}"
   if [ ! -f "$JEV_CONFIG_DIR/env" ] || [ -n "$MODE" ]; then
@@ -270,6 +278,7 @@ uninstall_common() {
   # stamp above), so leaving it behind would let the next `claude-providers
   # sync` re-add the hooks block this uninstall just stripped.
   rm -f "$GATE_INSTALLED" 2>/dev/null || true
+  rm -f "$JEV_DIR/providers/jev.json" 2>/dev/null || true
   _say "jev-setup: removed common artifacts (state dir $JEV_STATE_DIR kept)"
 }
 

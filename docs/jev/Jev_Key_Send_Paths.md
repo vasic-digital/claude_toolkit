@@ -25,6 +25,16 @@ A key held in variable `KEYVAR` may be sent to base URL `B` only when:
    `CMA_JEV_PINS_FILE`); or
 4. the operator listed `origin=KEYVAR` in `CMA_JEV_TRUSTED_ORIGINS`.
 
+Installed copies: `jev-setup` installs `providers/jev.json` beside EVERY installed
+gate copy (`~/.local/share/claude-multi-account/jev/` and `$SHARED_DIR/jev/`), because
+the gate resolves the shipped pins from its own directory. The installed gate
+therefore behaves exactly like the repo copy (test_jev_installed_gate.sh runs the
+installed copies); an installed gate without the pins file refuses every hosted
+endpoint (`key_unpinned`), i.e. the decision layer would be silently off.
+
+Residual risk (stated, not fixed): rule 2 allows ANY key variable to https loopback.
+On a multi-user host another local user could bind that loopback port and read the key.
+
 Anything else makes NO request (gate fallback `key_unpinned`). The endpoint cache
 (`jev-endpoints.json`) and a `CMA_JEV_PINS_FILE` override do not attest a key.
 A probe's `systemone_path` must match `^/[A-Za-z0-9._~/-]*$` without `..` before it
