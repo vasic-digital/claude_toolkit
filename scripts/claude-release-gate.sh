@@ -147,7 +147,7 @@ fi
 
 # ── Layer 2: LIVE alias smoke ───────────────────────────────────────────────
 ALIAS_FILE="$HOME/.local/share/claude-multi-account/aliases.sh"
-PROV_ENV="$HOME/.local/share/claude-multi-account/providers/$PROVIDER.env"
+PROV_ENV="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/$PROVIDER.env"
 
 [ -f "$PROV_ENV" ] || fail "gate provider '$PROVIDER' has no env file ($PROV_ENV) — pick one with --provider"
 
@@ -205,8 +205,9 @@ else
   else
     fail "kimi gate provider '$KIMI_GATE' is not a kimi-<id> alias (kc-* names ride line via --provider)"
   fi
-  KIMI_PDIR="$HOME/.local/share/claude-multi-account/providers"
-  KIMI_CONFIG="$HOME/.kimi-prov-$KIMI_ID/config.toml"
+  KIMI_PDIR="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}"
+  _kg_root="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"
+  KIMI_CONFIG="${_kg_root:-$HOME}/.kimi-prov-$KIMI_ID/config.toml"
   KIMI_BIN=""
   for _c in "$HOME/.kimi-code/bin/kimi" "$HOME/.local/bin/kimi"; do
     [ -x "$_c" ] && { KIMI_BIN="$_c"; break; }

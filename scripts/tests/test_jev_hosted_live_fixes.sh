@@ -280,14 +280,45 @@ assert_eq "$T6P/kimi-twins/.kimi-prov-abc" "$KH" "kimi twin home follows CMA_PRO
 KH0="$(env -u CMA_PROVIDERS_DIR HOME="$T6H" bash -c 'source "'"$SCRIPTS_DIR"'/lib.sh"; cma_kimi_provider_home abc')"
 assert_eq "$T6H/.kimi-prov-abc" "$KH0" "unset CMA_PROVIDERS_DIR keeps the historical \$HOME location"
 
-it "T6c: no non-comment launch/sync code hardcodes the default providers dir or \$HOME/.kimi-prov-* outside the override-aware helpers"
+it "T6c: no non-comment code in any shipped script (sh/js/py) hardcodes the default providers dir or a kimi twin home, except override-aware expansions and the reasoned allow-list"
+# A line is accepted when it is the override-aware default-expansion form
+#   ${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}
+#   ${<root>:-$HOME}/.kimi-prov-*     (root computed from CMA_PROVIDERS_DIR)
+# or it routes through the helper functions. Merely mentioning CMA_PROVIDERS_DIR is NOT enough.
+# Allow-list (file|fixed substring|reason) - every entry states why the line is exempt:
+T6C_ALLOW=(
+  'opencode-jev-plugin.js|join(homedir(), ".local/share/claude-multi-account/providers")|documented fallback of the CMA_PROVIDERS_DIR override on the previous line'
+  'opencode-jev-plugin.js|join(homedir(), ".local/state/jev")|JEV_STATE_DIR default; a state dir, not the providers dir'
+  'alias_e2e_test.py|os.path.expanduser("~/.local/share/claude-multi-account/providers")|deliberate real-host end-to-end test of the operator own aliases'
+  'kimi-providers.sh|twin aliases, and each twin|usage text, not a path used by code'
+  'claude-install-verify.sh|_ok "kimi: ~/.kimi-prov-|message text'
+  'claude-install-verify.sh|_fail "kimi: ~/.kimi-prov-|message text'
+  'claude-install-verify.sh|sed |strips the prefix from a basename'
+  'lib.sh|KIMI_PROVIDER_PREFIX=".kimi-prov-"|the prefix constant itself'
+)
 BAD=""
-for f in lib.sh claude-providers.sh jev-setup.sh claude-usage.sh verify_superpowers_tui.sh kimi-providers.sh; do
-  hits="$(grep -nE '\$HOME/\.local/share/claude-multi-account/providers|\$HOME/\.kimi-prov-|\$HOME/\$KIMI_PROVIDER_PREFIX' "$SCRIPTS_DIR/$f" \
-    | grep -vE '^[0-9]+:[[:space:]]*#' | grep -vE 'CMA_PROVIDERS_DIR|cma_providers_dir|kimi_twin_root')"
-  [[ -n "$hits" ]] && BAD+="$f: $(head -3 <<<"$hits" | tr '\n' '|') "
+shopt -s nullglob
+for fp in "$SCRIPTS_DIR"/*.sh "$SCRIPTS_DIR"/*.js "$SCRIPTS_DIR"/*.py; do
+  f="$(basename "$fp")"
+  hits="$(grep -nE '\.local/share/claude-multi-account/providers|\.kimi-prov-|homedir\(\)|\$KIMI_PROVIDER_PREFIX' "$fp" \
+    | grep -vE '^[0-9]+:[[:space:]]*(#|//)')"
+  [[ -z "$hits" ]] && continue
+  while IFS= read -r line; do
+    body="${line#*:}"
+    case "$body" in
+      *'${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}'*) continue ;;
+      *'${'*':-$HOME}'*'/.kimi-prov-'*|*'cma_providers_dir'*|*'kimi_twin_root'*|*'cma_kimi_twin_root'*) continue ;;
+    esac
+    ok=0
+    for e in "${T6C_ALLOW[@]}"; do
+      ef="${e%%|*}"; rest="${e#*|}"; es="${rest%%|*}"
+      [[ "$ef" == "$f" && "$body" == *"$es"* ]] && { ok=1; break; }
+    done
+    [[ $ok -eq 1 ]] || BAD+="$f:${line%%:*}: ${body:0:90} | "
+  done <<<"$hits"
 done
-[[ -z "$BAD" ]] && _pass "every reader/writer routes through the override-aware helpers" || _fail "every reader/writer routes through the override-aware helpers" "$BAD"
+shopt -u nullglob
+[[ -z "$BAD" ]] && _pass "every reader/writer is override-aware or allow-listed with a reason" || _fail "every reader/writer is override-aware or allow-listed with a reason" "$BAD"
 
 # ===========================================================================
 # T7 - a key is only ever sent to the origin it is pinned to
@@ -300,28 +331,25 @@ assert_eq 0 "$?" "fail-open exit"
 grep -q "$DUMMY" "$TLSLOG" && _fail "TypeSafe key never reaches the other origin" "bearer seen: $(cat "$TLSLOG")" || _pass "sink-side: the TypeSafe key was not sent to the OpenRouter-bound origin"
 assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: no request at all (OPENROUTER_API_KEY is unset)"
 
-it "T7b: JEV_KEY_VAR=TYPESAFE_API_KEY against an origin no pin/cache attests -> refused, zero requests"
-: > "$TLSLOG"
+it "T7b: JEV_KEY_VAR=TYPESAFE_API_KEY against an https origin nothing attests -> refused, no request made"
 T7P="$(mktemp -d "$HOME/t7prov.XXXXXX")"
-gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=TYPESAFE_API_KEY \
-  TYPESAFE_API_KEY="$DUMMY" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
-assert_eq "key_unpinned" "$(fb)" "unpinned origin is logged as key_unpinned"
-assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: the key was never sent to the unpinned origin"
+# A cache entry for that very origin must NOT attest it (the cache is writable from a pins override).
+jq -n '{endpoints:[{base_url:"https://evil.example.invalid",key_var:"TYPESAFE_API_KEY",provider_id:"jev-x"}]}' > "$T7P/jev-endpoints.json"
+gate "$HOOK" JEV_BASE_URL="https://evil.example.invalid" JEV_KEY_VAR=TYPESAFE_API_KEY \
+  TYPESAFE_API_KEY="$DUMMY" CMA_PROVIDERS_DIR="$T7P" CMA_JEV_PINS_FILE="$T7P/pins.json" JEV_MODE=shadow >/dev/null 2>&1
+assert_eq "key_unpinned" "$(fb)" "unpinned origin is logged as key_unpinned (cache/pins override do not attest)"
 
-it "T7c: positive control - the same call once the endpoint cache attests (origin, key variable) sends the key"
-jq -n --arg b "https://127.0.0.1:$TLS_PORT" '{endpoints:[{base_url:$b,key_var:"TYPESAFE_API_KEY",provider_id:"jev-typesafe"}]}' > "$T7P/jev-endpoints.json"
+it "T7c: positive control - a loopback https origin is attested and receives the key"
 : > "$TLSLOG"
 gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=TYPESAFE_API_KEY \
   TYPESAFE_API_KEY="$DUMMY" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
-assert_eq "none" "$(fb)" "no fallback when pinned"
-grep -q "auth=Bearer $DUMMY" "$TLSLOG" && _pass "sink-side: the pinned origin received the key" || _fail "pinned origin received the key" "$(cat "$TLSLOG")"
+assert_eq "none" "$(fb)" "no fallback for loopback"
+grep -q "auth=Bearer $DUMMY" "$TLSLOG" && _pass "sink-side: the loopback origin received the key" || _fail "loopback origin received the key" "$(cat "$TLSLOG")"
 
-it "T7d: attested origin but a DIFFERENT key variable than the pin's own -> refused"
-: > "$TLSLOG"
-gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=OPENROUTER_API_KEY \
+it "T7d: the shipped origin with a DIFFERENT key variable than the shipped pin's own -> refused"
+gate "$HOOK" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=OPENROUTER_API_KEY \
   OPENROUTER_API_KEY="$WRONG" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
-assert_eq "key_unpinned" "$(fb)" "variable is not the pin's own"
-assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: zero requests"
+assert_eq "key_unpinned" "$(fb)" "variable is not the shipped pin's own"
 
 it "T7e: an https base with userinfo is never key-pinned, even if a cache lists that literal string"
 for ub in "https://127.0.0.1@127.0.0.1:$TLS_PORT" "https://127.0.0.1:$TLS_PORT\\@evil"; do

@@ -137,6 +137,63 @@ def _api_key():
     return _resolve_key_var(kv)
 
 
+_LOOPBACK_RE = re.compile(r"^(127(\.[0-9]{1,3}){3}|localhost|\[::1\])$")
+
+
+def _shipped_pins():
+    """(origin, key_var) pairs from the SHIPPED providers/jev.json next to this
+    script. Deliberately NOT overridable by environment or cache: an override
+    file must never be able to attest where a key may go."""
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")
+        with open(path, "r", encoding="utf-8") as fh:
+            hosted = (json.load(fh).get("hosted") or {})
+        return {((h.get("base_url") or "").rstrip("/"), h.get("key_var") or "")
+                for h in hosted.values() if h.get("enabled", True)}
+    except Exception:
+        return set()
+
+
+def _origin_allows_key(base, key_var):
+    """True when a key held in variable `key_var` may be sent to `base`.
+    http never carries a key. https only to: a loopback host; the shipped pin
+    with the SAME key variable; or an operator-listed
+    CMA_JEV_TRUSTED_ORIGINS=origin=KEYVAR pair."""
+    m = re.match(r"^(https://[^/?#]+)", base or "")
+    if not m:
+        return False
+    origin = m.group(1)
+    hostport = origin[len("https://"):]
+    if re.search(r"[@\\%\s]", hostport):
+        return False
+    host = hostport.split("]")[0] + "]" if hostport.startswith("[") else hostport.split(":")[0]
+    if _LOOPBACK_RE.match(host):
+        octets = host.split(".")
+        if not (len(octets) == 4 and any(int(o) > 255 for o in octets)):
+            return True
+    if (origin, key_var) in _shipped_pins():
+        return True
+    for t in os.environ.get("CMA_JEV_TRUSTED_ORIGINS", "").split():
+        o, sep, k = t.partition("=")
+        if sep and o == origin and k == key_var:
+            return True
+    return False
+
+
+def _key_for_base(base):
+    """The bearer for `base`, or RuntimeError('key_unpinned...') when the key
+    would reach an https origin that was never validated for it."""
+    if os.environ.get("JEV_API_KEY"):
+        return os.environ["JEV_API_KEY"]          # explicit operator override
+    kv = os.environ.get("JEV_KEY_VAR", "") or "TYPESAFE_API_KEY"
+    key = _api_key()
+    if (base or "").lower().startswith("https://"):
+        if not _origin_allows_key(base, kv):
+            raise RuntimeError("key_unpinned: origin is not loopback, a shipped pin for "
+                               "this key variable, or in CMA_JEV_TRUSTED_ORIGINS")
+    return key
+
+
 def _ssl_ctx(ca_file=None):
     """TLS context for an https decide gateway: trust a CA in ADDITION to the
     system store; verification is never off. ca_file None -> JEV_CA_FILE (the
@@ -183,7 +240,7 @@ def _post_systemone(state, questions, model=None, base=None, key=None, ca_file=N
     req = urllib.request.Request(
         base.rstrip("/") + "/v1/systemone", data=payload,
         headers={"Content-Type": "application/json",
-                 "Authorization": "Bearer " + (key if key is not None else _api_key())})
+                 "Authorization": "Bearer " + (key if key is not None else _key_for_base(base))})
     timeout = float(os.environ.get("JEV_MCP_TIMEOUT", "4"))
     with _open(req, timeout, ca_file) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -340,7 +397,7 @@ def _tool_jev_models(_args):
     if not base:
         raise RuntimeError("no JEV_BASE_URL/TYPESAFE_BASE_URL configured")
     req = urllib.request.Request(base + "/v1/models",
-                                 headers={"Authorization": "Bearer " + _api_key()})
+                                 headers={"Authorization": "Bearer " + _key_for_base(base)})
     timeout = float(os.environ.get("JEV_MCP_TIMEOUT", "4"))
     with _open(req, timeout) as resp:
         data = json.loads(resp.read().decode("utf-8"))

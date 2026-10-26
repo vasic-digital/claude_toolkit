@@ -19,12 +19,18 @@
 // | enforce (throw to block on deny). Fail-open on any error.
 
 import { readFileSync, appendFileSync, mkdirSync, statSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const CACHE = join(homedir(), ".local/share/claude-multi-account/providers/jev-endpoints.json");
+// Computed at call time so CMA_PROVIDERS_DIR (and a changed HOME) is honoured,
+// exactly like the shell side (cma_jev_env).
+function cachePath() {
+  const dir = process.env.CMA_PROVIDERS_DIR
+    || join(homedir(), ".local/share/claude-multi-account/providers");
+  return join(dir, "jev-endpoints.json");
+}
 const STATE_DIR = process.env.JEV_STATE_DIR || join(homedir(), ".local/state/jev");
 const MODE = process.env.JEV_MODE || "shadow";
 const TIMEOUT_MS = Number(process.env.JEV_GATE_TIMEOUT || 2) * 1000;
@@ -35,32 +41,76 @@ const RISKY_THRESHOLD = Number(process.env.JEV_RISKY_THRESHOLD || 0.7);
 const FLOOR_PATTERNS = [/rm -rf \//, /rm -fr \//, /mkfs/, /:\(\)\{/, /> \/dev\/sd/,
   /git push (--force|-f)/, /\|\s*(ba)?sh\b/];
 
-function loadEndpoint() {
-  if (process.env.JEV_BASE_URL) {
-    return {
-      base_url: process.env.JEV_BASE_URL,
-      key: process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY || "local",
-      model: process.env.JEV_MODEL || "jev-latest",
-      provider_id: process.env.CMA_JEV_ENDPOINT_ID || "env",
-    };
+// Key-origin rule (same as jev-gate.sh / jev_mcp.py): a key is released to an
+// https origin ONLY when it is loopback, one of the SHIPPED pins below with the
+// SAME key variable, or listed by the operator in CMA_JEV_TRUSTED_ORIGINS
+// ("origin=KEYVAR" pairs). Plain http never carries a key. The cache file is
+// NOT an attestation. A test keeps this list equal to providers/jev.json.
+// SHIPPED_ORIGINS: https://api.typesafe.ai=TYPESAFE_API_KEY https://openrouter.ai/api=OPENROUTER_API_KEY
+const SHIPPED_ORIGINS = ["https://api.typesafe.ai=TYPESAFE_API_KEY",
+  "https://openrouter.ai/api=OPENROUTER_API_KEY"];
+const KEYVAR_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function originAllowsKey(baseUrl, keyVar) {
+  const m = /^(https:\/\/[^/?#]+)/.exec(baseUrl || "");
+  if (!m) return false;
+  const origin = m[1];
+  const hostport = origin.slice("https://".length);
+  if (/[@\\%\s]/.test(hostport)) return false;
+  const host = hostport.startsWith("[") ? hostport.split("]")[0] + "]" : hostport.split(":")[0];
+  if (/^(127(\.[0-9]{1,3}){3}|localhost|\[::1\])$/.test(host)
+      && !host.split(".").some((o) => /^\d+$/.test(o) && Number(o) > 255)) return true;
+  // The shipped list is matched on the PATH-bearing base too (openrouter lives under /api).
+  const pair = `${origin}=${keyVar}`;
+  const base = `${(baseUrl || "").replace(/\/+$/, "")}=${keyVar}`;
+  if (SHIPPED_ORIGINS.includes(pair) || SHIPPED_ORIGINS.includes(base)) return true;
+  for (const t of (process.env.CMA_JEV_TRUSTED_ORIGINS || "").split(/\s+/)) {
+    const i = t.indexOf("=");
+    if (i > 0 && t.slice(0, i) === origin && t.slice(i + 1) === keyVar) return true;
   }
+  return false;
+}
+
+function keyFor(keyVar) {
+  if (process.env.JEV_API_KEY) return process.env.JEV_API_KEY;
+  if (!KEYVAR_RE.test(keyVar)) return "";
+  if (process.env[keyVar]) return process.env[keyVar];
   try {
-    const ttl = Number(process.env.CMA_JEV_CACHE_TTL || 300);
-    if (Date.now() / 1000 - statSync(CACHE).mtimeMs / 1000 > ttl) return null;
-    const cache = JSON.parse(readFileSync(CACHE, "utf8"));
-    const ep = (cache.endpoints || [])[0];
-    if (!ep || !ep.base_url) return null;
-    let key = "local";
-    if (ep.key_var) {
-      try {
-        key = execSync(
-          `bash -c 'source "\${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "\${${ep.key_var}:-}"'`,
-          { timeout: 2000 }).toString() || "local";
-      } catch { key = "local"; }
-    }
-    return { base_url: ep.base_url, key, model: ep.model || "jev-latest",
-             provider_id: ep.provider_id || "jev" };
-  } catch { return null; }
+    // key_var travels as DATA in the environment, never inside the script text.
+    return execFileSync("bash", ["-c",
+      'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],
+      { timeout: 2000, env: { ...process.env, KV: keyVar } }).toString();
+  } catch { return ""; }
+}
+
+// Returns {base_url, key, model, provider_id, key_unpinned?}. key is "" when
+// none is to be sent (plain http, no key, or an origin that is not allowed).
+function loadEndpoint() {
+  let base, keyVar, model, pid;
+  if (process.env.JEV_BASE_URL) {
+    base = process.env.JEV_BASE_URL;
+    keyVar = process.env.JEV_KEY_VAR || "TYPESAFE_API_KEY";
+    model = process.env.JEV_MODEL || "jev-latest";
+    pid = process.env.CMA_JEV_ENDPOINT_ID || "env";
+  } else {
+    try {
+      const ttl = Number(process.env.CMA_JEV_CACHE_TTL || 300);
+      const cache = cachePath();
+      if (Date.now() / 1000 - statSync(cache).mtimeMs / 1000 > ttl) return null;
+      const ep = (JSON.parse(readFileSync(cache, "utf8")).endpoints || [])[0];
+      if (!ep || !ep.base_url) return null;
+      base = ep.base_url;
+      keyVar = ep.key_var || "TYPESAFE_API_KEY";
+      model = ep.model || "jev-latest";
+      pid = ep.provider_id || "jev";
+    } catch { return null; }
+  }
+  const out = { base_url: base, key: "", model, provider_id: pid, key_unpinned: false };
+  if (/^https:\/\//i.test(base)) {
+    if (!originAllowsKey(base, keyVar)) { out.key_unpinned = true; return out; }
+    out.key = keyFor(keyVar);
+  }
+  return out;
 }
 
 function logDecision(rec) {
@@ -87,14 +137,28 @@ export const JevGate = async ({ client }) => ({
       return; // fail-open
     }
 
+    if (ep.key_unpinned) {
+      logDecision({ ts: Date.now(), agent: "opencode", tool, state_hash: stateHash,
+        question: "gate", answer: floor, risky_p: 0, confidence: 0, latency_ms: 0,
+        endpoint: ep.provider_id, mode: MODE, enforced: false, fallback: "key_unpinned" });
+      return; // fail-open, but NO request: the key never leaves for an unvalidated host
+    }
+    if (/^https:\/\//i.test(ep.base_url) && !ep.key) {
+      logDecision({ ts: Date.now(), agent: "opencode", tool, state_hash: stateHash,
+        question: "gate", answer: floor, risky_p: 0, confidence: 0, latency_ms: 0,
+        endpoint: ep.provider_id, mode: MODE, enforced: false, fallback: "no_key" });
+      return;
+    }
+
     const t0 = Date.now();
     let answer = floor, risky = 0, confidence = 0, fallback = null;
     try {
       const resp = await fetch(`${ep.base_url}/v1/systemone`, {
         method: "POST",
         signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: { "Content-Type": "application/json",
-                   Authorization: `Bearer ${ep.key}` },
+        headers: ep.key
+          ? { "Content-Type": "application/json", Authorization: `Bearer ${ep.key}` }
+          : { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: ep.model, state,
           // Verified systemone wire format (research §1.2): name -> question map.

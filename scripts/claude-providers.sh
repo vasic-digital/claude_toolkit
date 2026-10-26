@@ -2361,6 +2361,8 @@ _cma_jev_host_class() {
 # host curl CONNECTS to: no userinfo (@), no backslash/whitespace/percent
 # bytes, no empty host, port digits only, a single optional port; the host
 # is then judged by _cma_jev_host_class (exact grammar, no look-alikes).
+# The userinfo (@) refusal below is deliberate defence in depth: the exact
+# grammar of _cma_jev_host_class would reject such a host as well.
 _cma_jev_base_host_class() {
   local b="${1-}" auth host
   [[ "$b" =~ ^[Hh][Tt][Tt][Pp][Ss]?://([^/?#]*)([/?#].*)?$ ]] || { printf 'invalid'; return 0; }
@@ -2462,13 +2464,22 @@ detect_jev_records() {
       # https origin whose (origin, key variable) equals the SHIPPED pin for
       # this slot - so a pins-file override can never redirect a real key to
       # an arbitrary host.
-      local _h_send=0
-      if [[ "$(_cma_jev_base_host_class "${_h_base%/}")" == "loopback" ]]; then _h_send=1
+      local _h_send=0 _h_pathok=0
+      # The request URL is base + systemone_path. The path comes from the pins
+      # file, so it is validated as a plain absolute path (no userinfo @,
+      # backslash, percent, query, fragment, whitespace, empty/relative, or ..)
+      # BEFORE it is appended; otherwise "https://pinned" + "@evil/x" would make
+      # curl connect to evil. The FINAL URL's authority is then re-classified.
+      if [[ "$_h_spath" =~ ^/[A-Za-z0-9._~/-]*$ && "$_h_spath" != *..* ]]; then _h_pathok=1; fi
+      if (( ! _h_pathok )); then _h_send=0
+      elif [[ "$(_cma_jev_base_host_class "${_h_base%/}")" == "loopback" && "$(_cma_jev_base_host_class "${_h_base%/}$_h_spath")" == "loopback" ]]; then _h_send=1
       elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs" --arg o "${_h_base%/}" --arg v "$_h_keyvar" \
              '(.hosted[$h] // {}) as $p | (($p.base_url // "") | sub("/+$";"")) == $o and ($p.key_var // "") == $v' \
              "$LIB_DIR/providers/jev.json" >/dev/null 2>&1; then _h_send=1; fi
       if (( ! _h_send )); then
-        _h_status="unverified"; _h_reason="live probe skipped, refused: bearer only sent to https pinned origin or loopback (${_h_base%/} is neither)"
+        _h_status="unverified"
+        if (( ! _h_pathok )); then _h_reason="live probe skipped, refused: systemone_path is not a plain absolute path"
+        else _h_reason="live probe skipped, refused: bearer only sent to https pinned origin or loopback (${_h_base%/} is neither)"; fi
       elif curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
            -H @<(printf 'Authorization: Bearer %s\n' "$_h_secret") -H "Content-Type: application/json" \
            -d "$_h_body" 2>/dev/null | jq -e . >/dev/null 2>&1; then

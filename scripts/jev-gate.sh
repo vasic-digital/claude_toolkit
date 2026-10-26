@@ -198,15 +198,20 @@ _req=$(jq -cn --arg model "$JEV_MODEL" --arg state "tool=${_tool} input=${_state
                  "false":"The action is routine, reversible, and local."}}}}')
 
 # --- API key resolution + origin binding ------------------------------------
-# A key is only ever sent to the origin it belongs to. JEV_API_KEY is the
-# explicit operator override (sent as given). Any other key is looked up by
-# the variable NAME the endpoint declares: JEV_KEY_VAR when set, else the
-# TypeSafe default TYPESAFE_API_KEY. Over https such a key is released only
-# when (origin, key variable) is attested by a pin: the ranked endpoint cache
-# (jev-endpoints.json, written by sync-jev) and/or the pins file
-# (CMA_JEV_PINS_FILE, else the shipped providers/jev.json next to this script).
-# Otherwise NO request is made (fallback key_unpinned): an exported
-# TYPESAFE_API_KEY must never reach an arbitrary host.
+# A key is only ever sent to an origin it was never "validated away" from.
+# JEV_API_KEY is the explicit operator override (sent as given). Any other key is
+# looked up by the variable NAME the endpoint declares: JEV_KEY_VAR when set,
+# else the TypeSafe default TYPESAFE_API_KEY. Over https such a key is released
+# ONLY when the (origin, key variable) pair is one of:
+#   1. a loopback host (127.0.0.0/8, localhost, ::1) - the key stays on this machine;
+#   2. the SHIPPED pin (providers/jev.json next to this script - never an env or
+#      cache-supplied file), enabled, same origin AND same key variable;
+#   3. an origin the operator listed in the environment as trusted:
+#      CMA_JEV_TRUSTED_ORIGINS="https://host[:port]=KEYVAR[ https://other=KEYVAR2 ...]".
+# The endpoint cache (jev-endpoints.json) and CMA_JEV_PINS_FILE do NOT attest a
+# key: both can be written from a pins override, so attesting from them would
+# let an override redirect a real key. Otherwise NO request is made (fallback
+# key_unpinned).
 _key="" _key_pinned=1
 _kvar="${JEV_KEY_VAR:-TYPESAFE_API_KEY}"
 printf '%s' "$_kvar" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || _kvar=""
@@ -223,14 +228,27 @@ elif [ -n "$_kvar" ]; then
     # Userinfo, backslash, whitespace or percent bytes make the URL authority
     # ambiguous (curl may connect elsewhere than the text suggests): never pinned.
     case "$_origin" in *[@\\%[:space:]]*) _origin="" ;; esac
-    _cache="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/jev-endpoints.json"
-    _pinsf="${CMA_JEV_PINS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/providers/jev.json}"
-    if [ -n "$_origin" ] && [ -f "$_cache" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
-         '[(.endpoints // .)[]? | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v)] | length > 0' \
-         "$_cache" >/dev/null 2>&1; then _key_pinned=1; fi
-    if [ "$_key_pinned" = 0 ] && [ -n "$_origin" ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
-         '[(.hosted // {})[] | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v and (.enabled // true))] | length > 0' \
-         "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
+    if [ -n "$_origin" ]; then
+      _hostport="${_origin#https://}"
+      case "$_hostport" in
+        \[*\]*) _h="${_hostport%%\]*}]" ;;
+        *) _h="${_hostport%%:*}" ;;
+      esac
+      # loopback: exact grammar (127.x.x.x literal, localhost, [::1]); no look-alikes
+      if printf '%s' "$_h" | grep -qE '^(127(\.[0-9]{1,3}){3}|localhost|\[::1\])$' \
+         && ! printf '%s' "$_h" | grep -qE '(^|\.)(25[6-9]|2[6-9][0-9]|[3-9][0-9][0-9])(\.|$)'; then
+        _key_pinned=1
+      fi
+      _pinsf="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)/providers/jev.json"
+      if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
+           '[(.hosted // {})[] | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v and (.enabled // true))] | length > 0' \
+           "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
+      if [ "$_key_pinned" = 0 ] && [ -n "${CMA_JEV_TRUSTED_ORIGINS:-}" ]; then
+        for _t in $CMA_JEV_TRUSTED_ORIGINS; do
+          if [ "${_t%%=*}" = "$_origin" ] && [ "${_t#*=}" = "$_kvar" ] && [ "${_t%%=*}" != "$_t" ]; then _key_pinned=1; fi
+        done
+      fi
+    fi
   fi
 fi
 # No key found: over https NO request is made (a literal placeholder bearer
