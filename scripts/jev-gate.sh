@@ -28,7 +28,7 @@
 #
 # Fail-open by design: any transport/parse error allows the call and logs a
 # fallback reason: timeout (curl 28), unreachable (curl 6/7), tls_untrusted
-# (curl 51/58/59/60/77/83), auth_rejected (HTTP 401/403), no_key (https with no
+# (curl 51/58/59/60/77/83), auth_rejected (HTTP 401/403), key_unpinned (https key whose origin+variable no pin attests; no request made), no_key (https with no
 # key found: no request is made, so no bearer is ever sent blind), else
 # endpoint_error. Availability beats enforcement; fail-closed is
 # possible via JEV_GATE_FAIL=closed but is NOT the default.
@@ -197,20 +197,47 @@ _req=$(jq -cn --arg model "$JEV_MODEL" --arg state "tool=${_tool} input=${_state
        criteria:{"true":"There is a real risk of data loss, secret exposure, or irreversible external side effects.",
                  "false":"The action is routine, reversible, and local."}}}}')
 
-_key="${JEV_API_KEY:-${TYPESAFE_API_KEY:-}}"
-# JEV_KEY_VAR names the variable holding the key: the process environment
-# first (same order as the detector and jev_mcp.py), then the keys file.
-if [ -z "$_key" ] && printf '%s' "${JEV_KEY_VAR:-}" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
-  _key="${!JEV_KEY_VAR:-}"
+# --- API key resolution + origin binding ------------------------------------
+# A key is only ever sent to the origin it belongs to. JEV_API_KEY is the
+# explicit operator override (sent as given). Any other key is looked up by
+# the variable NAME the endpoint declares: JEV_KEY_VAR when set, else the
+# TypeSafe default TYPESAFE_API_KEY. Over https such a key is released only
+# when (origin, key variable) is attested by a pin: the ranked endpoint cache
+# (jev-endpoints.json, written by sync-jev) and/or the pins file
+# (CMA_JEV_PINS_FILE, else the shipped providers/jev.json next to this script).
+# Otherwise NO request is made (fallback key_unpinned): an exported
+# TYPESAFE_API_KEY must never reach an arbitrary host.
+_key="" _key_pinned=1
+_kvar="${JEV_KEY_VAR:-TYPESAFE_API_KEY}"
+printf '%s' "$_kvar" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || _kvar=""
+if [ -n "${JEV_API_KEY:-}" ]; then
+  _key="$JEV_API_KEY"
+elif [ -n "$_kvar" ]; then
+  _key="${!_kvar:-}"
   if [ -z "$_key" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
-    _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$JEV_KEY_VAR"':-}"')"
+    _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$_kvar"':-}"')"
+  fi
+  if [ -n "$_key" ] && [[ "$JEV_BASE_URL" == https://* ]]; then
+    _origin="$(printf '%s' "$JEV_BASE_URL" | sed -E 's#^(https://[^/?#]+).*#\1#')"
+    _key_pinned=0
+    _cache="${CMA_PROVIDERS_DIR:-$HOME/.local/share/claude-multi-account/providers}/jev-endpoints.json"
+    _pinsf="${CMA_JEV_PINS_FILE:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")")/providers/jev.json}"
+    if [ -f "$_cache" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
+         '[(.endpoints // .)[]? | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v)] | length > 0' \
+         "$_cache" >/dev/null 2>&1; then _key_pinned=1; fi
+    if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
+         '[(.hosted // {})[] | select((.base_url // "" | sub("/+$";"")) == $o and (.key_var // "") == $v and (.enabled // true))] | length > 0' \
+         "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
   fi
 fi
 # No key found: over https NO request is made (a literal placeholder bearer
 # would be sent blind to a remote server and could only ever fail); over plain
 # http no Authorization header is sent at all, so a key is not needed there.
 _no_key=0
-if [[ "$JEV_BASE_URL" == https://* ]] && [ -z "$_key" ]; then _no_key=1; fi
+if [[ "$JEV_BASE_URL" == https://* ]]; then
+  if [ -z "$_key" ]; then _no_key=1
+  elif [ "$_key_pinned" != 1 ]; then _no_key=2; fi
+fi
 _start_ms=$(_now_ms)
 _resp="" _curl_rc=0 _http_code=000
 # The bearer key is sent ONLY over https and NEVER on a command line (curl
@@ -218,8 +245,8 @@ _resp="" _curl_rc=0 _http_code=000
 # Authorization header is sent at all. -w appends the HTTP status after a
 # newline so 401/403 can be told apart from a transport failure (curl -f exits
 # 22 for both).
-if [ "$_no_key" = 1 ]; then
-  _curl_rc=99
+if [ "$_no_key" != 0 ]; then
+  _curl_rc=$(( _no_key == 1 ? 99 : 98 ))
 elif [[ "$JEV_BASE_URL" == https://* ]]; then
   _raw=$(curl -sf -m "$JEV_GATE_TIMEOUT" \
     -H "Content-Type: application/json" \
@@ -235,7 +262,7 @@ else
     -d "$_req" "$JEV_BASE_URL/v1/systemone" 2>/dev/null)
   _curl_rc=$?
 fi
-if [ "$_no_key" != 1 ]; then
+if [ "$_no_key" = 0 ]; then
   _http_code="${_raw##*$'\n'}"
   _resp="${_raw%$'\n'*}"
   [ "$_raw" = "$_http_code" ] && _resp=""   # no newline at all: nothing but a code
@@ -248,6 +275,7 @@ if [ $_curl_rc -ne 0 ] || [ -z "$_resp" ]; then
   _fb="endpoint_error"
   case "$_curl_rc" in
     99)                       _fb="no_key" ;;
+    98)                       _fb="key_unpinned" ;;
     28)                       _fb="timeout" ;;
     6|7)                      _fb="unreachable" ;;
     51|58|59|60|77|83)        _fb="tls_untrusted" ;;

@@ -2441,7 +2441,20 @@ detect_jev_records() {
       # dictionary", which downgraded a working endpoint to unverified.
       _h_body="$(jq -cn --arg m "$_h_model" '{model:$m, state:"probe",
         questions:{probe:{type:"noul", instructions:"Is this endpoint reachable? Answer yes."}}}')"
-      if curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
+      # The bearer is released ONLY to a loopback host (http or https) or to an
+      # https origin whose (origin, key variable) equals the SHIPPED pin for
+      # this slot - so a pins-file override can never redirect a real key to
+      # an arbitrary host.
+      local _h_authority _h_hostonly _h_send=0
+      _h_authority="$(printf '%s' "${_h_base%/}" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?\#]*).*$#\1#')"
+      _h_hostonly="${_h_authority%%:[0-9]*}"
+      if [[ "$(_cma_jev_host_class "$_h_hostonly")" == "loopback" ]]; then _h_send=1
+      elif [[ "${_h_base%/}" == https://* ]] && jq -e --arg h "$_hs" --arg o "${_h_base%/}" --arg v "$_h_keyvar" \
+             '(.hosted[$h] // {}) as $p | (($p.base_url // "") | sub("/+$";"")) == $o and ($p.key_var // "") == $v' \
+             "$LIB_DIR/providers/jev.json" >/dev/null 2>&1; then _h_send=1; fi
+      if (( ! _h_send )); then
+        _h_status="unverified"; _h_reason="live probe skipped, refused: bearer only sent to https pinned origin or loopback (${_h_base%/} is neither)"
+      elif curl -sf --max-time "$_t" -X POST "${_h_base%/}$_h_spath" \
            -H @<(printf 'Authorization: Bearer %s\n' "$_h_secret") -H "Content-Type: application/json" \
            -d "$_h_body" 2>/dev/null | jq -e . >/dev/null 2>&1; then
         _h_status="resolved"; _h_reason="live systemone probe ok at ${_h_base%/}$_h_spath"
@@ -3277,11 +3290,11 @@ _cma_kimi_twin_alias() {
   # config is absent (render failed, or deleted later) is refused with a clear
   # message and falls through to the drop branch below.
   if [[ "$(cma_status_read "$id")" == "verified" ]]; then
-    if [[ -f "$HOME/.kimi-prov-$id/config.toml" ]]; then
+    if [[ -f "$(cma_kimi_provider_home "$id")/config.toml" ]]; then
       cma_alias_commit "$twin" "$want" keep 2>/dev/null || return 1
       return 0
     fi
-    cma_warn "refusing kimi twin '$twin': $HOME/.kimi-prov-$id/config.toml is missing (run 'claude-providers sync' to render it)"
+    cma_warn "refusing kimi twin '$twin': $(cma_kimi_provider_home "$id")/config.toml is missing (run 'claude-providers sync' to render it)"
   fi
   # Not verified: drop ONLY a line this toolkit wrote. A user-authored
   # definition of the same name (anything other than the exact canonical twin
@@ -3322,7 +3335,7 @@ _cma_kimi_twin_reconcile() {
     | LC_ALL=C sort -u \
     | while IFS= read -r tid; do
         [[ -n "$tid" ]] || continue
-        [[ "$(cma_status_read "$tid")" == "verified" && -f "$HOME/.kimi-prov-$tid/config.toml" ]] && continue
+        [[ "$(cma_status_read "$tid")" == "verified" && -f "$(cma_kimi_provider_home "$tid")/config.toml" ]] && continue
         _cma_kimi_twin_alias "$tid" || cma_warn "could not drop stale twin alias 'kimi-$tid'"
       done
   return 0
@@ -3443,7 +3456,7 @@ _cma_kimi_base_is_loopback() {
   _cma_is_ccr_gateway "$url" "$port"
 }
 
-# _cma_jev_state_dir / _cma_kimi_twin_root — CMA_PROVIDERS_DIR isolation for the
+# _cma_jev_state_dir / cma_kimi_twin_root (lib.sh) — CMA_PROVIDERS_DIR isolation for the
 # Jev lock/stamp directory and the kimi twin homes the hook refresh rewrites.
 # Unset CMA_PROVIDERS_DIR keeps the historical $HOME locations bit for bit; set,
 # an isolated sync-jev run reads and writes only beneath it (an explicit
@@ -3452,10 +3465,6 @@ _cma_jev_state_dir() {
   if [[ -n "${JEV_STATE_DIR:-}" ]]; then printf '%s' "$JEV_STATE_DIR"
   elif [[ -n "${CMA_PROVIDERS_DIR:-}" ]]; then printf '%s' "$CMA_PROVIDERS_DIR/jev-state"
   else printf '%s' "$HOME/.local/state/jev"; fi
-}
-_cma_kimi_twin_root() {
-  if [[ -n "${CMA_PROVIDERS_DIR:-}" ]]; then printf '%s' "$CMA_PROVIDERS_DIR/kimi-twins"
-  else printf '%s' "$HOME"; fi
 }
 
 # _cma_kimi_jev_gate_path — installed Jev gate (same path jev-setup.sh installs to).
@@ -3523,7 +3532,7 @@ _cma_kimi_jev_hooks_refresh() {
   # Computed once per run but UNDER the lock; its warnings (unusable
   # jev-kimi-tools.txt ...) reach stderr.
   blk="$(_cma_kimi_jev_hooks_block)"
-  for f in "$(_cma_kimi_twin_root)"/.kimi-prov-*/config.toml; do
+  for f in "$(cma_kimi_twin_root)"/.kimi-prov-*/config.toml; do
     [[ -f "$f" ]] || continue
     # A symlinked config.toml is replaced THROUGH the link, never over it.
     if [[ -L "$f" ]]; then real="$(cma_realpath "$f" 2>/dev/null)" && [[ -f "$real" ]] && f="$real"; fi
@@ -3578,7 +3587,7 @@ _cma_kimi_jev_hooks_refresh() {
 _cma_kimi_render_config() {
   local id="$1" keyvar="$2" transport="$3" base="$4" strong="$5" ctx="${6:-}" max_out="${7:-}"
   case "$id" in ''|kc-*|kimi-*) return 0 ;; esac
-  local kdir="$HOME/.kimi-prov-$id"
+  local kdir; kdir="$(cma_kimi_provider_home "$id")"
   ( umask 077; mkdir -p "$kdir" ) 2>/dev/null || {
     cma_warn "kimi config: cannot create $kdir — $kdir/config.toml not rendered"
     return 1
@@ -4547,7 +4556,7 @@ cmd_remove() {
   fi
   # Kimi twin config dir backs up alongside the Claude one (same preunify
   # convention; removed with `remove`, restored with a plain rename).
-  local kdir="$HOME/.kimi-prov-$id"
+  local kdir; kdir="$(cma_kimi_provider_home "$id")"
   if [[ -d "$kdir" ]]; then
     mv "$kdir" "${kdir}.preunify.$(date +%Y%m%d%H%M%S)"
     cma_log "backed up + removed kimi config dir $kdir"
@@ -5428,7 +5437,7 @@ if (( REFRESH_ALIASES )); then
       # deleted independently is repaired by `sync` (or, for the export class,
       # `helixllm-export --apply`), which is the only writer of that file, and
       # both then restore the twin here on the next shell start.
-      if (( KIMI_ALIASES )) && [[ -f "$HOME/.kimi-prov-$_rid/config.toml" ]]; then
+      if (( KIMI_ALIASES )) && [[ -f "$(cma_kimi_provider_home "$_rid")/config.toml" ]]; then
         _cma_kimi_twin_alias "$_rid" 2>/dev/null || true
       elif (( KIMI_ALIASES )) && grep -qxF "alias kimi-$_rid=\"cma_run_kimi_provider $_rid\"" "$ALIAS_FILE" 2>/dev/null; then
         # Known-issue 36: the config is gone but a canonical twin line remains.

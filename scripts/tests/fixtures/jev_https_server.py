@@ -7,6 +7,7 @@ usage: jev_https_server.py PORT PORTFILE MODE [CERT KEY EXPECTED_KEY BIND]
                  'Authorization: Bearer <EXPECTED_KEY>' else 401
         tls404   HTTPS; /v1/models answers 404 (not an auth failure)
         redirect HTTPS; /v1/models answers 302 -> $JEV_FIXTURE_REDIRECT_TO
+        forbid   HTTPS; /v1/systemone answers 403 even for a good key
         plain    plain HTTP, no auth (a server that is NOT the real gateway)
   BIND  address to bind (default 127.0.0.1; never 0.0.0.0 in the suites)
 Writes the bound port to PORTFILE and its own pid to PORTFILE.pid, so the
@@ -66,6 +67,8 @@ class H(BaseHTTPRequestHandler):
         self.rfile.read(n)
         if self.path != "/v1/systemone":
             return self._send(404, {"error": "not found"})
+        if MODE == "forbid":
+            return self._send(403, {"error": "forbidden"})
         if not self._authed():
             return self._send(401, {"error": "unauthorized"})
         self._send(200, {"model": "jev-tls-fixture", "answers": {

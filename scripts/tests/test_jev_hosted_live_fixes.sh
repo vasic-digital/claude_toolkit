@@ -64,13 +64,13 @@ start_stub() {
   for _ in $(seq 1 60); do [[ -s "$pf" && -s "$pf.pid" ]] && break; sleep 0.1; done
   STUB_PORT="$(cat "$pf" 2>/dev/null)"
 }
-# start_tls <logfile>  -> TLS_PORT
+# start_tls <logfile> [mode]  -> TLS_PORT
 CERT="$HOME/gw.crt"; TKEY="$HOME/gw.key"
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$TKEY" -out "$CERT" -days 2 \
   -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" >/dev/null 2>&1
 start_tls() {
   local pf; pf="$(mktemp "$HOME/tlsport.XXXXXX")"; : > "$pf"
-  JEV_FIXTURE_LOG="${1:-}" python3 "$TLSFIX" 0 "$pf" tls "$CERT" "$TKEY" "$DUMMY" 127.0.0.1 >/dev/null 2>&1 &
+  JEV_FIXTURE_LOG="${1:-}" python3 "$TLSFIX" 0 "$pf" "${2:-tls}" "$CERT" "$TKEY" "$DUMMY" 127.0.0.1 >/dev/null 2>&1 &
   PIDFILES+=("$pf.pid")
   local _
   for _ in $(seq 1 60); do [[ -s "$pf" && -s "$pf.pid" ]] && break; sleep 0.1; done
@@ -123,7 +123,7 @@ assert_eq "jev-typesafe" "$(jq -r '.endpoints[0].provider_id // "?"' "$PROV/jev-
 # ===========================================================================
 # T2 - CMA_PROVIDERS_DIR honoured by sync-jev
 # ===========================================================================
-it "T2: sync-jev under CMA_PROVIDERS_DIR touches nothing in a read-only hostile HOME"
+it "T2: sync-jev under CMA_PROVIDERS_DIR touches nothing in a WRITABLE hostile HOME (a swallowed write would show in the snapshot)"
 POISON="$(mktemp -d "$HOME/poison.XXXXXX")"
 mkdir -p "$POISON/.kimi-prov-x" "$POISON/.local/state/jev" "$POISON/.local/share/claude-multi-account/providers"
 printf 'default_model = "m"\n# cma-jev:hooks BEGIN\nstale-home\n# cma-jev:hooks END\n' > "$POISON/.kimi-prov-x/config.toml"
@@ -134,13 +134,12 @@ mkdir -p "$ISO/prov/kimi-twins/.kimi-prov-x"
 printf 'default_model = "m"\n# cma-jev:hooks BEGIN\nstale-iso\n# cma-jev:hooks END\n' > "$ISO/prov/kimi-twins/.kimi-prov-x/config.toml"
 printf "export TYPESAFE_API_KEY='%s'\n" "$DUMMY" > "$ISO/keys.sh"
 snap() { (cd "$1" && find . -print0 | sort -z | xargs -0 stat -c '%n %a %s %Y' 2>/dev/null; find . -type f -print0 | sort -z | xargs -0 sha256sum 2>/dev/null) | sha256sum | cut -c1-64; }
-chmod -R a-w "$POISON"; RO_DIRS+=("$POISON")
 BEFORE="$(snap "$POISON")"
 env -u JEV_STATE_DIR -u LLMCTL_API_KEY HOME="$POISON" CMA_PROVIDERS_DIR="$ISO/prov" CMA_KEYS_FILE="$ISO/keys.sh" \
   CMA_JEV_PINS_FILE="$PINS" bash "$PROVIDERS_SH" sync-jev --quiet >"$ISO/out.txt" 2>&1
 rc=$?
 AFTER="$(snap "$POISON")"
-assert_eq 0 "$rc" "sync-jev exits 0 with a read-only HOME ($(head -c 200 "$ISO/out.txt" | tr '\n' ' '))"
+assert_eq 0 "$rc" "sync-jev exits 0 with the hostile HOME ($(head -c 200 "$ISO/out.txt" | tr '\n' ' '))"
 assert_eq "$BEFORE" "$AFTER" "HOME stand-in is byte-identical (names, modes, sizes, mtimes, sha256)"
 assert_eq "1" "$(jq '.endpoints | length' "$ISO/prov/jev-endpoints.json" 2>/dev/null || echo ERR)" "endpoint cache written under CMA_PROVIDERS_DIR"
 assert_file "$ISO/prov/status.json" "status bookkeeping written under CMA_PROVIDERS_DIR"
@@ -250,5 +249,101 @@ assert_eq "gate" "$(jq -r '.class' <<<"$(lastlog)")" "class on a success line"
 it "T5h: plain http with no key still works (no bearer is ever sent over http)"
 gate "$HOOK" JEV_BASE_URL="http://127.0.0.1:$SLOW_PORT" JEV_MODE=shadow JEV_GATE_TIMEOUT=5 >/dev/null 2>&1
 assert_eq "none" "$(fb)" "http without key -> normal decision"
+
+# ===========================================================================
+# T5i - 403 maps to auth_rejected (mutant M3: 403 no longer mapped survived)
+# ===========================================================================
+it "T5i: HTTP 403 over https -> fallback auth_rejected (not endpoint_error)"
+FLOG="$HOME/forbid.log"; : > "$FLOG"; _MAIN_TLS="$TLS_PORT"; start_tls "$FLOG" forbid; FB_PORT="$TLS_PORT"; TLS_PORT="$_MAIN_TLS"
+gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$FB_PORT" JEV_CA_FILE="$CERT" JEV_API_KEY="$DUMMY" JEV_MODE=shadow >/dev/null 2>&1
+assert_eq 0 "$?" "fail-open exit"
+assert_eq "auth_rejected" "$(fb)" "403 is logged as auth_rejected"
+grep -q '^POST /v1/systemone' "$FLOG" && _pass "sink-side: the 403 server received the request" || _fail "403 server received the request" "$(cat "$FLOG")"
+
+# ===========================================================================
+# T6 - CMA_PROVIDERS_DIR: writers AND readers agree
+# ===========================================================================
+it "T6a: after sync-jev under CMA_PROVIDERS_DIR a LAUNCH-SIDE read finds the cache (cma_jev_env ACTIVE, no re-kick)"
+T6H="$(mktemp -d "$HOME/t6home.XXXXXX")"; T6P="$T6H/prov"
+env -u JEV_STATE_DIR -u LLMCTL_API_KEY HOME="$T6H" CMA_PROVIDERS_DIR="$T6P" CMA_KEYS_FILE="$KEYS" \
+  CMA_JEV_PINS_FILE="$PINS" bash "$PROVIDERS_SH" sync-jev --quiet >/dev/null 2>&1
+assert_file "$T6P/jev-endpoints.json" "writer put the cache under CMA_PROVIDERS_DIR"
+R="$(env -u JEV_STATE_DIR HOME="$T6H" CMA_PROVIDERS_DIR="$T6P" CMA_JEV_QUIET=1 CMA_JEV_CACHE_TTL=99999 \
+  bash -c 'source "'"$SCRIPTS_DIR"'/lib.sh"; unset CMA_JEV_REFRESH_KICKED; cma_jev_env; echo "active=${CMA_JEV_ACTIVE:-?} kicked=${CMA_JEV_REFRESH_KICKED:-0} base=${JEV_BASE_URL:-}"' 2>/dev/null)"
+assert_eq "active=1 kicked=0 base=$(jq -r '.endpoints[0].base_url' "$T6P/jev-endpoints.json")" "$R" "reader resolves the endpoint the writer stored"
+
+it "T6b: launch-side readers use the same directory (run: unknown-provider message, kimi twin home)"
+OUTR="$(env HOME="$T6H" CMA_PROVIDERS_DIR="$T6P" bash -c 'source "'"$SCRIPTS_DIR"'/lib.sh"; source <(_cma_emit_cma_run_provider); cma_run_provider no-such-id' 2>&1 | head -3)"
+case "$OUTR" in *"$T6P/no-such-id.env"*) _pass "run reads <CMA_PROVIDERS_DIR>/<id>.env" ;; *) _fail "run reads <CMA_PROVIDERS_DIR>/<id>.env" "$OUTR" ;; esac
+KH="$(env HOME="$T6H" CMA_PROVIDERS_DIR="$T6P" bash -c 'source "'"$SCRIPTS_DIR"'/lib.sh"; cma_kimi_provider_home abc')"
+assert_eq "$T6P/kimi-twins/.kimi-prov-abc" "$KH" "kimi twin home follows CMA_PROVIDERS_DIR (matches the hook-refresh scan root)"
+KH0="$(env -u CMA_PROVIDERS_DIR HOME="$T6H" bash -c 'source "'"$SCRIPTS_DIR"'/lib.sh"; cma_kimi_provider_home abc')"
+assert_eq "$T6H/.kimi-prov-abc" "$KH0" "unset CMA_PROVIDERS_DIR keeps the historical \$HOME location"
+
+it "T6c: no non-comment launch/sync code hardcodes the default providers dir or \$HOME/.kimi-prov-* outside the override-aware helpers"
+BAD=""
+for f in lib.sh claude-providers.sh jev-setup.sh claude-usage.sh verify_superpowers_tui.sh kimi-providers.sh; do
+  hits="$(grep -nE '\$HOME/\.local/share/claude-multi-account/providers|\$HOME/\.kimi-prov-|\$HOME/\$KIMI_PROVIDER_PREFIX' "$SCRIPTS_DIR/$f" \
+    | grep -vE '^[0-9]+:[[:space:]]*#' | grep -vE 'CMA_PROVIDERS_DIR|cma_providers_dir|kimi_twin_root')"
+  [[ -n "$hits" ]] && BAD+="$f: $(head -3 <<<"$hits" | tr '\n' '|') "
+done
+[[ -z "$BAD" ]] && _pass "every reader/writer routes through the override-aware helpers" || _fail "every reader/writer routes through the override-aware helpers" "$BAD"
+
+# ===========================================================================
+# T7 - a key is only ever sent to the origin it is pinned to
+# ===========================================================================
+it "T7a: exported TYPESAFE_API_KEY is NOT sent to another https origin whose JEV_KEY_VAR is a different variable"
+: > "$TLSLOG"
+gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=OPENROUTER_API_KEY \
+  TYPESAFE_API_KEY="$DUMMY" JEV_MODE=shadow >/dev/null 2>&1
+assert_eq 0 "$?" "fail-open exit"
+grep -q "$DUMMY" "$TLSLOG" && _fail "TypeSafe key never reaches the other origin" "bearer seen: $(cat "$TLSLOG")" || _pass "sink-side: the TypeSafe key was not sent to the OpenRouter-bound origin"
+assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: no request at all (OPENROUTER_API_KEY is unset)"
+
+it "T7b: JEV_KEY_VAR=TYPESAFE_API_KEY against an origin no pin/cache attests -> refused, zero requests"
+: > "$TLSLOG"
+T7P="$(mktemp -d "$HOME/t7prov.XXXXXX")"
+gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=TYPESAFE_API_KEY \
+  TYPESAFE_API_KEY="$DUMMY" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
+assert_eq "key_unpinned" "$(fb)" "unpinned origin is logged as key_unpinned"
+assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: the key was never sent to the unpinned origin"
+
+it "T7c: positive control - the same call once the endpoint cache attests (origin, key variable) sends the key"
+jq -n --arg b "https://127.0.0.1:$TLS_PORT" '{endpoints:[{base_url:$b,key_var:"TYPESAFE_API_KEY",provider_id:"jev-typesafe"}]}' > "$T7P/jev-endpoints.json"
+: > "$TLSLOG"
+gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=TYPESAFE_API_KEY \
+  TYPESAFE_API_KEY="$DUMMY" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
+assert_eq "none" "$(fb)" "no fallback when pinned"
+grep -q "auth=Bearer $DUMMY" "$TLSLOG" && _pass "sink-side: the pinned origin received the key" || _fail "pinned origin received the key" "$(cat "$TLSLOG")"
+
+it "T7d: attested origin but a DIFFERENT key variable than the pin's own -> refused"
+: > "$TLSLOG"
+gate "$HOOK" JEV_BASE_URL="https://127.0.0.1:$TLS_PORT" JEV_CA_FILE="$CERT" JEV_KEY_VAR=OPENROUTER_API_KEY \
+  OPENROUTER_API_KEY="$WRONG" CMA_PROVIDERS_DIR="$T7P" JEV_MODE=shadow >/dev/null 2>&1
+assert_eq "key_unpinned" "$(fb)" "variable is not the pin's own"
+assert_eq "0" "$(grep -c . "$TLSLOG")" "sink-side: zero requests"
+
+# ===========================================================================
+# T8 - the live probe never sends a bearer off a non-https non-loopback or unpinned URL
+# ===========================================================================
+it "T8a: CMA_JEV_LIVE probe with a pins override pointing at plain http on a NON-loopback host sends nothing"
+PINS8="$HOME/pins8.json"
+jq -n '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:"http://192.0.2.1:9",systemone_path:"/v1/systemone",
+  models:["jev-latest"],context_limit:64000,enabled:true}}, local_gateway:{enabled:false}, lan:[]}' > "$PINS8"
+OUT8="$(env -u LLMCTL_API_KEY CMA_JEV_PINS_FILE="$PINS8" CMA_KEYS_FILE="$KEYS" CMA_JEV_LIVE=1 CMA_JEV_HTTP_TIMEOUT=1 \
+  bash -c 'curl() { echo "CURL-CALLED $*" >>"'"$HOME"'/curl8.log"; return 7; }; export -f curl; source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_jev_records' 2>/dev/null)"
+assert_eq "unverified" "$(jq -r '[.[] | select(.provider_id=="jev-typesafe")][0].status // "absent"' <<<"$OUT8")" "record is unverified"
+case "$(jq -r '[.[] | select(.provider_id=="jev-typesafe")][0].reason // ""' <<<"$OUT8")" in *refus*) _pass "reason says the bearer was refused" ;; *) _fail "reason says the bearer was refused" "$(jq -c . <<<"$OUT8")" ;; esac
+[[ ! -e "$HOME/curl8.log" ]] && _pass "curl was never invoked (no bearer could leave)" || _fail "curl was never invoked" "$(cat "$HOME/curl8.log")"
+
+it "T8b: https pins override to a host other than the shipped pin's origin is refused too (not pinned)"
+PINS8B="$HOME/pins8b.json"
+jq -n '{hosted:{typesafe:{key_var:"TYPESAFE_API_KEY",base_url:"https://evil.example.invalid",systemone_path:"/v1/systemone",
+  models:["jev-latest"],context_limit:64000,enabled:true}}, local_gateway:{enabled:false}, lan:[]}' > "$PINS8B"
+rm -f "$HOME/curl8.log"
+OUT8B="$(env -u LLMCTL_API_KEY CMA_JEV_PINS_FILE="$PINS8B" CMA_KEYS_FILE="$KEYS" CMA_JEV_LIVE=1 CMA_JEV_HTTP_TIMEOUT=1 \
+  bash -c 'curl() { echo "CURL-CALLED $*" >>"'"$HOME"'/curl8.log"; return 7; }; export -f curl; source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_jev_records' 2>/dev/null)"
+assert_eq "unverified" "$(jq -r '[.[] | select(.provider_id=="jev-typesafe")][0].status // "absent"' <<<"$OUT8B")" "record is unverified"
+[[ ! -e "$HOME/curl8.log" ]] && _pass "curl was never invoked" || _fail "curl was never invoked" "$(cat "$HOME/curl8.log")"
 
 summary

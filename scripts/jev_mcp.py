@@ -123,10 +123,18 @@ def _resolve_key_var(key_var):
 
 
 def _api_key():
-    direct = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")
+    direct = os.environ.get("JEV_API_KEY")
     if direct:
         return direct
-    return _resolve_key_var(os.environ.get("JEV_KEY_VAR", ""))
+    # TYPESAFE_API_KEY is the implicit default ONLY when no other key variable is
+    # declared: an endpoint bound to a different variable (JEV_KEY_VAR) must never
+    # be handed the TypeSafe key. (Origin pinning is enforced in jev-gate.sh.)
+    kv = os.environ.get("JEV_KEY_VAR", "")
+    if not kv or kv == "TYPESAFE_API_KEY":
+        implicit = os.environ.get("TYPESAFE_API_KEY")
+        if implicit:
+            return implicit
+    return _resolve_key_var(kv)
 
 
 def _ssl_ctx(ca_file=None):
