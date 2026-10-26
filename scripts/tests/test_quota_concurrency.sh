@@ -35,11 +35,13 @@ source "$TESTS_DIR/lib/sandbox.sh"
 
 make_sandbox
 
-# --- isolated lib dir: a sandboxed copy of the 5 files _cma_quota_probe_all
-# actually needs at runtime, plus OUR OWN providers/quota-endpoints.json. ----
+# --- isolated lib dir: a sandboxed copy of the 6 files _cma_quota_probe_all
+# actually needs at runtime (claude-providers.sh sources lib.sh and jev-keyfile-lib.sh), plus OUR OWN
+# providers/quota-endpoints.json. ----
 ISO_LIB_DIR="$HOME/_iso_scripts"
 mkdir -p "$ISO_LIB_DIR/providers"
 cp "$SCRIPTS_DIR/lib.sh" "$ISO_LIB_DIR/lib.sh"
+cp "$SCRIPTS_DIR/jev-keyfile-lib.sh" "$ISO_LIB_DIR/jev-keyfile-lib.sh"
 cp "$SCRIPTS_DIR/claude-providers.sh" "$ISO_LIB_DIR/claude-providers.sh"
 cp "$SCRIPTS_DIR/quota_probe.py" "$ISO_LIB_DIR/quota_probe.py"
 cp "$SCRIPTS_DIR/model_verify.py" "$ISO_LIB_DIR/model_verify.py"

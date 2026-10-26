@@ -37,6 +37,7 @@ hang, never a crash.
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import urllib.request
@@ -117,16 +118,87 @@ def _resolve_key_var(key_var):
              'source "{0}" >/dev/null 2>&1; printf %s "${{{1}:-}}"'.format(keys_file, key_var)],
             capture_output=True, text=True, timeout=4,
         )
-        return out.stdout.strip() or "local"
+        val = out.stdout.strip()
     except Exception:
-        return "local"
+        val = ""
+    return val or _keyfile_lookup(key_var) or "local"
+
+
+def _keyfile_candidates():
+    """Candidate key files: $CMA_JEV_KEY_FILES (colon list) then the lines of
+    ${JEV_CONFIG_DIR:-~/.config/jev}/key-files. Same contract as
+    jev-keyfile-lib.sh / jev-gate.sh (shared vectors: test_jev_keyfile.sh)."""
+    out = [p for p in (os.environ.get("CMA_JEV_KEY_FILES") or "").split(":")]
+    cfg = os.path.join(os.environ.get("JEV_CONFIG_DIR") or os.path.expanduser("~/.config/jev"), "key-files")
+    try:
+        with open(cfg, encoding="utf-8", errors="replace") as fh:
+            out.extend(fh.read().replace("\r", "").split("\n"))
+    except OSError:
+        pass
+    for p in out:
+        p = p.strip()
+        if not p or p.startswith("#"):
+            continue
+        if p.startswith("~/"):
+            p = os.path.join(os.path.expanduser("~"), p[2:])
+        yield p
+
+
+def _keyfile_lookup(name):
+    """Value of NAME parsed from the first usable key file (never sourced):
+    regular, readable, owned by the current user; last `NAME=`/`export NAME=`
+    line wins; CR and trailing blanks stripped; ONE pair of matching quotes
+    removed; nothing expanded. '' when none."""
+    if not name or not _KEY_VAR_RE.match(name):
+        return ""
+    for p in _keyfile_candidates():
+        try:
+            st = os.stat(p)
+            if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid() or not os.access(p, os.R_OK):
+                continue
+            found = None
+            with open(p, encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    line = raw[:-1] if raw.endswith("\n") else raw
+                    line = (line[:-1] if line.endswith("\r") else line).lstrip(" \t")
+                    if re.match(r"export[ \t]+", line):
+                        line = re.sub(r"^export[ \t]+", "", line, count=1)
+                    if line.startswith(name + "="):
+                        found = line[len(name) + 1:]
+        except OSError:
+            continue
+        if found is None:
+            continue
+        v = found.rstrip(" \t")
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1]
+        if v:
+            return v
+    return ""
+
+
+def _cached_key_var():
+    """The key variable NAME (never a value) of the first endpoint in the ranked
+    cache: the registration written by jev-setup carries only a placeholder key
+    and no JEV_KEY_VAR, so this is how a registered server learns which variable
+    to resolve at call time (env > keys file > jev key files)."""
+    cache = os.path.join(os.path.expanduser("~"), ".local/share/claude-multi-account/providers/jev-endpoints.json")
+    try:
+        with open(cache, encoding="utf-8") as fh:
+            ep = (json.load(fh).get("endpoints") or [{}])[0] or {}
+        kv = ep.get("key_var") or ""
+        return kv if _KEY_VAR_RE.match(kv) else ""
+    except (OSError, ValueError, AttributeError, TypeError):
+        return ""
 
 
 def _api_key():
     direct = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")
-    if direct:
+    # "local" is the keyless-loopback PLACEHOLDER that jev-setup bakes into a registration when the key was not resolvable at
+    # install time; it is not a credential, so it must not shadow the call-time resolution below.
+    if direct and direct != "local":
         return direct
-    return _resolve_key_var(os.environ.get("JEV_KEY_VAR", ""))
+    return _resolve_key_var(os.environ.get("JEV_KEY_VAR", "") or _cached_key_var())
 
 
 def _ssl_ctx(ca_file=None):

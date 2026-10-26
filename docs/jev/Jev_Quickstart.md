@@ -21,7 +21,7 @@ local gateway wins when present):
 
 | Source | What to do |
 |--------|-----------|
-| **Local llmctl decision gateway** | Run a llmctl profile that serves a `/v1/systemone`-compatible decision endpoint (default `127.0.0.1:8095`; if you changed `llmctl decide serve --port`, update `local_gateway.port` in the pins; free, lowest latency). llmctl's gateway is **HTTPS + bearer key**: export `LLMCTL_API_KEY` (or keep it in `~/api_keys.sh`) and, if the gateway uses llmctl's local CA, `CMA_JEV_CA_FILE=$LLMCTL_HOME/cert/ca/ca.crt`. See the [User Guide](./Jev_User_Guide.md) §2.1 (§11.4.279 clause A). |
+| **Local llmctl decision gateway** | Run a llmctl profile that serves a `/v1/systemone`-compatible decision endpoint (default `127.0.0.1:8095`; if you changed `llmctl decide serve --port`, update `local_gateway.port` in the pins; free, lowest latency). llmctl's gateway is **HTTPS + bearer key**: export `LLMCTL_API_KEY`, keep it in `~/api_keys.sh`, or point `jev-setup --key-file "$LLMCTL_HOME/.env"` at the file that already holds it (nothing is copied), and, if the gateway uses llmctl's local CA, `CMA_JEV_CA_FILE=$LLMCTL_HOME/cert/ca/ca.crt`. See the [User Guide](./Jev_User_Guide.md) §2.1 (§11.4.279 clause A). |
 | **TypeSafe hosted key** | Add `TYPESAFE_API_KEY=<key>` to your keys file (`~/api_keys.sh`). Note: TypeSafe hosted has a signup waitlist. |
 | **OpenRouter key** | Add `OPENROUTER_API_KEY=<key>` to `~/api_keys.sh` — the hosted path with no waitlist. Serves `typesafe/jev-1.13` at `https://openrouter.ai/api/v1/systemone`. |
 
@@ -49,7 +49,7 @@ jev-setup --check          # dry audit afterwards: what is installed, what is mi
 
 This installs the shared gate (`jev-gate.sh`), hooks for Claude Code and
 Kimi, the `jev` MCP server registration, the OpenCode plugin, and writes
-`JEV_MODE=shadow` to `~/.config/jev/env`. Pi gets `@riposta/pi-jev` via npm
+`JEV_MODE=shadow` to `~/.config/jev/env` (the gate, the launch wrappers and the OpenCode plugin read it; a process env `JEV_MODE` overrides it). Pi gets `@riposta/pi-jev` via npm
 when the network is reachable, otherwise the exact manual command is printed.
 
 ## 4. Launch any alias and look for the MOTD
@@ -83,6 +83,10 @@ shadow verdicts for a calibration week, then switch to enforcement:
 ```bash
 jev-setup --mode enforce     # writes JEV_MODE=enforce to ~/.config/jev/env
 ```
+
+That file is read by the gate, the launch wrappers and the OpenCode plugin (a
+process env `JEV_MODE` still wins); new launches pick the change up, a running
+session keeps the mode it started with.
 
 The token-savings number in `jev-stats` is a **documented estimate**, not a
 metered value — the formula and its constants are printed in the report

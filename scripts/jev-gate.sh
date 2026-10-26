@@ -14,7 +14,10 @@
 #   JEV_GATE=off            kill switch — instant allow; each use is appended to
 #                           $JEV_STATE_DIR/gate-off.log (jev-stats reports it)
 #   JEV_MODE=shadow|enforce (default shadow: always allow, log the would-be
-#                           decision)
+#                           decision). Precedence: the process environment, then
+#                           ~/.config/jev/env (the file `jev-setup --mode` writes;
+#                           $JEV_CONFIG_DIR/env when set), then shadow. A value
+#                           that is not shadow|enforce is ignored.
 #   JEV_BASE_URL            endpoint base (required; unset => fail-open allow)
 #   JEV_API_KEY / TYPESAFE_API_KEY (explicit override), or JEV_KEY_VAR (the
 #                           key's variable NAME in api_keys.sh — resolved here
@@ -31,6 +34,15 @@
 # possible via JEV_GATE_FAIL=closed but is NOT the default.
 set -u
 
+# Mode precedence: process env JEV_MODE > ~/.config/jev/env (written by `jev-setup --mode`) > shadow. The file is
+# PARSED, never sourced: only a line that is exactly JEV_MODE=shadow or JEV_MODE=enforce counts, the last one wins, anything
+# else in the file is ignored (root cause 2026-10-26: `jev-setup --mode enforce` wrote the file and nothing read it).
+if [ -z "${JEV_MODE:-}" ]; then
+  _jev_cfg_env="${JEV_CONFIG_DIR:-$HOME/.config/jev}/env"
+  if [ -r "$_jev_cfg_env" ]; then
+    JEV_MODE=$(grep -E '^JEV_MODE=(shadow|enforce)$' "$_jev_cfg_env" 2>/dev/null | tail -n1 | cut -d= -f2)
+  fi
+fi
 JEV_MODE="${JEV_MODE:-shadow}"
 JEV_GATE_TIMEOUT="${JEV_GATE_TIMEOUT:-2}"
 JEV_STATE_DIR="${JEV_STATE_DIR:-$HOME/.local/state/jev}"
@@ -47,6 +59,30 @@ if [ -f "$_jev_lock_file" ] && command -v jq >/dev/null 2>&1; then
 fi
 JEV_GATE_THRESHOLD="${JEV_GATE_THRESHOLD:-${_jev_lock_deny:-0.8}}"
 JEV_RISKY_THRESHOLD="${JEV_RISKY_THRESHOLD:-${_jev_lock_ask:-0.7}}"
+
+# Key-file lookup: an INLINE copy of cma_jev_keyfile_lookup (jev-keyfile-lib.sh) because the installed gate is a standalone file
+# that cannot source any repo library; scripts/tests/test_jev_keyfile.sh runs one shared vector suite over both copies.
+# Candidates: $CMA_JEV_KEY_FILES (colon list), then the lines of ${JEV_CONFIG_DIR:-~/.config/jev}/key-files. A candidate is
+# used only if it is a regular readable file owned by the current user. Parsed (last `NAME=` / `export NAME=` line, one pair
+# of quotes stripped), never sourced. Prints the value; rc 1 when none.
+_jev_keyfile_lookup() {
+  local name="${1:-}" p v cfg="${JEV_CONFIG_DIR:-$HOME/.config/jev}/key-files"
+  case "$name" in '' | [0-9]* | *[!A-Za-z0-9_]*) return 1 ;; esac
+  while IFS= read -r p; do
+    p="${p#"${p%%[![:space:]]*}"}"; p="${p%"${p##*[![:space:]]}"}"
+    case "$p" in '' | '#'*) continue ;; '~/'*) p="$HOME/${p#\~/}" ;; esac
+    [ -f "$p" ] && [ -r "$p" ] && [ -O "$p" ] || continue
+    v="$(awk -v n="$name" '
+      { line = $0; sub(/\r$/, "", line); sub(/^[ \t]+/, "", line)
+        if (line ~ /^export[ \t]+/) sub(/^export[ \t]+/, "", line)
+        if (index(line, n "=") == 1) { v = substr(line, length(n) + 2); found = 1 } }
+      END { if (found) { sub(/[ \t]+$/, "", v)
+              if (length(v) >= 2 && ((substr(v, 1, 1) == "\"" && substr(v, length(v), 1) == "\"") || (substr(v, 1, 1) == "\047" && substr(v, length(v), 1) == "\047"))) v = substr(v, 2, length(v) - 2)
+              print v } }' "$p" 2>/dev/null)" || v=""
+    if [ -n "$v" ]; then printf '%s' "$v"; return 0; fi
+  done < <({ [ -n "${CMA_JEV_KEY_FILES:-}" ] && printf '%s\n' "$CMA_JEV_KEY_FILES" | tr ':' '\n'; [ -r "$cfg" ] && tr -d '\r' < "$cfg"; true; })
+  return 1
+}
 
 _emit_allow() {
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"jev: %s"}}\n' "$1"
@@ -178,12 +214,15 @@ _req=$(jq -cn --arg model "$JEV_MODEL" --arg state "tool=${_tool} input=${_state
 
 _key="${JEV_API_KEY:-${TYPESAFE_API_KEY:-}}"
 # JEV_KEY_VAR names the variable holding the key: the process environment
-# first (same order as the detector and jev_mcp.py), then the keys file.
+# first (same order as the detector and jev_mcp.py), then the keys file, then the key files named by the non-secret pointer
+# ($CMA_JEV_KEY_FILES / ~/.config/jev/key-files, `jev-setup --key-file`): the value of NAME is PARSED out of such a file
+# (never sourced) so the key can stay in the one file that owns it (e.g. llmctl's .env) instead of being copied.
 if [ -z "$_key" ] && printf '%s' "${JEV_KEY_VAR:-}" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
   _key="${!JEV_KEY_VAR:-}"
   if [ -z "$_key" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
     _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$JEV_KEY_VAR"':-}"')"
   fi
+  [ -n "$_key" ] || _key="$(_jev_keyfile_lookup "$JEV_KEY_VAR")"
 fi
 _key="${_key:-local}"
 _start_ms=$(( $(date +%s) * 1000 ))

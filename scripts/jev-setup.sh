@@ -4,7 +4,19 @@
 #
 # Usage:
 #   jev-setup [--agents claude,kimi,pi,opencode]   (default: all)
-#             [--mode shadow|enforce]              (writes ~/.config/jev/env)
+#             [--mode shadow|enforce]              (writes ~/.config/jev/env; read by
+#                                                   the gate, the launch wrappers and the
+#                                                   opencode plugin: process env JEV_MODE
+#                                                   > this file > shadow; a NEW launch
+#                                                   picks up a change, a running session
+#                                                   keeps the mode it started with)
+#             [--key-file PATH]                    (record WHERE the bearer key lives: appends PATH to
+#                                                   ~/.config/jev/key-files, idempotent; the file must define the
+#                                                   endpoint's key variable (LLMCTL_API_KEY by default); the gate, the
+#                                                   MCP server, the detector and the opencode plugin then PARSE that
+#                                                   one variable out of it at call time - nothing is copied, nothing is
+#                                                   sourced, the value is never printed. Standalone: no agent home is
+#                                                   touched and no consent is needed)
 #             [--check]                            (dry audit — no writes)
 #             [--uninstall]
 #             [--if-stale <seconds>] [--quiet]
@@ -27,7 +39,7 @@ unset _src _dir
 SHARED_DIR="${SHARED_DIR:-$HOME/.claude-shared}"
 JEV_DIR="$HOME/.local/share/claude-multi-account/jev"
 JEV_STATE_DIR="${JEV_STATE_DIR:-$HOME/.local/state/jev}"
-JEV_CONFIG_DIR="$HOME/.config/jev"
+JEV_CONFIG_DIR="${JEV_CONFIG_DIR:-$HOME/.config/jev}"   # the same override the gate, the wrappers and the opencode plugin read
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 GATE_INSTALLED="$JEV_DIR/jev-gate.sh"
 # Shared Kimi helpers (ONE validator + ONE constant file for BOTH TOML writers:
@@ -35,6 +47,11 @@ GATE_INSTALLED="$JEV_DIR/jev-gate.sh"
 # shellcheck source=jev-kimi-lib.sh
 if ! . "$SCRIPTS_DIR/jev-kimi-lib.sh"; then
   printf 'jev-setup: cannot load %s/jev-kimi-lib.sh\n' "$SCRIPTS_DIR" >&2
+  exit 1
+fi
+# shellcheck source=jev-keyfile-lib.sh
+if ! . "$SCRIPTS_DIR/jev-keyfile-lib.sh"; then
+  printf 'jev-setup: cannot load %s/jev-keyfile-lib.sh\n' "$SCRIPTS_DIR" >&2
   exit 1
 fi
 KIMI_MATCHER=""        # resolved lazily by _kimi_matcher_init (no built-in fallback copy)
@@ -46,7 +63,7 @@ OPENCODE_CONFIG="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
 AGENTS="claude,kimi,pi,opencode"
 AGENTS_EXPLICIT=0
 ALL_AGENTS="claude,kimi,pi,opencode"
-MODE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0 IF_STALE_ON=0 CONSENT="${JEV_SETUP_CONSENT:-0}"
+MODE="" KEYFILE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0 IF_STALE_ON=0 CONSENT="${JEV_SETUP_CONSENT:-0}"
 _usage_err() { printf 'jev-setup: %s\n' "$*" >&2; exit 2; }
 _need_val() { [ "$1" -ge 2 ] || _usage_err "$2 needs a value"; }
 while [ $# -gt 0 ]; do
@@ -54,6 +71,8 @@ while [ $# -gt 0 ]; do
     --agents|--agent) _need_val $# "$1"; AGENTS="$2"; AGENTS_EXPLICIT=1; shift 2 ;;
     --agents=*|--agent=*) AGENTS="${1#*=}"; AGENTS_EXPLICIT=1; shift ;;
     --mode) _need_val $# "$1"; MODE="$2"; shift 2 ;;
+    --key-file) _need_val $# "$1"; KEYFILE="$2"; shift 2 ;;
+    --key-file=*) KEYFILE="${1#*=}"; shift ;;
     --check) CHECK=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --if-stale) _need_val $# "$1"; IF_STALE="$2"; IF_STALE_ON=1; shift 2 ;;
@@ -71,6 +90,44 @@ if [ "$CHECK" = 1 ] && [ "$UNINSTALL" = 1 ]; then
   _usage_err "--check and --uninstall cannot be combined (--check never writes; run them separately)"
 fi
 case "$IF_STALE" in ''|*[!0-9]*) _usage_err "--if-stale needs a number of seconds, got '$IF_STALE'" ;; esac
+# --mode is a closed set: an unknown value used to be written to ~/.config/jev/env verbatim (and then read by nothing).
+case "$MODE" in ''|shadow|enforce) : ;; *) _usage_err "--mode '$MODE' is not valid (shadow or enforce)" ;; esac
+# --key-file: record WHERE the bearer key lives (a pointer, never the value). Standalone and consent-free: it appends one path
+# to the jev key-files pointer and touches no agent home.
+if [ -n "$KEYFILE" ]; then
+  _ksay() { [ "$QUIET" = 1 ] || printf '%s\n' "$*"; }   # (_say is defined further down, after the consent gate)
+  if [ "$CHECK" = 1 ] || [ "$UNINSTALL" = 1 ] || [ -n "$MODE" ]; then
+    _usage_err "--key-file is a standalone action (not combinable with --check, --uninstall or --mode)"
+  fi
+  _kf="$KEYFILE"
+  case "$_kf" in '~/'*) _kf="$HOME/${_kf#\~/}" ;; esac
+  case "$_kf" in /*) : ;; *) _kf="$PWD/$_kf" ;; esac
+  case "$_kf" in *:* | *$'\n'* | *$'\r'*) _usage_err "--key-file: a path with ':' or a line break cannot be listed" ;; esac
+  _kd="$(cd "$(dirname "$_kf")" 2>/dev/null && pwd)" || _usage_err "--key-file: directory of '$KEYFILE' does not exist"
+  _kf="$_kd/$(basename "$_kf")"
+  [ -f "$_kf" ] || _usage_err "--key-file: '$_kf' is not a regular file"
+  [ -r "$_kf" ] || _usage_err "--key-file: '$_kf' is not readable"
+  [ -O "$_kf" ] || _usage_err "--key-file: '$_kf' is not owned by the current user (a key file must be yours)"
+  _kv=""
+  if [ -s "${CACHE:-}" ] && command -v jq >/dev/null 2>&1; then _kv="$(jq -r '.endpoints[0].key_var // ""' "$CACHE" 2>/dev/null)"; fi
+  [ -n "$_kv" ] || _kv="LLMCTL_API_KEY"
+  # The file must DEFINE the variable (checked by the same parser the consumers use; only the NAME is ever reported).
+  if ! CMA_JEV_KEY_FILES="$_kf" JEV_CONFIG_DIR=/nonexistent/jev cma_jev_keyfile_lookup "$_kv" >/dev/null 2>&1; then
+    _usage_err "--key-file: '$_kf' does not define $_kv (a NAME=value or export NAME=value line); nothing was recorded"
+  fi
+  mkdir -p "$JEV_CONFIG_DIR" 2>/dev/null || _usage_err "--key-file: cannot create $JEV_CONFIG_DIR"
+  _pf="$JEV_CONFIG_DIR/key-files"
+  if [ -f "$_pf" ] && tr -d '\r' < "$_pf" | grep -qxF -- "$_kf"; then
+    _ksay "jev-setup: $_kf is already listed in $_pf ($_kv is defined there; the value was not read into any output)"
+  else
+    _tmp="$(mktemp "$_pf.XXXXXX")" || _usage_err "--key-file: cannot write $_pf"
+    { [ -f "$_pf" ] && sed -e '$a\' "$_pf"; printf '%s\n' "$_kf"; } > "$_tmp"
+    chmod 600 "$_tmp" 2>/dev/null || true
+    mv -f "$_tmp" "$_pf" || _usage_err "--key-file: cannot update $_pf"
+    _ksay "jev-setup: recorded $_kf in $_pf ($_kv is defined there; the value was not read into any output)"
+  fi
+  exit 0
+fi
 # Agent names are an exact, case-sensitive closed set. An unknown or miscased
 # value used to be dropped silently and produced an empty `agents=` stamp.
 _validate_agents() { # _validate_agents <csv>
@@ -193,6 +250,8 @@ _jev_endpoint_env() { # echoes TAB-separated base_url, api_key
   if [ -n "$kv" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
     key=$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$kv"':-}"' 7>&-)
   fi
+  # NOT resolved here from the jev key files: the MCP server resolves the variable itself at call time, so the secret is never
+  # copied into an agent config (an unresolved key is the placeholder "local", which jev_mcp.py treats as "no direct key").
   printf '%s\t%s' "$base" "${key:-local}"
 }
 

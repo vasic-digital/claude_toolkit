@@ -37,6 +37,8 @@ LIB_DIR="$(cd "$(dirname "$_cma_src")" && pwd)"
 unset _cma_src _cma_tgt
 # shellcheck source=lib.sh
 source "$LIB_DIR/lib.sh"
+# shellcheck source=jev-keyfile-lib.sh
+source "$LIB_DIR/jev-keyfile-lib.sh"
 
 # --- knobs ------------------------------------------------------------------
 : "${CMA_KEYS_FILE:=$HOME/api_keys.sh}"
@@ -2560,9 +2562,11 @@ detect_jev_records() {
                   if [[ -z "$_key" && -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then
                     _key="$(KV="$_tkeyvar" bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"' 2>/dev/null)" || _key=""
                   fi
+                  # the non-secret key-file pointer ($CMA_JEV_KEY_FILES / ~/.config/jev/key-files, `jev-setup --key-file`)
+                  [[ -n "$_key" ]] || _key="$(cma_jev_keyfile_lookup "$_tkeyvar" 2>/dev/null)" || _key=""
                 fi
                 if [[ -z "$_key" ]]; then
-                  printf 'gateway at https://%s:%s answers %s but no bearer key is available (%s unset) - cannot verify, not registered\n' \
+                  printf 'gateway at https://%s:%s answers %s but no bearer key is available (%s unset in the environment, the keys file and the jev key files) - cannot verify, not registered\n' \
                     "$_uh" "$_tport" "$_thpath" "${_tkeyvar:-no key var}" > "$_note"
                   exit 0
                 fi
@@ -2610,8 +2614,16 @@ detect_jev_records() {
               _base="$_b"; _tkeyvar=""
             fi
             [[ -n "$_body" ]] || exit 0
-            _mid=""
-            _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
+            _mid=""; _mwhy=""
+            if [[ "$_tid" == "local" ]]; then
+              # the LOCAL llmctl gateway: evidence-ranked / pinned model (see _cma_jev_pick_local_model), not `.data[0]`
+              _sel="$(_cma_jev_pick_local_model "$_body" 2>/dev/null)" || _sel=""
+              if [[ -n "$_sel" ]]; then
+                IFS=$'\t' read -r _mid _mwhy _mwarn <<<"$_sel"
+                [[ -z "${_mwarn:-}" ]] || printf '%s\n' "$_mwarn" >> "$_note"
+              fi
+            fi
+            [[ -n "$_mid" ]] || _mid="$(jq -r '.data[0].id? // empty' <<<"$_body" 2>/dev/null)" || _mid=""
             [[ -n "$_mid" ]] || exit 0
             _mctx=""
             _mctx="$(jq -r --arg m "$_mid" \
@@ -2625,14 +2637,14 @@ detect_jev_records() {
             _cafield=""; [[ "$_auth" == 1 && -n "$_okca" ]] && _cafield="$_okca"
             jq -cn --arg keyvar "$_tkeyvar" --arg pid "$_pid" --arg base "$_base" \
                    --arg model "$_mid" --argjson ctx "$_mctx" --argjson prio "$_prio" \
-                   --argjson lan "$_lan" --arg tid "$_tid" --arg ca "$_cafield" \
+                   --argjson lan "$_lan" --arg tid "$_tid" --arg ca "$_cafield" --arg why "$_mwhy" \
               '{key_var:$keyvar, classification:"decision", provider_id:$pid, alias:null,
                 base_url:$base, transport:"systemone",
                 strong_model:$model, fast_model:$model,
                 context_limit:$ctx, max_output:0, priority:$prio, lan_exposed:$lan,
                 status:"resolved", ca_file:$ca,
                 reason:(if $tid == "local"
-                        then "llmctl decide gateway live at " + $base
+                        then "llmctl decide gateway live at " + $base + (if $why == "" then "" else " (model " + $model + ": " + $why + ")" end)
                         else "LAN-pinned Jev endpoint live at " + $base end)}' \
               > "$_jev_outfile" 2>/dev/null
           ) </dev/null >/dev/null 2>&1 &
@@ -2659,6 +2671,76 @@ detect_jev_records() {
     printf '[]\n'; return 0
   fi
   printf '%s\n' "${_jev_recs[@]}" | jq -cs '.'
+}
+
+# _cma_jev_llmctl_bin  - the llmctl CLI the local decision gateway belongs to: CMA_LLMCTL_BIN, else the "bin" of the llmctl pins file
+# (providers/llmctl.json, overridable by CMA_LLMCTL_PINS_FILE), else `llmctl`; printed only when it is runnable.
+_cma_jev_llmctl_bin() {
+  local b="${CMA_LLMCTL_BIN-}" f="${CMA_LLMCTL_PINS_FILE:-$LIB_DIR/providers/llmctl.json}"
+  if [[ -z "$b" && -f "$f" ]]; then b="$(jq -r '.bin // empty' "$f" 2>/dev/null)" || b=""; fi
+  : "${b:=llmctl}"
+  command -v "$b" >/dev/null 2>&1 && printf '%s' "$b"
+}
+
+# _cma_jev_pick_local_model <models-json>  - which model of the LOCAL gateway's /v1/models listing the decision layer uses.
+# Prints ONE line "<id><TAB><reason><TAB><warning>" (warning may be empty) and returns 0, or prints nothing and returns 1 (empty
+# listing). The legacy rule was `.data[0].id`: llmctl lists its profiles alphabetically, so the first one is whatever sorts first
+# (decide-2b, the smallest generative profile, which answered `ask` where decide-max answered `deny` on the same dangerous call).
+# Precedence, every step explicit and evidence-based, never a guess from a name:
+#   1. CMA_JEV_LOCAL_MODEL=<id>: the operator's pin, honoured when the gateway serves it (status ready); otherwise a warning is
+#      returned and the evidence ranking below decides - a pin is never silently ignored and never served blind.
+#   2. EVIDENCE ranking among the models the gateway lists as ready, from llmctl's own machine-readable output:
+#        validated = `llmctl status --json` says `validation: "validated (...)"` for it, i.e. a fresh signed PASS record matches
+#                    what runs now (docs/validation.md of llmctl); an unvalidated model is never preferred;
+#        capacity  = `llmctl plan --json` `.profiles[<id>].storage_mb`, the pinned size of its weights (llmctl's own decide ranking
+#                    puts decide-max last: "highest capacity");
+#      -> the validated model with the largest weights; equal sizes keep listing order. This is a CAPACITY rule, not an accuracy
+#      claim: it prefers the most capable validated profile, and CMA_JEV_LOCAL_MODEL overrides it where measurements say otherwise.
+#   3. No usable evidence (llmctl CLI not runnable, no validated listed model): the first listed ready model, reason saying so.
+# Bounded: each llmctl call by CMA_JEV_LLMCTL_TIMEOUT seconds (default 20).
+_cma_jev_pick_local_model() {
+  local body="$1" pin="${CMA_JEV_LOCAL_MODEL:-}" warn="" ids first
+  command -v jq >/dev/null 2>&1 || return 1
+  ids="$(jq -r '[.data[]? | select((.status // "ready") == "ready") | .id // empty] | .[]' <<<"$body" 2>/dev/null)" || ids=""
+  if [[ -z "$ids" ]]; then
+    ids="$(jq -r '[.data[]? | .id // empty] | .[]' <<<"$body" 2>/dev/null)" || ids=""   # nothing ready: keep the legacy "first listed"
+    first="$(head -n1 <<<"$ids")"
+    [[ -n "$first" ]] || return 1
+    printf '%s\t%s\t%s\n' "$first" "first listed (no model is reported ready)" ""
+    return 0
+  fi
+  if [[ -n "$pin" ]]; then
+    if grep -qxF -- "$pin" <<<"$ids"; then
+      printf '%s\t%s\t%s\n' "$pin" "pinned by CMA_JEV_LOCAL_MODEL" ""
+      return 0
+    fi
+    warn="CMA_JEV_LOCAL_MODEL='$pin' is not served (ready) by the local gateway - using the evidence ranking instead"
+  fi
+  local lc t="${CMA_JEV_LLMCTL_TIMEOUT:-20}" st="" plan="" pick=""
+  [[ "$t" =~ ^[0-9]+$ && "$t" -gt 0 ]] || t=20
+  if lc="$(_cma_jev_llmctl_bin)"; then
+    st="$(timeout "$t" "$lc" status --json 2>/dev/null)" || st=""
+    plan="$(timeout "$t" "$lc" plan --json 2>/dev/null)" || plan=""
+    jq -e 'type=="array"' <<<"$st" >/dev/null 2>&1 || st="[]"
+    jq -e 'type=="object"' <<<"$plan" >/dev/null 2>&1 || plan="{}"
+    pick="$(jq -rn --argjson body "$body" --argjson st "$st" --argjson plan "$plan" '
+      [ $body.data[]? | select((.status // "ready") == "ready") | .id // empty ] as $ids
+      | [ range(0; $ids | length) as $i | $ids[$i] as $id
+          | { id: $id, i: $i,
+              v: ([ $st[]? | select(.profile == $id) | (.validation // "") | startswith("validated") ] | any),
+              mb: (($plan.profiles // {})[$id].storage_mb // 0) } ] as $c
+      | ($c | map(select(.v))) as $val
+      | if ($val | length) == 0 then empty
+        else ($val | sort_by([-.mb, .i]) | .[0] | "\(.id)\t\(.mb)\t\($val | length)") end' 2>/dev/null)" || pick=""
+  fi
+  if [[ -n "$pick" ]]; then
+    local pid pmb pn
+    IFS=$'\t' read -r pid pmb pn <<<"$pick"
+    printf '%s\t%s\t%s\n' "$pid" "evidence: validated (llmctl status) and the largest validated model of $pn (${pmb} MiB weights, llmctl plan)" "$warn"
+    return 0
+  fi
+  first="$(head -n1 <<<"$ids")"
+  printf '%s\t%s\t%s\n' "$first" "first listed ready model (no llmctl validation evidence available)" "$warn"
 }
 
 # _cma_jev_status_write <id> <status> <model> <reason>

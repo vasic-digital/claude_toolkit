@@ -12,7 +12,7 @@ on every launch.
 [![version](https://img.shields.io/badge/version-v1.32.0-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#-requirements)
 [![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#-requirements)
-[![tests](https://img.shields.io/badge/tests-122%20suites-informational)](#-testing)
+[![tests](https://img.shields.io/badge/tests-125%20suites-informational)](#-testing)
 [![shellcheck](https://img.shields.io/badge/shellcheck-not%20re--run%20for%20v1.32.0-lightgrey)](#-testing)
 [![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
@@ -172,7 +172,7 @@ config dir. Both installers are **idempotent**.
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
 | `claude-providers sync-jev` | Jev-only fast path: re-probe decision endpoints and refresh the ranked `jev-endpoints.json` cache. |
-| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); edits agent homes only with consent (`--yes` / `JEV_SETUP_CONSENT=1`, backups first); `--mode shadow\|enforce`, `--uninstall`. |
+| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); edits agent homes only with consent (`--yes` / `JEV_SETUP_CONSENT=1`, backups first); `--mode shadow\|enforce` (read by the gate, the launch wrappers and the OpenCode plugin: process env > `~/.config/jev/env` > shadow), `--key-file PATH` (record where the gateway bearer key lives; nothing is copied), `--uninstall`. |
 | `jev-stats` | Decision-layer report from `decisions.jsonl`: verdicts, latency, shadow calibration, ESTIMATED tokens saved. `--days N`, `--json`. |
 | `jev-spec-setup <repo>` | Opt-in: install jev-spec CI templates (config + PR-verify workflow) into a target repo. |
 
@@ -307,7 +307,7 @@ bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evid
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
-touched. The suite is **122 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.32.0
+touched. The suite is **125 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.32.0
 (UNCONFIRMED; the historical v1.26.x figures were 62 warning-level and 203
 style-level suggestions over an unrecorded file set, and are not a current claim); live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and

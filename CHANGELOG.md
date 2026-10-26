@@ -4,6 +4,24 @@ All notable changes to the Claude multi-account toolkit.
 
 ## Unreleased
 
+- Jev decision layer, 2026-10-26 operator findings (each with a paired mutation suite):
+  - **Local model selection** (`scripts/tests/test_jev_local_model.sh`): `claude-providers sync-jev` used the first
+    model listed by the llmctl gateway, which lists alphabetically, so the cache named `decide-2b` (answers `ask` where
+    `decide-max` answers `deny`). It now honours `CMA_JEV_LOCAL_MODEL`, else ranks the `ready` models by llmctl evidence
+    (validated per `llmctl status --json`, then largest weights per `llmctl plan --json`; `CMA_LLMCTL_BIN`,
+    `CMA_JEV_LLMCTL_TIMEOUT`), else the first listed ready model with an honest reason. A capacity rule, not an accuracy
+    claim. Verified: the real endpoint cache now names `decide-max`.
+  - **`jev-setup --mode` is now read** (`scripts/tests/test_jev_mode_file.sh`): `~/.config/jev/env` was written and read by
+    nothing. The gate, the launch wrappers (`cma_jev_env`) and the OpenCode plugin now resolve the mode as process env >
+    `$JEV_CONFIG_DIR/env` > `shadow` (parsed, never sourced; exact `JEV_MODE=shadow|enforce` line, last wins). `--mode`
+    accepts only `shadow|enforce` (rc 2 before any write). `JEV_CONFIG_DIR` is honoured by `jev-setup` too.
+  - **Key files** (`scripts/tests/test_jev_keyfile.sh`): the gate could not find `LLMCTL_API_KEY` outside the systemd sync
+    unit (not in the env, not in `~/api_keys.sh`), so every call failed open. New non-secret indirection:
+    `jev-setup --key-file PATH` records the path in `~/.config/jev/key-files` (or `CMA_JEV_KEY_FILES`); the gate, the
+    detector, `jev_mcp.py` and the OpenCode plugin parse that one variable out of the file at call time. New
+    `scripts/jev-keyfile-lib.sh`. The MCP server treats a baked `JEV_API_KEY=local` placeholder as "no direct key" and
+    learns the key variable name from the endpoint cache. Docs: User Guide §2.1 (Model selection, Key files), §5, §10; FAQ; Quickstart.
+
 - `jev-setup`: `--agents` is validated against the closed, case-sensitive set
   `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
   any write, no stamp); `--check --uninstall` is refused (exit 2); the native
