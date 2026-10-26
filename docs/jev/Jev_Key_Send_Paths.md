@@ -22,7 +22,11 @@ A key held in variable `KEYVAR` may be sent to base URL `B` only when:
    userinfo, backslash, percent and whitespace in the authority are refused);
 3. `B`'s origin and `KEYVAR` equal a SHIPPED pin in `providers/jev.json`
    (read next to the script; not overridable by environment, cache or
-   `CMA_JEV_PINS_FILE`); or
+   `CMA_JEV_PINS_FILE`; when the gate runs through a `~/.local/bin` symlink, absolute or
+   relative, single hop or chain of up to 40 hops, the pins are read from the directory of
+   the resolved REAL script, never from the directory of the link; resolution uses a
+   bounded portable `readlink` loop, not `readlink -f`, which BSD/macOS lack; a directory
+   that cannot be entered means no pins and no key); or
 4. the operator listed `origin=KEYVAR` in `CMA_JEV_TRUSTED_ORIGINS`.
 
 Installed copies: `jev-setup` installs `providers/jev.json` beside EVERY installed

@@ -246,8 +246,10 @@ elif [ -n "$_kvar" ]; then
         case "$_lnk" in /*) _selfp="$_lnk" ;; *) _selfp="$(dirname "$_selfp")/$_lnk" ;; esac
         _hops=$((_hops+1))
       done
-      _pinsf="$(cd "$(dirname "$_selfp")" 2>/dev/null && pwd -P)/providers/jev.json"
-      if [ "$_key_pinned" = 0 ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
+      # a directory that cannot be entered means NO pins file (fail closed), never "/providers/jev.json"
+      _pinsd="$(cd "$(dirname "$_selfp")" 2>/dev/null && pwd -P)"; _pinsf=""
+      [ -n "$_pinsd" ] && _pinsf="$_pinsd/providers/jev.json"
+      if [ "$_key_pinned" = 0 ] && [ -n "$_pinsf" ] && [ -f "$_pinsf" ] && jq -e --arg o "$_origin" --arg v "$_kvar" \
            '[(.hosted // {})[] | select((try (.base_url | capture("^(?<o>https://[^/?#]+)").o) catch "") == $o and (.key_var // "") == $v and (.enabled != false))] | length > 0' \
            "$_pinsf" >/dev/null 2>&1; then _key_pinned=1; fi
       if [ "$_key_pinned" = 0 ] && [ -n "${CMA_JEV_TRUSTED_ORIGINS:-}" ]; then

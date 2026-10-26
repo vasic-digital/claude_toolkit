@@ -361,7 +361,7 @@ plug="$(grep -E '^// SHIPPED_ORIGINS:' "$SCRIPTS_DIR/opencode-jev-plugin.js" | s
 assert_eq "$shipped" "$plug" "plugin SHIPPED_ORIGINS marker equals providers/jev.json hosted (origin=key_var)"
 
 # ===========================================================================
-it "R5-m1: gate and MCP run through a PATH symlink still find the shipped pins (readlink -f)"
+it "R5-m1: gate and MCP run through a PATH symlink still find the shipped pins (portable symlink resolution)"
 LNK="$HOME/linkbin"; mkdir -p "$LNK"
 ln -s "$GATE" "$LNK/jev-gate"
 ln -s "$SCRIPTS_DIR/jev_mcp.py" "$LNK/jev_mcp.py"
@@ -383,6 +383,46 @@ import sys, runpy
 g = runpy.run_path(sys.argv[1])
 print(sorted(g["_shipped_pins"]()) and "pins" or "none")' "$LNK/jev_mcp.py" 2>/dev/null)"
 assert_eq "pins" "$R" "mcp via symlink: _shipped_pins found next to the REAL script"
+
+# relative links, relative/bare-name invocation and multi-hop chains (round-6 m1). Symlinks
+# are resolved by a bounded portable loop, never by 'readlink -f' (absent on BSD/macOS).
+relp() { python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$1" "$2"; }
+RD="$HOME/rel dir/a b"; mkdir -p "$RD"
+ln -s "$(relp "$GATE" "$RD")" "$RD/jev-gate"            # relative link, spaces in the path
+shim_reset
+gate_via "$RD/jev-gate" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "yes" "$(shim_keyseen)" "relative link (spaces): shipped pin found -> key sent"
+shim_reset
+( cd "$HOME" && gate_via "rel dir/a b/jev-gate" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" )
+assert_eq "yes" "$(shim_keyseen)" "relative link invoked by a relative path from another cwd: key sent"
+shim_reset
+( cd "$RD" && gate_via "jev-gate" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" )
+assert_eq "yes" "$(shim_keyseen)" "relative link invoked by bare name (cwd = link dir): key sent"
+shim_reset
+( cd "$RD" && gate_via "jev-gate" JEV_BASE_URL="https://evil.example.invalid" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY" )
+assert_eq "no" "$(shim_keyseen)" "relative link, unpinned origin: no key (fail closed)"
+# chain of 3 hops: absolute link -> relative link -> relative link -> real gate
+C1="$HOME/chain one"; C2="$HOME/chain two/x y"; C3="$HOME/chain three"; mkdir -p "$C1" "$C2" "$C3"
+ln -s "$(relp "$GATE" "$C3")" "$C3/h3"
+ln -s "$(relp "$C3/h3" "$C2")" "$C2/h2"
+ln -s "$C2/h2" "$C1/h1"
+ln -s "$(relp "$C1/h1" "$RD")" "$RD/h0"                   # a 4th hop in front of the absolute one
+shim_reset
+gate_via "$C1/h1" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "yes" "$(shim_keyseen)" "3-hop chain (abs -> rel -> rel): shipped pin found -> key sent"
+shim_reset
+gate_via "$RD/h0" JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "yes" "$(shim_keyseen)" "4-hop chain: shipped pin found -> key sent"
+shim_reset
+gate_via "$C1/h1" JEV_BASE_URL="https://evil.example.invalid" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "no" "$(shim_keyseen)" "3-hop chain, unpinned origin: no key (fail closed)"
+# N5: when the directory of the resolved script cannot be entered, the pin lookup must fail
+# closed (no pins file, no key). A 'cd' that fails is injected through an exported function;
+# the script's lexical directory holds the SHIPPED pins, so a fallback to it would send the key.
+shim_reset
+gate_via "$GATE" 'BASH_FUNC_cd%%=() { return 1; }' JEV_BASE_URL="https://api.typesafe.ai" JEV_KEY_VAR=TYPESAFE_API_KEY TYPESAFE_API_KEY="$DUMMY"
+assert_eq "no" "$(shim_keyseen)" "N5: failed cd to the script directory -> no pins -> no key (fail closed)"
+assert_eq "0" "$(shim_urls)" "N5: failed cd -> no request made at all"
 
 # ===========================================================================
 it "R5-m2: reviewer mutants R3 / R4 / R8 are killed by tests"

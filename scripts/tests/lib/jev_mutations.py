@@ -402,6 +402,12 @@ M = [
   """  if [ -n "${CMA_PROVIDERS_DIR:-}" ]; then JEV_STATE_DIR="$CMA_PROVIDERS_DIR/jev-state"
   else JEV_STATE_DIR="$HOME/.local/state/jev"; fi""",
   """  JEV_STATE_DIR="$HOME/.local/state/jev\"""", 1),
+ ("gate: relative symlink target not resolved against the link's directory (round-6 m1 mutant A)", GATE, KORIG,
+  '*) _selfp="$(dirname "$_selfp")/$_lnk" ;; esac', '*) _selfp="$_lnk" ;; esac', 1),
+ ("gate: symlink hop bound reduced to one hop (round-6 m1 mutant B)", GATE, KORIG,
+  '[ "$_hops" -lt 40 ]', '[ "$_hops" -lt 1 ]', 1),
+ ("gate: failed cd falls back to the lexical directory instead of failing closed (round-6 N5)", GATE, KORIG,
+  '[ -n "$_pinsd" ] && _pinsf="$_pinsd/providers/jev.json"', '_pinsf="${_pinsd:-$(dirname "$_selfp")}/providers/jev.json"', 1),
 ]
 
 def main():
