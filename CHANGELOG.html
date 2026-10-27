@@ -242,6 +242,9 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <ul>
 <li><a href="#changelog" id="toc-changelog">Changelog</a>
 <ul>
+<li><a href="#v1331-2026-10-27" id="toc-v1331-2026-10-27">v1.33.1
+(2026-10-27)</a></li>
+<li><a href="#unreleased" id="toc-unreleased">Unreleased</a></li>
 <li><a href="#v1330-2026-10-24" id="toc-v1330-2026-10-24">v1.33.0
 (2026-10-24)</a>
 <ul>
@@ -973,6 +976,82 @@ Cause Analysis</a></li>
 </nav>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v1331-2026-10-27">v1.33.1 (2026-10-27)</h2>
+<p>Patch release on top of v1.33.0 (tags <code>v1.33.0</code> /
+<code>claude_toolkit-1.33.0</code>, both at <code>53bf5fb</code>). It
+also carries the two test/launch fixes that were listed under
+&quot;Unreleased&quot; on <code>main</code> (<code>f52fa7f</code>,
+<code>31176b8</code>; see the entries below).</p>
+<ul>
+<li><strong>Carrier propagation fix</strong> (<code>CLAUDE.md</code>,
+<code>AGENTS.md</code>, <code>GEMINI.md</code>, <code>QWEN.md</code>):
+each carrier now has the standard
+<code>## INHERITED FROM constitution/CLAUDE.md</code> pointer section
+(§11.4.35), so the constitution hub propagation gates (11.4.279 / 287 /
+288 / 289) classify the four toolkit carriers as pointer-inheritance
+instead of MISSING. Documentation only; no script or runtime behaviour
+changes. The toolkit keeps no nested constitution copy (own-org
+dependencies are resolved, see &quot;Shared dependency layout&quot;).</li>
+<li><strong>New test
+<code>scripts/tests/test_carrier_inherited_heading.sh</code></strong>:
+asserts each of the four carriers has a line-anchored, non-fenced
+<code>## INHERITED FROM </code> heading, with the predicate
+self-validated against six mutants (``` fence, ~~~ fence, wrong case,
+demoted <code>###</code>, indented, inline) plus a golden-good control.
+Written test-first: RED on the pre-patch carriers (4 failed), GREEN
+after (11 passed).</li>
+<li><strong>Honest limit</strong>: these four gates only go fully green
+for the toolkit together with the separate hub exclusion row for the
+<code>superspec</code> example fixture
+(<code>.specify/extensions/superspec/examples/static-landing-page/CLAUDE.md</code>),
+which lives in the hub&#39;s
+<code>config/covenant_propagation_exclusions.tsv</code>, not in this
+repository. Until that row lands, each of the four gates still reports
+that one fixture as MISSING.</li>
+<li><strong>Release gate</strong>: the <code>claude-release-gate</code>
+LIVE alias-smoke leg needs real provider credentials and was NOT RUN for
+this prep; only the non-live legs were run.</li>
+</ul>
+<h2 id="unreleased">Unreleased</h2>
+<p>(Both entries below ship in v1.33.1.)</p>
+<ul>
+<li><p><strong>Launch wrappers no longer abort on a failed
+<code>stat -c %Y</code></strong>
+(<code>scripts/tests/test_jev_env_stat_race.sh</code>, found by the
+full-suite run: <code>test_kimi_alias_file.sh</code> failed 1 run in 20,
+<code>https twin without CA pin still launches</code>, rc 1).
+<code>cma_jev_env</code> (emitted into every alias file),
+<code>_cma_mtime</code>, the provider-sync TTL check and
+<code>cma_jq_edit</code>&#39;s chmod read a file&#39;s mtime or mode as
+<code>stat -c ... || stat -f ...</code>. On GNU coreutils
+<code>stat -f</code> is FILESYSTEM status, not BSD&#39;s format flag: when
+<code>-c</code> failed because the endpoint cache did not exist yet and
+the file appeared before the fallback ran (the function&#39;s own detached
+refresh creates it), the fallback printed
+<code>File: ... ID: ... Namelen: ...</code> on stdout,
+<code>echo 0</code> appended <code>0</code>, and
+<code>$(( now - mtime ))</code> died (&quot;syntax error in expression&quot;, or
+&quot;File: unbound variable&quot; under <code>set -u</code>), aborting the
+wrapper before it launched anything. The value is now validated as
+digits only (octal for the mode); anything else is &quot;unknown&quot; = stale, no
+chmod. The new test makes the race deterministic with a
+<code>stat</code> shim that fails the first <code>-c</code> call (RED on
+the old code: wrapper aborted, <code>_cma_mtime</code> returned the
+filesystem text; GREEN with the guard) and carries its own paired mutant
+(guard removed from a copy, killed). 42 further runs of the previously
+flaky suite: 42 passed.</p></li>
+<li><p><strong><code>scripts/tests/test_jev_hosted_live_fixes.sh</code>
+T7a is hermetic about <code>OPENROUTER_API_KEY</code></strong> (found by
+the full-suite run on a host that exports it): the case asserts &quot;no
+request at all (OPENROUTER_API_KEY is unset)&quot; but nothing unset the
+variable, so the gate read it, found it set and legitimately sent the
+request (sink log: 1 line, <code>want=0 got=1</code>). Reproduced on the
+unmodified v1.33.0 tree: fails with the variable exported, passes under
+<code>env -u OPENROUTER_API_KEY</code>. The suite now unsets it up front
+(cases that need it set pass it inline). Paired mutant (a dummy key
+exported instead of the unset) fails exactly that assertion, so it still
+bites.</p></li>
+</ul>
 <h2 id="v1330-2026-10-24">v1.33.0 (2026-10-24)</h2>
 <p>Minor release on top of v1.32.0 (tags <code>v1.32.0</code> /
 <code>claude_toolkit-1.32.0</code>, both at <code>adae02d</code>). It is

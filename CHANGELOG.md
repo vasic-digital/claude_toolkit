@@ -2,7 +2,30 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.33.1 (2026-10-27)
+
+Patch release on top of v1.33.0 (tags `v1.33.0` / `claude_toolkit-1.33.0`, both at `53bf5fb`). It also carries the two
+test/launch fixes that were listed under "Unreleased" on `main` (`f52fa7f`, `31176b8`; see the entries below).
+
+- **Carrier propagation fix** (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `QWEN.md`): each carrier now has the standard
+  `## INHERITED FROM constitution/CLAUDE.md` pointer section (§11.4.35), so the constitution hub propagation gates
+  (11.4.279 / 287 / 288 / 289) classify the four toolkit carriers as pointer-inheritance instead of MISSING. Documentation only;
+  no script or runtime behaviour changes. The toolkit keeps no nested constitution copy (own-org dependencies are resolved, see
+  "Shared dependency layout").
+- **New test `scripts/tests/test_carrier_inherited_heading.sh`**: asserts each of the four carriers has a line-anchored,
+  non-fenced `## INHERITED FROM ` heading, with the predicate self-validated against six mutants (``` fence, ~~~ fence, wrong case,
+  demoted `###`, indented, inline) plus a golden-good control. Written test-first: RED on the pre-patch carriers (4 failed), GREEN
+  after (11 passed).
+- **Honest limit**: these four gates only go fully green for the toolkit together with the separate hub exclusion row for the
+  `superspec` example fixture (`.specify/extensions/superspec/examples/static-landing-page/CLAUDE.md`), which lives in the hub's
+  `config/covenant_propagation_exclusions.tsv`, not in this repository. Until that row lands, each of the four gates still reports
+  that one fixture as MISSING.
+- **Release gate**: the `claude-release-gate` LIVE alias-smoke leg needs real provider credentials and was NOT RUN for this prep;
+  only the non-live legs were run.
+
 ## Unreleased
+
+(Both entries below ship in v1.33.1.)
 
 - **Launch wrappers no longer abort on a failed `stat -c %Y`** (`scripts/tests/test_jev_env_stat_race.sh`, found by the full-suite
   run: `test_kimi_alias_file.sh` failed 1 run in 20, `https twin without CA pin still launches`, rc 1). `cma_jev_env` (emitted into
