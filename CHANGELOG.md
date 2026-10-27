@@ -2,6 +2,20 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## Unreleased
+
+- **Launch wrappers no longer abort on a failed `stat -c %Y`** (`scripts/tests/test_jev_env_stat_race.sh`, found by the full-suite
+  run: `test_kimi_alias_file.sh` failed 1 run in 20, `https twin without CA pin still launches`, rc 1). `cma_jev_env` (emitted into
+  every alias file), `_cma_mtime`, the provider-sync TTL check and `cma_jq_edit`'s chmod read a file's mtime or mode as
+  `stat -c ... || stat -f ...`. On GNU coreutils `stat -f` is FILESYSTEM status, not BSD's format flag: when `-c` failed because the
+  endpoint cache did not exist yet and the file appeared before the fallback ran (the function's own detached refresh creates it),
+  the fallback printed `File: ... ID: ... Namelen: ...` on stdout, `echo 0` appended `0`, and `$(( now - mtime ))` died ("syntax
+  error in expression", or "File: unbound variable" under `set -u`), aborting the wrapper before it launched anything. The value is
+  now validated as digits only (octal for the mode); anything else is "unknown" = stale, no chmod. The new test makes the race
+  deterministic with a `stat` shim that fails the first `-c` call (RED on the old code: wrapper aborted, `_cma_mtime` returned the
+  filesystem text; GREEN with the guard) and carries its own paired mutant (guard removed from a copy, killed). 42 further runs of
+  the previously flaky suite: 42 passed.
+
 ## v1.33.0 (2026-10-24)
 
 Minor release on top of v1.32.0 (tags `v1.32.0` / `claude_toolkit-1.32.0`, both

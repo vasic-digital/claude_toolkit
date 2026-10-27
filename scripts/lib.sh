@@ -65,6 +65,7 @@ cma_jq_edit() {
     return 1
   fi
   mode="$(stat -c %a "$file" 2>/dev/null || stat -f %Lp "$file" 2>/dev/null)"
+  case "$mode" in ''|*[!0-7]*) mode="" ;; esac   # GNU `stat -f` prints filesystem info when -c failed: never feed it to chmod
   [[ -n "$mode" ]] && chmod "$mode" "$tmp" 2>/dev/null
   mv -f "$tmp" "$file"
 }
@@ -595,7 +596,17 @@ _cma_alias_src_target() {
 # (which has no `-c`). Deliberately NOT `date -r <path>`: on BSD `date -r` reads
 # its argument as epoch seconds rather than a file, silently returning 0 for
 # every path — the macOS breakage that made this a §11.4.68 / §11.4.81 finding.
-_cma_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0; }
+#
+# The result is validated as digits-only. On GNU `stat -f` is FILESYSTEM status, not BSD's format flag:
+# when `-c %Y` fails (the file does not exist at that instant) the fallback can print filesystem
+# information to STDOUT, and that text then poisons every caller's arithmetic (`$(( now - mtime ))` ->
+# "syntax error in expression", which aborts the calling function in a non-interactive shell).
+_cma_mtime() {
+  local _m
+  _m="$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0)"
+  case "$_m" in ''|*[!0-9]*) _m=0 ;; esac
+  printf '%s\n' "$_m"
+}
 
 # Newest existing rolling backup for $rc, by mtime (empty if none).
 cma_newest_rc_backup() {
@@ -1361,6 +1372,11 @@ cma_jev_env() {
   local _jev_ttl="${CMA_JEV_CACHE_TTL:-300}" _jev_now _jev_mtime
   _jev_now=$(date +%s)
   _jev_mtime=$(stat -c %Y "$_jev_cache" 2>/dev/null || stat -f %m "$_jev_cache" 2>/dev/null || echo 0)
+  # GNU `stat -f` is FILESYSTEM status: if `-c %Y` failed because the cache did not exist yet (the detached
+  # refresh below creates it) and the file appears before the fallback runs, the fallback prints filesystem
+  # info on stdout and `$(( ))` below dies with "syntax error in expression", aborting the launch wrapper.
+  # Keep digits only; anything else is "unknown mtime" = stale.
+  case "$_jev_mtime" in ''|*[!0-9]*) _jev_mtime=0 ;; esac
   if [ ! -s "$_jev_cache" ] || [ $(( _jev_now - _jev_mtime )) -gt "$_jev_ttl" ]; then
     # Refresh in the background, never block launch; a stale cache is still
     # used for THIS launch. CMA_JEV_REFRESH_KICKED is a test/observability
@@ -3215,6 +3231,7 @@ cma_providers_session_refresh() {
     local now mtime age
     now="$(date +%s)"
     mtime="$(stat -c %Y "$sf" 2>/dev/null || stat -f %m "$sf" 2>/dev/null || echo "$now")"
+    case "$mtime" in ''|*[!0-9]*) mtime="$now" ;; esac   # GNU `stat -f` can print filesystem info: see _cma_mtime
     age=$(( now - mtime ))
     if [ "$age" -gt "$ttl" ]; then
       ( nohup claude-providers sync >/dev/null 2>&1 & disown ) 2>/dev/null || true
