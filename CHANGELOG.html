@@ -243,8 +243,11 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <li><a href="#changelog" id="toc-changelog">Changelog</a>
 <ul>
 <li><a href="#v1331-2026-10-27" id="toc-v1331-2026-10-27">v1.33.1
-(2026-10-27)</a></li>
-<li><a href="#unreleased" id="toc-unreleased">Unreleased</a></li>
+(2026-10-27)</a>
+<ul>
+<li><a href="#also-in-v1331-fixes-that-landed-on-main-after-v1330" id="toc-also-in-v1331-fixes-that-landed-on-main-after-v1330">Also in
+v1.33.1 (fixes that landed on <code>main</code> after v1.33.0)</a></li>
+</ul></li>
 <li><a href="#v1330-2026-10-24" id="toc-v1330-2026-10-24">v1.33.0
 (2026-10-24)</a>
 <ul>
@@ -979,9 +982,9 @@ Cause Analysis</a></li>
 <h2 id="v1331-2026-10-27">v1.33.1 (2026-10-27)</h2>
 <p>Patch release on top of v1.33.0 (tags <code>v1.33.0</code> /
 <code>claude_toolkit-1.33.0</code>, both at <code>53bf5fb</code>). It
-also carries the two test/launch fixes that were listed under
-&quot;Unreleased&quot; on <code>main</code> (<code>f52fa7f</code>,
-<code>31176b8</code>; see the entries below).</p>
+also carries the two test/launch fixes that landed on <code>main</code>
+after v1.33.0 (<code>f52fa7f</code>, <code>31176b8</code>; see &quot;Also in
+v1.33.1&quot; below).</p>
 <ul>
 <li><strong>Carrier propagation fix</strong> (<code>CLAUDE.md</code>,
 <code>AGENTS.md</code>, <code>GEMINI.md</code>, <code>QWEN.md</code>):
@@ -1012,8 +1015,8 @@ that one fixture as MISSING.</li>
 LIVE alias-smoke leg needs real provider credentials and was NOT RUN for
 this prep; only the non-live legs were run.</li>
 </ul>
-<h2 id="unreleased">Unreleased</h2>
-<p>(Both entries below ship in v1.33.1.)</p>
+<h3 id="also-in-v1331-fixes-that-landed-on-main-after-v1330">Also in
+v1.33.1 (fixes that landed on <code>main</code> after v1.33.0)</h3>
 <ul>
 <li><p><strong>Launch wrappers no longer abort on a failed
 <code>stat -c %Y</code></strong>

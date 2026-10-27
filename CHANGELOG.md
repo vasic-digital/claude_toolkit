@@ -5,7 +5,7 @@ All notable changes to the Claude multi-account toolkit.
 ## v1.33.1 (2026-10-27)
 
 Patch release on top of v1.33.0 (tags `v1.33.0` / `claude_toolkit-1.33.0`, both at `53bf5fb`). It also carries the two
-test/launch fixes that were listed under "Unreleased" on `main` (`f52fa7f`, `31176b8`; see the entries below).
+test/launch fixes that landed on `main` after v1.33.0 (`f52fa7f`, `31176b8`; see "Also in v1.33.1" below).
 
 - **Carrier propagation fix** (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `QWEN.md`): each carrier now has the standard
   `## INHERITED FROM constitution/CLAUDE.md` pointer section (§11.4.35), so the constitution hub propagation gates
@@ -23,9 +23,7 @@ test/launch fixes that were listed under "Unreleased" on `main` (`f52fa7f`, `311
 - **Release gate**: the `claude-release-gate` LIVE alias-smoke leg needs real provider credentials and was NOT RUN for this prep;
   only the non-live legs were run.
 
-## Unreleased
-
-(Both entries below ship in v1.33.1.)
+### Also in v1.33.1 (fixes that landed on `main` after v1.33.0)
 
 - **Launch wrappers no longer abort on a failed `stat -c %Y`** (`scripts/tests/test_jev_env_stat_race.sh`, found by the full-suite
   run: `test_kimi_alias_file.sh` failed 1 run in 20, `https twin without CA pin still launches`, rc 1). `cma_jev_env` (emitted into
