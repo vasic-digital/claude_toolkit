@@ -16,6 +16,12 @@ All notable changes to the Claude multi-account toolkit.
   filesystem text; GREEN with the guard) and carries its own paired mutant (guard removed from a copy, killed). 42 further runs of
   the previously flaky suite: 42 passed.
 
+- **`scripts/tests/test_jev_hosted_live_fixes.sh` T7a is hermetic about `OPENROUTER_API_KEY`** (found by the full-suite run on a host that
+  exports it): the case asserts "no request at all (OPENROUTER_API_KEY is unset)" but nothing unset the variable, so the gate read it,
+  found it set and legitimately sent the request (sink log: 1 line, `want=0 got=1`). Reproduced on the unmodified v1.33.0 tree: fails
+  with the variable exported, passes under `env -u OPENROUTER_API_KEY`. The suite now unsets it up front (cases that need it set pass it
+  inline). Paired mutant (a dummy key exported instead of the unset) fails exactly that assertion, so it still bites.
+
 ## v1.33.0 (2026-10-24)
 
 Minor release on top of v1.32.0 (tags `v1.32.0` / `claude_toolkit-1.32.0`, both
