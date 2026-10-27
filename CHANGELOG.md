@@ -115,6 +115,34 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
 
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
 
+- Jev decision layer, 2026-10-26 operator findings (each with a paired mutation suite):
+  - **Local model selection** (`scripts/tests/test_jev_local_model.sh`): `claude-providers sync-jev` used the first
+    model listed by the llmctl gateway, which lists alphabetically, so the cache named `decide-2b` (answers `ask` where
+    `decide-max` answers `deny`). It now honours `CMA_JEV_LOCAL_MODEL`, else ranks the `ready` models by llmctl evidence
+    (validated per `llmctl status --json`, then largest weights per `llmctl plan --json`; `CMA_LLMCTL_BIN`,
+    `CMA_JEV_LLMCTL_TIMEOUT`), else the first listed ready model with an honest reason. A capacity rule, not an accuracy
+    claim. Verified: the real endpoint cache now names `decide-max`.
+  - **`jev-setup --mode` is now read** (`scripts/tests/test_jev_mode_file.sh`): `~/.config/jev/env` was written and read by
+    nothing. The gate, the launch wrappers (`cma_jev_env`) and the OpenCode plugin now resolve the mode as process env >
+    `$JEV_CONFIG_DIR/env` > `shadow` (parsed, never sourced; exact `JEV_MODE=shadow|enforce` line, last wins). `--mode`
+    accepts only `shadow|enforce` (rc 2 before any write). `JEV_CONFIG_DIR` is honoured by `jev-setup` too.
+  - **Key files** (`scripts/tests/test_jev_keyfile.sh`): the gate could not find `LLMCTL_API_KEY` outside the systemd sync
+    unit (not in the env, not in `~/api_keys.sh`), so every call failed open. New non-secret indirection:
+    `jev-setup --key-file PATH` records the path in `~/.config/jev/key-files` (or `CMA_JEV_KEY_FILES`); the gate, the
+    detector, `jev_mcp.py` and the OpenCode plugin parse that one variable out of the file at call time. New
+    `scripts/jev-keyfile-lib.sh`. The MCP server treats a baked `JEV_API_KEY=local` placeholder as "no direct key" and
+    learns the key variable name from the endpoint cache. Docs: User Guide §2.1 (Model selection, Key files), §5, §10; FAQ; Quickstart.
+  - **Tests** found by the full-suite run: `scripts/tests/test_jev_detect_https.sh` resolved its LAN address with `hostname -I`,
+    which GNU coreutils' `hostname` does not have, so the LAN-address case (H8) was skipped and the positive control (>= 5
+    fixture servers) failed on such a host - it now falls back to `ip -4 -o addr show scope global`, then `ifconfig`;
+    `scripts/tests/test_quota_concurrency.sh` copies `jev-keyfile-lib.sh` into its isolation directory (the sourced library
+    is a new dependency of `claude-providers.sh`); the README test badge/count follows the three new test files.
+    `scripts/tests/test_jev_detect_https_mutation.sh`: the full 96-row run kills 95 rows; row 94 (mermaid statement broken by a
+    semicolon) can only be killed by the docs suite's `mmdc` render check, which SKIPs on a host whose `mmdc` cannot render (no
+    browser), so the suite stays green and the harness counted a defect. A row listed in `ENV_GATED` (scripts/tests/lib/jev_mutations.py)
+    whose suite output carries that suite's own SKIP line is now reported SKIP (the kill is unproven on that host, never a pass);
+    a row without that line, or any other row, still fails.
+
 - `jev-setup`: `--agents` is validated against the closed, case-sensitive set
   `claude|kimi|pi|opencode|all` (unknown, miscased or empty -> exit 2 before
   any write, no stamp); `--check --uninstall` is refused (exit 2); the native

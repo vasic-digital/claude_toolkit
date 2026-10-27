@@ -54,7 +54,37 @@ pins). The detector requires a 200 on `/healthz` **and** a parseable
 authenticated `/v1/models` listing with at least one
 model id — a merely-open port is never trusted. The record appears and
 disappears with the running server on every sync, exactly like llmctl chat
-profiles. Emitted as `jev-local` with the served model id from `.data[0].id`.
+profiles. Emitted as `jev-local` with the served model chosen as described under
+"Model selection" below.
+
+**Model selection (local gateway).** The gateway lists its profiles
+alphabetically, so the first listed model is *not* a quality choice (it was
+`decide-2b`, the smallest generative profile, which answered `ask` where
+`decide-max` answered `deny` on the same dangerous call). The detector
+(`_cma_jev_pick_local_model`) now decides, in this order:
+
+1. `CMA_JEV_LOCAL_MODEL=<id>` - an explicit pin. It is honoured when the gateway
+   serves that id and it is `ready`; otherwise the sync prints a warning
+   (`CMA_JEV_LOCAL_MODEL='x' is not served (ready)...`) and falls through.
+2. Evidence rank over the `ready` models, read from the llmctl CLI
+   (`llmctl status --json` and `llmctl plan --json`, bounded by
+   `CMA_JEV_LLMCTL_TIMEOUT`, default 20 s): models whose llmctl validation record
+   reads `validated (...)` come first, then the largest weights
+   (`storage_mb`), then listing order. An unvalidated model is never preferred
+   over a validated one. llmctl is found through `CMA_LLMCTL_BIN`, else the `bin`
+   of `providers/llmctl.json`, else `llmctl` on PATH (set `CMA_LLMCTL_BIN` when
+   llmctl is not on PATH, e.g. in the `claude-toolkit-sync.service` drop-in).
+3. No llmctl evidence available: the first listed `ready` model, and the record
+   says so (`first listed ready model (no llmctl validation evidence available)`).
+
+The chosen model and the reason are stored in the endpoint cache (`model`,
+`reason`) and the launch wrappers export that model as `JEV_MODEL`. **This is a
+capacity rule, not an accuracy claim**: "validated and largest" is evidence of
+what was checked and how big it is, not that it is the most accurate decision
+model on your traffic (llmctl's own JevBench numbers have a smaller profile at or
+above `decide-max` on some suites). Pin the model you calibrated with
+`CMA_JEV_LOCAL_MODEL`. The rule applies to the local gateway only; LAN pins keep
+the first listed model. Tests: `scripts/tests/test_jev_local_model.sh`.
 
 **Transport: HTTPS + bearer key (v1.32.0).** llmctl's decide gateway
 (`llmctl decide`, llmctl `docs/decide-gateway.md`) serves
@@ -71,7 +101,8 @@ $LLMCTL_API_KEY` on every `/v1/*` request (401 otherwise); only `/healthz` and
   warning says so (`TLS certificate ... is not trusted`).
 - The bearer key is read from the env var **named** by the pin's `key_var`
   (`LLMCTL_API_KEY`), else from the keys file (`~/api_keys.sh` /
-  `CMA_KEYS_FILE`). It is handed to curl through a header file, never on a
+  `CMA_KEYS_FILE`), else from a **key file named by a non-secret pointer** (see
+  "Key files" below). It is handed to curl through a header file, never on a
   command line, and is never printed or written to the cache. Healthz answering
   but no key available, an HTTP 401/403/429 on `/v1/models` (key rejected), or
   any other status (`models request failed (HTTP n)`) means the endpoint is
@@ -92,6 +123,40 @@ $LLMCTL_API_KEY` on every `/v1/*` request (401 otherwise); only `/healthz` and
   system trust store for the whole agent tree). `jev-gate.sh` passes it to curl
   as `--cacert`; `jev_mcp.py` loads it into its TLS context. The OpenCode
   plugin (Node) does not read it: export `NODE_EXTRA_CA_CERTS` for it.
+
+**Key files (finding the key without copying it).** The sync unit usually gets
+`LLMCTL_API_KEY` from a systemd `EnvironmentFile` (llmctl's own `.env`, mode
+600), but a gate hook started from an interactive Claude/Kimi/opencode session
+has no such environment and the key is not in `~/api_keys.sh`: it used to send
+the placeholder `local`, the gateway answered 401 and the call failed open
+(the decision layer silently did nothing). Run
+
+```bash
+jev-setup --key-file "$LLMCTL_HOME/.env"     # records the PATH (never the value)
+```
+
+and the gate, the MCP server, the detector and the OpenCode plugin read just
+that one variable out of the file at call time. `jev-setup --key-file` refuses a
+file that is not yours, is not a regular readable file, or does not define the
+endpoint's key variable (`LLMCTL_API_KEY` by default), and is idempotent. It is
+standalone: no agent home is touched and no consent flag is needed. The pointer
+is `~/.config/jev/key-files` (one path per line, `#` comments and blank lines
+allowed, `~/` expanded; `JEV_CONFIG_DIR` relocates it); `CMA_JEV_KEY_FILES`
+(colon separated) adds paths ahead of it. Contract, identical in all four
+consumers: the file is **parsed, never sourced** (an exact `NAME=value` or
+`export NAME=value` line; the last one wins; CR and trailing blanks stripped; one
+pair of matching quotes removed; nothing is expanded, so `$(cmd)`, backticks,
+`$VAR` and an inline `# comment` are literal text) and is used only if it is a
+regular readable file owned by the current user. Precedence:
+`JEV_API_KEY`/`TYPESAFE_API_KEY` > the env var named by `JEV_KEY_VAR` > the keys
+file > key files (first listed file with a non-empty value) > the keyless
+placeholder `local`. The MCP server also treats a baked `JEV_API_KEY=local`
+(what `jev-setup` writes when the key was not resolvable at install time) as "no
+direct key", so a registered server resolves the key at call time instead of
+sending the placeholder. Tests: `scripts/tests/test_jev_keyfile.sh` (one vector
+table over the bash library, the gate's inline copy and the Python server; a real
+gate run against a TLS+bearer fixture with the sink-side `Authorization` header;
+secret-hygiene checks).
 
 Governing rule: Constitution §11.4.279 (clause A detection, C decision models
 are never aliases, D validation through §11.4.277); diagram:
@@ -197,7 +262,8 @@ when an endpoint is resolved:
   value is never exported into the agent's environment; `jev-gate.sh` and
   `jev_mcp.py` resolve it themselves), `JEV_CA_FILE` (the non-secret CA path
   for an https gateway, only when the file exists), `JEV_MODEL`, `JEV_MODE`
-  (default `shadow`),
+  (process env > `~/.config/jev/env` written by `jev-setup --mode` > `shadow`;
+  the file is parsed for an exact `JEV_MODE=shadow|enforce` line, never sourced),
 - `TYPESAFE_BASE_URL` — the SDK-convention alias (TypeSafe SDKs honor it),
 - `CMA_JEV_ACTIVE=1`, `CMA_JEV_ENDPOINT_ID=<provider_id>`,
 - `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50` and `MAX_THINKING_TOKENS=10000`
@@ -216,7 +282,7 @@ opts out globally: no exports, no notice, no background refresh.
 ## 5. Per-agent artifacts (`jev-setup`)
 
 `jev-setup [--agents claude,kimi,pi,opencode] [--mode shadow|enforce]
-[--check] [--uninstall] [--if-stale <s>] [--quiet]` — idempotent,
+[--key-file PATH] [--check] [--uninstall] [--if-stale <s>] [--quiet]` — idempotent,
 backup-first (`.prejev.<timestamp>` siblings), atomic writes, honest offline
 behavior. `--check` is a dry audit (no writes, reports OK/MISSING per item).
 `--if-stale <seconds>` backs the launch-time lazy refresh stamp
@@ -226,6 +292,19 @@ behavior. `--check` is a dry audit (no writes, reports OK/MISSING per item).
 `~/.local/share/claude-multi-account/jev/jev-gate.sh` (content-addressed)
 and `$SHARED_DIR/jev/`; `~/.config/jev/env` with `JEV_MODE` (default
 shadow, mode 0600, non-secret); state dir `~/.local/state/jev/`.
+
+**Mode precedence (gate, launch wrappers, OpenCode plugin - one rule):** process
+env `JEV_MODE` > `$JEV_CONFIG_DIR/env` (default `~/.config/jev/env`) > `shadow`.
+Before 2026-10-26 nothing read that file, so `jev-setup --mode enforce` changed
+nothing and only a hand-exported `JEV_MODE` worked; now `jev-setup --mode
+enforce` is sufficient. The file is parsed, not sourced: only an exact
+`JEV_MODE=shadow` / `JEV_MODE=enforce` line counts (the last one wins; anything
+else, including `export JEV_MODE=...`, a trailing comment or a command, is
+ignored and never executed). `--mode` accepts only `shadow|enforce` (anything
+else is a usage error, exit 2, before any write). A **running** agent session
+keeps the mode it was launched with (the wrapper exports it); a NEW launch picks
+up a changed file. A re-run of `jev-setup` without `--mode` keeps the file as it
+is. Tests: `scripts/tests/test_jev_mode_file.sh`.
 
 **Claude Code:** jq-merges a PreToolUse hook group into the shared seed
 `~/.claude-shared/settings.json` and every existing
@@ -557,7 +636,12 @@ refuses to overwrite without `--force` and never runs npm itself — it prints
 | `JEV_BASE_URL` / `JEV_API_KEY` / `JEV_MODEL` | — / keys-file / `jev-latest` | Active endpoint, key, model (exported per launch from the cache). |
 | `TYPESAFE_BASE_URL` / `TYPESAFE_API_KEY` | = JEV_* | SDK-convention aliases of the above. |
 | `TYPESAFE_AI_API_KEY` | — | jev-spec CI key name (different by design; §9). |
-| `JEV_MODE` | `shadow` | `shadow` (log would-be decisions) or `enforce`. |
+| `JEV_MODE` | `shadow` | `shadow` (log would-be decisions) or `enforce`. Precedence: process env > `$JEV_CONFIG_DIR/env` > `shadow`. |
+| `JEV_CONFIG_DIR` | `~/.config/jev` | Directory of the non-secret `env` (mode) and `key-files` (pointer) files. |
+| `CMA_JEV_KEY_FILES` | — | Colon-separated key files consulted (before `key-files`) for the key variable; parsed, never sourced. |
+| `CMA_JEV_LOCAL_MODEL` | — | Pin the model of the local decision gateway (else evidence-ranked; see §2.1). |
+| `CMA_JEV_LLMCTL_TIMEOUT` | `20` | Seconds allowed to each `llmctl status/plan --json` call of the model ranking. |
+| `CMA_LLMCTL_BIN` | `providers/llmctl.json` `bin`, else `llmctl` | llmctl executable used by the model ranking. |
 | `JEV_GATE` | `on` | `off` = gate kill switch (instant allow, nothing logged). |
 | `JEV_GATE_THRESHOLD` | `0.8` | Risky-probability deny floor. |
 | `JEV_RISKY_THRESHOLD` | `0.7` | Risky-probability floor that escalates allow→ask. |

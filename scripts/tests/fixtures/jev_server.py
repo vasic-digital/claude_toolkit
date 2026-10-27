@@ -37,6 +37,8 @@ Scripting (deterministic; no randomness anywhere):
       request — drives timeout tests (default 0).
   CMA_JEV_FIXTURE_MODEL      model id reported by /v1/models and echoed in
       systemone responses (default jev-fixture-1).
+  CMA_JEV_FIXTURE_MODELS     comma-separated "id" or "id:status" entries listed
+      by /v1/models in that order (default: just CMA_JEV_FIXTURE_MODEL).
 
 Usage:
   jev_server.py PORT [PORT_FILE]
@@ -50,6 +52,16 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 MODEL_ID = os.environ.get("CMA_JEV_FIXTURE_MODEL", "jev-fixture-1")
+# CMA_JEV_FIXTURE_MODELS: comma-separated ids served by GET /v1/models, IN THIS ORDER (an llmctl gateway lists its profiles
+# alphabetically, so a test names them alphabetically too). Each entry may be "id" or "id:status" (status ready|degraded|...).
+# Unset -> exactly [MODEL_ID] (the historical single-model behaviour).
+def _models():
+    raw = os.environ.get("CMA_JEV_FIXTURE_MODELS", "")
+    out = []
+    for item in [x.strip() for x in raw.split(",") if x.strip()]:
+        mid, _, st = item.partition(":")
+        out.append({"id": mid, "object": "model", **({"status": st} if st else {})})
+    return out or [{"id": MODEL_ID, "object": "model"}]
 
 
 def _load_responses():
@@ -168,8 +180,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz":
             self._send(200, {"status": "ok"})
         elif path == "/v1/models":
-            self._send(200, {"object": "list",
-                             "data": [{"id": MODEL_ID, "object": "model"}]})
+            self._send(200, {"object": "list", "data": _models()})
         else:
             self._send(404, {"error": "not found"})
 

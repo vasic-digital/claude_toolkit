@@ -16,9 +16,10 @@
 // take precedence.
 //
 // Modes: JEV_MODE=shadow (default — log the would-be decision, never block)
-// | enforce (throw to block on deny). Fail-open on any error.
+// | enforce (throw to block on deny). Fail-open on any error. Precedence: env JEV_MODE >
+// ~/.config/jev/env (jev-setup --mode) > shadow.
 
-import { readFileSync, appendFileSync, mkdirSync, statSync } from "node:fs";
+import { readFileSync, appendFileSync, mkdirSync, statSync, accessSync, constants as fsConstants } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
@@ -32,7 +33,18 @@ function cachePath() {
   return join(dir, "jev-endpoints.json");
 }
 const STATE_DIR = process.env.JEV_STATE_DIR || join(homedir(), ".local/state/jev");
-const MODE = process.env.JEV_MODE || "shadow";
+// Mode precedence: process env JEV_MODE > ~/.config/jev/env (written by `jev-setup --mode`; $JEV_CONFIG_DIR/env when set) > shadow.
+// The file is parsed, never executed: only an exact JEV_MODE=shadow|enforce line counts (last wins).
+function resolveMode() {
+  if (process.env.JEV_MODE) return process.env.JEV_MODE;
+  try {
+    const f = join(process.env.JEV_CONFIG_DIR || join(homedir(), ".config/jev"), "env");
+    const hits = readFileSync(f, "utf8").split("\n").filter((l) => /^JEV_MODE=(shadow|enforce)$/.test(l.replace(/\r$/, "")));
+    if (hits.length) return hits[hits.length - 1].replace(/\r$/, "").split("=")[1];
+  } catch { /* no file: default */ }
+  return "shadow";
+}
+const MODE = resolveMode();
 const TIMEOUT_MS = Number(process.env.JEV_GATE_TIMEOUT || 2) * 1000;
 const RISKY_THRESHOLD = Number(process.env.JEV_RISKY_THRESHOLD || 0.7);
 
@@ -70,16 +82,55 @@ function originAllowsKey(baseUrl, keyVar) {
   return false;
 }
 
+// Key-file fallback (same order as jev-gate.sh and jev_mcp.py): env var > keys file (~/api_keys.sh) > the key files named by the
+// non-secret pointer ($CMA_JEV_KEY_FILES, then the lines of $JEV_CONFIG_DIR/key-files = ~/.config/jev/key-files; `jev-setup --key-file`).
+// A key file is PARSED, never executed: regular readable file owned by the current user; last `NAME=` / `export NAME=` line wins; CR and
+// trailing blanks stripped; ONE pair of matching quotes removed; nothing expanded. Shared vectors: scripts/tests/test_jev_keyfile.sh.
+function keyfileCandidates() {
+  const out = (process.env.CMA_JEV_KEY_FILES || "").split(":");
+  try {
+    const cfg = join(process.env.JEV_CONFIG_DIR || join(homedir(), ".config/jev"), "key-files");
+    out.push(...readFileSync(cfg, "utf8").replace(/\r/g, "").split("\n"));
+  } catch { /* no pointer file */ }
+  return out.map((p) => p.trim()).filter((p) => p && !p.startsWith("#"))
+    .map((p) => (p.startsWith("~/") ? join(homedir(), p.slice(2)) : p));
+}
+function keyfileLookup(name) {
+  if (!name || !KEYVAR_RE.test(name)) return "";
+  for (const p of keyfileCandidates()) {
+    let text;
+    try {
+      const st = statSync(p);
+      if (!st.isFile() || st.uid !== process.getuid()) continue;
+      accessSync(p, fsConstants.R_OK);
+      text = readFileSync(p, "utf8");
+    } catch { continue; }
+    let found = null;
+    for (const raw of text.split("\n")) {
+      let line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+      line = line.replace(/^[ \t]+/, "").replace(/^export[ \t]+/, "");
+      if (line.startsWith(name + "=")) found = line.slice(name.length + 1);
+    }
+    if (found === null) continue;
+    let v = found.replace(/[ \t]+$/, "");
+    if (v.length >= 2 && v[0] === v[v.length - 1] && (v[0] === '"' || v[0] === "'")) v = v.slice(1, -1);
+    if (v) return v;
+  }
+  return "";
+}
 function keyFor(keyVar) {
-  if (process.env.JEV_API_KEY) return process.env.JEV_API_KEY;
+  // "local" is the keyless-loopback PLACEHOLDER jev-setup bakes into a registration; it is not a credential.
+  if (process.env.JEV_API_KEY && process.env.JEV_API_KEY !== "local") return process.env.JEV_API_KEY;
   if (!KEYVAR_RE.test(keyVar)) return "";
   if (process.env[keyVar]) return process.env[keyVar];
+  let v = "";
   try {
     // key_var travels as DATA in the environment, never inside the script text.
-    return execFileSync("bash", ["-c",
+    v = execFileSync("bash", ["-c",
       'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],
       { timeout: 2000, env: { ...process.env, KV: keyVar } }).toString();
-  } catch { return ""; }
+  } catch { v = ""; }
+  return v || keyfileLookup(keyVar);
 }
 
 // Returns {base_url, key, model, provider_id, key_unpinned?}. key is "" when

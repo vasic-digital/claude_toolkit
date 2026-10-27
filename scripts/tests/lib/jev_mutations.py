@@ -415,6 +415,16 @@ M = [
   'CDPATH= cd -P -- "$(dirname -- "$_selfp")"', 'cd "$(dirname "$_selfp")"', 1),
 ]
 
+# Rows whose kill needs an environment capability the owning suite probes itself and honestly SKIPs when it is missing
+# (label -> regex of that suite's own SKIP line). Root cause (2026-10-27): "mermaid statement broken by a semicolon" can only be
+# killed by test_docs_hub_engine_release.sh's mmdc render check; on a host whose mmdc cannot render (no browser) that check is a
+# reported SKIP, the suite stays green, and the harness counted the surviving mutant as a defect of the suite. `envgate <idx> <suite-output>`
+# prints the matching SKIP line (rc 0) only for a listed row whose suite output carries it; the harness then reports the row as SKIP
+# (unproven here, never PASS). A row whose suite output has no such SKIP line is still a survivor and still fails.
+ENV_GATED = {
+    "docs: mermaid statement broken by a semicolon": r"\[SKIP\].*mmdc (not installed|cannot render)",
+}
+
 def main():
     if sys.argv[1] == "list":
         for i, m in enumerate(M):
@@ -434,6 +444,17 @@ def main():
         for r in stale:
             print("stale row " + r, file=sys.stderr)
         return 3 if stale else 0
+    if sys.argv[1] == "envgate":
+        import re
+        pat = ENV_GATED.get(M[int(sys.argv[2])][0])
+        if not pat:
+            return 1
+        for line in open(sys.argv[3], encoding="utf-8", errors="replace"):
+            line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+            if re.search(pat, line):
+                print(line.strip())
+                return 0
+        return 1
     idx, root = int(sys.argv[2]), sys.argv[3]
     label, f, suite, old, new, count = M[idx]
     p = root + "/" + f

@@ -172,7 +172,7 @@ config dir. Both installers are **idempotent**.
 | `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
 | `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
 | `claude-providers sync-jev` | Jev-only fast path: re-probe decision endpoints and refresh the ranked `jev-endpoints.json` cache. |
-| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); edits agent homes only with consent (`--yes` / `JEV_SETUP_CONSENT=1`, backups first); `--mode shadow\|enforce`, `--uninstall`. |
+| `jev-setup` | Install/audit (`--check`) the Jev decision layer per agent (hooks, MCP, plugin); edits agent homes only with consent (`--yes` / `JEV_SETUP_CONSENT=1`, backups first); `--mode shadow\|enforce` (read by the gate, the launch wrappers and the OpenCode plugin: process env > `~/.config/jev/env` > shadow), `--key-file PATH` (record where the gateway bearer key lives; nothing is copied), `--uninstall`. |
 | `jev-stats` | Decision-layer report from `decisions.jsonl`: verdicts, latency, shadow calibration, ESTIMATED tokens saved. `--days N`, `--json`. |
 | `jev-spec-setup <repo>` | Opt-in: install jev-spec CI templates (config + PR-verify workflow) into a target repo. |
 

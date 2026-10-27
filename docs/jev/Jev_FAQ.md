@@ -149,13 +149,24 @@ artifacts (state dir and evidence log are kept).
 
 ### Is the llmctl decide gateway HTTP or HTTPS, and does it need a key?
 
-HTTPS with a mandatory bearer key. Every `/v1/*` call needs `Authorization: Bearer $LLMCTL_API_KEY` (401 otherwise); `/healthz` and `/readyz` are open. Since v1.32.0 the detector, `jev-gate.sh` and `jev_mcp.py` speak that: TLS first with CA trust from `CMA_JEV_CA_FILE` / `SSL_CERT_FILE` / `$LLMCTL_HOME/cert/ca/ca.crt`, the key from the env var named in the pin (else the keys file), never printed. Plain http is opt-in (`CMA_JEV_ALLOW_HTTP=1` or `scheme: "http"` in the pin), loopback-only, unauthenticated, and its record carries no key; it is refused for any other host. Verified against a hermetic TLS stand-in, not a real gateway (User Guide limitation 11). See [decide-gateway-flow](../diagrams/decide-gateway-flow.svg).
+HTTPS with a mandatory bearer key. Every `/v1/*` call needs `Authorization: Bearer $LLMCTL_API_KEY` (401 otherwise); `/healthz` and `/readyz` are open. Since v1.32.0 the detector, `jev-gate.sh` and `jev_mcp.py` speak that: TLS first with CA trust from `CMA_JEV_CA_FILE` / `SSL_CERT_FILE` / `$LLMCTL_HOME/cert/ca/ca.crt`, the key from the env var named in the pin (else the keys file, else a key file named by `jev-setup --key-file`), never printed. Plain http is opt-in (`CMA_JEV_ALLOW_HTTP=1` or `scheme: "http"` in the pin), loopback-only, unauthenticated, and its record carries no key; it is refused for any other host. Verified against a hermetic TLS stand-in, not a real gateway (User Guide limitation 11). See [decide-gateway-flow](../diagrams/decide-gateway-flow.svg).
 
 ### Why is my jev-local endpoint not showing up?
 
-Run `claude-providers sync-jev` and read its warnings: "no bearer key is available" (export `LLMCTL_API_KEY` or put it in `~/api_keys.sh`), "rejected the bearer key (HTTP 401)", "models request failed (HTTP n)", or "TLS certificate ... is not trusted" (set `CMA_JEV_CA_FILE` to the llmctl CA). The key value is never shown. Already-installed shells must re-run `claude-providers sync` once so the regenerated alias file exports `JEV_CA_FILE`.
+Run `claude-providers sync-jev` and read its warnings: "no bearer key is available" (export `LLMCTL_API_KEY`, put it in `~/api_keys.sh`, or run `jev-setup --key-file <file that defines it>`), "rejected the bearer key (HTTP 401)", "models request failed (HTTP n)", or "TLS certificate ... is not trusted" (set `CMA_JEV_CA_FILE` to the llmctl CA). The key value is never shown. Already-installed shells must re-run `claude-providers sync` once so the regenerated alias file exports `JEV_CA_FILE`.
 
 ### Which constitution rules govern the decision layer?
 
 §11.4.279 (clause A detection before generation, C decision models are typed and never aliases, D validation through §11.4.277), §11.4.277 (model validation gate, which also applies to the decision profiles llmctl serves), §11.4.278 (Vision QA, a different consumer of validated models). The toolkit itself is a hub engine (§11.4.28(C), §11.4.31).
 
+## Which model does the local gateway record (`jev-local`) use, and how do I change it?
+
+`CMA_JEV_LOCAL_MODEL=<id>` pins it. Without a pin the detector ranks the `ready` models by llmctl evidence: validated first, then the largest weights, then listing order (never the alphabetical first, which used to be the smallest model). It is a capacity rule, not an accuracy claim; pin the model you calibrated. The cache record's `reason` says which rule fired (User Guide §2.1, "Model selection"). llmctl must be reachable for the ranking: set `CMA_LLMCTL_BIN` when it is not on PATH.
+
+## I ran `jev-setup --mode enforce` and nothing is enforced.
+
+Fixed 2026-10-26: before that, nothing read `~/.config/jev/env`. Now the gate, the launch wrappers and the OpenCode plugin read it (process env `JEV_MODE` > the file > shadow). Sessions that were already running keep the mode they started with: restart the agent. Check with `cat ~/.config/jev/env` (a single `JEV_MODE=enforce` line) and `env | grep JEV_MODE` (an exported `shadow` overrides the file).
+
+## The gate cannot find `LLMCTL_API_KEY` (every call fails open with `endpoint_error`).
+
+The key lives in llmctl's own `.env`, which only the systemd sync unit loads. Run `jev-setup --key-file "$LLMCTL_HOME/.env"`: it records the path in `~/.config/jev/key-files` and the gate, MCP server, detector and OpenCode plugin read just that variable from the file (never sourced, never copied, never printed). Precedence and the parsing contract are in the User Guide §2.1, "Key files".

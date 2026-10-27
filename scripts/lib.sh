@@ -1412,6 +1412,12 @@ cma_jev_env() {
   # Jev consumers (jev-gate.sh --cacert, jev_mcp.py). Deliberately NOT
   # SSL_CERT_FILE: that would replace the system trust store for the whole agent tree.
   if [ -n "$_jev_ca" ] && [ -f "$_jev_ca" ]; then export JEV_CA_FILE="$_jev_ca"; else unset JEV_CA_FILE; fi
+  # Mode precedence: process env JEV_MODE > ~/.config/jev/env (`jev-setup --mode`) > shadow. The file is parsed (an exact
+  # JEV_MODE=shadow|enforce line, last wins), never sourced. Exported so every child (gate, MCP, opencode plugin) agrees; a
+  # running session keeps the mode it was launched with, a NEW launch picks up a changed file.
+  if [ -z "${JEV_MODE:-}" ] && [ -r "${JEV_CONFIG_DIR:-$HOME/.config/jev}/env" ]; then
+    JEV_MODE=$(grep -E '^JEV_MODE=(shadow|enforce)$' "${JEV_CONFIG_DIR:-$HOME/.config/jev}/env" 2>/dev/null | tail -n1 | cut -d= -f2)
+  fi
   export JEV_MODEL="$_jev_model" JEV_MODE="${JEV_MODE:-shadow}" CMA_JEV_ACTIVE=1
   export CMA_JEV_ENDPOINT_ID="$_jev_pid"
   # Token-reduction env (verified Claude Code knob names). Additive: never
