@@ -346,14 +346,16 @@ M = [
  ("plugin: key_var unvalidated and interpolated into the shell script text", PLUGIN, KORIG,
   r"""  if (!KEYVAR_RE.test(keyVar)) return "";
   if (process.env[keyVar]) return process.env[keyVar];
+  let v = "";
   try {
     // key_var travels as DATA in the environment, never inside the script text.
-    return execFileSync("bash", ["-c",
+    v = execFileSync("bash", ["-c",
       'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],""",
   r"""  if (process.env[keyVar]) return process.env[keyVar];
+  let v = "";
   try {
     // key_var travels as DATA in the environment, never inside the script text.
-    return execFileSync("bash", ["-c",
+    v = execFileSync("bash", ["-c",
       'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${' + keyVar + ':-}"'],""", 1),
  ("plugin: key_var not validated before use", PLUGIN, KORIG,
   "  if (!KEYVAR_RE.test(keyVar)) return \"\";", "", 1),

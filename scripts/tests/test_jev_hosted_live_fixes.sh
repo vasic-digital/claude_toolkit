@@ -289,6 +289,9 @@ it "T6c: no non-comment code in any shipped script (sh/js/py) hardcodes the defa
 T6C_ALLOW=(
   'opencode-jev-plugin.js|join(homedir(), ".local/share/claude-multi-account/providers")|documented fallback of the CMA_PROVIDERS_DIR override on the previous line'
   'opencode-jev-plugin.js|join(homedir(), ".local/state/jev")|JEV_STATE_DIR default; a state dir, not the providers dir'
+  'opencode-jev-plugin.js|join(process.env.JEV_CONFIG_DIR || join(homedir(), ".config/jev")|JEV_CONFIG_DIR default; the jev config dir (env, key-files), overridable, not the providers dir'
+  'opencode-jev-plugin.js|join(homedir(), p.slice(2))|expands a user-written ~/ path from the key-files list'
+  'jev_mcp.py|os.environ.get("CMA_PROVIDERS_DIR") or os.path.join(|override-aware: CMA_PROVIDERS_DIR first, the literal is only its documented default'
   'alias_e2e_test.py|os.path.expanduser("~/.local/share/claude-multi-account/providers")|deliberate real-host end-to-end test of the operator own aliases'
   'kimi-providers.sh|twin aliases, and each twin|usage text, not a path used by code'
   'claude-install-verify.sh|_ok "kimi: ~/.kimi-prov-|message text'

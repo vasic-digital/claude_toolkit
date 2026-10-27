@@ -153,12 +153,12 @@ run_gate() { # run_gate <gate.sh> [VAR=val ...] -> "<rc>"; stdout/stderr of the 
 : > "$HOME/all_outputs.log"
 note_outputs() { cat "$HOME/gate.out" "$HOME/gate.err" >> "$HOME/all_outputs.log" 2>/dev/null; }
 
-it "G0 RED shape: key only in llmctl's .env, NO pointer -> the gate sends the placeholder, the gateway says 401, the call fails open (the reported defect)"
+it "G0 RED shape: key only in llmctl's .env, NO pointer -> no usable key: the gate makes NO request (no_key; it used to send the placeholder bearer and be rejected with 401) and the call fails open (the reported defect)"
 rm -f -- "${CFG:?}/key-files"
 rc="$(run_gate "$GATE")"; note_outputs
 assert_eq 0 "$rc" "no usable key -> fail-open exit 0 (nothing was denied)"
-assert_eq "endpoint_error" "$(decision_field '.fallback')" "decision log: fallback endpoint_error"
-assert_eq "Bearer local" "$(sink_auth_last)" "the gateway received the placeholder bearer (and rejected it)"
+assert_eq "no_key" "$(decision_field '.fallback')" "decision log: fallback no_key"
+assert_eq "" "$(sink_auth_last)" "SINK-SIDE: the gateway received no request at all (no placeholder bearer is sent blind over https)"
 
 it "G1 GREEN: the same call with the pointer -> the gate reads LLMCTL_API_KEY out of the .env, the gateway accepts, deny is enforced"
 printf '%s\n' "$LLENV" > "$CFG/key-files"

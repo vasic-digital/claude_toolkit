@@ -248,6 +248,11 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <li><a href="#added" id="toc-added">Added</a></li>
 <li><a href="#changed" id="toc-changed">Changed</a></li>
 <li><a href="#fixed" id="toc-fixed">Fixed</a></li>
+<li><a href="#merged-from-originmain-in-this-release-d992502-7ab1ab0" id="toc-merged-from-originmain-in-this-release-d992502-7ab1ab0">Merged
+from origin/main in this release (d992502, 7ab1ab0)</a></li>
+<li><a href="#known-limitations--imperfections-tracked-not-fixed-in-this-release" id="toc-known-limitations--imperfections-tracked-not-fixed-in-this-release">Known
+limitations / imperfections (tracked, not fixed in this
+release)</a></li>
 </ul></li>
 <li><a href="#v1320-addendum--jev-setup--kimi-lock-review-rounds-already-in-the-v1320-tag" id="toc-v1320-addendum--jev-setup--kimi-lock-review-rounds-already-in-the-v1320-tag">v1.32.0
 (addendum) — jev-setup / Kimi-lock review rounds, already in the
@@ -1128,13 +1133,141 @@ loopback; <code>jev-gate</code> never key-pins an https origin
 containing such characters. Tests T7e (4 assertions) and T9 (18
 assertions).</li>
 </ul>
+<h3 id="merged-from-originmain-in-this-release-d992502-7ab1ab0">Merged
+from origin/main in this release (d992502, 7ab1ab0)</h3>
+<p>Reconciled with the Jev work that landed on <code>main</code> after
+the branch point; the union of both sides is kept.</p>
+<ul>
+<li>Jev key lookup falls back to the operator key files
+(<code>jev-keyfile-lib.sh</code>) in the gate, the MCP server and the
+OpenCode plugin, after the keys file and with the origin binding still
+applied. The <code>local</code> placeholder key is ignored everywhere
+(it is never sent as a bearer).</li>
+<li>Local model selection, the <code>jev-setup</code> mode file and
+<code>JEV_CONFIG_DIR</code> (default <code>~/.config/jev</code>) are
+kept.</li>
+<li>Behaviour change: with only the <code>local</code> placeholder and
+no resolvable key, the gate now records <code>no_key</code> and sends no
+request (previously <code>endpoint_error</code>,
+<code>Bearer local</code> sent). <code>test_jev_keyfile.sh</code> G0
+expects the new behaviour.</li>
+<li>Fixed here: <code>jev_mcp._cached_key_var</code> hard-coded
+<code>~/.local/share/claude-multi-account/providers</code>; it now
+honours <code>CMA_PROVIDERS_DIR</code>. The send-path table lists
+<code>jev-keyfile-lib.sh</code> (not a send path). README badge and test
+count: 132 test files.</li>
+</ul>
+<h3 id="known-limitations--imperfections-tracked-not-fixed-in-this-release">Known
+limitations / imperfections (tracked, not fixed in this release)</h3>
+<ul>
+<li>N8 (test-instrumentation, equivalent mutant): the pre-fix form
+<code>_pinsf=&quot;$_pinsd/providers/jev.json&quot;</code> without the
+<code>[ -n &quot;$_pinsf&quot; ]</code> guard survives mutation, because
+<code>/providers/jev.json</code> cannot exist in a hermetic test.
+Mutation row 134 kills the realistic fallback instead.</li>
+<li>N9 (test-instrumentation): the symlink hop bound is not pinned; any
+bound &gt;= 4 passes while the docs say up to 40 hops. A 39/40-hop chain
+case would pin it.</li>
+<li>N10 (source-defect, pre-existing, fails closed):
+<code>scripts/jev-setup.sh</code> resolves its own symlink with an
+unbounded loop and no <code>CDPATH=</code>; on a failed <code>cd</code>
+it silently installs no pins and the gate then fails closed. Suggested
+fix: reuse <code>jev_realpath</code>.</li>
+<li>N1: the <code>enabled:null</code> pin value is read differently by
+the MCP, the gate, the detector and the plugin; the canonical meaning
+needs an owner decision (recommended: only literal <code>false</code>
+disables).</li>
+<li>N2: <code>jev-setup</code> writes the resolved key under both
+<code>TYPESAFE_API_KEY</code> and <code>JEV_API_KEY</code> even when the
+key variable is OpenRouter&#39;s; owner design question.</li>
+<li>N4: <code>test_claude_usage.sh</code> asserts on commits that can no
+longer change; candidate for a content check.</li>
+<li>Test run for this release (full
+<code>scripts/tests/run-all.sh</code>, 132 files): 125 passed, 7 failed,
+4 skipped for missing prerequisites. Six failures were root-caused and
+fixed after the run (README count, T6c allow-list and
+<code>CMA_PROVIDERS_DIR</code>, send-path table, G0 expectation, a stale
+mutation anchor, and the dependent mutation harness controls).
+<code>test_mgmt_port_isolation.sh</code> failed only inside the full run
+(no summary line) and passed 9/9 in each of 7 solo runs; its cause is
+UNKNOWN (suspected load or port contention) and it is not claimed
+fixed.</li>
+<li>The multi-hour mutation harness
+<code>test_jev_detect_https_mutation.sh</code> and the re-anchored
+mutation row 116 were not re-run to completion after the merge;
+shellcheck was not re-run.</li>
+</ul>
 <h2 id="v1320-addendum--jev-setup--kimi-lock-review-rounds-already-in-the-v1320-tag">v1.32.0
 (addendum) — jev-setup / Kimi-lock review rounds, already in the
 <code>v1.32.0</code> tag</h2>
 <ul>
-<li><code>jev-setup</code>: <code>--agents</code> is validated against
-the closed, case-sensitive set <code>claude|kimi|pi|opencode|all</code>
-(unknown, miscased or empty -&gt; exit 2 before any write, no stamp);
+<li><p>Jev decision layer, 2026-10-26 operator findings (each with a
+paired mutation suite):</p>
+<ul>
+<li><strong>Local model selection</strong>
+(<code>scripts/tests/test_jev_local_model.sh</code>):
+<code>claude-providers sync-jev</code> used the first model listed by
+the llmctl gateway, which lists alphabetically, so the cache named
+<code>decide-2b</code> (answers <code>ask</code> where
+<code>decide-max</code> answers <code>deny</code>). It now honours
+<code>CMA_JEV_LOCAL_MODEL</code>, else ranks the <code>ready</code>
+models by llmctl evidence (validated per
+<code>llmctl status --json</code>, then largest weights per
+<code>llmctl plan --json</code>; <code>CMA_LLMCTL_BIN</code>,
+<code>CMA_JEV_LLMCTL_TIMEOUT</code>), else the first listed ready model
+with an honest reason. A capacity rule, not an accuracy claim. Verified:
+the real endpoint cache now names <code>decide-max</code>.</li>
+<li><strong><code>jev-setup --mode</code> is now read</strong>
+(<code>scripts/tests/test_jev_mode_file.sh</code>):
+<code>~/.config/jev/env</code> was written and read by nothing. The
+gate, the launch wrappers (<code>cma_jev_env</code>) and the OpenCode
+plugin now resolve the mode as process env &gt;
+<code>$JEV_CONFIG_DIR/env</code> &gt; <code>shadow</code> (parsed, never
+sourced; exact <code>JEV_MODE=shadow|enforce</code> line, last wins).
+<code>--mode</code> accepts only <code>shadow|enforce</code> (rc 2
+before any write). <code>JEV_CONFIG_DIR</code> is honoured by
+<code>jev-setup</code> too.</li>
+<li><strong>Key files</strong>
+(<code>scripts/tests/test_jev_keyfile.sh</code>): the gate could not
+find <code>LLMCTL_API_KEY</code> outside the systemd sync unit (not in
+the env, not in <code>~/api_keys.sh</code>), so every call failed open.
+New non-secret indirection: <code>jev-setup --key-file PATH</code>
+records the path in <code>~/.config/jev/key-files</code> (or
+<code>CMA_JEV_KEY_FILES</code>); the gate, the detector,
+<code>jev_mcp.py</code> and the OpenCode plugin parse that one variable
+out of the file at call time. New
+<code>scripts/jev-keyfile-lib.sh</code>. The MCP server treats a baked
+<code>JEV_API_KEY=local</code> placeholder as &quot;no direct key&quot; and learns
+the key variable name from the endpoint cache. Docs: User Guide §2.1
+(Model selection, Key files), §5, §10; FAQ; Quickstart.</li>
+<li><strong>Tests</strong> found by the full-suite run:
+<code>scripts/tests/test_jev_detect_https.sh</code> resolved its LAN
+address with <code>hostname -I</code>, which GNU coreutils&#39;
+<code>hostname</code> does not have, so the LAN-address case (H8) was
+skipped and the positive control (&gt;= 5 fixture servers) failed on
+such a host - it now falls back to
+<code>ip -4 -o addr show scope global</code>, then
+<code>ifconfig</code>;
+<code>scripts/tests/test_quota_concurrency.sh</code> copies
+<code>jev-keyfile-lib.sh</code> into its isolation directory (the
+sourced library is a new dependency of
+<code>claude-providers.sh</code>); the README test badge/count follows
+the three new test files.
+<code>scripts/tests/test_jev_detect_https_mutation.sh</code>: the full
+96-row run kills 95 rows; row 94 (mermaid statement broken by a
+semicolon) can only be killed by the docs suite&#39;s <code>mmdc</code>
+render check, which SKIPs on a host whose <code>mmdc</code> cannot
+render (no browser), so the suite stays green and the harness counted a
+defect. A row listed in <code>ENV_GATED</code>
+(scripts/tests/lib/jev_mutations.py) whose suite output carries that
+suite&#39;s own SKIP line is now reported SKIP (the kill is unproven on that
+host, never a pass); a row without that line, or any other row, still
+fails.</li>
+</ul></li>
+<li><p><code>jev-setup</code>: <code>--agents</code> is validated
+against the closed, case-sensitive set
+<code>claude|kimi|pi|opencode|all</code> (unknown, miscased or empty
+-&gt; exit 2 before any write, no stamp);
 <code>--check --uninstall</code> is refused (exit 2); the native Kimi
 block is rewritten as a whole file via one atomic, status-checked
 <code>_kimi_block_write</code> (no blank-line growth, block-only configs
@@ -1145,8 +1278,8 @@ claude/kimi inventory branches reached through <code>--uninstall</code>
 and <code>--check</code>, scope derivation, argument validation, the
 stale-block rewrite and <code>--check</code>; pi has no inventory branch
 (its wiring location is UNCONFIRMED), so a consented pi install is
-protected only through the stamp (L22).</li>
-<li>Round 4 (independent review NO-GO, closed by class):
+protected only through the stamp (L22).</p></li>
+<li><p>Round 4 (independent review NO-GO, closed by class):</p>
 <ul>
 <li>Kimi config writers are serialised.
 <code>scripts/jev-kimi-lib.sh</code> gained <code>jev_kimi_lock</code>
@@ -1191,7 +1324,8 @@ renderer still writes a fresh file (it does not follow a symlinked twin
 changed .md can collapse blank lines the exporter treats as
 insignificant.</li>
 </ul></li>
-<li>Round 5/6 (independent review NO-GO on Round 5, closed by class):
+<li><p>Round 5/6 (independent review NO-GO on Round 5, closed by
+class):</p>
 <ul>
 <li>The mkdir lock backend is now a faithful port of the
 <code>lib.sh</code> <code>_cma_alias_lock_*</code> algorithm in the new
@@ -1281,14 +1415,14 @@ whose command is gone is UNKNOWN; <code>shellcheck</code> was not run; a
 mutation that waits for the deadline (row 83) is killed by a timeout
 rather than by an assertion.</li>
 </ul></li>
-<li><code>jev_mcp.py</code>: a relative <code>ca_file</code> in a
+<li><p><code>jev_mcp.py</code>: a relative <code>ca_file</code> in a
 routes.json candidate resolves against the routes.json directory (never
 the cwd); a candidate without <code>ca_file</code> deliberately trusts
 <code>JEV_CA_FILE</code> as an extra root; an unreadable explicit
-<code>ca_file</code> still fails closed.</li>
-<li>Mutation table: rows for the inventory branches, the uninstall
+<code>ca_file</code> still fails closed.</p></li>
+<li><p>Mutation table: rows for the inventory branches, the uninstall
 inventory use, the renderer&#39;s model-less-rewrite guard and the
-relative-CA resolution.</li>
+relative-CA resolution.</p></li>
 </ul>
 <h2 id="v1320--2026-10-22">v1.32.0 — 2026-10-22</h2>
 <p>The Jev local decide-gateway detector now speaks llmctl&#39;s real

@@ -184,7 +184,8 @@ def _cached_key_var():
     cache: the registration written by jev-setup carries only a placeholder key
     and no JEV_KEY_VAR, so this is how a registered server learns which variable
     to resolve at call time (env > keys file > jev key files)."""
-    cache = os.path.join(os.path.expanduser("~"), ".local/share/claude-multi-account/providers/jev-endpoints.json")
+    pdir = os.environ.get("CMA_PROVIDERS_DIR") or os.path.join(os.path.expanduser("~"), ".local/share/claude-multi-account/providers")
+    cache = os.path.join(pdir, "jev-endpoints.json")
     try:
         with open(cache, encoding="utf-8") as fh:
             ep = (json.load(fh).get("endpoints") or [{}])[0] or {}

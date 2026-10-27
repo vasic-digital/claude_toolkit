@@ -113,6 +113,26 @@ Defects found by live validation of the hosted Jev endpoint (TypeSafe
   operator-declared trust.
 - Security (review finding): the live-probe host check uses an anchored authority parse (`_cma_jev_base_host_class`): userinfo (`@`), backslash, whitespace, percent bytes, empty host, malformed/duplicate port and look-alike hosts (`127.0.0.1.evil`, `localhost.`) are refused, so the bearer can no longer reach a host other than the one classified loopback; `jev-gate` never key-pins an https origin containing such characters. Tests T7e (4 assertions) and T9 (18 assertions).
 
+### Merged from origin/main in this release (d992502, 7ab1ab0)
+
+Reconciled with the Jev work that landed on `main` after the branch point; the union of both sides is kept.
+
+- Jev key lookup falls back to the operator key files (`jev-keyfile-lib.sh`) in the gate, the MCP server and the OpenCode plugin, after the keys file and with the origin binding still applied. The `local` placeholder key is ignored everywhere (it is never sent as a bearer).
+- Local model selection, the `jev-setup` mode file and `JEV_CONFIG_DIR` (default `~/.config/jev`) are kept.
+- Behaviour change: with only the `local` placeholder and no resolvable key, the gate now records `no_key` and sends no request (previously `endpoint_error`, `Bearer local` sent). `test_jev_keyfile.sh` G0 expects the new behaviour.
+- Fixed here: `jev_mcp._cached_key_var` hard-coded `~/.local/share/claude-multi-account/providers`; it now honours `CMA_PROVIDERS_DIR`. The send-path table lists `jev-keyfile-lib.sh` (not a send path). README badge and test count: 132 test files.
+
+### Known limitations / imperfections (tracked, not fixed in this release)
+
+- N8 (test-instrumentation, equivalent mutant): the pre-fix form `_pinsf="$_pinsd/providers/jev.json"` without the `[ -n "$_pinsf" ]` guard survives mutation, because `/providers/jev.json` cannot exist in a hermetic test. Mutation row 134 kills the realistic fallback instead.
+- N9 (test-instrumentation): the symlink hop bound is not pinned; any bound >= 4 passes while the docs say up to 40 hops. A 39/40-hop chain case would pin it.
+- N10 (source-defect, pre-existing, fails closed): `scripts/jev-setup.sh` resolves its own symlink with an unbounded loop and no `CDPATH=`; on a failed `cd` it silently installs no pins and the gate then fails closed. Suggested fix: reuse `jev_realpath`.
+- N1: the `enabled:null` pin value is read differently by the MCP, the gate, the detector and the plugin; the canonical meaning needs an owner decision (recommended: only literal `false` disables).
+- N2: `jev-setup` writes the resolved key under both `TYPESAFE_API_KEY` and `JEV_API_KEY` even when the key variable is OpenRouter's; owner design question.
+- N4: `test_claude_usage.sh` asserts on commits that can no longer change; candidate for a content check.
+- Test run for this release (full `scripts/tests/run-all.sh`, 132 files): 125 passed, 7 failed, 4 skipped for missing prerequisites. Six failures were root-caused and fixed after the run (README count, T6c allow-list and `CMA_PROVIDERS_DIR`, send-path table, G0 expectation, a stale mutation anchor, and the dependent mutation harness controls). `test_mgmt_port_isolation.sh` failed only inside the full run (no summary line) and passed 9/9 in each of 7 solo runs; its cause is UNKNOWN (suspected load or port contention) and it is not claimed fixed.
+- The multi-hour mutation harness `test_jev_detect_https_mutation.sh` and the re-anchored mutation row 116 were not re-run to completion after the merge; shellcheck was not re-run.
+
 ## v1.32.0 (addendum) — jev-setup / Kimi-lock review rounds, already in the `v1.32.0` tag
 
 - Jev decision layer, 2026-10-26 operator findings (each with a paired mutation suite):
