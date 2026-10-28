@@ -443,8 +443,9 @@ cannot land in the log.
 
 ## 7. The MCP server (`jev_mcp.py`)
 
-Stdlib-only python3 MCP server (JSON-RPC 2.0 over stdio, Content-Length
-framing per the MCP stdio spec; newline-delimited input also accepted).
+Stdlib-only python3 MCP server (JSON-RPC 2.0 over stdio, newline-delimited
+JSON per the MCP stdio spec; Content-Length-framed clients are still answered
+in kind).
 Tools:
 
 | Tool | Arguments | Returns |

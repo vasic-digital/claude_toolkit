@@ -2,9 +2,12 @@
 """jev_mcp.py — stdlib-only MCP server exposing the Jev decision layer.
 
 Design: toolkit-jev-design §2.5. python3 >= 3.8 stdlib only (json, os, sys,
-urllib.request). Speaks MCP over stdio (JSON-RPC 2.0). Framing: Content-Length
-LSP-style headers per the MCP stdio spec; newline-delimited JSON is also
-accepted on input for robustness.
+urllib.request). Speaks MCP over stdio (JSON-RPC 2.0). Framing: the MCP stdio
+transport is newline-delimited JSON (one object per line, no embedded
+newlines) and that is the default; Claude Code speaks it. LSP-style
+Content-Length framing is still understood, and a reply uses whichever framing
+the inbound message used. stdout carries ONLY JSON-RPC; diagnostics go to
+stderr.
 
 Tools:
   jev_ask(state, question, options?, decision_type?) -> choice answer
@@ -47,7 +50,8 @@ import http_noredirect as _http  # noqa: E402  (the one shared credential-safe o
 
 _KEY_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-PROTOCOL_VERSION = "2024-11-05"
+PROTOCOL_VERSION = "2025-06-18"          # newest revision this server implements
+SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_INFO = {"name": "jev-mcp", "version": "1.0.0"}
 
 TOOLS = [
@@ -550,7 +554,10 @@ def _handle(msg):
     method = msg.get("method", "")
     req_id = msg.get("id")
     if method == "initialize":
-        return _result(req_id, {"protocolVersion": PROTOCOL_VERSION,
+        # MCP lifecycle: echo the client's version when supported, else offer ours.
+        want = (msg.get("params") or {}).get("protocolVersion")
+        pv = want if want in SUPPORTED_PROTOCOL_VERSIONS else PROTOCOL_VERSION
+        return _result(req_id, {"protocolVersion": pv,
                                 "capabilities": {"tools": {}},
                                 "serverInfo": SERVER_INFO})
     if method in ("notifications/initialized", "initialized"):
@@ -575,10 +582,26 @@ def _handle(msg):
     return _error(req_id, -32601, "method not found: %s" % method)
 
 
-def _write(msg):
-    body = json.dumps(msg).encode("utf-8")
-    sys.stdout.buffer.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
+# Output framing follows the client. MCP stdio is newline-delimited JSON (Claude
+# Code speaks it); LSP-style Content-Length framing is kept for legacy clients
+# and is chosen only when the inbound message used it. Default: NDJSON.
+_FRAMING = "ndjson"
+
+
+def _write(msg, framing=None):
+    framing = framing or _FRAMING
+    if framing == "header":
+        body = json.dumps(msg).encode("utf-8")
+        data = b"Content-Length: %d\r\n\r\n" % len(body) + body
+    else:
+        # json.dumps escapes control chars and (ensure_ascii) all non-ASCII, so
+        # the line can never contain an embedded newline.
+        data = json.dumps(msg).encode("utf-8") + b"\n"
+    sys.stdout.buffer.write(data)
     sys.stdout.buffer.flush()
+
+
+_MSG_FRAMING = ["ndjson"]   # framing of the message most recently parsed
 
 
 def _read_message(buf):
@@ -599,6 +622,7 @@ def _read_message(buf):
         if len(buf) < hdr_end + sep_len + length:
             return None, buf
         body = buf[hdr_end + sep_len: hdr_end + sep_len + length]
+        _MSG_FRAMING[0] = "header"
         return json.loads(body.decode("utf-8")), buf[hdr_end + sep_len + length:]
     if nl == -1:
         return None, buf
@@ -606,7 +630,31 @@ def _read_message(buf):
     rest = buf[nl + 1:]
     if not line:
         return "skip", rest
+    _MSG_FRAMING[0] = "ndjson"
     return json.loads(line.decode("utf-8")), rest
+
+
+def _drain(buf, eof=False):
+    """Handle every complete message in buf; return the unconsumed remainder."""
+    while True:
+        if eof and buf.strip() and b"\n" not in buf and \
+                not buf.lower().startswith(b"content-length:"):
+            buf += b"\n"          # unterminated final NDJSON line at EOF
+        try:
+            msg, buf = _read_message(buf)
+        except (ValueError, UnicodeDecodeError):
+            # malformed line: drop it, never write non-JSON-RPC to stdout
+            buf = buf.split(b"\n", 1)[1] if b"\n" in buf else b""
+            continue
+        if msg is None:
+            return buf
+        if msg == "skip":
+            continue
+        if not isinstance(msg, dict):
+            continue
+        out = _handle(msg)
+        if out is not None:
+            _write(out, _MSG_FRAMING[0])
 
 
 def main():
@@ -616,19 +664,8 @@ def main():
             else sys.stdin.buffer.read(65536)
         if not chunk:
             break
-        buf += chunk
-        while True:
-            try:
-                msg, buf = _read_message(buf)
-            except ValueError:
-                msg, buf = "skip", buf.split(b"\n", 1)[-1] if b"\n" in buf else b""
-            if msg is None:
-                break
-            if msg == "skip":
-                continue
-            out = _handle(msg)
-            if out is not None:
-                _write(out)
+        buf = _drain(buf + chunk)
+    _drain(buf, eof=True)
 
 
 if __name__ == "__main__":

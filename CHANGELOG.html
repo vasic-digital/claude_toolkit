@@ -242,12 +242,16 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <ul>
 <li><a href="#changelog" id="toc-changelog">Changelog</a>
 <ul>
+<li><a href="#unreleased" id="toc-unreleased">Unreleased</a>
+<ul>
+<li><a href="#fixed" id="toc-fixed">Fixed</a></li>
+</ul></li>
 <li><a href="#v1330-2026-10-24" id="toc-v1330-2026-10-24">v1.33.0
 (2026-10-24)</a>
 <ul>
 <li><a href="#added" id="toc-added">Added</a></li>
 <li><a href="#changed" id="toc-changed">Changed</a></li>
-<li><a href="#fixed" id="toc-fixed">Fixed</a></li>
+<li><a href="#fixed-1" id="toc-fixed-1">Fixed</a></li>
 <li><a href="#merged-from-originmain-in-this-release-d992502-7ab1ab0" id="toc-merged-from-originmain-in-this-release-d992502-7ab1ab0">Merged
 from origin/main in this release (d992502, 7ab1ab0)</a></li>
 <li><a href="#known-limitations--imperfections-tracked-not-fixed-in-this-release" id="toc-known-limitations--imperfections-tracked-not-fixed-in-this-release">Known
@@ -262,7 +266,7 @@ release)</a></li>
 <ul>
 <li><a href="#breaking-security--read-before-upgrading" id="toc-breaking-security--read-before-upgrading">BREAKING (security) —
 read before upgrading</a></li>
-<li><a href="#fixed-1" id="toc-fixed-1">Fixed</a></li>
+<li><a href="#fixed-2" id="toc-fixed-2">Fixed</a></li>
 <li><a href="#added-1" id="toc-added-1">Added</a></li>
 <li><a href="#changed-1" id="toc-changed-1">Changed</a></li>
 </ul></li>
@@ -282,7 +286,7 @@ read before upgrading</a></li>
 <li><a href="#v1305--2026-10-10" id="toc-v1305--2026-10-10">v1.30.5 —
 2026-10-10</a>
 <ul>
-<li><a href="#fixed-2" id="toc-fixed-2">Fixed</a></li>
+<li><a href="#fixed-3" id="toc-fixed-3">Fixed</a></li>
 <li><a href="#added-4" id="toc-added-4">Added</a></li>
 <li><a href="#documentation" id="toc-documentation">Documentation</a></li>
 <li><a href="#verification" id="toc-verification">Verification</a></li>
@@ -292,7 +296,7 @@ read before upgrading</a></li>
 2026-10-06</a>
 <ul>
 <li><a href="#added-5" id="toc-added-5">Added</a></li>
-<li><a href="#fixed-3" id="toc-fixed-3">Fixed</a></li>
+<li><a href="#fixed-4" id="toc-fixed-4">Fixed</a></li>
 <li><a href="#known-limitations-not-fixed-in-this-release" id="toc-known-limitations-not-fixed-in-this-release">Known limitations
 (not fixed in this release)</a></li>
 <li><a href="#verification-1" id="toc-verification-1">Verification</a></li>
@@ -302,7 +306,7 @@ read before upgrading</a></li>
 — 2026-10-05 — <code>quota</code>/<code>limits</code> patch: Kimi-leg
 fixes, live-test gating, doc corrections</a>
 <ul>
-<li><a href="#fixed-4" id="toc-fixed-4">Fixed</a></li>
+<li><a href="#fixed-5" id="toc-fixed-5">Fixed</a></li>
 <li><a href="#incident-disclosed" id="toc-incident-disclosed">Incident
 (disclosed)</a></li>
 <li><a href="#testing-and-validation" id="toc-testing-and-validation">Testing and validation</a></li>
@@ -314,7 +318,7 @@ fixed)</a></li>
 — 2026-10-05 — <code>quota</code>/<code>limits</code> patch: review and
 known-issues fixes</a>
 <ul>
-<li><a href="#fixed-5" id="toc-fixed-5">Fixed</a></li>
+<li><a href="#fixed-6" id="toc-fixed-6">Fixed</a></li>
 <li><a href="#known-limitations" id="toc-known-limitations">Known
 limitations</a></li>
 <li><a href="#earlier-release" id="toc-earlier-release">Earlier
@@ -324,7 +328,7 @@ release</a></li>
 — 2026-10-05 — <code>quota</code>/<code>limits</code> patch:
 post-release review fixes</a>
 <ul>
-<li><a href="#fixed-6" id="toc-fixed-6">Fixed</a></li>
+<li><a href="#fixed-7" id="toc-fixed-7">Fixed</a></li>
 <li><a href="#testing--validation" id="toc-testing--validation">Testing
 &amp; Validation</a></li>
 <li><a href="#known-remaining-gaps-not-fixed-in-1301" id="toc-known-remaining-gaps-not-fixed-in-1301">Known remaining gaps
@@ -382,7 +386,7 @@ since v1.26.8 riding along</a></li>
 — 2026-08-28 — autocompact thrashing guard + safety margin for provider
 aliases</a>
 <ul>
-<li><a href="#fixed-7" id="toc-fixed-7">Fixed</a></li>
+<li><a href="#fixed-8" id="toc-fixed-8">Fixed</a></li>
 <li><a href="#changed-5" id="toc-changed-5">Changed</a></li>
 </ul></li>
 <li><a href="#v1267--2026-07-27--vendor-prefixed-model-ids-routable-again-16-of-24-aliases-503d-before-any-network-call--the-vendored-go-fallback-that-never-fell-back--two-misdiagnoses-retired" id="toc-v1267--2026-07-27--vendor-prefixed-model-ids-routable-again-16-of-24-aliases-503d-before-any-network-call--the-vendored-go-fallback-that-never-fell-back--two-misdiagnoses-retired">v1.26.7
@@ -390,7 +394,7 @@ aliases</a>
 aliases 503&#39;d before any network call) + the vendored-Go fallback that
 never fell back + two misdiagnoses retired</a>
 <ul>
-<li><a href="#fixed-8" id="toc-fixed-8">Fixed</a></li>
+<li><a href="#fixed-9" id="toc-fixed-9">Fixed</a></li>
 <li><a href="#fixed-ccr-submodule-vasic-digitalclaude-code-router" id="toc-fixed-ccr-submodule-vasic-digitalclaude-code-router">Fixed (ccr
 submodule, vasic-digital/claude-code-router)</a></li>
 <li><a href="#changed-6" id="toc-changed-6">Changed</a></li>
@@ -404,7 +408,7 @@ changelogged)</a></li>
 that actually lock + honest toolchain-skew guidance</a>
 <ul>
 <li><a href="#added-8" id="toc-added-8">Added</a></li>
-<li><a href="#fixed-9" id="toc-fixed-9">Fixed</a></li>
+<li><a href="#fixed-10" id="toc-fixed-10">Fixed</a></li>
 <li><a href="#fixed-ccr-submodule-vasic-digitalclaude-code-router-1" id="toc-fixed-ccr-submodule-vasic-digitalclaude-code-router-1">Fixed
 (ccr submodule, vasic-digital/claude-code-router)</a></li>
 </ul></li>
@@ -413,28 +417,28 @@ that actually lock + honest toolchain-skew guidance</a>
 account dispatch + provider-scoped gateway paths</a>
 <ul>
 <li><a href="#added-9" id="toc-added-9">Added</a></li>
-<li><a href="#fixed-10" id="toc-fixed-10">Fixed</a></li>
+<li><a href="#fixed-11" id="toc-fixed-11">Fixed</a></li>
 <li><a href="#notes-2" id="toc-notes-2">Notes</a></li>
 </ul></li>
 <li><a href="#v1255--2026-07-23--fail-loud-install-over-brokenmissing-ccr--interactive-shell-stderr-fix--anti-fossil-r-m-w-hardening" id="toc-v1255--2026-07-23--fail-loud-install-over-brokenmissing-ccr--interactive-shell-stderr-fix--anti-fossil-r-m-w-hardening">v1.25.5
 — 2026-07-23 — fail-loud install over broken/missing ccr +
 interactive-shell stderr fix + anti-fossil r-m-w hardening</a>
 <ul>
-<li><a href="#fixed-11" id="toc-fixed-11">Fixed</a></li>
+<li><a href="#fixed-12" id="toc-fixed-12">Fixed</a></li>
 <li><a href="#verified" id="toc-verified">Verified</a></li>
 </ul></li>
 <li><a href="#v1254--2026-07-22--un-fossilise-ephemeral-cma-proxy-addresses-kill-the-502-class--toon-go-port" id="toc-v1254--2026-07-22--un-fossilise-ephemeral-cma-proxy-addresses-kill-the-502-class--toon-go-port">v1.25.4
 — 2026-07-22 — un-fossilise ephemeral cma-proxy addresses (kill the 502
 class) + toon Go port</a>
 <ul>
-<li><a href="#fixed-12" id="toc-fixed-12">Fixed</a></li>
+<li><a href="#fixed-13" id="toc-fixed-13">Fixed</a></li>
 <li><a href="#added-10" id="toc-added-10">Added</a></li>
 </ul></li>
 <li><a href="#v1253--2026-07-22--trim-knob-survives-generator-regen--operator-docs-for-trimgatecontainer-mode" id="toc-v1253--2026-07-22--trim-knob-survives-generator-regen--operator-docs-for-trimgatecontainer-mode">v1.25.3
 — 2026-07-22 — trim knob survives generator regen + operator docs for
 trim/gate/container-mode</a>
 <ul>
-<li><a href="#fixed-13" id="toc-fixed-13">Fixed</a></li>
+<li><a href="#fixed-14" id="toc-fixed-14">Fixed</a></li>
 <li><a href="#added-11" id="toc-added-11">Added</a></li>
 <li><a href="#changed-7" id="toc-changed-7">Changed</a></li>
 </ul></li>
@@ -442,14 +446,14 @@ trim/gate/container-mode</a>
 — 2026-07-22 — ccr resolved by stable path (PATH-shadowing
 doppelgänger), provider trim mode, mandatory live release gate</a>
 <ul>
-<li><a href="#fixed-14" id="toc-fixed-14">Fixed</a></li>
+<li><a href="#fixed-15" id="toc-fixed-15">Fixed</a></li>
 <li><a href="#added-12" id="toc-added-12">Added</a></li>
 </ul></li>
 <li><a href="#v1251--2026-07-22--router-aliases-refused-to-launch-on-a-stale-bundled-ccr-self-healing-rebuild" id="toc-v1251--2026-07-22--router-aliases-refused-to-launch-on-a-stale-bundled-ccr-self-healing-rebuild">v1.25.1
 — 2026-07-22 — router aliases refused to launch on a stale bundled ccr
 (self-healing rebuild)</a>
 <ul>
-<li><a href="#fixed-15" id="toc-fixed-15">Fixed</a></li>
+<li><a href="#fixed-16" id="toc-fixed-16">Fixed</a></li>
 <li><a href="#verification-gap-that-let-it-ship-honest" id="toc-verification-gap-that-let-it-ship-honest">Verification gap that
 let it ship (honest)</a></li>
 <li><a href="#verified-1" id="toc-verified-1">Verified</a></li>
@@ -462,7 +466,7 @@ provider-verification honesty + rc-safety</a>
 <li><a href="#proxy-framework--python-proxies-replaced-by-one-go-binary-cma-proxy" id="toc-proxy-framework--python-proxies-replaced-by-one-go-binary-cma-proxy">Proxy
 framework — python proxies replaced by one Go binary
 (<code>cma-proxy</code>)</a></li>
-<li><a href="#fixed-16" id="toc-fixed-16">Fixed</a></li>
+<li><a href="#fixed-17" id="toc-fixed-17">Fixed</a></li>
 <li><a href="#reliability" id="toc-reliability">Reliability</a></li>
 <li><a href="#safety--shell-rc-writes-114167" id="toc-safety--shell-rc-writes-114167">Safety — shell-rc writes
 (§11.4.167)</a></li>
@@ -477,7 +481,7 @@ regression + the false &quot;ALL GREEN&quot; claim that hid it</a>
 <ul>
 <li><a href="#added--credit-aware-model-selection-mandatory-tier-policy" id="toc-added--credit-aware-model-selection-mandatory-tier-policy">Added
 — credit-aware model selection (mandatory tier policy)</a></li>
-<li><a href="#fixed-17" id="toc-fixed-17">Fixed</a></li>
+<li><a href="#fixed-18" id="toc-fixed-18">Fixed</a></li>
 <li><a href="#fixed--the-verification-that-was-supposed-to-catch-this" id="toc-fixed--the-verification-that-was-supposed-to-catch-this">Fixed —
 the verification that was supposed to catch this</a></li>
 <li><a href="#added--regression-guards" id="toc-added--regression-guards">Added — regression guards</a></li>
@@ -488,7 +492,7 @@ the verification that was supposed to catch this</a></li>
 fully replaced) + full retest</a>
 <ul>
 <li><a href="#changed-8" id="toc-changed-8">Changed</a></li>
-<li><a href="#fixed-18" id="toc-fixed-18">Fixed</a></li>
+<li><a href="#fixed-19" id="toc-fixed-19">Fixed</a></li>
 <li><a href="#verified-full-live-retest--captured-evidence-in-scriptstestsproof" id="toc-verified-full-live-retest--captured-evidence-in-scriptstestsproof">Verified
 (full live retest — captured evidence in
 <code>scripts/tests/proof/</code>)</a></li>
@@ -542,45 +546,45 @@ fix</a></li>
 output-token clamp + ccr launch fixes</a>
 <ul>
 <li><a href="#added-13" id="toc-added-13">Added</a></li>
-<li><a href="#fixed-19" id="toc-fixed-19">Fixed</a></li>
+<li><a href="#fixed-20" id="toc-fixed-20">Fixed</a></li>
 <li><a href="#testing--validation-4" id="toc-testing--validation-4">Testing / validation</a></li>
 </ul></li>
 <li><a href="#v1170--2026-07-18--cross-alias-session--background-agent-continuity" id="toc-v1170--2026-07-18--cross-alias-session--background-agent-continuity">v1.17.0
 — 2026-07-18 — Cross-alias session &amp; background-agent continuity</a>
 <ul>
-<li><a href="#fixed-20" id="toc-fixed-20">Fixed</a></li>
+<li><a href="#fixed-21" id="toc-fixed-21">Fixed</a></li>
 <li><a href="#added-14" id="toc-added-14">Added</a></li>
 </ul></li>
 <li><a href="#v1160--2026-07-18--output-token-cap-for-router-providers" id="toc-v1160--2026-07-18--output-token-cap-for-router-providers">v1.16.0
 — 2026-07-18 — Output-token cap for router providers</a>
 <ul>
-<li><a href="#fixed-21" id="toc-fixed-21">Fixed</a></li>
+<li><a href="#fixed-22" id="toc-fixed-22">Fixed</a></li>
 <li><a href="#added-15" id="toc-added-15">Added</a></li>
 </ul></li>
 <li><a href="#v1150--2026-07-18--full-kimi-variant-support-oauth-subscription-models" id="toc-v1150--2026-07-18--full-kimi-variant-support-oauth-subscription-models">v1.15.0
 — 2026-07-18 — Full Kimi variant support (OAuth subscription models)</a>
 <ul>
 <li><a href="#added-16" id="toc-added-16">Added</a></li>
-<li><a href="#fixed-22" id="toc-fixed-22">Fixed</a></li>
+<li><a href="#fixed-23" id="toc-fixed-23">Fixed</a></li>
 <li><a href="#testing" id="toc-testing">Testing</a></li>
 </ul></li>
 <li><a href="#v1140--2026-07-17--anti-bluff-provider-verification-strict-filtering" id="toc-v1140--2026-07-17--anti-bluff-provider-verification-strict-filtering">v1.14.0
 — 2026-07-17 — Anti-bluff provider verification (strict filtering)</a>
 <ul>
-<li><a href="#fixed-23" id="toc-fixed-23">Fixed</a></li>
+<li><a href="#fixed-24" id="toc-fixed-24">Fixed</a></li>
 <li><a href="#added-17" id="toc-added-17">Added</a></li>
 <li><a href="#changed-9" id="toc-changed-9">Changed</a></li>
 </ul></li>
 <li><a href="#v1133--2026-07-17--session-sharing-pipefail-fix" id="toc-v1133--2026-07-17--session-sharing-pipefail-fix">v1.13.3 —
 2026-07-17 — Session-sharing pipefail fix</a>
 <ul>
-<li><a href="#fixed-24" id="toc-fixed-24">Fixed</a></li>
+<li><a href="#fixed-25" id="toc-fixed-25">Fixed</a></li>
 <li><a href="#added-18" id="toc-added-18">Added</a></li>
 </ul></li>
 <li><a href="#v1130--2026-07-10--project-scoped-cwd-hook-session-resumption-fix" id="toc-v1130--2026-07-10--project-scoped-cwd-hook-session-resumption-fix">v1.13.0
 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)</a>
 <ul>
-<li><a href="#fixed-25" id="toc-fixed-25">Fixed</a></li>
+<li><a href="#fixed-26" id="toc-fixed-26">Fixed</a></li>
 <li><a href="#added-19" id="toc-added-19">Added</a></li>
 </ul></li>
 <li><a href="#v1123--2026-07-05--session-name-sanitization-kebab-case" id="toc-v1123--2026-07-05--session-name-sanitization-kebab-case">v1.12.3
@@ -593,7 +597,7 @@ output-token clamp + ccr launch fixes</a>
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</a>
 <ul>
-<li><a href="#fixed-26" id="toc-fixed-26">Fixed</a></li>
+<li><a href="#fixed-27" id="toc-fixed-27">Fixed</a></li>
 <li><a href="#added-21" id="toc-added-21">Added</a></li>
 </ul></li>
 <li><a href="#v1121--2026-07-05--judge-independence--resolverobustness-hardening" id="toc-v1121--2026-07-05--judge-independence--resolverobustness-hardening">v1.12.1
@@ -601,21 +605,21 @@ hardening</a>
 <ul>
 <li><a href="#changed-11" id="toc-changed-11">Changed</a></li>
 <li><a href="#added-22" id="toc-added-22">Added</a></li>
-<li><a href="#fixed-27" id="toc-fixed-27">Fixed</a></li>
+<li><a href="#fixed-28" id="toc-fixed-28">Fixed</a></li>
 </ul></li>
 <li><a href="#v1120--2026-07-05--semantic-code-visibility-layer-3--live-tui-verification-layer-4" id="toc-v1120--2026-07-05--semantic-code-visibility-layer-3--live-tui-verification-layer-4">v1.12.0
 — 2026-07-05 — Semantic code-visibility (layer 3) + live TUI
 verification (layer 4)</a>
 <ul>
 <li><a href="#added-23" id="toc-added-23">Added</a></li>
-<li><a href="#fixed-28" id="toc-fixed-28">Fixed</a></li>
+<li><a href="#fixed-29" id="toc-fixed-29">Fixed</a></li>
 <li><a href="#notes-3" id="toc-notes-3">Notes</a></li>
 </ul></li>
 <li><a href="#v1112--2026-07-03--token-limit-guard--re-enabled-provider-proxies--poe-tool-cap" id="toc-v1112--2026-07-03--token-limit-guard--re-enabled-provider-proxies--poe-tool-cap">v1.11.2
 — 2026-07-03 — Token-limit guard + re-enabled provider proxies + Poe
 tool cap</a>
 <ul>
-<li><a href="#fixed-29" id="toc-fixed-29">Fixed</a></li>
+<li><a href="#fixed-30" id="toc-fixed-30">Fixed</a></li>
 <li><a href="#changed-12" id="toc-changed-12">Changed</a></li>
 <li><a href="#added-24" id="toc-added-24">Added</a></li>
 </ul></li>
@@ -624,13 +628,13 @@ tool cap</a>
 provider fixes</a>
 <ul>
 <li><a href="#added-25" id="toc-added-25">Added</a></li>
-<li><a href="#fixed-30" id="toc-fixed-30">Fixed</a></li>
+<li><a href="#fixed-31" id="toc-fixed-31">Fixed</a></li>
 <li><a href="#verified-live-on-host" id="toc-verified-live-on-host">Verified (live on host)</a></li>
 </ul></li>
 <li><a href="#v1108--2026-07-01--noclobber-safe-router-provider-config-write" id="toc-v1108--2026-07-01--noclobber-safe-router-provider-config-write">v1.10.8
 — 2026-07-01 — noclobber-safe router-provider config write</a>
 <ul>
-<li><a href="#fixed-31" id="toc-fixed-31">Fixed</a></li>
+<li><a href="#fixed-32" id="toc-fixed-32">Fixed</a></li>
 <li><a href="#added-tests" id="toc-added-tests">Added (tests)</a></li>
 <li><a href="#verified-4" id="toc-verified-4">Verified</a></li>
 <li><a href="#note-not-a-toolkit-bug" id="toc-note-not-a-toolkit-bug">Note (not a toolkit bug)</a></li>
@@ -655,7 +659,7 @@ checked)</a></li>
 <li><a href="#v1105--2026-06-29--provider-null-field-normalization--coverage" id="toc-v1105--2026-06-29--provider-null-field-normalization--coverage">v1.10.5
 — 2026-06-29 — Provider &#39;null&#39; field normalization + coverage</a>
 <ul>
-<li><a href="#fixed-32" id="toc-fixed-32">Fixed</a></li>
+<li><a href="#fixed-33" id="toc-fixed-33">Fixed</a></li>
 <li><a href="#added-tests-3" id="toc-added-tests-3">Added
 (tests)</a></li>
 <li><a href="#audited--no-change-needed-independently-verified-not-taken-on-trust" id="toc-audited--no-change-needed-independently-verified-not-taken-on-trust">Audited
@@ -665,7 +669,7 @@ checked)</a></li>
 <li><a href="#v1104--2026-06-29--set--epipefail-abort-fixes--hardened-test-coverage" id="toc-v1104--2026-06-29--set--epipefail-abort-fixes--hardened-test-coverage">v1.10.4
 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage</a>
 <ul>
-<li><a href="#fixed-33" id="toc-fixed-33">Fixed</a></li>
+<li><a href="#fixed-34" id="toc-fixed-34">Fixed</a></li>
 <li><a href="#changed-tests" id="toc-changed-tests">Changed
 (tests)</a></li>
 <li><a href="#verified-8" id="toc-verified-8">Verified</a></li>
@@ -679,14 +683,14 @@ checked)</a></li>
 <li><a href="#v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests" id="toc-v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</a>
 <ul>
-<li><a href="#fixed-34" id="toc-fixed-34">Fixed</a></li>
+<li><a href="#fixed-35" id="toc-fixed-35">Fixed</a></li>
 <li><a href="#added-27" id="toc-added-27">Added</a></li>
 <li><a href="#verified-10" id="toc-verified-10">Verified</a></li>
 </ul></li>
 <li><a href="#v1101--2026-06-29--robust-cma_run-wrapper-assertions" id="toc-v1101--2026-06-29--robust-cma_run-wrapper-assertions">v1.10.1 —
 2026-06-29 — Robust cma_run wrapper assertions</a>
 <ul>
-<li><a href="#fixed-35" id="toc-fixed-35">Fixed</a></li>
+<li><a href="#fixed-36" id="toc-fixed-36">Fixed</a></li>
 <li><a href="#verified-11" id="toc-verified-11">Verified</a></li>
 </ul></li>
 <li><a href="#v1100--2026-06-29--auto-applied-per-alias-session-color--coveragewiring" id="toc-v1100--2026-06-29--auto-applied-per-alias-session-color--coveragewiring">v1.10.0
@@ -694,33 +698,33 @@ checked)</a></li>
 coverage/wiring</a>
 <ul>
 <li><a href="#added-28" id="toc-added-28">Added</a></li>
-<li><a href="#fixed-36" id="toc-fixed-36">Fixed</a></li>
+<li><a href="#fixed-37" id="toc-fixed-37">Fixed</a></li>
 <li><a href="#verified-12" id="toc-verified-12">Verified</a></li>
 </ul></li>
 <li><a href="#v192--2026-06-29--hermetic-claude_bin-resolver-test" id="toc-v192--2026-06-29--hermetic-claude_bin-resolver-test">v1.9.2 —
 2026-06-29 — Hermetic CLAUDE_BIN resolver test</a>
 <ul>
-<li><a href="#fixed-37" id="toc-fixed-37">Fixed</a></li>
+<li><a href="#fixed-38" id="toc-fixed-38">Fixed</a></li>
 <li><a href="#verified-13" id="toc-verified-13">Verified</a></li>
 </ul></li>
 <li><a href="#v191--2026-06-29--claude_bin-resolves-across-per-host-install-locations" id="toc-v191--2026-06-29--claude_bin-resolves-across-per-host-install-locations">v1.9.1
 — 2026-06-29 — CLAUDE_BIN resolves across per-host install locations</a>
 <ul>
-<li><a href="#fixed-38" id="toc-fixed-38">Fixed</a></li>
+<li><a href="#fixed-39" id="toc-fixed-39">Fixed</a></li>
 <li><a href="#verified-14" id="toc-verified-14">Verified</a></li>
 </ul></li>
 <li><a href="#v190--2026-06-29--per-project-auto-sessions-that-actually-work-live--zero-coverage-tests" id="toc-v190--2026-06-29--per-project-auto-sessions-that-actually-work-live--zero-coverage-tests">v1.9.0
 — 2026-06-29 — Per-project auto-sessions that actually work live +
 zero-coverage tests</a>
 <ul>
-<li><a href="#fixed-39" id="toc-fixed-39">Fixed</a></li>
+<li><a href="#fixed-40" id="toc-fixed-40">Fixed</a></li>
 <li><a href="#added-29" id="toc-added-29">Added</a></li>
 <li><a href="#verified-15" id="toc-verified-15">Verified</a></li>
 </ul></li>
 <li><a href="#v181--2026-06-29--merge-engine-correctness--portability-hardening" id="toc-v181--2026-06-29--merge-engine-correctness--portability-hardening">v1.8.1
 — 2026-06-29 — Merge-engine correctness + portability hardening</a>
 <ul>
-<li><a href="#fixed-40" id="toc-fixed-40">Fixed</a></li>
+<li><a href="#fixed-41" id="toc-fixed-41">Fixed</a></li>
 <li><a href="#added-30" id="toc-added-30">Added</a></li>
 <li><a href="#verified-16" id="toc-verified-16">Verified</a></li>
 </ul></li>
@@ -728,7 +732,7 @@ zero-coverage tests</a>
 — 2026-06-29 — Alias isolation + token-limit guard + per-project
 auto-sessions</a>
 <ul>
-<li><a href="#fixed-41" id="toc-fixed-41">Fixed</a></li>
+<li><a href="#fixed-42" id="toc-fixed-42">Fixed</a></li>
 <li><a href="#added-31" id="toc-added-31">Added</a></li>
 <li><a href="#verified-17" id="toc-verified-17">Verified</a></li>
 </ul></li>
@@ -742,7 +746,7 @@ auto-sessions</a>
 — 2026-06-28 — Round-4: coverage-gap regression tests, toon recursion
 guard, arg validation</a>
 <ul>
-<li><a href="#fixed-42" id="toc-fixed-42">Fixed</a></li>
+<li><a href="#fixed-43" id="toc-fixed-43">Fixed</a></li>
 <li><a href="#added--coverage-gap-regression-tests-the-same-class-that-let-enable-plugins" id="toc-added--coverage-gap-regression-tests-the-same-class-that-let-enable-plugins">Added
 — coverage-gap regression tests (the same class that let
 enable-plugins</a></li>
@@ -752,7 +756,7 @@ enable-plugins</a></li>
 — 2026-06-28 — Round-3 audit: enable-plugins bug fix, path-traversal
 guards, proxy robustness</a>
 <ul>
-<li><a href="#fixed-43" id="toc-fixed-43">Fixed</a></li>
+<li><a href="#fixed-44" id="toc-fixed-44">Fixed</a></li>
 <li><a href="#security-defense-in-depth" id="toc-security-defense-in-depth">Security (defense-in-depth)</a></li>
 <li><a href="#robustness" id="toc-robustness">Robustness</a></li>
 <li><a href="#verified-20" id="toc-verified-20">Verified</a></li>
@@ -764,7 +768,7 @@ clean</a></li>
 secret redaction, docs accuracy, shellcheck 0</a>
 <ul>
 <li><a href="#security-1" id="toc-security-1">Security</a></li>
-<li><a href="#fixed-44" id="toc-fixed-44">Fixed</a></li>
+<li><a href="#fixed-45" id="toc-fixed-45">Fixed</a></li>
 <li><a href="#docs" id="toc-docs">Docs</a></li>
 <li><a href="#quality" id="toc-quality">Quality</a></li>
 <li><a href="#verified-21" id="toc-verified-21">Verified</a></li>
@@ -774,7 +778,7 @@ secret redaction, docs accuracy, shellcheck 0</a>
 fix, coverage tests</a>
 <ul>
 <li><a href="#security-2" id="toc-security-2">Security</a></li>
-<li><a href="#fixed-45" id="toc-fixed-45">Fixed</a></li>
+<li><a href="#fixed-46" id="toc-fixed-46">Fixed</a></li>
 <li><a href="#added-33" id="toc-added-33">Added</a></li>
 <li><a href="#verified-22" id="toc-verified-22">Verified</a></li>
 </ul></li>
@@ -782,7 +786,7 @@ fix, coverage tests</a>
 — 2026-06-28 — Portable realpath (BSD portability hardening), set -u
 edge fix, regression tests</a>
 <ul>
-<li><a href="#fixed-46" id="toc-fixed-46">Fixed</a></li>
+<li><a href="#fixed-47" id="toc-fixed-47">Fixed</a></li>
 <li><a href="#added-34" id="toc-added-34">Added</a></li>
 <li><a href="#verified-23" id="toc-verified-23">Verified</a></li>
 <li><a href="#audit-findings-v176--no-code-change-required" id="toc-audit-findings-v176--no-code-change-required">Audit findings
@@ -792,7 +796,7 @@ edge fix, regression tests</a>
 — 2026-06-28 — Always-non-interactive execution, alias-file integrity,
 macOS/bash-3.2 portability, 4-host rollout</a>
 <ul>
-<li><a href="#fixed-47" id="toc-fixed-47">Fixed</a></li>
+<li><a href="#fixed-48" id="toc-fixed-48">Fixed</a></li>
 <li><a href="#added-35" id="toc-added-35">Added</a></li>
 <li><a href="#multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal" id="toc-multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal">Multi-host
 rollout (nezha · mistborn.local · thinker.local · amber.local)</a></li>
@@ -801,7 +805,7 @@ rollout (nezha · mistborn.local · thinker.local · amber.local)</a></li>
 <li><a href="#v175--2026-06-28--cross-provider-resume-session-visibility-fix" id="toc-v175--2026-06-28--cross-provider-resume-session-visibility-fix">v1.7.5
 — 2026-06-28 — Cross-provider /resume session visibility fix</a>
 <ul>
-<li><a href="#fixed-48" id="toc-fixed-48">Fixed</a></li>
+<li><a href="#fixed-49" id="toc-fixed-49">Fixed</a></li>
 <li><a href="#root-cause-analysis" id="toc-root-cause-analysis">Root
 Cause Analysis</a></li>
 <li><a href="#verified-25" id="toc-verified-25">Verified</a></li>
@@ -810,7 +814,7 @@ Cause Analysis</a></li>
 <li><a href="#v174--2026-06-26--kimi-provider-fix--aws-iac-mcp-disabled-by-default" id="toc-v174--2026-06-26--kimi-provider-fix--aws-iac-mcp-disabled-by-default">v1.7.4
 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default</a>
 <ul>
-<li><a href="#fixed-49" id="toc-fixed-49">Fixed</a></li>
+<li><a href="#fixed-50" id="toc-fixed-50">Fixed</a></li>
 <li><a href="#changed-13" id="toc-changed-13">Changed</a></li>
 <li><a href="#tests-1" id="toc-tests-1">Tests</a></li>
 </ul></li>
@@ -826,14 +830,14 @@ Savings</a></li>
 <li><a href="#v165--2026-06-21--poe-proxy-fix-alias-file--install" id="toc-v165--2026-06-21--poe-proxy-fix-alias-file--install">v1.6.5 —
 2026-06-21 — Poe proxy fix (alias file + install)</a>
 <ul>
-<li><a href="#fixed-50" id="toc-fixed-50">Fixed</a></li>
+<li><a href="#fixed-51" id="toc-fixed-51">Fixed</a></li>
 <li><a href="#verified-26" id="toc-verified-26">Verified</a></li>
 <li><a href="#tests-3" id="toc-tests-3">Tests</a></li>
 </ul></li>
 <li><a href="#v164--2026-06-21--poe-proxy-fix-for-tool-compatibility" id="toc-v164--2026-06-21--poe-proxy-fix-for-tool-compatibility">v1.6.4 —
 2026-06-21 — Poe proxy fix for tool compatibility</a>
 <ul>
-<li><a href="#fixed-51" id="toc-fixed-51">Fixed</a></li>
+<li><a href="#fixed-52" id="toc-fixed-52">Fixed</a></li>
 <li><a href="#verified-27" id="toc-verified-27">Verified</a></li>
 <li><a href="#tests-4" id="toc-tests-4">Tests</a></li>
 </ul></li>
@@ -852,7 +856,7 @@ Savings</a></li>
 <li><a href="#v161--2026-06-21--cache_control-fix--e2e-tests" id="toc-v161--2026-06-21--cache_control-fix--e2e-tests">v1.6.1 —
 2026-06-21 — cache_control fix + E2E tests</a>
 <ul>
-<li><a href="#fixed-52" id="toc-fixed-52">Fixed</a></li>
+<li><a href="#fixed-53" id="toc-fixed-53">Fixed</a></li>
 <li><a href="#added-38" id="toc-added-38">Added</a></li>
 <li><a href="#verified-working-all-aliases-tested-with-do-you-see-our-codebase" id="toc-verified-working-all-aliases-tested-with-do-you-see-our-codebase">Verified
 working (all aliases tested with &quot;Do you see our codebase?&quot;)</a></li>
@@ -869,7 +873,7 @@ suite</a></li>
 <li><a href="#v151--2026-06-20--linux-stat-fix--nezha-deployment" id="toc-v151--2026-06-20--linux-stat-fix--nezha-deployment">v1.5.1 —
 2026-06-20 — Linux stat fix + nezha deployment</a>
 <ul>
-<li><a href="#fixed-53" id="toc-fixed-53">Fixed</a></li>
+<li><a href="#fixed-54" id="toc-fixed-54">Fixed</a></li>
 <li><a href="#deployment" id="toc-deployment">Deployment</a></li>
 <li><a href="#full-test-suite-1" id="toc-full-test-suite-1">Full test
 suite</a></li>
@@ -927,28 +931,28 @@ live (real &quot;Do you see my code?&quot; against production APIs)</a></li>
 <li><a href="#v167--2026-06-21--poe-proxy-fix-for-all-aliases" id="toc-v167--2026-06-21--poe-proxy-fix-for-all-aliases">v1.6.7 —
 2026-06-21 — Poe proxy fix for all aliases</a>
 <ul>
-<li><a href="#fixed-54" id="toc-fixed-54">Fixed</a></li>
+<li><a href="#fixed-55" id="toc-fixed-55">Fixed</a></li>
 <li><a href="#verified-30" id="toc-verified-30">Verified</a></li>
 <li><a href="#tests-5" id="toc-tests-5">Tests</a></li>
 </ul></li>
 <li><a href="#v168--2026-06-21--poe-proxy-gzip-fix" id="toc-v168--2026-06-21--poe-proxy-gzip-fix">v1.6.8 — 2026-06-21 — Poe
 proxy gzip fix</a>
 <ul>
-<li><a href="#fixed-55" id="toc-fixed-55">Fixed</a></li>
+<li><a href="#fixed-56" id="toc-fixed-56">Fixed</a></li>
 <li><a href="#verified-31" id="toc-verified-31">Verified</a></li>
 <li><a href="#tests-6" id="toc-tests-6">Tests</a></li>
 </ul></li>
 <li><a href="#v169--2026-06-21--poe-proxy-ref-fix-for-grok-4" id="toc-v169--2026-06-21--poe-proxy-ref-fix-for-grok-4">v1.6.9 —
 2026-06-21 — Poe proxy $ref fix for Grok-4</a>
 <ul>
-<li><a href="#fixed-56" id="toc-fixed-56">Fixed</a></li>
+<li><a href="#fixed-57" id="toc-fixed-57">Fixed</a></li>
 <li><a href="#verified-32" id="toc-verified-32">Verified</a></li>
 <li><a href="#tests-7" id="toc-tests-7">Tests</a></li>
 </ul></li>
 <li><a href="#v170--2026-06-22--poe-proxy-complete-fix-all-aliases-verified" id="toc-v170--2026-06-22--poe-proxy-complete-fix-all-aliases-verified">v1.7.0
 — 2026-06-22 — Poe proxy complete fix (all aliases verified)</a>
 <ul>
-<li><a href="#fixed-57" id="toc-fixed-57">Fixed</a></li>
+<li><a href="#fixed-58" id="toc-fixed-58">Fixed</a></li>
 <li><a href="#verified-all-three-aliases-through-full-claude-code-flow" id="toc-verified-all-three-aliases-through-full-claude-code-flow">Verified
 (all three aliases through full Claude Code flow)</a></li>
 <li><a href="#root-cause-analysis-1" id="toc-root-cause-analysis-1">Root
@@ -958,7 +962,7 @@ Cause Analysis</a></li>
 <li><a href="#v171--2026-06-22--full-validation--release" id="toc-v171--2026-06-22--full-validation--release">v1.7.1 — 2026-06-22
 — Full validation + release</a>
 <ul>
-<li><a href="#fixed-58" id="toc-fixed-58">Fixed</a></li>
+<li><a href="#fixed-59" id="toc-fixed-59">Fixed</a></li>
 <li><a href="#tests-9" id="toc-tests-9">Tests</a></li>
 <li><a href="#release" id="toc-release">Release</a></li>
 </ul></li>
@@ -973,6 +977,21 @@ Cause Analysis</a></li>
 </nav>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="unreleased">Unreleased</h2>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><code>scripts/jev_mcp.py</code>: the <code>jev</code> MCP server
+never connected in Claude Code (<code>CONNECT_TIMEOUT</code> after 30
+s). Root cause: every reply was written with LSP-style
+<code>Content-Length</code> framing, while the MCP stdio transport (and
+Claude Code&#39;s client) is newline-delimited JSON. The server now replies
+in the framing of the inbound message (default NDJSON;
+<code>Content-Length</code> clients are still answered in kind), echoes
+a supported client <code>protocolVersion</code> (2025-06-18, 2025-03-26,
+2024-11-05), skips malformed lines without writing non-JSON to stdout,
+and answers an unterminated final line at EOF. Covered by 11 new framing
+scenarios in <code>test_jev_mcp.sh</code> and 6 new mutation rows.</li>
+</ul>
 <h2 id="v1330-2026-10-24">v1.33.0 (2026-10-24)</h2>
 <p>Minor release on top of v1.32.0 (tags <code>v1.32.0</code> /
 <code>claude_toolkit-1.32.0</code>, both at <code>adae02d</code>). It is
@@ -1004,7 +1023,7 @@ the measured count (126, including the new
 <code>test_jev_hosted_live_fixes.sh</code> and
 <code>test_jev_key_origin_class.sh</code>).</li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-1">Fixed</h3>
 <ul>
 <li><code>jev_realpath</code> ignores an exported <code>CDPATH</code> (a
 relative <code>cd</code> was redirected and printed an extra line) and
@@ -1456,7 +1475,7 @@ once.</li>
 <code>llmctl switch</code> is no longer always reported as a failed
 rollback (see Fixed).</li>
 </ul>
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 <ul>
 <li><code>detect_jev_records</code> probed the local llmctl decide
 gateway over plain <code>http://</code> with no key, so a real gateway
@@ -1974,7 +1993,7 @@ GEMINI.md / QWEN.md.</li>
 <p>Fix-forward release addressing the independent NO-GO review of merge
 <code>dadd8b1</code> (feature/006 hardware-aware model management). No
 history rewritten.</p>
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 <ul>
 <li><code>cmd_sync</code> and <code>cmd_verify</code> now read
 <code>CMA_VERIFY_LAYER_FILE</code> through
@@ -2035,7 +2054,7 @@ account, never refreshes a token, and never makes a model call.</li>
 <code>KIMI_CODE_HOME=&lt;dir&gt; kimi login</code> command to restore
 windows.</li>
 </ul>
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 <ul>
 <li>A Kimi usage ratio outside [0, 1], non-finite, boolean or
 non-numeric is rejected rather than rendered as a made-up window. An
@@ -2118,7 +2137,7 @@ fixes, live-test gating, doc corrections</h2>
 <p>Patch release on top of v1.30.2. It closes the remaining known-issues
 register items that were still open, and it records one incident
 honestly.</p>
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 <ul>
 <li>Kimi-leg config-missing refusal: a verified provider&#39;s
 <code>kimi-&lt;id&gt;</code> twin is refused when its
@@ -2195,7 +2214,7 @@ post-release review and of the known-issues register. Each fix was made
 under the subagent-driven TDD and independent-review discipline: a fresh
 implementer, a fresh reviewer, and a scoped re-review after any fix
 round. Known limitations are listed explicitly below.</p>
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-6">Fixed</h3>
 <ul>
 <li><p><strong>T028 — quota test reached the real network on a cache
 miss.</strong> The test ran against the tracked endpoints file, which
@@ -2291,7 +2310,7 @@ This release fixes them. Each fix was made under the same
 subagent-driven TDD and independent-review discipline as the original
 feature: a fresh implementer, a fresh reviewer, and a scoped re-review
 after any fix round.</p>
-<h3 id="fixed-6">Fixed</h3>
+<h3 id="fixed-7">Fixed</h3>
 <ul>
 <li><p><strong>C1 — native accounts had no auth-expiry distinction
 (Critical).</strong> Every native
@@ -2971,7 +2990,7 @@ provider context (<code>text + tools + output = context</code>), leaving
 zero headroom for the compacted summary itself. After a compact, a large
 file read or tool output could refill the context to the limit within a
 few turns, triggering Claude Code&#39;s thrashing stop condition.</p>
-<h3 id="fixed-7">Fixed</h3>
+<h3 id="fixed-8">Fixed</h3>
 <ul>
 <li><p><strong>Autocompact safety margin for provider aliases.</strong>
 <code>cma_run_provider</code> now reserves
@@ -3076,7 +3095,7 @@ exist. Both shipped a confidently-worded wrong cause, and both of those
 wordings are retired here. This entry also folds in the v1.26.5 and
 v1.26.6 work, which shipped as version-stamped commit subjects but never
 received changelog entries.</p>
-<h3 id="fixed-8">Fixed</h3>
+<h3 id="fixed-9">Fixed</h3>
 <ul>
 <li><p><strong><code>claude-ccr-build.sh</code> probed a path STRING,
 not a file, so its own documented system-Go fallback was unreachable
@@ -3541,7 +3560,7 @@ evidence file for every verdict. Covered by new hermetic
 <code>test_aliases_live_classifier.sh</code> (10/10; RED 5-fail on the
 unpatched script).</li>
 </ul>
-<h3 id="fixed-9">Fixed</h3>
+<h3 id="fixed-10">Fixed</h3>
 <ul>
 <li><strong>The 2.1.220 auto-compact loop: router-transport aliases
 exported NO model/tier maps, so the fast/compact tier resolved
@@ -3790,7 +3809,7 @@ servers holding stale pane shells and prints the exact
 re-source/broadcast commands (broadcast only on an interactive
 default-No confirm — never autonomous send-keys).</li>
 </ul>
-<h3 id="fixed-10">Fixed</h3>
+<h3 id="fixed-11">Fixed</h3>
 <ul>
 <li><strong>Pinned helixagent facade models survive a live sync
 (ATM-851).</strong> When the live <code>/v1/models</code> listing did
@@ -3844,7 +3863,7 @@ interactive-shell stderr fix + anti-fossil r-m-w hardening</h2>
 to a zero-finding / zero-warning GO on Fable-xhigh (Opus-xhigh fallback
 while Fable is weekly-limited; §11.4.209/§11.4.134); install suite 46/46
 green (<code>suite_rc=0</code>).</p>
-<h3 id="fixed-11">Fixed</h3>
+<h3 id="fixed-12">Fixed</h3>
 <ul>
 <li><strong><code>install.sh</code> no longer prints
 <code>[done] installed</code> over a broken or missing
@@ -3882,7 +3901,7 @@ bluff).</li>
 — 2026-07-22 — un-fossilise ephemeral cma-proxy addresses (kill the 502
 class) + toon Go port</h2>
 <p>Patch + feature release on top of v1.25.3.</p>
-<h3 id="fixed-12">Fixed</h3>
+<h3 id="fixed-13">Fixed</h3>
 <ul>
 <li><strong>Ephemeral cma-proxy address no longer fossilises into
 <code>Router.default</code>.</strong> A transform-declaring provider
@@ -3918,7 +3937,7 @@ walk-up superset).</li>
 — 2026-07-22 — trim knob survives generator regen + operator docs for
 trim/gate/container-mode</h2>
 <p>Patch follow-up to v1.25.2.</p>
-<h3 id="fixed-13">Fixed</h3>
+<h3 id="fixed-14">Fixed</h3>
 <ul>
 <li><strong><code>CMA_PROVIDER_TRIM</code> now survives a provider
 re-add.</strong> The v1.25.2 trim knob was a hand-added line on the
@@ -3971,7 +3990,7 @@ auto-resumed session history + ~110k of plugin/MCP tool schemas
 overflowing the local model&#39;s window on every launch (a direct
 <code>claude --bare -p hi</code> request measures 4,891 bytes — the
 client was never the problem).</p>
-<h3 id="fixed-14">Fixed</h3>
+<h3 id="fixed-15">Fixed</h3>
 <ul>
 <li><strong><code>cma_run_provider</code> resolves OUR router by its
 stable install identity, never by PATH order.</strong> Resolution:
@@ -4018,7 +4037,7 @@ normal interactive shell, EVERY router-transport provider alias
 (helixagent, poe, kimi, …) could refuse to launch —</p>
 <pre><code>claude-providers: refusing to launch &lt;id&gt; — its ccr route was NOT applied.
   &#39;ccr restart&#39; failed (rc=1): Profile &quot;restart&quot; was not found or is disabled.</code></pre>
-<h3 id="fixed-15">Fixed</h3>
+<h3 id="fixed-16">Fixed</h3>
 <ul>
 <li><strong>A stale bundled <code>ccr</code> binary no longer bricks
 router-alias launches.</strong> The vendored Go router <code>ccr</code>
@@ -4187,7 +4206,7 @@ test-lib helpers (<code>tests/lib/classify_live.py</code>,
 <code>tests/lib/pty_drive.py</code>) — is a planned follow-up,
 <strong>not</strong> in this release.</li>
 </ul>
-<h3 id="fixed-16">Fixed</h3>
+<h3 id="fixed-17">Fixed</h3>
 <ul>
 <li><strong>HelixAgent was a non-attributable facade — now genuinely
 routes to the real HelixLLM server, and a mode-switch makes its
@@ -4518,7 +4537,7 @@ reset is slower than before; the result is cached for 24h, so subsequent
 syncs skip it. The probes are bounded and never hang; a slow provider is
 a duration cost, not a stall.</li>
 </ul>
-<h3 id="fixed-17">Fixed</h3>
+<h3 id="fixed-18">Fixed</h3>
 <ul>
 <li><strong>Token-limit guards were derived independently and could not
 both be satisfied, killing an alias at launch with a 400.</strong>
@@ -5256,7 +5275,7 @@ up the reworded guard. <code>test_output_tokens.sh</code> now asserts
 the refusal points at <code>claude-ccr-build</code> AND no longer
 advertises the JS npm router.</li>
 </ul>
-<h3 id="fixed-18">Fixed</h3>
+<h3 id="fixed-19">Fixed</h3>
 <ul>
 <li><strong><code>test_lib.sh</code> proof-secret scanner:
 token-boundary anchoring.</strong> The proof-dir secret scanner matched
@@ -5397,7 +5416,7 @@ The HelixAgent facade points ccr at its own <code>:3456</code> gateway;
 the guard prevents an infinite self-referential launch loop.</li>
 </ul></li>
 </ul>
-<h3 id="fixed-19">Fixed</h3>
+<h3 id="fixed-20">Fixed</h3>
 <ul>
 <li><strong>128k output-token clamp for every provider alias, on both
 transports.</strong> <code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code> is
@@ -5441,7 +5460,7 @@ this release.</li>
 <h2 id="v1170--2026-07-18--cross-alias-session--background-agent-continuity">v1.17.0
 — 2026-07-18 — Cross-alias session &amp; background-agent
 continuity</h2>
-<h3 id="fixed-20">Fixed</h3>
+<h3 id="fixed-21">Fixed</h3>
 <ul>
 <li><strong>A session left under one alias was invisible from every
 other alias.</strong> Opening a project from <code>xiaomi</code>,
@@ -5504,7 +5523,7 @@ live) and bank case <code>cma-pav-cross-alias-session-continuity</code>
 </ul>
 <h2 id="v1160--2026-07-18--output-token-cap-for-router-providers">v1.16.0 —
 2026-07-18 — Output-token cap for router providers</h2>
-<h3 id="fixed-21">Fixed</h3>
+<h3 id="fixed-22">Fixed</h3>
 <ul>
 <li><strong>&quot;Claude&#39;s response exceeded the 128000 output token maximum&quot;
 on router providers.</strong> <code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code>
@@ -5625,7 +5644,7 @@ Claude Code PASS.</li>
 precedence, freshness, schema proxy, live kimi-alias freshness) — 15/15
 PASS live.</li>
 </ul>
-<h3 id="fixed-22">Fixed</h3>
+<h3 id="fixed-23">Fixed</h3>
 <ul>
 <li><strong><code>claude-providers verify &lt;id&gt;</code> was unusable
 for OAuth providers</strong> — it never injected the OAuth token, so
@@ -5679,7 +5698,7 @@ real Claude Code launches through the aliases.</li>
 </ul>
 <h2 id="v1140--2026-07-17--anti-bluff-provider-verification-strict-filtering">v1.14.0
 — 2026-07-17 — Anti-bluff provider verification (strict filtering)</h2>
-<h3 id="fixed-23">Fixed</h3>
+<h3 id="fixed-24">Fixed</h3>
 <ul>
 <li><strong>Provider aliases passed verification while being broken at
 runtime.</strong> Aliases such as <code>huggingface</code> were marked
@@ -5869,7 +5888,7 @@ verification semantics (§3 command table, §5 multi-alias verification,
 </ul>
 <h2 id="v1133--2026-07-17--session-sharing-pipefail-fix">v1.13.3 —
 2026-07-17 — Session-sharing pipefail fix</h2>
-<h3 id="fixed-24">Fixed</h3>
+<h3 id="fixed-25">Fixed</h3>
 <ul>
 <li><strong>All aliases created separate, unshared sessions for the same
 project.</strong> Switching between <code>claude1</code>,
@@ -5905,7 +5924,7 @@ with full root cause analysis, evidence, and architecture notes.</li>
 </ul>
 <h2 id="v1130--2026-07-10--project-scoped-cwd-hook-session-resumption-fix">v1.13.0
 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)</h2>
-<h3 id="fixed-25">Fixed</h3>
+<h3 id="fixed-26">Fixed</h3>
 <ul>
 <li><strong>Sessions were resumed for the wrong project when switching
 Claude Code aliases.</strong> When the global
@@ -5970,7 +5989,7 @@ of special invalid characters.</li>
 <h2 id="v1122--2026-07-05--native-alias-auto-registration--account-detection-hardening">v1.12.2
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</h2>
-<h3 id="fixed-26">Fixed</h3>
+<h3 id="fixed-27">Fixed</h3>
 <ul>
 <li><strong>Native <code>claude&lt;N&gt;</code> aliases were never
 created for pre-existing account dirs.</strong> Running
@@ -6036,7 +6055,7 @@ confirmed live.</li>
 constitution (records the CONST-051 project-agnostic boundary under a
 non-colliding id).</li>
 </ul>
-<h3 id="fixed-27">Fixed</h3>
+<h3 id="fixed-28">Fixed</h3>
 <ul>
 <li>A directory passed as the keys file (<code>CMA_KEYS_FILE</code> /
 <code>--keys-file</code>) now dies with a clear message instead of
@@ -6084,7 +6103,7 @@ per installed provider, writes secret-redacted evidence + an aggregate
 <code>proof/providers-summary.json</code>; already wired into
 <code>run-proof.sh</code>.</li>
 </ul>
-<h3 id="fixed-28">Fixed</h3>
+<h3 id="fixed-29">Fixed</h3>
 <ul>
 <li><strong><code>--refresh-aliases</code> was not
 byte-idempotent</strong> — <code>cma_provider_write_alias</code> re-ran
@@ -6131,7 +6150,7 @@ mode with scrubbed env, and root-caused every genuine failure. Three
 real toolkit bugs fixed (below); all remaining non-passes are
 account-side (insufficient funds, rejected/absent keys, or a key with no
 chat entitlement) — not toolkit defects.</p>
-<h3 id="fixed-29">Fixed</h3>
+<h3 id="fixed-30">Fixed</h3>
 <ul>
 <li><strong>Input token-limit 400</strong> —
 <code>scripts/lib.sh (cma_run_provider)</code> now exports
@@ -6237,7 +6256,7 @@ capture transcript, quit).</li>
 <li><strong>scripts/tests/lib/classify_live.py</strong> — shared
 transcript classifier.</li>
 </ul>
-<h3 id="fixed-30">Fixed</h3>
+<h3 id="fixed-31">Fixed</h3>
 <ul>
 <li><strong>huggingface</strong> — strong/fast pinned to non-reasoning
 coder models (<code>Qwen/Qwen3-Coder-480B-A35B-Instruct</code> /
@@ -6281,7 +6300,7 @@ python files compile.</li>
 </ul>
 <h2 id="v1108--2026-07-01--noclobber-safe-router-provider-config-write">v1.10.8
 — 2026-07-01 — noclobber-safe router-provider config write</h2>
-<h3 id="fixed-31">Fixed</h3>
+<h3 id="fixed-32">Fixed</h3>
 <ul>
 <li><strong>Every router-transport provider alias broke under
 <code>set -o noclobber</code>.</strong> <code>cma_run_provider</code>
@@ -6376,7 +6395,7 @@ this locks the property an audit verified by hand this session.</li>
 </ul>
 <h2 id="v1105--2026-06-29--provider-null-field-normalization--coverage">v1.10.5
 — 2026-06-29 — Provider &#39;null&#39; field normalization + coverage</h2>
-<h3 id="fixed-32">Fixed</h3>
+<h3 id="fixed-33">Fixed</h3>
 <ul>
 <li><strong>A missing JSON field could write
 <code>CMA_PROVIDER_MODEL=&#39;null&#39;</code> (and <code>TRANSPORT</code>,
@@ -6422,7 +6441,7 @@ FALSE — there is no <code>2&gt;&amp;1</code> on those lines.</li>
 </ul>
 <h2 id="v1104--2026-06-29--set--epipefail-abort-fixes--hardened-test-coverage">v1.10.4
 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage</h2>
-<h3 id="fixed-33">Fixed</h3>
+<h3 id="fixed-34">Fixed</h3>
 <ul>
 <li><strong><code>claude-providers list</code> / <code>remove</code>
 aborted on a provider with no alias line.</strong> Under
@@ -6491,7 +6510,7 @@ stub claude really executed. Proven <strong>RED</strong> on a dropped
 </ul>
 <h2 id="v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</h2>
-<h3 id="fixed-34">Fixed</h3>
+<h3 id="fixed-35">Fixed</h3>
 <ul>
 <li><strong>Dangling <code>source &quot;…/aliases.sh&quot;</code> lines in rc
 files.</strong> A transient or moved alias-file path could leave a
@@ -6522,7 +6541,7 @@ behavior, GREEN on the fix.</li>
 </ul>
 <h2 id="v1101--2026-06-29--robust-cma_run-wrapper-assertions">v1.10.1 —
 2026-06-29 — Robust cma_run wrapper assertions</h2>
-<h3 id="fixed-35">Fixed</h3>
+<h3 id="fixed-36">Fixed</h3>
 <ul>
 <li><strong><code>test_claude.sh</code> used a fixed
 <code>grep -A30</code> window</strong> to scan the <code>cma_run</code>
@@ -6573,7 +6592,7 @@ wrappers). <code>run-proof.sh</code> now also runs the
 previously-orphaned <code>verify_aliases_live.sh</code>.</li>
 </ul></li>
 </ul>
-<h3 id="fixed-36">Fixed</h3>
+<h3 id="fixed-37">Fixed</h3>
 <ul>
 <li><strong>Stale <code>CLAUDE_BIN</code> self-heals.</strong> Existing
 installs whose alias file pointed <code>CLAUDE_BIN</code> at a
@@ -6594,7 +6613,7 @@ recolour-on-alias-switch).</li>
 </ul>
 <h2 id="v192--2026-06-29--hermetic-claude_bin-resolver-test">v1.9.2 —
 2026-06-29 — Hermetic CLAUDE_BIN resolver test</h2>
-<h3 id="fixed-37">Fixed</h3>
+<h3 id="fixed-38">Fixed</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code> B7 &quot;fallback when nowhere&quot; was
 not hermetic</strong> and failed on hosts that have a real
@@ -6615,7 +6634,7 @@ mistborn, thinker, amber, nezha); shellcheck 0.</li>
 — 2026-06-29 — CLAUDE_BIN resolves across per-host install
 locations</h2>
 <p>A patch found during the live multi-host rollout of v1.9.0.</p>
-<h3 id="fixed-38">Fixed</h3>
+<h3 id="fixed-39">Fixed</h3>
 <ul>
 <li><strong>Alias launches failed where claude was installed outside
 <code>~/.local/bin</code>.</strong>
@@ -6649,7 +6668,7 @@ fixed against the real <code>claude 2.1.195</code> binary, then proven
 <strong>LIVE end-to-end</strong> — are corrected here, plus test
 coverage for two zero-coverage utilities and a documentation
 refresh.</p>
-<h3 id="fixed-39">Fixed</h3>
+<h3 id="fixed-40">Fixed</h3>
 <ul>
 <li><strong>Per-project auto-session naming never actually named the
 session — now proven LIVE.</strong> Three independent root causes:
@@ -6737,7 +6756,7 @@ carries v1.7.11 → v1.8.0 and later fixes that supersede it), leaving a
 tree byte-identical to HEAD so all four mirrors converge on one lineage;
 the <code>containers</code> submodule was fast-forwarded to latest
 <code>main</code> (<code>71d3256</code> → <code>67ed35a</code>).</p>
-<h3 id="fixed-40">Fixed</h3>
+<h3 id="fixed-41">Fixed</h3>
 <ul>
 <li><strong><code>history.jsonl</code> merge fused records across a
 source missing its trailing newline.</strong>
@@ -6873,7 +6892,7 @@ auto-sessions</h2>
 <p>A systematic-debugging pass fixing three reported issues plus a new
 session-per-project feature. Every root cause was reproduced and the fix
 proven with physical evidence before shipping.</p>
-<h3 id="fixed-41">Fixed</h3>
+<h3 id="fixed-42">Fixed</h3>
 <ul>
 <li><strong>CRITICAL — aliases cross-contaminated API endpoints across
 sessions.</strong> <code>cma_run_provider</code> <code>export</code>s
@@ -6976,7 +6995,7 @@ guard, arg validation</h2>
 test harness, add/list/remove/rollback all verified clean); shipped 10
 targeted coverage tests closing the same shallow-coverage class that let
 the v1.7.10 enable-plugins bug ship; plus 2 LOW code findings.</p>
-<h3 id="fixed-42">Fixed</h3>
+<h3 id="fixed-43">Fixed</h3>
 <ul>
 <li><strong><code>toon_encode.py</code>
 <code>fallback_encode</code></strong>: unbounded recursion on deeply
@@ -7040,7 +7059,7 @@ guards, proxy robustness</h2>
 <p>Third audit round (deep dive on the less-covered surface:
 opencode_sync, claude-unify merge, the poe proxy, bootstrap). Fixes
 verified centrally.</p>
-<h3 id="fixed-43">Fixed</h3>
+<h3 id="fixed-44">Fixed</h3>
 <ul>
 <li><strong><code>cma_enable_plugins</code> silently enabled NO plugins
 when given 3 or more</strong> (<code>lib.sh</code>). The jq
@@ -7153,7 +7172,7 @@ the gap where arbitrary MCP env-var names (e.g.
 <code>NOTION_API_KEY</code>) slipped through the original six-name
 allowlist.</li>
 </ul>
-<h3 id="fixed-44">Fixed</h3>
+<h3 id="fixed-45">Fixed</h3>
 <ul>
 <li><strong><code>install.sh</code> used
 <code>readlink -f</code></strong> (absent on BSD/macOS) for its symlink
@@ -7245,7 +7264,7 @@ The three artifacts are redacted; the generator
 key and decide on a git-history scrub — the values remain in history on
 all four remotes.</li>
 </ul>
-<h3 id="fixed-45">Fixed</h3>
+<h3 id="fixed-46">Fixed</h3>
 <ul>
 <li><strong>Unreachable code</strong> in
 <code>verify_aliases_live.sh</code>: <code>exit $failed</code> sat
@@ -7308,7 +7327,7 @@ compile clean under <code>python3 -W error</code>.</li>
 edge fix, regression tests</h2>
 <p>Follow-up hardening release found by a parallel multi-agent audit of
 v1.7.6.</p>
-<h3 id="fixed-46">Fixed</h3>
+<h3 id="fixed-47">Fixed</h3>
 <ul>
 <li><strong><code>readlink -f</code> → portable
 <code>cma_realpath</code></strong> at three sites:
@@ -7371,7 +7390,7 @@ decision.</li>
 <h2 id="v176--2026-06-28--always-non-interactive-execution-alias-file-integrity-macosbash-32-portability-4-host-rollout">v1.7.6
 — 2026-06-28 — Always-non-interactive execution, alias-file integrity,
 macOS/bash-3.2 portability, 4-host rollout</h2>
-<h3 id="fixed-47">Fixed</h3>
+<h3 id="fixed-48">Fixed</h3>
 <ul>
 <li><strong>Alias-file corruption from a mis-firing migration</strong> —
 <code>cma_ensure_alias_file</code>&#39;s &quot;outdated
@@ -7456,7 +7475,7 @@ present on every host.</li>
 </ul>
 <h2 id="v175--2026-06-28--cross-provider-resume-session-visibility-fix">v1.7.5
 — 2026-06-28 — Cross-provider /resume session visibility fix</h2>
-<h3 id="fixed-48">Fixed</h3>
+<h3 id="fixed-49">Fixed</h3>
 <ul>
 <li><strong>Cross-provider <code>/resume</code> session loss</strong> —
 when switching between provider aliases (e.g., <code>deepseek</code> →
@@ -7511,7 +7530,7 @@ PASS</strong></li>
 </ul>
 <h2 id="v174--2026-06-26--kimi-provider-fix--aws-iac-mcp-disabled-by-default">v1.7.4
 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default</h2>
-<h3 id="fixed-49">Fixed</h3>
+<h3 id="fixed-50">Fixed</h3>
 <ul>
 <li><strong>Kimi Code provider base URL</strong> in
 <code>scripts/providers/overrides.json</code> — changed from
@@ -7571,7 +7590,7 @@ provider-side support.</p>
 </ul>
 <h2 id="v165--2026-06-21--poe-proxy-fix-alias-file--install">v1.6.5 —
 2026-06-21 — Poe proxy fix (alias file + install)</h2>
-<h3 id="fixed-50">Fixed</h3>
+<h3 id="fixed-51">Fixed</h3>
 <ul>
 <li><strong>Poe proxy not starting from alias</strong> — proxy logic was
 only in <code>lib.sh</code>, not in the alias file&#39;s
@@ -7596,7 +7615,7 @@ name caused <code>unbound variable</code> error on nezha (Linux,
 </ul>
 <h2 id="v164--2026-06-21--poe-proxy-fix-for-tool-compatibility">v1.6.4 —
 2026-06-21 — Poe proxy fix for tool compatibility</h2>
-<h3 id="fixed-51">Fixed</h3>
+<h3 id="fixed-52">Fixed</h3>
 <ul>
 <li><strong>Poe tool format error</strong> — Poe requires
 <code>parameters</code> in every tool function definition. Claude Code
@@ -7666,7 +7685,7 @@ inference)</li>
 </ul>
 <h2 id="v161--2026-06-21--cache_control-fix--e2e-tests">v1.6.1 —
 2026-06-21 — cache_control fix + E2E tests</h2>
-<h3 id="fixed-52">Fixed</h3>
+<h3 id="fixed-53">Fixed</h3>
 <ul>
 <li><strong><code>cache_control</code> parameter error</strong> — Claude
 Code sends <code>cache_control</code> (Anthropic-specific) in its API
@@ -7748,7 +7767,7 @@ require it).</li>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
 <h2 id="v151--2026-06-20--linux-stat-fix--nezha-deployment">v1.5.1 —
 2026-06-20 — Linux stat fix + nezha deployment</h2>
-<h3 id="fixed-53">Fixed</h3>
+<h3 id="fixed-54">Fixed</h3>
 <ul>
 <li><strong><code>stat -f %m</code> on Linux</strong> — the mtime cache
 check in <code>claude-providers.sh</code> used
@@ -8123,7 +8142,7 @@ native/claude-code-router transport, full lifecycle + tests + docs. See
 <code>docs/Provider_Aliases_User_Guide.md</code>.</p>
 <h2 id="v167--2026-06-21--poe-proxy-fix-for-all-aliases">v1.6.7 —
 2026-06-21 — Poe proxy fix for all aliases</h2>
-<h3 id="fixed-54">Fixed</h3>
+<h3 id="fixed-55">Fixed</h3>
 <ul>
 <li><strong>Poe proxy not starting for poe2/poe3</strong> — proxy
 detection used exact provider ID (<code>poe2_proxy.py</code>) which
@@ -8146,7 +8165,7 @@ for poe2, poe3 aliases).</li>
 </ul>
 <h2 id="v168--2026-06-21--poe-proxy-gzip-fix">v1.6.8 — 2026-06-21 — Poe
 proxy gzip fix</h2>
-<h3 id="fixed-55">Fixed</h3>
+<h3 id="fixed-56">Fixed</h3>
 <ul>
 <li><strong>Poe proxy gzip decompression</strong> — Poe API returns
 gzip-compressed responses but the proxy tried to read them as UTF-8
@@ -8167,7 +8186,7 @@ validation, not tools format)</li>
 </ul>
 <h2 id="v169--2026-06-21--poe-proxy-ref-fix-for-grok-4">v1.6.9 —
 2026-06-21 — Poe proxy $ref fix for Grok-4</h2>
-<h3 id="fixed-56">Fixed</h3>
+<h3 id="fixed-57">Fixed</h3>
 <ul>
 <li>**Poe proxy <span class="math inline">$ref resolution** — Claude
 Code sends tool schemas with `$</span>ref<code>references to</code><span class="math inline">$defs`. Grok-4 and some providers don&#39;t support
@@ -8188,7 +8207,7 @@ resolves all
 </ul>
 <h2 id="v170--2026-06-22--poe-proxy-complete-fix-all-aliases-verified">v1.7.0
 — 2026-06-22 — Poe proxy complete fix (all aliases verified)</h2>
-<h3 id="fixed-57">Fixed</h3>
+<h3 id="fixed-58">Fixed</h3>
 <ul>
 <li><strong>Poe proxy shared directory</strong> — the proxy at
 <code>~/.local/share/.../proxy/poe_proxy.py</code> was the OLD version
@@ -8223,7 +8242,7 @@ directory</li>
 </ul>
 <h2 id="v171--2026-06-22--full-validation--release">v1.7.1 — 2026-06-22
 — Full validation + release</h2>
-<h3 id="fixed-58">Fixed</h3>
+<h3 id="fixed-59">Fixed</h3>
 <ul>
 <li><strong>Port-ready check</strong> for proxy startup — replaced
 <code>sleep 1</code> with polling loop (<code>lsof -i</code>) ensuring

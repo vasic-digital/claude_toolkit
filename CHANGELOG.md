@@ -2,6 +2,20 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## Unreleased
+
+### Fixed
+
+- `scripts/jev_mcp.py`: the `jev` MCP server never connected in Claude Code
+  (`CONNECT_TIMEOUT` after 30 s). Root cause: every reply was written with
+  LSP-style `Content-Length` framing, while the MCP stdio transport (and Claude
+  Code's client) is newline-delimited JSON. The server now replies in the framing
+  of the inbound message (default NDJSON; `Content-Length` clients are still
+  answered in kind), echoes a supported client `protocolVersion` (2025-06-18,
+  2025-03-26, 2024-11-05), skips malformed lines without writing non-JSON to
+  stdout, and answers an unterminated final line at EOF. Covered by 11 new
+  framing scenarios in `test_jev_mcp.sh` and 6 new mutation rows.
+
 ## v1.33.0 (2026-10-24)
 
 Minor release on top of v1.32.0 (tags `v1.32.0` / `claude_toolkit-1.32.0`, both
