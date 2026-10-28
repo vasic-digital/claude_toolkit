@@ -108,26 +108,45 @@ def _endpoint():
             or os.environ.get("TYPESAFE_BASE_URL") or "").rstrip("/")
 
 
+_LLMCTL_KEY_RE = re.compile(r"[A-Za-z0-9_-]{32,512}")
+
+
+def _key_valid(var, value):
+    """llmctl's bearer contract: LLMCTL_API_KEY must match [A-Za-z0-9_-]{32,512} as a WHOLE single-line value (fullmatch, so a
+    trailing newline cannot slip through). A malformed value (a shell-profile 1-char placeholder, garbage, a multi-line injection)
+    counts as ABSENT at its source so the next source is consulted. Other key variables are not ours to format-check. Same rule as
+    jev-gate.sh `_key_valid` and opencode-jev-plugin.js."""
+    if var != "LLMCTL_API_KEY":
+        return bool(value)
+    return bool(value) and _LLMCTL_KEY_RE.fullmatch(value) is not None
+
+
 def _resolve_key_var(key_var):
-    """Resolve a key-variable NAME to its value from the keys file. Shared by
-    the default single-endpoint path and route candidates that name their
-    own key_var (routes.json candidates reuse detect_jev_records()'s
-    key_var field rather than ever carrying a secret inline)."""
+    """Resolve a key-variable NAME to its value: environment, then the keys file, then the key files. Every stage is format-checked
+    (_key_valid) so a placeholder at one source never shadows a good key further down. Shared by the default single-endpoint path
+    and route candidates that name their own key_var (routes.json candidates reuse detect_jev_records()'s key_var field rather than
+    ever carrying a secret inline)."""
     if not key_var or not _KEY_VAR_RE.match(key_var):
         return "local"
+    envv = os.environ.get(key_var, "")
+    if _key_valid(key_var, envv):
+        return envv
     keys_file = os.environ.get("CMA_KEYS_FILE") or os.path.expanduser("~/api_keys.sh")
     try:
         out = subprocess.run(
             # the keys-file path and the (regex-validated) variable name are
-            # positional arguments, never shell text
-            ["bash", "-c", 'f=$1; v=$2; source "$f" >/dev/null 2>&1; printf %s "${!v:-}"',
+            # positional arguments, never shell text. The ambient value is removed first so only the keys file itself can answer.
+            ["bash", "-c", 'f=$1; v=$2; unset "$v"; source "$f" >/dev/null 2>&1; printf %s "${!v:-}"',
              "_", keys_file, key_var],
             capture_output=True, text=True, timeout=4,
         )
         val = out.stdout.strip()
     except Exception:
         val = ""
-    return val or _keyfile_lookup(key_var) or "local"
+    if _key_valid(key_var, val):
+        return val
+    kf = _keyfile_lookup(key_var)
+    return kf if _key_valid(key_var, kf) else "local"
 
 
 def _keyfile_candidates():

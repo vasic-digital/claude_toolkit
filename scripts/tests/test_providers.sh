@@ -2198,28 +2198,46 @@ bash "$PROVIDERS_SH" remove removeme2 >/dev/null 2>&1
 assert_eq "verified" "$(cma_status_read removeme-sibling)" "sibling status entry survives an unrelated remove"
 assert_eq "pending" "$(cma_status_read removeme2)" "removeme2's own entry is gone"
 
-it "sync demotes an orphaned status.json record instead of leaving it 'verified' forever"
+it "sync does NOT demote an orphaned status.json record by default (demotion is opt-in via --demote)"
 # 'orphan-alpha' has no backing key anywhere in $KEYS and no catalog entry in
-# $PCACHE — it can never be part of a resolved record, so any sync run must
-# treat its lingering "verified" status as stale.
+# $PCACHE — it can never be part of a resolved record. A plain sync must LEAVE its
+# status alone (a key that is merely missing today must not strip a provider's
+# verified status behind the operator's back), and must say how to demote.
 cma_status_write orphan-alpha verified orphan-alpha-model ""
 assert_eq "verified" "$(cma_status_read orphan-alpha)" "precondition: orphan-alpha marked verified"
 _orphan_warn="$(bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" 2>&1 >/dev/null)"
+assert_eq "verified" "$(cma_status_read orphan-alpha)" "plain sync leaves orphan-alpha verified (no silent demotion)"
+grep -q 'orphan-alpha' <<<"$_orphan_warn"; assert_eq 0 $? "plain sync still NAMES the orphaned id on stderr"
+grep -q -- '--demote' <<<"$_orphan_warn"; assert_eq 0 $? "the notice tells the operator how to demote (sync --demote)"
+grep -qi 'not demot\|left unchanged\|unchanged' <<<"$_orphan_warn"; assert_eq 0 $? "the notice says the status was left unchanged"
+
+it "sync --demote demotes an orphaned status.json record instead of leaving it 'verified' forever"
+_orphan_warn="$(bash "$PROVIDERS_SH" sync --demote --offline --no-verify --keys-file "$KEYS" 2>&1 >/dev/null)"
 _orphan_status="$(cma_status_read orphan-alpha)"
 cond=1; [[ "$_orphan_status" != "verified" ]] && cond=0
-assert_eq 0 "$cond" "orphan-alpha no longer reports verified after sync (now: $_orphan_status)"
-grep -qi 'orphan' <<<"$_orphan_warn"; assert_eq 0 $? "sync emits an orphan warning on stderr"
+assert_eq 0 "$cond" "orphan-alpha no longer reports verified after sync --demote (now: $_orphan_status)"
+grep -qi 'orphan' <<<"$_orphan_warn"; assert_eq 0 $? "sync --demote emits an orphan warning on stderr"
 grep -q 'orphan-alpha' <<<"$_orphan_warn"; assert_eq 0 $? "warning names the specific orphaned id"
 
-it "sync's orphan detection also covers a leftover *.env with no prior status.json entry"
+it "sync --demote --dry-run writes nothing"
+cma_status_write orphan-alpha verified orphan-alpha-model ""
+bash "$PROVIDERS_SH" sync --demote --dry-run --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+assert_eq "verified" "$(cma_status_read orphan-alpha)" "dry-run never demotes"
+
+it "sync's orphan detection also covers a leftover *.env with no prior status.json entry (default: reported, not demoted; --demote: demoted)"
 cma_provider_write_env "orphan-beta" "ORPHAN_BETA_KEY" "router" "https://api.orphan-beta.example/v1" \
   "orphan-beta-model" "" "$HOME/.claude-prov-orphan-beta" "" "" "orphan-beta"
 cma_provider_write_alias "orphan-beta" "orphan-beta"
 assert_eq "pending" "$(cma_status_read orphan-beta)" "precondition: orphan-beta has no status entry yet (env-only orphan)"
-bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+_beta_warn="$(bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" 2>&1 >/dev/null)"
+assert_eq "pending" "$(cma_status_read orphan-beta)" "plain sync does not write an orphaned status for the env-only orphan"
+grep -q 'orphan-beta' <<<"$_beta_warn"; assert_eq 0 $? "plain sync names the env-only orphan too"
+bash "$PROVIDERS_SH" sync --demote --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
 _orphan_beta_status="$(cma_status_read orphan-beta)"
 cond=1; [[ "$_orphan_beta_status" != "verified" && "$_orphan_beta_status" != "pending" ]] && cond=0
-assert_eq 0 "$cond" "env-only orphan gets an explicit demoted status, not silently left pending/verified (now: $_orphan_beta_status)"
+assert_eq 0 "$cond" "env-only orphan gets an explicit demoted status under --demote (now: $_orphan_beta_status)"
+# restore the Section-13b precondition: orphan-alpha is a status-only orphan that still reads as demoted/verified-stale
+cma_status_write orphan-alpha verified orphan-alpha-model ""
 
 it "sync never demotes a provider that still resolves (guard against orphan-detection over-matching)"
 bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1

@@ -1,17 +1,17 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-10-26
-**Base commit:** `74820fe` (*Fix rare flaky failure in test_llmctl_ondemand_switch.sh*), one commit after the `v1.32.0` / `claude_toolkit-1.32.0` tags (both resolve to `adae02d`); the v1.33.0 release prep sits on top of it on branch `fix/portability-2026-10-24`; read `git log -1` for the commit that carries this file
+**Last updated:** 2026-10-28
+**Base commit:** `31176b8` (*test(jev): T7a unsets the ambient OPENROUTER_API_KEY it asserts is unset*), which is `origin/main`; the v1.33.1 release sits on top of it as three LOCAL commits before the live-gate refresh (`7cc61d9` carrier pointer sections, `22a1943` the release commit, `fedbe25` the doc refresh), plus the commit that carries this update; read `git log -1` for the commit that carries this file. `31176b8` is an ancestor of `HEAD` (linear, no merges)
 **Working tree:** clean apart from the commit that carries this update
-**Active branch:** `fix/hosted-jev-2026-10-24` (worktree branch; not pushed, not tagged). Hosted-Jev fixes live on `fix/hosted-jev-2026-10-24` (on top of `210091e`): `46324b2` (probe wire format, `CMA_PROVIDERS_DIR`, pins, gate latency/class/fallbacks), `f2e5488` (mutation anchor update), `e1e2c30`/`afacf2b`/`c216682` (round-1 review: provider-dir readers, key-to-host binding, 403 test), `e62c129`, `156818f` (anchored authority parse), then the round-2 review (NO-GO 0 blocking / 5 important / 5 minor / 2 nits) and its fix commits (origin rule in gate, MCP and plugin; probe path validation; mutation catalogue); not pushed, not tagged, release gate not run
-**Declared version:** `1.33.0` (`package.json`), prepared for release as `v1.33.0` and `claude_toolkit-1.33.0` (NOT yet tagged or published at the time of writing); the previous release `1.32.0` is tagged as `v1.32.0` and `claude_toolkit-1.32.0`. The earlier "next release is `v1.29.0`, not tagged" statement was stale: `v1.29.0` and `claude_toolkit-1.29.0` both exist.
-**Next action:** tag `v1.33.0` and `claude_toolkit-1.33.0` after merge and publish the GitHub and GitLab releases (conductor); `CHANGELOG.md` has a `## v1.33.0 (2026-10-24)` section; see §0.2 below. Sections §0.1 and §1-§5 are HISTORICAL (2026-10-03 and 2026-07-28 snapshots) and are kept only as an archive.
+**Active branch:** `main` (local, 3+ commits ahead of `origin/main` at the time of writing; see `git log origin/main..HEAD` for the exact set). The earlier `fix/portability-2026-10-24` and `fix/hosted-jev-2026-10-24` branch work is already contained in `main` history (1.33.0 is tagged at `53bf5fb`); nothing from those branches is pending here
+**Declared version:** `1.33.2` (`package.json`); tags `v1.33.2` / `claude_toolkit-1.33.2`. `1.33.1` and `1.33.0` are tagged earlier.
+**Next action:** (conductor) v1.33.2 shipped: demote opt-in, Jev placeholder-key guard, opt-in base-home wiring, org-switch guard + sanitized fork, resumable-detection fix. Open: constitution multitrack ruler should prefer a same-org alias on rebind (lives in the constitution repo).
 
 > **§0.1 is a HISTORICAL snapshot (2026-10-03) — superseded by the header above and §0.2.** It was the current state when written. Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §7 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
 
 ---
 
-## 0.2 Current state (2026-10-24)
+## 0.2 Current state (2026-10-24) — HISTORICAL, superseded by the header above
 
 - Version `1.32.0` is tagged (`v1.32.0`, `claude_toolkit-1.32.0`, both at `adae02d`); `main` is one commit ahead (`74820fe`, a test-only fix). The release branch carries `f7d1e44`, the CDPATH fix and the 1.33.0 version bump on top.
 - Verified by `git tag`, `git rev-parse`, `package.json`; the suite result for `74820fe` is NOT re-verified in this update.

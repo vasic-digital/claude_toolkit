@@ -242,14 +242,24 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <ul>
 <li><a href="#changelog" id="toc-changelog">Changelog</a>
 <ul>
-<li><a href="#unreleased" id="toc-unreleased">Unreleased</a>
+<li><a href="#v1340-2026-10-28" id="toc-v1340-2026-10-28">v1.34.0
+(2026-10-28)</a>
 <ul>
+<li><a href="#added" id="toc-added">Added</a></li>
 <li><a href="#fixed" id="toc-fixed">Fixed</a></li>
+</ul></li>
+<li><a href="#v1332-2026-10-28" id="toc-v1332-2026-10-28">v1.33.2
+(2026-10-28)</a></li>
+<li><a href="#v1331-2026-10-27" id="toc-v1331-2026-10-27">v1.33.1
+(2026-10-27)</a>
+<ul>
+<li><a href="#also-in-v1331-fixes-that-landed-on-main-after-v1330" id="toc-also-in-v1331-fixes-that-landed-on-main-after-v1330">Also in
+v1.33.1 (fixes that landed on <code>main</code> after v1.33.0)</a></li>
 </ul></li>
 <li><a href="#v1330-2026-10-24" id="toc-v1330-2026-10-24">v1.33.0
 (2026-10-24)</a>
 <ul>
-<li><a href="#added" id="toc-added">Added</a></li>
+<li><a href="#added-1" id="toc-added-1">Added</a></li>
 <li><a href="#changed" id="toc-changed">Changed</a></li>
 <li><a href="#fixed-1" id="toc-fixed-1">Fixed</a></li>
 <li><a href="#merged-from-originmain-in-this-release-d992502-7ab1ab0" id="toc-merged-from-originmain-in-this-release-d992502-7ab1ab0">Merged
@@ -267,27 +277,27 @@ release)</a></li>
 <li><a href="#breaking-security--read-before-upgrading" id="toc-breaking-security--read-before-upgrading">BREAKING (security) —
 read before upgrading</a></li>
 <li><a href="#fixed-2" id="toc-fixed-2">Fixed</a></li>
-<li><a href="#added-1" id="toc-added-1">Added</a></li>
+<li><a href="#added-2" id="toc-added-2">Added</a></li>
 <li><a href="#changed-1" id="toc-changed-1">Changed</a></li>
 </ul></li>
 <li><a href="#v1310--2026-10-22" id="toc-v1310--2026-10-22">v1.31.0 —
 2026-10-22</a>
 <ul>
 <li><a href="#changed-2" id="toc-changed-2">Changed</a></li>
-<li><a href="#added-2" id="toc-added-2">Added</a></li>
+<li><a href="#added-3" id="toc-added-3">Added</a></li>
 <li><a href="#security" id="toc-security">Security</a></li>
 </ul></li>
 <li><a href="#v1306--2026-10-21" id="toc-v1306--2026-10-21">v1.30.6 —
 2026-10-21</a>
 <ul>
 <li><a href="#changed-3" id="toc-changed-3">Changed</a></li>
-<li><a href="#added-3" id="toc-added-3">Added</a></li>
+<li><a href="#added-4" id="toc-added-4">Added</a></li>
 </ul></li>
 <li><a href="#v1305--2026-10-10" id="toc-v1305--2026-10-10">v1.30.5 —
 2026-10-10</a>
 <ul>
 <li><a href="#fixed-3" id="toc-fixed-3">Fixed</a></li>
-<li><a href="#added-4" id="toc-added-4">Added</a></li>
+<li><a href="#added-5" id="toc-added-5">Added</a></li>
 <li><a href="#documentation" id="toc-documentation">Documentation</a></li>
 <li><a href="#verification" id="toc-verification">Verification</a></li>
 <li><a href="#commits-in-this-release" id="toc-commits-in-this-release">Commits in this release</a></li>
@@ -295,7 +305,7 @@ read before upgrading</a></li>
 <li><a href="#v1304--2026-10-06" id="toc-v1304--2026-10-06">v1.30.4 —
 2026-10-06</a>
 <ul>
-<li><a href="#added-5" id="toc-added-5">Added</a></li>
+<li><a href="#added-6" id="toc-added-6">Added</a></li>
 <li><a href="#fixed-4" id="toc-fixed-4">Fixed</a></li>
 <li><a href="#known-limitations-not-fixed-in-this-release" id="toc-known-limitations-not-fixed-in-this-release">Known limitations
 (not fixed in this release)</a></li>
@@ -310,7 +320,7 @@ fixes, live-test gating, doc corrections</a>
 <li><a href="#incident-disclosed" id="toc-incident-disclosed">Incident
 (disclosed)</a></li>
 <li><a href="#testing-and-validation" id="toc-testing-and-validation">Testing and validation</a></li>
-<li><a href="#added-6" id="toc-added-6">Added</a></li>
+<li><a href="#added-7" id="toc-added-7">Added</a></li>
 <li><a href="#known-limitations-not-fixed" id="toc-known-limitations-not-fixed">Known limitations (not
 fixed)</a></li>
 </ul></li>
@@ -338,7 +348,7 @@ post-release review fixes</a>
 — 2026-10-04 — <code>quota</code>/<code>limits</code>: universal usage
 reporting across every provider alias and native account</a>
 <ul>
-<li><a href="#added-7" id="toc-added-7">Added</a></li>
+<li><a href="#added-8" id="toc-added-8">Added</a></li>
 <li><a href="#fixed-found-during-this-features-own-review-process" id="toc-fixed-found-during-this-features-own-review-process">Fixed
 (found during this feature&#39;s own review process)</a></li>
 <li><a href="#testing--validation-1" id="toc-testing--validation-1">Testing &amp; Validation</a></li>
@@ -407,7 +417,7 @@ changelogged)</a></li>
 — 2026-07-25 — ccr buildable on same-minor toolchains + launch locks
 that actually lock + honest toolchain-skew guidance</a>
 <ul>
-<li><a href="#added-8" id="toc-added-8">Added</a></li>
+<li><a href="#added-9" id="toc-added-9">Added</a></li>
 <li><a href="#fixed-10" id="toc-fixed-10">Fixed</a></li>
 <li><a href="#fixed-ccr-submodule-vasic-digitalclaude-code-router-1" id="toc-fixed-ccr-submodule-vasic-digitalclaude-code-router-1">Fixed
 (ccr submodule, vasic-digital/claude-code-router)</a></li>
@@ -416,7 +426,7 @@ that actually lock + honest toolchain-skew guidance</a>
 — 2026-07-24 — free-tier-first per-model aliases by default + dynamic
 account dispatch + provider-scoped gateway paths</a>
 <ul>
-<li><a href="#added-9" id="toc-added-9">Added</a></li>
+<li><a href="#added-10" id="toc-added-10">Added</a></li>
 <li><a href="#fixed-11" id="toc-fixed-11">Fixed</a></li>
 <li><a href="#notes-2" id="toc-notes-2">Notes</a></li>
 </ul></li>
@@ -432,14 +442,14 @@ interactive-shell stderr fix + anti-fossil r-m-w hardening</a>
 class) + toon Go port</a>
 <ul>
 <li><a href="#fixed-13" id="toc-fixed-13">Fixed</a></li>
-<li><a href="#added-10" id="toc-added-10">Added</a></li>
+<li><a href="#added-11" id="toc-added-11">Added</a></li>
 </ul></li>
 <li><a href="#v1253--2026-07-22--trim-knob-survives-generator-regen--operator-docs-for-trimgatecontainer-mode" id="toc-v1253--2026-07-22--trim-knob-survives-generator-regen--operator-docs-for-trimgatecontainer-mode">v1.25.3
 — 2026-07-22 — trim knob survives generator regen + operator docs for
 trim/gate/container-mode</a>
 <ul>
 <li><a href="#fixed-14" id="toc-fixed-14">Fixed</a></li>
-<li><a href="#added-11" id="toc-added-11">Added</a></li>
+<li><a href="#added-12" id="toc-added-12">Added</a></li>
 <li><a href="#changed-7" id="toc-changed-7">Changed</a></li>
 </ul></li>
 <li><a href="#v1252--2026-07-22--ccr-resolved-by-stable-path-path-shadowing-doppelgänger-provider-trim-mode-mandatory-live-release-gate" id="toc-v1252--2026-07-22--ccr-resolved-by-stable-path-path-shadowing-doppelgänger-provider-trim-mode-mandatory-live-release-gate">v1.25.2
@@ -447,7 +457,7 @@ trim/gate/container-mode</a>
 doppelgänger), provider trim mode, mandatory live release gate</a>
 <ul>
 <li><a href="#fixed-15" id="toc-fixed-15">Fixed</a></li>
-<li><a href="#added-12" id="toc-added-12">Added</a></li>
+<li><a href="#added-13" id="toc-added-13">Added</a></li>
 </ul></li>
 <li><a href="#v1251--2026-07-22--router-aliases-refused-to-launch-on-a-stale-bundled-ccr-self-healing-rebuild" id="toc-v1251--2026-07-22--router-aliases-refused-to-launch-on-a-stale-bundled-ccr-self-healing-rebuild">v1.25.1
 — 2026-07-22 — router aliases refused to launch on a stale bundled ccr
@@ -545,7 +555,7 @@ fix</a></li>
 — 2026-07-19 — HelixAgent/HelixLLM local-model exposure + 128k
 output-token clamp + ccr launch fixes</a>
 <ul>
-<li><a href="#added-13" id="toc-added-13">Added</a></li>
+<li><a href="#added-14" id="toc-added-14">Added</a></li>
 <li><a href="#fixed-20" id="toc-fixed-20">Fixed</a></li>
 <li><a href="#testing--validation-4" id="toc-testing--validation-4">Testing / validation</a></li>
 </ul></li>
@@ -553,18 +563,18 @@ output-token clamp + ccr launch fixes</a>
 — 2026-07-18 — Cross-alias session &amp; background-agent continuity</a>
 <ul>
 <li><a href="#fixed-21" id="toc-fixed-21">Fixed</a></li>
-<li><a href="#added-14" id="toc-added-14">Added</a></li>
+<li><a href="#added-15" id="toc-added-15">Added</a></li>
 </ul></li>
 <li><a href="#v1160--2026-07-18--output-token-cap-for-router-providers" id="toc-v1160--2026-07-18--output-token-cap-for-router-providers">v1.16.0
 — 2026-07-18 — Output-token cap for router providers</a>
 <ul>
 <li><a href="#fixed-22" id="toc-fixed-22">Fixed</a></li>
-<li><a href="#added-15" id="toc-added-15">Added</a></li>
+<li><a href="#added-16" id="toc-added-16">Added</a></li>
 </ul></li>
 <li><a href="#v1150--2026-07-18--full-kimi-variant-support-oauth-subscription-models" id="toc-v1150--2026-07-18--full-kimi-variant-support-oauth-subscription-models">v1.15.0
 — 2026-07-18 — Full Kimi variant support (OAuth subscription models)</a>
 <ul>
-<li><a href="#added-16" id="toc-added-16">Added</a></li>
+<li><a href="#added-17" id="toc-added-17">Added</a></li>
 <li><a href="#fixed-23" id="toc-fixed-23">Fixed</a></li>
 <li><a href="#testing" id="toc-testing">Testing</a></li>
 </ul></li>
@@ -572,46 +582,46 @@ output-token clamp + ccr launch fixes</a>
 — 2026-07-17 — Anti-bluff provider verification (strict filtering)</a>
 <ul>
 <li><a href="#fixed-24" id="toc-fixed-24">Fixed</a></li>
-<li><a href="#added-17" id="toc-added-17">Added</a></li>
+<li><a href="#added-18" id="toc-added-18">Added</a></li>
 <li><a href="#changed-9" id="toc-changed-9">Changed</a></li>
 </ul></li>
 <li><a href="#v1133--2026-07-17--session-sharing-pipefail-fix" id="toc-v1133--2026-07-17--session-sharing-pipefail-fix">v1.13.3 —
 2026-07-17 — Session-sharing pipefail fix</a>
 <ul>
 <li><a href="#fixed-25" id="toc-fixed-25">Fixed</a></li>
-<li><a href="#added-18" id="toc-added-18">Added</a></li>
+<li><a href="#added-19" id="toc-added-19">Added</a></li>
 </ul></li>
 <li><a href="#v1130--2026-07-10--project-scoped-cwd-hook-session-resumption-fix" id="toc-v1130--2026-07-10--project-scoped-cwd-hook-session-resumption-fix">v1.13.0
 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)</a>
 <ul>
 <li><a href="#fixed-26" id="toc-fixed-26">Fixed</a></li>
-<li><a href="#added-19" id="toc-added-19">Added</a></li>
+<li><a href="#added-20" id="toc-added-20">Added</a></li>
 </ul></li>
 <li><a href="#v1123--2026-07-05--session-name-sanitization-kebab-case" id="toc-v1123--2026-07-05--session-name-sanitization-kebab-case">v1.12.3
 — 2026-07-05 — Session-name sanitization (kebab-case)</a>
 <ul>
 <li><a href="#changed-10" id="toc-changed-10">Changed</a></li>
-<li><a href="#added-20" id="toc-added-20">Added</a></li>
+<li><a href="#added-21" id="toc-added-21">Added</a></li>
 </ul></li>
 <li><a href="#v1122--2026-07-05--native-alias-auto-registration--account-detection-hardening" id="toc-v1122--2026-07-05--native-alias-auto-registration--account-detection-hardening">v1.12.2
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</a>
 <ul>
 <li><a href="#fixed-27" id="toc-fixed-27">Fixed</a></li>
-<li><a href="#added-21" id="toc-added-21">Added</a></li>
+<li><a href="#added-22" id="toc-added-22">Added</a></li>
 </ul></li>
 <li><a href="#v1121--2026-07-05--judge-independence--resolverobustness-hardening" id="toc-v1121--2026-07-05--judge-independence--resolverobustness-hardening">v1.12.1
 — 2026-07-05 — Judge independence + resolve/robustness hardening</a>
 <ul>
 <li><a href="#changed-11" id="toc-changed-11">Changed</a></li>
-<li><a href="#added-22" id="toc-added-22">Added</a></li>
+<li><a href="#added-23" id="toc-added-23">Added</a></li>
 <li><a href="#fixed-28" id="toc-fixed-28">Fixed</a></li>
 </ul></li>
 <li><a href="#v1120--2026-07-05--semantic-code-visibility-layer-3--live-tui-verification-layer-4" id="toc-v1120--2026-07-05--semantic-code-visibility-layer-3--live-tui-verification-layer-4">v1.12.0
 — 2026-07-05 — Semantic code-visibility (layer 3) + live TUI
 verification (layer 4)</a>
 <ul>
-<li><a href="#added-23" id="toc-added-23">Added</a></li>
+<li><a href="#added-24" id="toc-added-24">Added</a></li>
 <li><a href="#fixed-29" id="toc-fixed-29">Fixed</a></li>
 <li><a href="#notes-3" id="toc-notes-3">Notes</a></li>
 </ul></li>
@@ -621,13 +631,13 @@ tool cap</a>
 <ul>
 <li><a href="#fixed-30" id="toc-fixed-30">Fixed</a></li>
 <li><a href="#changed-12" id="toc-changed-12">Changed</a></li>
-<li><a href="#added-24" id="toc-added-24">Added</a></li>
+<li><a href="#added-25" id="toc-added-25">Added</a></li>
 </ul></li>
 <li><a href="#v1111--2026-07-03--live-per-alias-claude-code-verification-cli--tui--provider-fixes" id="toc-v1111--2026-07-03--live-per-alias-claude-code-verification-cli--tui--provider-fixes">v1.11.1
 — 2026-07-03 — Live per-alias Claude Code verification (CLI + TUI) +
 provider fixes</a>
 <ul>
-<li><a href="#added-25" id="toc-added-25">Added</a></li>
+<li><a href="#added-26" id="toc-added-26">Added</a></li>
 <li><a href="#fixed-31" id="toc-fixed-31">Fixed</a></li>
 <li><a href="#verified-live-on-host" id="toc-verified-live-on-host">Verified (live on host)</a></li>
 </ul></li>
@@ -677,14 +687,14 @@ checked)</a></li>
 <li><a href="#v1103--2026-06-29--execution-level-wrapper-test-coverage" id="toc-v1103--2026-06-29--execution-level-wrapper-test-coverage">v1.10.3
 — 2026-06-29 — Execution-level wrapper test coverage</a>
 <ul>
-<li><a href="#added-26" id="toc-added-26">Added</a></li>
+<li><a href="#added-27" id="toc-added-27">Added</a></li>
 <li><a href="#verified-9" id="toc-verified-9">Verified</a></li>
 </ul></li>
 <li><a href="#v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests" id="toc-v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</a>
 <ul>
 <li><a href="#fixed-35" id="toc-fixed-35">Fixed</a></li>
-<li><a href="#added-27" id="toc-added-27">Added</a></li>
+<li><a href="#added-28" id="toc-added-28">Added</a></li>
 <li><a href="#verified-10" id="toc-verified-10">Verified</a></li>
 </ul></li>
 <li><a href="#v1101--2026-06-29--robust-cma_run-wrapper-assertions" id="toc-v1101--2026-06-29--robust-cma_run-wrapper-assertions">v1.10.1 —
@@ -697,7 +707,7 @@ checked)</a></li>
 — 2026-06-29 — Auto-applied per-alias session color +
 coverage/wiring</a>
 <ul>
-<li><a href="#added-28" id="toc-added-28">Added</a></li>
+<li><a href="#added-29" id="toc-added-29">Added</a></li>
 <li><a href="#fixed-37" id="toc-fixed-37">Fixed</a></li>
 <li><a href="#verified-12" id="toc-verified-12">Verified</a></li>
 </ul></li>
@@ -718,14 +728,14 @@ coverage/wiring</a>
 zero-coverage tests</a>
 <ul>
 <li><a href="#fixed-40" id="toc-fixed-40">Fixed</a></li>
-<li><a href="#added-29" id="toc-added-29">Added</a></li>
+<li><a href="#added-30" id="toc-added-30">Added</a></li>
 <li><a href="#verified-15" id="toc-verified-15">Verified</a></li>
 </ul></li>
 <li><a href="#v181--2026-06-29--merge-engine-correctness--portability-hardening" id="toc-v181--2026-06-29--merge-engine-correctness--portability-hardening">v1.8.1
 — 2026-06-29 — Merge-engine correctness + portability hardening</a>
 <ul>
 <li><a href="#fixed-41" id="toc-fixed-41">Fixed</a></li>
-<li><a href="#added-30" id="toc-added-30">Added</a></li>
+<li><a href="#added-31" id="toc-added-31">Added</a></li>
 <li><a href="#verified-16" id="toc-verified-16">Verified</a></li>
 </ul></li>
 <li><a href="#v180--2026-06-29--alias-isolation--token-limit-guard--per-project-auto-sessions" id="toc-v180--2026-06-29--alias-isolation--token-limit-guard--per-project-auto-sessions">v1.8.0
@@ -733,13 +743,13 @@ zero-coverage tests</a>
 auto-sessions</a>
 <ul>
 <li><a href="#fixed-42" id="toc-fixed-42">Fixed</a></li>
-<li><a href="#added-31" id="toc-added-31">Added</a></li>
+<li><a href="#added-32" id="toc-added-32">Added</a></li>
 <li><a href="#verified-17" id="toc-verified-17">Verified</a></li>
 </ul></li>
 <li><a href="#v1712--2026-06-28--one-line-curl-installer" id="toc-v1712--2026-06-28--one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</a>
 <ul>
-<li><a href="#added-32" id="toc-added-32">Added</a></li>
+<li><a href="#added-33" id="toc-added-33">Added</a></li>
 <li><a href="#verified-18" id="toc-verified-18">Verified</a></li>
 </ul></li>
 <li><a href="#v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation" id="toc-v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation">v1.7.11
@@ -779,7 +789,7 @@ fix, coverage tests</a>
 <ul>
 <li><a href="#security-2" id="toc-security-2">Security</a></li>
 <li><a href="#fixed-46" id="toc-fixed-46">Fixed</a></li>
-<li><a href="#added-33" id="toc-added-33">Added</a></li>
+<li><a href="#added-34" id="toc-added-34">Added</a></li>
 <li><a href="#verified-22" id="toc-verified-22">Verified</a></li>
 </ul></li>
 <li><a href="#v177--2026-06-28--portable-realpath-bsd-portability-hardening-set--u-edge-fix-regression-tests" id="toc-v177--2026-06-28--portable-realpath-bsd-portability-hardening-set--u-edge-fix-regression-tests">v1.7.7
@@ -787,7 +797,7 @@ fix, coverage tests</a>
 edge fix, regression tests</a>
 <ul>
 <li><a href="#fixed-47" id="toc-fixed-47">Fixed</a></li>
-<li><a href="#added-34" id="toc-added-34">Added</a></li>
+<li><a href="#added-35" id="toc-added-35">Added</a></li>
 <li><a href="#verified-23" id="toc-verified-23">Verified</a></li>
 <li><a href="#audit-findings-v176--no-code-change-required" id="toc-audit-findings-v176--no-code-change-required">Audit findings
 (v1.7.6 — no code change required)</a></li>
@@ -797,7 +807,7 @@ edge fix, regression tests</a>
 macOS/bash-3.2 portability, 4-host rollout</a>
 <ul>
 <li><a href="#fixed-48" id="toc-fixed-48">Fixed</a></li>
-<li><a href="#added-35" id="toc-added-35">Added</a></li>
+<li><a href="#added-36" id="toc-added-36">Added</a></li>
 <li><a href="#multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal" id="toc-multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal">Multi-host
 rollout (nezha · mistborn.local · thinker.local · amber.local)</a></li>
 <li><a href="#verified-24" id="toc-verified-24">Verified</a></li>
@@ -821,7 +831,7 @@ Cause Analysis</a></li>
 <li><a href="#v166--2026-06-21--toon-integration-for-token-efficient-prompts" id="toc-v166--2026-06-21--toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</a>
 <ul>
-<li><a href="#added-36" id="toc-added-36">Added</a></li>
+<li><a href="#added-37" id="toc-added-37">Added</a></li>
 <li><a href="#token-savings" id="toc-token-savings">Token
 Savings</a></li>
 <li><a href="#note" id="toc-note">Note</a></li>
@@ -844,7 +854,7 @@ Savings</a></li>
 <li><a href="#v163--2026-06-21--poe-provider-382-models-3-aliases" id="toc-v163--2026-06-21--poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</a>
 <ul>
-<li><a href="#added-37" id="toc-added-37">Added</a></li>
+<li><a href="#added-38" id="toc-added-38">Added</a></li>
 <li><a href="#verified-28" id="toc-verified-28">Verified</a></li>
 </ul></li>
 <li><a href="#v162--2026-06-21--chutes-provider-documentation--model-update" id="toc-v162--2026-06-21--chutes-provider-documentation--model-update">v1.6.2
@@ -857,14 +867,14 @@ Savings</a></li>
 2026-06-21 — cache_control fix + E2E tests</a>
 <ul>
 <li><a href="#fixed-53" id="toc-fixed-53">Fixed</a></li>
-<li><a href="#added-38" id="toc-added-38">Added</a></li>
+<li><a href="#added-39" id="toc-added-39">Added</a></li>
 <li><a href="#verified-working-all-aliases-tested-with-do-you-see-our-codebase" id="toc-verified-working-all-aliases-tested-with-do-you-see-our-codebase">Verified
 working (all aliases tested with &quot;Do you see our codebase?&quot;)</a></li>
 </ul></li>
 <li><a href="#v160--2026-06-21--multi-alias-provider-system" id="toc-v160--2026-06-21--multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</a>
 <ul>
-<li><a href="#added-39" id="toc-added-39">Added</a></li>
+<li><a href="#added-40" id="toc-added-40">Added</a></li>
 <li><a href="#changed-15" id="toc-changed-15">Changed</a></li>
 <li><a href="#full-test-suite" id="toc-full-test-suite">Full test
 suite</a></li>
@@ -881,7 +891,7 @@ suite</a></li>
 <li><a href="#v150--2026-06-20--cross-alias-session-visibility" id="toc-v150--2026-06-20--cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</a>
 <ul>
-<li><a href="#added-40" id="toc-added-40">Added</a></li>
+<li><a href="#added-41" id="toc-added-41">Added</a></li>
 <li><a href="#changed-16" id="toc-changed-16">Changed</a></li>
 <li><a href="#full-test-suite-2" id="toc-full-test-suite-2">Full test
 suite</a></li>
@@ -891,7 +901,7 @@ suite</a></li>
 <li><a href="#v140--2026-06-20--opencode-zen-provider-alias" id="toc-v140--2026-06-20--opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</a>
 <ul>
-<li><a href="#added-41" id="toc-added-41">Added</a></li>
+<li><a href="#added-42" id="toc-added-42">Added</a></li>
 <li><a href="#changed-17" id="toc-changed-17">Changed</a></li>
 <li><a href="#full-test-suite-3" id="toc-full-test-suite-3">Full test
 suite</a></li>
@@ -900,7 +910,7 @@ suite</a></li>
 <li><a href="#v130--2026-06-19--xiaomi-mimo-provider-alias" id="toc-v130--2026-06-19--xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</a>
 <ul>
-<li><a href="#added-42" id="toc-added-42">Added</a></li>
+<li><a href="#added-43" id="toc-added-43">Added</a></li>
 <li><a href="#changed-18" id="toc-changed-18">Changed</a></li>
 <li><a href="#full-test-suite-4" id="toc-full-test-suite-4">Full test
 suite</a></li>
@@ -910,7 +920,7 @@ notes</a></li>
 <li><a href="#v120--2026-06-19--zai-coding-plan-provider-alias" id="toc-v120--2026-06-19--zai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</a>
 <ul>
-<li><a href="#added-43" id="toc-added-43">Added</a></li>
+<li><a href="#added-44" id="toc-added-44">Added</a></li>
 <li><a href="#changed-19" id="toc-changed-19">Changed</a></li>
 <li><a href="#full-test-suite-5" id="toc-full-test-suite-5">Full test
 suite</a></li>
@@ -918,7 +928,7 @@ suite</a></li>
 <li><a href="#v110--2026-06-16--distributed-infrastructure--provider-verification" id="toc-v110--2026-06-16--distributed-infrastructure--provider-verification">v1.1.0
 — 2026-06-16 — Distributed infrastructure + provider verification</a>
 <ul>
-<li><a href="#added-44" id="toc-added-44">Added</a></li>
+<li><a href="#added-45" id="toc-added-45">Added</a></li>
 <li><a href="#changed-20" id="toc-changed-20">Changed</a></li>
 <li><a href="#fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds" id="toc-fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds">Fixed
 (LLMsVerifier — shipped as PR #2, applied to deployed builds)</a></li>
@@ -969,7 +979,7 @@ Cause Analysis</a></li>
 <li><a href="#v172--2026-06-22--claude-alias-verification-full-release" id="toc-v172--2026-06-22--claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</a>
 <ul>
-<li><a href="#added-45" id="toc-added-45">Added</a></li>
+<li><a href="#added-46" id="toc-added-46">Added</a></li>
 <li><a href="#tests-10" id="toc-tests-10">Tests</a></li>
 </ul></li>
 </ul></li>
@@ -977,9 +987,40 @@ Cause Analysis</a></li>
 </nav>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
-<h2 id="unreleased">Unreleased</h2>
+<h2 id="v1340-2026-10-28">v1.34.0 (2026-10-28)</h2>
+<p>Minor release: a new <code>claude-sync-plugins</code> feature plus
+the Jev MCP framing fix that was merged after v1.33.0.</p>
+<h3 id="added">Added</h3>
+<ul>
+<li><code>scripts/claude-sync-plugins.sh</code>
+(<code>claude-sync-plugins</code>): propagates the operator&#39;s curated
+plugin / MCP set from one source alias (default
+<code>~/.claude-claude1</code>) to every alias (claude1..N, all
+<code>~/.claude-prov-*</code>, <code>~/.claude</code>, the shared
+template). Commands <code>capture</code>, <code>--dry-run</code>,
+<code>--apply</code> (timestamped backup dir + <code>manifest.tsv</code>
+with pre-change sha256), <code>--verify</code> (exit 0/1/2),
+<code>--status</code>. Policy file:
+<code>$SHARED_DIR/plugin-policy.json</code>.</li>
+<li>lib.sh <code>cma_policy_*</code> functions; policy enforcement
+hooked into <code>cma_own_settings_seed</code> (new aliases inherit),
+<code>cma_enable_plugins</code>, <code>claude-unify</code> (the any-true
+union no longer re-enables disabled plugins), and
+<code>claude-sync-state pull|push|all</code> (runs on every alias
+launch; also re-captures from the source alias when it changed).</li>
+<li><code>install.sh</code> step 5a applies a captured policy;
+<code>claude-install-verify</code> fails when any alias drifts from
+it.</li>
+<li>Tests: <code>test_plugin_policy.sh</code> (50 assertions) and
+<code>test_plugin_policy_mutation.sh</code> (control + 10 mutants, all
+killed).</li>
+</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li>Operator-disabled plugins were re-enabled on every other alias by
+the additive unify/seed merge (283 of 285 plugins stayed enabled on all
+aliases except the one the operator edited). Disablement now propagates
+and sticks.</li>
 <li><code>scripts/jev_mcp.py</code>: the <code>jev</code> MCP server
 never connected in Claude Code (<code>CONNECT_TIMEOUT</code> after 30
 s). Root cause: every reply was written with LSP-style
@@ -992,6 +1033,156 @@ a supported client <code>protocolVersion</code> (2025-06-18, 2025-03-26,
 and answers an unterminated final line at EOF. Covered by 11 new framing
 scenarios in <code>test_jev_mcp.sh</code> and 6 new mutation rows.</li>
 </ul>
+<h2 id="v1332-2026-10-28">v1.33.2 (2026-10-28)</h2>
+<p>Patch release on top of v1.33.1 (<code>5d1c6eb</code>).</p>
+<ul>
+<li><strong><code>claude-providers sync</code> no longer demotes by
+default (operator decision).</strong> Orphaned provider aliases are only
+REPORTED, with a safe message naming the exact command to demote;
+demotion needs the explicit <code>--demote</code> flag. Documented in
+README, the User Manual and the Provider FAQ. Test:
+<code>test_providers_sync_demote_optin.sh</code>.</li>
+<li><strong>Jev gate placeholder/short-key guard</strong> (patch 0001,
+re-reviewed): <code>jev-gate.sh</code>, and now also
+<code>jev_mcp.py</code> and <code>opencode-jev-plugin.js</code>, refuse
+a placeholder or too-short <code>LLMCTL_API_KEY</code> (key contract
+<code>^[A-Za-z0-9_-]{32,512}$</code>) instead of sending it. Hosted
+endpoints stay SHADOW and can never enforce; <code>JEV_GATE=off</code>
+is respected. Tests: <code>test_jev_gate_placeholder_key.sh</code>,
+<code>test_jev_key_contract.sh</code>,
+<code>test_jev_gate_hosted_shadow.sh</code>.</li>
+<li><strong>Jev wiring of every supported agent home is opt-in</strong>
+(<code>jev-setup.sh --base-homes</code> or
+<code>JEV_WIRE_AGENT_HOMES=1</code>); the native
+<code>~/.kimi-code</code> case pattern was fixed. Test:
+<code>test_jev_setup_base_homes.sh</code>.</li>
+<li><strong>Hermetic tests</strong>:
+<code>test_jev_detect_https*.sh</code> unset ambient <code>JEV_*</code>,
+<code>CMA_JEV_*</code>, <code>LLMCTL_API_KEY</code>
+(<code>test_sandbox_hermetic_jev.sh</code>);
+<code>test_carrier_inherited_heading.sh</code> rewritten strict.</li>
+<li><strong>Alias switch across Anthropic organizations (&quot;Claude can&#39;t
+use thinking from another organization&quot;).</strong> Each
+<code>claudeN</code> alias is its own Anthropic organization, but
+<code>claude-unify</code> shares <code>projects/</code> and
+<code>sessions/</code>, so resuming a session under another org&#39;s alias
+makes Claude Code discard the org-bound thinking-block signatures and
+re-read the whole session uncached (slower, more tokens).
+<ul>
+<li><strong>Cannot be fixed at API level</strong>: the signature is
+server-side and org-bound; for the unmodified session the discard and
+re-read is unavoidable, and the toolkit cannot change which org an alias
+belongs to. Provider aliases (<code>cma_run_provider</code>) are not
+Anthropic orgs and are not guarded. The constitution multitrack ruler&#39;s
+own rebind logic lives in the constitution repository, not here.</li>
+<li><strong>What the toolkit now does</strong>:
+<code>claude-session org-guard</code> (wired into the generated
+<code>cma_run</code>) records the org per session under
+<code>&lt;shared&gt;/session-orgs/&lt;sid&gt;</code> and, when the org
+changes, prints a pre-launch WARNING with the context size, names a
+same-org alias, and names the opt-in.
+<code>CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1</code> resumes a sanitized
+COPY (thinking/redacted_thinking dropped, parent chain rewired, original
+never touched or deleted, 0600, never overwriting).
+<code>claude-session sanitize-fork &lt;config_dir&gt; [sid]</code> does
+the same by hand.</li>
+<li><strong>Also fixed (root cause of resume misdetection)</strong>:
+real Claude Code transcripts put <code>&quot;type&quot;:&quot;assistant&quot;</code> AFTER
+the large <code>message</code> object, so the anchored
+<code>^{&quot;type&quot;:&quot;assistant&quot;</code> test treated large real sessions as
+non-resumable (a fresh <code>--session-id</code> instead of
+<code>--resume</code>, so nothing to guard and no continuity). Detection
+now matches a JSON-object line with an unescaped top-level type and
+verifies it parses (debris is still rejected); <code>context-size</code>
+uses the same match. Tests: <code>test_session_realformat.sh</code>,
+<code>test_session_org_switch.sh</code> (unit, integration, e2e,
+security, chaos, stress, performance, 4 mutations).</li>
+<li><strong>Review round 1 closures</strong>: runtime
+<code>cma_run</code> org-guard wiring test
+(<code>test_cma_run_orgguard_runtime.sh</code>: failing/missing guard
+still launches the original flags, replacement flags reach claude,
+fallback-removal mutation killed); fork tests now assert thinking-only
+lines are dropped and children are rewired (mutation added);
+<code>test_providers_sync_demote_optin.sh</code> help check made
+SIGPIPE-proof; fork temp file no longer leaks on a link race.</li>
+</ul></li>
+</ul>
+<h2 id="v1331-2026-10-27">v1.33.1 (2026-10-27)</h2>
+<p>Patch release on top of v1.33.0 (tags <code>v1.33.0</code> /
+<code>claude_toolkit-1.33.0</code>, both at <code>53bf5fb</code>). It
+also carries the two test/launch fixes that landed on <code>main</code>
+after v1.33.0 (<code>f52fa7f</code>, <code>31176b8</code>; see &quot;Also in
+v1.33.1&quot; below).</p>
+<ul>
+<li><strong>Carrier propagation fix</strong> (<code>CLAUDE.md</code>,
+<code>AGENTS.md</code>, <code>GEMINI.md</code>, <code>QWEN.md</code>):
+each carrier now has the standard
+<code>## INHERITED FROM constitution/CLAUDE.md</code> pointer section
+(§11.4.35), so the constitution hub propagation gates (11.4.279 / 287 /
+288 / 289) classify the four toolkit carriers as pointer-inheritance
+instead of MISSING. Documentation only; no script or runtime behaviour
+changes. The toolkit keeps no nested constitution copy (own-org
+dependencies are resolved, see &quot;Shared dependency layout&quot;).</li>
+<li><strong>New test
+<code>scripts/tests/test_carrier_inherited_heading.sh</code></strong>:
+asserts each of the four carriers has a line-anchored, non-fenced
+<code>## INHERITED FROM </code> heading, with the predicate
+self-validated against six mutants (``` fence, ~~~ fence, wrong case,
+demoted <code>###</code>, indented, inline) plus a golden-good control.
+Written test-first: RED on the pre-patch carriers (4 failed), GREEN
+after (11 passed).</li>
+<li><strong>Honest limit</strong>: these four gates only go fully green
+for the toolkit together with the separate hub exclusion row for the
+<code>superspec</code> example fixture
+(<code>.specify/extensions/superspec/examples/static-landing-page/CLAUDE.md</code>),
+which lives in the hub&#39;s
+<code>config/covenant_propagation_exclusions.tsv</code>, not in this
+repository. Until that row lands, each of the four gates still reports
+that one fixture as MISSING.</li>
+<li><strong>Release gate</strong>: the <code>claude-release-gate</code>
+LIVE alias-smoke leg needs real provider credentials and was NOT RUN for
+this prep; only the non-live legs were run.</li>
+</ul>
+<h3 id="also-in-v1331-fixes-that-landed-on-main-after-v1330">Also in
+v1.33.1 (fixes that landed on <code>main</code> after v1.33.0)</h3>
+<ul>
+<li><p><strong>Launch wrappers no longer abort on a failed
+<code>stat -c %Y</code></strong>
+(<code>scripts/tests/test_jev_env_stat_race.sh</code>, found by the
+full-suite run: <code>test_kimi_alias_file.sh</code> failed 1 run in 20,
+<code>https twin without CA pin still launches</code>, rc 1).
+<code>cma_jev_env</code> (emitted into every alias file),
+<code>_cma_mtime</code>, the provider-sync TTL check and
+<code>cma_jq_edit</code>&#39;s chmod read a file&#39;s mtime or mode as
+<code>stat -c ... || stat -f ...</code>. On GNU coreutils
+<code>stat -f</code> is FILESYSTEM status, not BSD&#39;s format flag: when
+<code>-c</code> failed because the endpoint cache did not exist yet and
+the file appeared before the fallback ran (the function&#39;s own detached
+refresh creates it), the fallback printed
+<code>File: ... ID: ... Namelen: ...</code> on stdout,
+<code>echo 0</code> appended <code>0</code>, and
+<code>$(( now - mtime ))</code> died (&quot;syntax error in expression&quot;, or
+&quot;File: unbound variable&quot; under <code>set -u</code>), aborting the
+wrapper before it launched anything. The value is now validated as
+digits only (octal for the mode); anything else is &quot;unknown&quot; = stale, no
+chmod. The new test makes the race deterministic with a
+<code>stat</code> shim that fails the first <code>-c</code> call (RED on
+the old code: wrapper aborted, <code>_cma_mtime</code> returned the
+filesystem text; GREEN with the guard) and carries its own paired mutant
+(guard removed from a copy, killed). 42 further runs of the previously
+flaky suite: 42 passed.</p></li>
+<li><p><strong><code>scripts/tests/test_jev_hosted_live_fixes.sh</code>
+T7a is hermetic about <code>OPENROUTER_API_KEY</code></strong> (found by
+the full-suite run on a host that exports it): the case asserts &quot;no
+request at all (OPENROUTER_API_KEY is unset)&quot; but nothing unset the
+variable, so the gate read it, found it set and legitimately sent the
+request (sink log: 1 line, <code>want=0 got=1</code>). Reproduced on the
+unmodified v1.33.0 tree: fails with the variable exported, passes under
+<code>env -u OPENROUTER_API_KEY</code>. The suite now unsets it up front
+(cases that need it set pass it inline). Paired mutant (a dummy key
+exported instead of the unset) fails exactly that assertion, so it still
+bites.</p></li>
+</ul>
 <h2 id="v1330-2026-10-24">v1.33.0 (2026-10-24)</h2>
 <p>Minor release on top of v1.32.0 (tags <code>v1.32.0</code> /
 <code>claude_toolkit-1.32.0</code>, both at <code>adae02d</code>). It is
@@ -1001,7 +1192,7 @@ hermetic wrapper tests, alongside fixes. The <code>jev-setup</code>
 validation and Kimi-lock items listed in the &quot;v1.32.0 (addendum)&quot;
 section below were already shipped in the <code>v1.32.0</code> tag and
 are NOT new in this release.</p>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li><code>jev_realpath</code> (<code>scripts/jev-kimi-lib.sh</code>): a
 portable canonical-path helper that resolves symlink chains without
@@ -1718,7 +1909,7 @@ control) at 105 passed / 0 failed;
 run live end-to-end (alias smoke, route attribution, quota JSON, 36/37
 provider probes answered) all green.</li>
 </ul>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li>Kimi hooks (spec task T017, implemented here; earlier docs described
 it as done before it existed). Kimi provider twins
@@ -1825,7 +2016,7 @@ message names the clone URL).</li>
 <li><code>curl-install.sh</code> clones the router as a flat sibling
 when it is not resolvable.</li>
 </ul>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li><code>helix-deps.yaml</code> (§11.4.31 dependency manifest:
 HelixConstitution, containers, challenges, LLMsVerifier,
@@ -1977,7 +2168,7 @@ constitution through the new resolver (it previously walked ancestors
 and could pick up an unrelated project&#39;s constitution);
 <code>CMA_CONSTITUTION_DIR</code> remains accepted.</li>
 </ul>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li><code>scripts/resolve_deps.sh</code> (env override -&gt; parent hub
 -&gt; in-tree -&gt; siblings -&gt; opt-in host fallback via
@@ -2011,7 +2202,7 @@ existing <code>INT</code>/<code>TERM</code> trap handlers instead of
 resetting them with <code>trap -</code>, so running the alias in an
 interactive shell no longer discards the operator&#39;s handlers.</li>
 </ul>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li><code>test_failing_layer_attribution.sh</code>: L10b (cmd_verify
 unverified path with legal, off-vocabulary and silent-verifier tokens)
@@ -2043,7 +2234,7 @@ live Kimi test, gated behind <code>CMA_LIVE_TESTS=1</code>).</li>
 layer reads, kill surviving mutants, stop trap clobbering</li>
 </ul>
 <h2 id="v1304--2026-10-06">v1.30.4 — 2026-10-06</h2>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li>Kimi native usage windows: a signed-in Kimi account now reports a
 5-hour and a 7-day usage window from its usages endpoint, with a reset
@@ -2180,7 +2371,7 @@ behind CMA_LIVE_TESTS=1): the full suite log has no EXIT line yet.</li>
 <li>The gated live test is skipped by default and was verified to leave
 host state byte-identical on the skip path.</li>
 </ul>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li>Kimi native usage windows (5-hour and 7-day) probed from the usages
 endpoint with no model call or token refresh; returns
@@ -2432,7 +2623,7 @@ invocation. Driven by the spec-kit workflow under
 per the operator&#39;s standing instruction — every task implemented by a
 fresh subagent, reviewed by a fresh reviewer before the next task
 started, with a final whole-branch review gate before this release.</p>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li><strong><code>claude-providers quota</code> /
 <code>claude-providers limits</code></strong> (identical behavior, two
@@ -3523,7 +3714,7 @@ failure (<code>ccr: no router found</code> on a host WITH Go installed)
 and the launch-path investigation it triggered; every fix carries a
 RED-&gt;GREEN regression test observed to fail on the pre-fix
 artifact.</p>
-<h3 id="added-8">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li><strong><code>nvidia</code> cma-proxy transform family —
 cache_control stripping for strict backends (live defect:
@@ -3758,7 +3949,7 @@ defect batch (2026-07-23/24). Every fix carries
 RED-on-the-broken-artifact -&gt; GREEN -&gt; a paired §1.1 mutation
 observed to FAIL, plus live captured evidence where a live path exists
 (<code>qa-results/toolkit_defects_20260723/</code>).</p>
-<h3 id="added-9">Added</h3>
+<h3 id="added-10">Added</h3>
 <ul>
 <li><strong>Free-tier-first per-model provider aliases are now the
 DEFAULT sync behaviour (ATM-860, operator decision D14).</strong> The
@@ -3922,7 +4113,7 @@ were misread as provider outages. Live re-verification post-fix: all 8
 valid aliases launch clean (PING-OK) and <code>poe</code> surfaces its
 real upstream status instead of a dead-port 502.</li>
 </ul>
-<h3 id="added-10">Added</h3>
+<h3 id="added-11">Added</h3>
 <ul>
 <li><strong><code>scripts/toon/</code> — Go port of
 <code>toon_encode.py</code></strong> (added alongside the Python, which
@@ -3951,7 +4142,7 @@ the ambient var is unset first so a shell export can never leak onto the
 file. (<code>scripts/tests/test_provider_trim_persist.sh</code>,
 red→green.)</li>
 </ul>
-<h3 id="added-11">Added</h3>
+<h3 id="added-12">Added</h3>
 <ul>
 <li><strong>Operator documentation</strong> for the v1.25.2 features in
 <code>docs/Provider_Aliases_User_Guide.md</code> (+ synchronized
@@ -4004,7 +4195,7 @@ longer brick router aliases nor masquerade as a stale bundled build.
 (<code>scripts/tests/test_ccr_path_shadowing.sh</code>, executed
 red→green against the real generated wrapper.)</li>
 </ul>
-<h3 id="added-12">Added</h3>
+<h3 id="added-13">Added</h3>
 <ul>
 <li><strong><code>CMA_PROVIDER_TRIM=&#39;bare&#39;</code> — per-provider
 minimal-launch mode</strong> for local-model providers: conversation
@@ -5373,7 +5564,7 @@ fix</h2>
 <h2 id="v1180--2026-07-19--helixagenthelixllm-local-model-exposure--128k-output-token-clamp--ccr-launch-fixes">v1.18.0
 — 2026-07-19 — HelixAgent/HelixLLM local-model exposure + 128k
 output-token clamp + ccr launch fixes</h2>
-<h3 id="added-13">Added</h3>
+<h3 id="added-14">Added</h3>
 <ul>
 <li><strong>HelixAgent/HelixLLM provider — a local llama.cpp model
 exposed as a first-class provider alias.</strong> A new
@@ -5507,7 +5698,7 @@ from four provider dirs unioned into one shared registry; all provider
 daemon dirs are now symlinks.</li>
 </ol></li>
 </ul>
-<h3 id="added-14">Added</h3>
+<h3 id="added-15">Added</h3>
 <ul>
 <li><strong>Testing:</strong>
 <code>scripts/tests/test_session_flags.sh</code> (12 assertions — both
@@ -5576,7 +5767,7 @@ router path now verifies <code>ccr version</code> names the real
 actionable message (fix PATH / remove the shadowing ccr / install
 command).</li>
 </ul>
-<h3 id="added-15">Added</h3>
+<h3 id="added-16">Added</h3>
 <ul>
 <li><strong>Testing:</strong> new hermetic suite
 <code>scripts/tests/test_output_tokens.sh</code> (8 assertions — native
@@ -5589,7 +5780,7 @@ suite: 24/24 files ALL GREEN; 6-leg proof ALL GREEN.</li>
 <h2 id="v1150--2026-07-18--full-kimi-variant-support-oauth-subscription-models">v1.15.0
 — 2026-07-18 — Full Kimi variant support (OAuth subscription
 models)</h2>
-<h3 id="added-16">Added</h3>
+<h3 id="added-17">Added</h3>
 <ul>
 <li><strong>Every Kimi model the OAuth subscription serves is now a
 launchable alias.</strong> <code>detect_kimicode_record</code> discovers
@@ -5819,7 +6010,7 @@ tests in <code>test_coverage.sh</code>; full re-scan of
 <code>proof/</code> is clean.</li>
 </ol></li>
 </ul>
-<h3 id="added-17">Added</h3>
+<h3 id="added-18">Added</h3>
 <ul>
 <li><strong>Tier C constitution/conformance verifier</strong>
 <code>scripts/tests/verify_constitution.sh</code> (design spec §7.4,
@@ -5912,7 +6103,7 @@ gets the correct UUID. All aliases now resolve to the same
 <code>--resume &lt;uuid&gt;</code>. <strong>Verified with 200-file
 stress test</strong> that exercises the exact pipefail condition.</li>
 </ul>
-<h3 id="added-18">Added</h3>
+<h3 id="added-19">Added</h3>
 <ul>
 <li>200-file stress test in <code>test_session.sh</code> that proves
 <code>claude-session flags</code> returns <code>--resume</code> (not
@@ -5956,7 +6147,7 @@ outdated <code>cma_run</code> wrappers via a new
 <code>install.sh</code> / shell start).</li>
 </ol></li>
 </ul>
-<h3 id="added-19">Added</h3>
+<h3 id="added-20">Added</h3>
 <ul>
 <li>Regression tests in <code>test_lib.sh</code> and
 <code>test_wrapper_exec.sh</code> prove the emitted <code>cma_run</code>
@@ -5980,7 +6171,7 @@ before trimming leading/trailing <code>-</code>. This makes session
 names safe for the CLI and filesystem while remaining
 human-readable.</li>
 </ul>
-<h3 id="added-20">Added</h3>
+<h3 id="added-21">Added</h3>
 <ul>
 <li>New regression tests in <code>test_session.sh</code> cover
 leading/trailing whitespace, multiple consecutive spaces, and stripping
@@ -6009,7 +6200,7 @@ slot instead of skipping over reserved numbers.</li>
 directories are no longer treated as Claude accounts, preventing them
 from stealing alias slots or being merged into shared state.</li>
 </ul>
-<h3 id="added-21">Added</h3>
+<h3 id="added-22">Added</h3>
 <ul>
 <li>Regression tests in <code>test_unify.sh</code> and
 <code>test_install.sh</code> prove that install/unify register native
@@ -6040,7 +6231,7 @@ exit 3 → <code>skip</code>, so a transient judge/model hiccup is an
 honest SKIP and never downgrades the model-under-test (final-review
 I-1).</li>
 </ul>
-<h3 id="added-22">Added</h3>
+<h3 id="added-23">Added</h3>
 <ul>
 <li><strong>Independence warning:</strong>
 <code>providers-semantic.sh</code> warns (never fails) when the judge
@@ -6073,7 +6264,7 @@ command. The whole pipeline was proven end-to-end against real providers
 2/3); models that bluff or fail round-2 (chutes GLM-5.2-TEE —
 empty/timeout) are <code>unverified</code>; billing blocks (deepseek
 402) are <code>unverified</code> — never a faked pass.</p>
-<h3 id="added-23">Added</h3>
+<h3 id="added-24">Added</h3>
 <ul>
 <li><strong>Layer 3 — semantic code-visibility.</strong>
 <code>scripts/providers-semantic.sh</code> renders the toolkit-owned
@@ -6210,7 +6401,7 @@ never masked.</li>
 fixed the input token-limit error; documented the two guards as
 independent halves.</li>
 </ul>
-<h3 id="added-24">Added</h3>
+<h3 id="added-25">Added</h3>
 <ul>
 <li><strong>scripts/tests/test_poe_proxy.sh</strong> — hermetic tests
 for the Poe proxy: <code>parameters</code> injection, the tool-count
@@ -6236,7 +6427,7 @@ API directly. 9 aliases pass end-to-end; 2 had genuine model-config
 drift (fixed below); the remaining failures are all
 <strong>account-side</strong> (insufficient funds, invalid/expired keys,
 missing keys, or a plan with no chat model) — not toolkit bugs.</p>
-<h3 id="added-25">Added</h3>
+<h3 id="added-26">Added</h3>
 <ul>
 <li><strong>scripts/tests/verify_claude_live.sh</strong> — end-to-end
 live verification of every provider alias through REAL Claude Code in
@@ -6485,7 +6676,7 @@ subagents, each finding independently reproduced before fixing.</li>
 </ul>
 <h2 id="v1103--2026-06-29--execution-level-wrapper-test-coverage">v1.10.3 —
 2026-06-29 — Execution-level wrapper test coverage</h2>
-<h3 id="added-26">Added</h3>
+<h3 id="added-27">Added</h3>
 <ul>
 <li><strong><code>test_wrapper_exec.sh</code></strong> — the first
 hermetic test that actually <em>executes</em> the generated
@@ -6524,7 +6715,7 @@ an existing source line across <code>.</code>/<code>source</code> and
 <code>$HOME</code>/<code>~</code>/absolute forms, so re-installs never
 accumulate duplicate source lines.</li>
 </ul>
-<h3 id="added-27">Added</h3>
+<h3 id="added-28">Added</h3>
 <ul>
 <li><strong><code>test_rc_sourcing.sh</code></strong> (10 strict
 assertions) — reproduces the bug class the hermetic suite missed (it
@@ -6562,7 +6753,7 @@ coverage/wiring</h2>
 <p>The per-alias session color is now <strong>auto-applied</strong> (it
 was only a hint in v1.9.x), plus self-healing for a stale
 <code>CLAUDE_BIN</code> and several closed test-coverage gaps.</p>
-<h3 id="added-28">Added</h3>
+<h3 id="added-29">Added</h3>
 <ul>
 <li><strong>Auto-applied per-alias session color.</strong> Each bare
 alias launch now writes the alias&#39;s color into the session as an
@@ -6697,7 +6888,7 @@ one, so they never regained the integration. Fix: regenerate when
 <strong>either</strong> marker is missing.</li>
 </ul></li>
 </ul>
-<h3 id="added-29">Added</h3>
+<h3 id="added-30">Added</h3>
 <ul>
 <li><strong><code>docs/SESSION_COLOR.md</code></strong> — resolves the
 previously dangling reference, documenting per-project auto-session
@@ -6845,7 +7036,7 @@ tolerates a bare call) across <code>lib.sh</code>,
 and the test harness (the sandbox keeps its <code>cma-test.</code>
 prefix for the cleanup safety check).</li>
 </ul>
-<h3 id="added-30">Added</h3>
+<h3 id="added-31">Added</h3>
 <ul>
 <li><strong>B5 token-limit guard coverage</strong>
 (<code>test_coverage.sh</code>). The v1.8.0
@@ -6929,7 +7120,7 @@ launch wrapper now writes
 <code>projects[&lt;root&gt;].hasTrustDialogAccepted=true</code> for the
 launching project via the new <code>claude-session</code> helper.</li>
 </ul>
-<h3 id="added-31">Added</h3>
+<h3 id="added-32">Added</h3>
 <ul>
 <li><strong>Auto session-per-project
 (<code>claude-session.sh</code>).</strong> Every bare alias launch
@@ -6962,7 +7153,7 @@ the live catalog and the emitted alias file.</li>
 </ul>
 <h2 id="v1712--2026-06-28--one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</h2>
-<h3 id="added-32">Added</h3>
+<h3 id="added-33">Added</h3>
 <ul>
 <li><strong><code>curl-install.sh</code></strong> — one-line bootstrap
 installer:
@@ -7285,7 +7476,7 @@ in <code>providers_resolve.py</code>: the usage docstring&#39;s
 <code>\</code> line-continuations are now a raw string
 (<code>r&quot;&quot;&quot;</code>).</li>
 </ul>
-<h3 id="added-33">Added</h3>
+<h3 id="added-34">Added</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code></strong> — 11 new hermetic
 tests (19 assertions) covering previously-untested <code>lib.sh</code>
@@ -7353,7 +7544,7 @@ with an empty <code>args</code> is an &quot;unbound variable&quot; error on bash
 non-re-exec&#39;d <code>claude-providers.sh</code>). Guarded with
 <code>${args[@]+&quot;${args[@]}&quot;}</code>.</li>
 </ul>
-<h3 id="added-34">Added</h3>
+<h3 id="added-35">Added</h3>
 <ul>
 <li><strong><code>cma_realpath</code></strong> portable canonicalizer in
 <code>lib.sh</code>.</li>
@@ -7429,7 +7620,7 @@ and <code>tests/lib/sandbox.sh</code> (empty <code>${arr[@]}</code>
 expansions are unbound on bash 3.2). The suite now runs green on macOS
 bash 3.2.</li>
 </ul>
-<h3 id="added-35">Added</h3>
+<h3 id="added-36">Added</h3>
 <ul>
 <li><strong><code>CMA_NONINTERACTIVE</code> + automatic TTY
 detection</strong> — a new <code>cma_can_prompt</code> helper makes
@@ -7559,7 +7750,7 @@ failed</strong></li>
 </ul>
 <h2 id="v166--2026-06-21--toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</h2>
-<h3 id="added-36">Added</h3>
+<h3 id="added-37">Added</h3>
 <ul>
 <li><strong>TOON (Token-Oriented Object Notation)</strong> integration —
 saves ~40% tokens vs JSON for structured data in LLM prompts by
@@ -7637,7 +7828,7 @@ now auto-starts compatibility proxies for providers that need them
 </ul>
 <h2 id="v163--2026-06-21--poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</h2>
-<h3 id="added-37">Added</h3>
+<h3 id="added-38">Added</h3>
 <ul>
 <li><strong>Poe provider</strong> — universal AI platform with 382
 models from all major providers. OpenAI-compatible API at
@@ -7694,7 +7885,7 @@ it with HTTP 422. Fixed by adding ccr&#39;s built-in <code>cleancache</code>
 transformer to every provider config, which strips
 <code>cache_control</code> before forwarding to the provider.</li>
 </ul>
-<h3 id="added-38">Added</h3>
+<h3 id="added-39">Added</h3>
 <ul>
 <li><strong><code>alias_e2e_test.py</code></strong> — end-to-end alias
 verification script that tests each alias by sending requests through
@@ -7713,7 +7904,7 @@ working (all aliases tested with &quot;Do you see our codebase?&quot;)</h3>
 </ul>
 <h2 id="v160--2026-06-21--multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</h2>
-<h3 id="added-39">Added</h3>
+<h3 id="added-40">Added</h3>
 <ul>
 <li><strong>Multi-alias provider system</strong> — every provider can
 now have multiple aliases (<code>provider</code>,
@@ -7794,7 +7985,7 @@ pre-existing)</li>
 </ul>
 <h2 id="v150--2026-06-20--cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</h2>
-<h3 id="added-40">Added</h3>
+<h3 id="added-41">Added</h3>
 <ul>
 <li><strong>Cross-alias session visibility</strong> — sessions created
 under ANY alias (<code>claudeN</code>, <code>deepseek</code>,
@@ -7859,7 +8050,7 @@ also merged.</li>
 </ul>
 <h2 id="v140--2026-06-20--opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</h2>
-<h3 id="added-41">Added</h3>
+<h3 id="added-42">Added</h3>
 <ul>
 <li><strong><code>opencode</code> provider alias</strong> — <a href="https://opencode.ai/zen">OpenCode Zen</a> curated AI gateway with
 <strong>21 free models</strong> (all $0 cost, all support tool calling +
@@ -7932,7 +8123,7 @@ work).</li>
 </ul>
 <h2 id="v130--2026-06-19--xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</h2>
-<h3 id="added-42">Added</h3>
+<h3 id="added-43">Added</h3>
 <ul>
 <li><strong><code>xiaomi</code> provider alias</strong> — Xiaomi MiMo
 via the <strong>Anthropic-native endpoint</strong>
@@ -8004,7 +8195,7 @@ file.</li>
 </ul>
 <h2 id="v120--2026-06-19--zai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</h2>
-<h3 id="added-43">Added</h3>
+<h3 id="added-44">Added</h3>
 <ul>
 <li><strong><code>zai-coding-plan</code> provider alias</strong> —
 OpenAI-compatible router transport via
@@ -8044,7 +8235,7 @@ include 5 new assertions for <code>zai-coding-plan</code>.</li>
 heavy testing against <strong>real production LLM services</strong>,
 plus end-to-end provider aliases proven on two hosts and two
 transports.</p>
-<h3 id="added-44">Added</h3>
+<h3 id="added-45">Added</h3>
 <ul>
 <li><strong><code>containers</code> + <code>challenges</code>
 submodules</strong> (<code>submodules/</code>) — the distributed-boot
@@ -8265,7 +8456,7 @@ assertions)</li>
 </ul>
 <h2 id="v172--2026-06-22--claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</h2>
-<h3 id="added-45">Added</h3>
+<h3 id="added-46">Added</h3>
 <ul>
 <li><strong>Claude alias verification</strong> in verify_aliases_live.sh
 — tests claude1/2/3 alongside provider aliases</li>

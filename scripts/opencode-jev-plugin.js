@@ -45,6 +45,26 @@ function resolveMode() {
   return "shadow";
 }
 const MODE = resolveMode();
+// Hosted endpoints never enforce: a Jev whose host is not loopback / RFC1918 / link-local / *.local / *.lan is a third party;
+// its answers are logged (shadow) but never block. Same rule and grammar as jev-gate.sh (_jev_host_is_local). An authority with
+// userinfo, backslash, percent or whitespace is ambiguous and counts as hosted.
+function hostIsLocal(url) {
+  let a = String(url || "").replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  a = a.split(/[\/?#]/)[0];
+  if (!a || /[@\\%\s]/.test(a)) return false;
+  const h = (a.startsWith("[") ? a.slice(0, a.indexOf("]") + 1) : a.split(":")[0]).toLowerCase();
+  if (h === "localhost" || h === "[::1]") return true;
+  if (/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.(local|lan)$/.test(h)) return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return false;
+  const o = m.slice(1).map(Number);
+  if (o.some((n) => n > 255)) return false;
+  return o[0] === 127 || o[0] === 10 || (o[0] === 192 && o[1] === 168)
+    || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 169 && o[1] === 254);
+}
+function effectiveMode(baseUrl) {
+  return MODE === "enforce" && !hostIsLocal(baseUrl) ? "shadow" : MODE;
+}
 const TIMEOUT_MS = Number(process.env.JEV_GATE_TIMEOUT || 2) * 1000;
 const RISKY_THRESHOLD = Number(process.env.JEV_RISKY_THRESHOLD || 0.7);
 
@@ -118,19 +138,30 @@ function keyfileLookup(name) {
   }
   return "";
 }
+// llmctl's bearer contract: LLMCTL_API_KEY must match [A-Za-z0-9_-]{32,512} as a WHOLE single-line value (no multiline flag; the
+// character class excludes newlines, so a trailing newline is rejected). A malformed value (a shell-profile 1-char placeholder,
+// garbage, a multi-line injection) counts as ABSENT at its source and the next source is consulted. Other key variables are not
+// format-checked. Same rule as jev-gate.sh `_key_valid` and jev_mcp.py (shared vectors: scripts/tests/test_jev_key_contract.sh).
+const LLMCTL_KEY_RE = /^[A-Za-z0-9_-]{32,512}$/;
+function keyValid(name, v) {
+  if (!v) return false;
+  return name === "LLMCTL_API_KEY" ? LLMCTL_KEY_RE.test(v) && !v.includes("\n") : true;
+}
 function keyFor(keyVar) {
   // "local" is the keyless-loopback PLACEHOLDER jev-setup bakes into a registration; it is not a credential.
   if (process.env.JEV_API_KEY && process.env.JEV_API_KEY !== "local") return process.env.JEV_API_KEY;
   if (!KEYVAR_RE.test(keyVar)) return "";
-  if (process.env[keyVar]) return process.env[keyVar];
+  if (keyValid(keyVar, process.env[keyVar])) return process.env[keyVar];
   let v = "";
   try {
-    // key_var travels as DATA in the environment, never inside the script text.
+    // key_var travels as DATA in the environment, never inside the script text. The ambient value is unset first so only the keys file answers.
     v = execFileSync("bash", ["-c",
-      'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],
+      'unset "$KV"; source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],
       { timeout: 2000, env: { ...process.env, KV: keyVar } }).toString();
   } catch { v = ""; }
-  return v || keyfileLookup(keyVar);
+  if (keyValid(keyVar, v)) return v;
+  const kf = keyfileLookup(keyVar);
+  return keyValid(keyVar, kf) ? kf : "";
 }
 
 // Returns {base_url, key, model, provider_id, key_unpinned?}. key is "" when
@@ -200,6 +231,7 @@ export const JevGate = async ({ client }) => ({
       return;
     }
 
+    const mode = effectiveMode(ep.base_url);
     const t0 = Date.now();
     let answer = floor, risky = 0, confidence = 0, fallback = null;
     try {
@@ -246,9 +278,9 @@ export const JevGate = async ({ client }) => ({
 
     logDecision({ ts: Date.now(), agent: "opencode", tool, state_hash: stateHash,
       question: "gate", answer, risky_p: risky, confidence, latency_ms: Date.now() - t0,
-      endpoint: ep.provider_id, mode: MODE, enforced: MODE === "enforce", fallback });
+      endpoint: ep.provider_id, mode, enforced: mode === "enforce", fallback });
 
-    if (MODE === "enforce" && answer === "deny") {
+    if (mode === "enforce" && answer === "deny") {
       throw new Error(`jev-gate: denied (choice=${answer} risky=${risky})`);
     }
   },
@@ -257,7 +289,7 @@ export const JevGate = async ({ client }) => ({
     const ep = loadEndpoint();
     try {
       client?.app?.log?.({ service: "jev-gate", level: "info",
-        message: ep ? `Jev decision layer: ACTIVE (endpoint: ${ep.provider_id}, mode: ${MODE})`
+        message: ep ? `Jev decision layer: ACTIVE (endpoint: ${ep.provider_id}, mode: ${effectiveMode(ep.base_url)})`
                     : "Jev decision layer: INACTIVE (no endpoint cache)" });
     } catch { /* best-effort */ }
   },

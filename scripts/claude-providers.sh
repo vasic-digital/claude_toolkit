@@ -95,7 +95,7 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
-REFRESH_ALIASES=0 QUIET=0 PRUNE_UNRESOLVED=0
+REFRESH_ALIASES=0 QUIET=0 PRUNE_UNRESOLVED=0 DEMOTE=0
 # helixllm-export: --apply writes the configuration; --host adds an endpoint.
 # Declared here (not lazily) so `${#HELIXLLM_HOST_ARGS[@]}` is safe under set -u.
 APPLY=0
@@ -168,6 +168,9 @@ Options:
   --no-verify          skip LLMsVerifier/HTTP verification (aliases still created)
   --offline            do not fetch models.dev; require the local cache
   --dry-run            print what would change; write nothing
+  --demote             with sync: also DEMOTE orphaned providers (status ->
+                       orphaned, so the launch gate refuses them). Without
+                       this flag sync only REPORTS orphans and changes nothing
   --unresolved         with prune: also remove UNRESOLVED orphans (has a
                        *.env but no longer resolves) — without this flag,
                        prune only ever auto-removes status-only orphans
@@ -3185,17 +3188,26 @@ cma_find_unresolved_orphans() {
 }
 
 # cma_demote_orphans <resolved-ids-space-separated>
-# Warns about + demotes every id cma_find_orphans reports, so the launch-time
-# activation gate (which trusts ONLY status=="verified") stops trusting a
-# provider that quietly disappeared from the catalog/keys. Deliberately does
-# NOT touch the .env/alias/config dir — actual removal is an explicit
+# Finds every id cma_find_orphans reports. DEMOTION IS OPT-IN (v1.33.2): by default this
+# only REPORTS the orphans (names them on stderr, changes nothing); with DEMOTE=1
+# (`claude-providers sync --demote`) it additionally warns per id and writes
+# status=orphaned so the launch-time activation gate (which trusts ONLY
+# status=="verified") stops trusting a provider that disappeared from the
+# catalog/keys. Why opt-in: a key that is merely absent from this shell's keys file
+# for one run (a different account, a CI box, a half-sourced profile) must not
+# silently strip a working provider of its verified status. Deliberately does NOT
+# touch the .env/alias/config dir either way — actual removal is an explicit
 # `claude-providers remove`/`prune` action, never implicit sync fallout.
 cma_demote_orphans() {
   local resolved="$1" pdir; pdir="$(cma_providers_dir)"
   local sf; sf="$(cma_status_cache)"
-  local oid
+  local oid orphans=""
   while IFS= read -r oid; do
     [[ -n "$oid" ]] || continue
+    if (( ! DEMOTE )); then
+      orphans+="${orphans:+, }$oid"
+      continue
+    fi
     local model="" ef="$pdir/$oid.env"
     if [[ -f "$ef" ]]; then
       # shellcheck disable=SC1090
@@ -3205,6 +3217,9 @@ cma_demote_orphans() {
     cma_warn "provider '$oid' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it."
     cma_status_write "$oid" orphaned "$model" orphan
   done < <(cma_find_orphans "$resolved")
+  if (( ! DEMOTE )) && [[ -n "$orphans" ]]; then
+    cma_warn "orphaned provider(s) not resolving against the current catalog/keys: $orphans. Their status was left unchanged (sync no longer demotes by default). To demote them so the launch gate refuses them run 'claude-providers sync --demote'; to delete them run 'claude-providers prune'; or restore the key to re-adopt them."
+  fi
 }
 
 # --- Kimi legacy id migration (kimi-* -> kc-*) ------------------------------
@@ -4065,8 +4080,9 @@ cmd_sync() {
   if (( ! DRY_RUN )); then _cma_jev_after_sync "$jev_records"; fi
 
   # Orphan detection: any status.json/*.env record whose provider id is NOT in
-  # the CURRENT resolved set (catalog/key/override dropped it) is demoted +
-  # warned about — never silently left trusting a stale 'verified' forever.
+  # the CURRENT resolved set (catalog/key/override dropped it) is REPORTED; it is
+  # demoted (status -> orphaned) ONLY with the explicit `sync --demote` flag
+  # (v1.33.2: a merely-missing key must not silently strip a verified provider).
   # Skipped under --dry-run (nothing else in a dry-run sync is written either).
   (( DRY_RUN )) || cma_demote_orphans "$resolved_ids"
   # Reconcile stale kimi-<id> twin lines (removed/orphaned/no-longer-verified
@@ -5421,6 +5437,7 @@ while (( $# )); do
     --offline) OFFLINE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --unresolved) PRUNE_UNRESOLVED=1; shift ;;
+    --demote) DEMOTE=1; shift ;;
     --refresh-aliases) REFRESH_ALIASES=1; shift ;;
     --quiet) QUIET=1; shift ;;
     --multi) MULTI=1; shift ;;

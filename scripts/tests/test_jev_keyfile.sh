@@ -35,7 +35,7 @@ KEYS="$HOME/api_keys.sh"; : > "$KEYS"; export CMA_KEYS_FILE="$KEYS"
 CFG="$HOME/.config/jev"; export JEV_CONFIG_DIR="$CFG"
 LIBSH="$SCRIPTS_DIR/jev-keyfile-lib.sh"
 SECRET="fixture-llmctl-key-$$-$RANDOM$RANDOM-0123456789abcdef"   # random per run, a TEST value (not the operator's key)
-WRONG="wrong-key-$$-$RANDOM"
+WRONG="wrong-key-$$-$RANDOM-0123456789abcdefghijklmnop"   # well-formed per the LLMCTL_API_KEY contract (>=32) but wrong
 
 # --------------------------------------------------------------------------------------------------------------- TLS fixture
 CERT="$HOME/gw.crt"; KEY="$HOME/gw.key"
@@ -234,7 +234,8 @@ CACHEDIR="$HOME/.local/share/claude-multi-account/providers"; mkdir -p "$CACHEDI
 printf '%s' '{"endpoints":[{"provider_id":"jev-local","base_url":"https://127.0.0.1:1","key_var":"LLMCTL_API_KEY","model":"m","priority":10,"probed_at":1}]}' > "$CACHEDIR/jev-endpoints.json"
 assert_eq "$SECRET" "$(mcp_key "$SCRIPTS_DIR" JEV_API_KEY=local)" "no JEV_KEY_VAR: the variable NAME is learned from the endpoint cache"
 assert_eq "direct-real-key" "$(mcp_key "$SCRIPTS_DIR" JEV_API_KEY=direct-real-key)" "a real direct key still wins"
-assert_eq "env-wins" "$(mcp_key "$SCRIPTS_DIR" JEV_API_KEY=local LLMCTL_API_KEY=env-wins)" "the env var named by the key var beats the key files"
+ENVWINS="env-wins-0123456789abcdefghijklmnopqrstuv"
+assert_eq "$ENVWINS" "$(mcp_key "$SCRIPTS_DIR" JEV_API_KEY=local LLMCTL_API_KEY=$ENVWINS)" "the env var named by the key var beats the key files"
 rm -f -- "${CFG:?}/key-files"
 assert_eq "local" "$(mcp_key "$SCRIPTS_DIR" JEV_API_KEY=local)" "nothing anywhere -> the keyless placeholder"
 rm -f -- "${CACHEDIR:?}/jev-endpoints.json"

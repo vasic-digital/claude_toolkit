@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## INHERITED FROM constitution/CLAUDE.md
+
+All rules in `constitution/CLAUDE.md` (and the `constitution/Constitution.md`
+it references) apply unconditionally. The project-specific rules below
+extend them -- they do NOT weaken any universal clause. When this file
+disagrees with the constitution submodule, the constitution wins.
+
+This repo keeps no nested copy of the constitution (own-org dependencies are
+resolved, not vendored; see "Shared dependency layout" below and
+`scripts/resolve_deps.sh constitution`). Inside the constitution hub it lives at
+`<hub>/constitution/submodules/claude_toolkit` and the hub's `Constitution.md`
+is the canon; standalone, set `CT_CONSTITUTION_DIR`. Anchor blocks are
+inherited by pointer (section 11.4.35), not restated here.
+
 ## What this repo is
 
 A POSIX-leaning bash toolkit (`scripts/`) for running multiple Claude Code accounts on one host while keeping conversation history, memory, todos, plans, plugins, and settings unified across them — and, since v1.27.0, the same for multiple **Kimi Code CLI** accounts plus a `kimi-<id>` provider alias for every backend. Companion long-form documentation lives at the repo root (`Claude_Multi_Account_Fine_Tuning.md` and its rendered `.html` / `.pdf` siblings).

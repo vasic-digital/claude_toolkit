@@ -40,6 +40,79 @@ that was merged after v1.33.0.
   stdout, and answers an unterminated final line at EOF. Covered by 11 new
   framing scenarios in `test_jev_mcp.sh` and 6 new mutation rows.
 
+## v1.33.2 (2026-10-28)
+
+Patch release on top of v1.33.1 (`5d1c6eb`).
+
+- **`claude-providers sync` no longer demotes by default (operator decision).** Orphaned provider aliases are only REPORTED, with
+  a safe message naming the exact command to demote; demotion needs the explicit `--demote` flag. Documented in README, the User
+  Manual and the Provider FAQ. Test: `test_providers_sync_demote_optin.sh`.
+- **Jev gate placeholder/short-key guard** (patch 0001, re-reviewed): `jev-gate.sh`, and now also `jev_mcp.py` and
+  `opencode-jev-plugin.js`, refuse a placeholder or too-short `LLMCTL_API_KEY` (key contract `^[A-Za-z0-9_-]{32,512}$`) instead of
+  sending it. Hosted endpoints stay SHADOW and can never enforce; `JEV_GATE=off` is respected. Tests: `test_jev_gate_placeholder_key.sh`,
+  `test_jev_key_contract.sh`, `test_jev_gate_hosted_shadow.sh`.
+- **Jev wiring of every supported agent home is opt-in** (`jev-setup.sh --base-homes` or `JEV_WIRE_AGENT_HOMES=1`); the native
+  `~/.kimi-code` case pattern was fixed. Test: `test_jev_setup_base_homes.sh`.
+- **Hermetic tests**: `test_jev_detect_https*.sh` unset ambient `JEV_*`, `CMA_JEV_*`, `LLMCTL_API_KEY` (`test_sandbox_hermetic_jev.sh`);
+  `test_carrier_inherited_heading.sh` rewritten strict.
+- **Alias switch across Anthropic organizations ("Claude can't use thinking from another organization").** Each `claudeN` alias is its own
+  Anthropic organization, but `claude-unify` shares `projects/` and `sessions/`, so resuming a session under another org's alias makes
+  Claude Code discard the org-bound thinking-block signatures and re-read the whole session uncached (slower, more tokens).
+  - **Cannot be fixed at API level**: the signature is server-side and org-bound; for the unmodified session the discard and re-read is
+    unavoidable, and the toolkit cannot change which org an alias belongs to. Provider aliases (`cma_run_provider`) are not Anthropic orgs and
+    are not guarded. The constitution multitrack ruler's own rebind logic lives in the constitution repository, not here.
+  - **What the toolkit now does**: `claude-session org-guard` (wired into the generated `cma_run`) records the org per session under
+    `<shared>/session-orgs/<sid>` and, when the org changes, prints a pre-launch WARNING with the context size, names a same-org alias, and
+    names the opt-in. `CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1` resumes a sanitized COPY (thinking/redacted_thinking dropped, parent chain
+    rewired, original never touched or deleted, 0600, never overwriting). `claude-session sanitize-fork <config_dir> [sid]` does the same by hand.
+  - **Also fixed (root cause of resume misdetection)**: real Claude Code transcripts put `"type":"assistant"` AFTER the large `message`
+    object, so the anchored `^{"type":"assistant"` test treated large real sessions as non-resumable (a fresh `--session-id` instead of
+    `--resume`, so nothing to guard and no continuity). Detection now matches a JSON-object line with an unescaped top-level type and
+    verifies it parses (debris is still rejected); `context-size` uses the same match. Tests: `test_session_realformat.sh`, `test_session_org_switch.sh`
+    (unit, integration, e2e, security, chaos, stress, performance, 4 mutations).
+  - **Review round 1 closures**: runtime `cma_run` org-guard wiring test (`test_cma_run_orgguard_runtime.sh`: failing/missing guard still launches the original flags, replacement flags reach claude, fallback-removal mutation killed); fork tests now assert thinking-only lines are dropped and children are rewired (mutation added); `test_providers_sync_demote_optin.sh` help check made SIGPIPE-proof; fork temp file no longer leaks on a link race.
+
+## v1.33.1 (2026-10-27)
+
+Patch release on top of v1.33.0 (tags `v1.33.0` / `claude_toolkit-1.33.0`, both at `53bf5fb`). It also carries the two
+test/launch fixes that landed on `main` after v1.33.0 (`f52fa7f`, `31176b8`; see "Also in v1.33.1" below).
+
+- **Carrier propagation fix** (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `QWEN.md`): each carrier now has the standard
+  `## INHERITED FROM constitution/CLAUDE.md` pointer section (§11.4.35), so the constitution hub propagation gates
+  (11.4.279 / 287 / 288 / 289) classify the four toolkit carriers as pointer-inheritance instead of MISSING. Documentation only;
+  no script or runtime behaviour changes. The toolkit keeps no nested constitution copy (own-org dependencies are resolved, see
+  "Shared dependency layout").
+- **New test `scripts/tests/test_carrier_inherited_heading.sh`**: asserts each of the four carriers has a line-anchored,
+  non-fenced `## INHERITED FROM ` heading, with the predicate self-validated against six mutants (``` fence, ~~~ fence, wrong case,
+  demoted `###`, indented, inline) plus a golden-good control. Written test-first: RED on the pre-patch carriers (4 failed), GREEN
+  after (11 passed).
+- **Honest limit**: these four gates only go fully green for the toolkit together with the separate hub exclusion row for the
+  `superspec` example fixture (`.specify/extensions/superspec/examples/static-landing-page/CLAUDE.md`), which lives in the hub's
+  `config/covenant_propagation_exclusions.tsv`, not in this repository. Until that row lands, each of the four gates still reports
+  that one fixture as MISSING.
+- **Release gate**: the `claude-release-gate` LIVE alias-smoke leg needs real provider credentials and was NOT RUN for this prep;
+  only the non-live legs were run.
+
+### Also in v1.33.1 (fixes that landed on `main` after v1.33.0)
+
+- **Launch wrappers no longer abort on a failed `stat -c %Y`** (`scripts/tests/test_jev_env_stat_race.sh`, found by the full-suite
+  run: `test_kimi_alias_file.sh` failed 1 run in 20, `https twin without CA pin still launches`, rc 1). `cma_jev_env` (emitted into
+  every alias file), `_cma_mtime`, the provider-sync TTL check and `cma_jq_edit`'s chmod read a file's mtime or mode as
+  `stat -c ... || stat -f ...`. On GNU coreutils `stat -f` is FILESYSTEM status, not BSD's format flag: when `-c` failed because the
+  endpoint cache did not exist yet and the file appeared before the fallback ran (the function's own detached refresh creates it),
+  the fallback printed `File: ... ID: ... Namelen: ...` on stdout, `echo 0` appended `0`, and `$(( now - mtime ))` died ("syntax
+  error in expression", or "File: unbound variable" under `set -u`), aborting the wrapper before it launched anything. The value is
+  now validated as digits only (octal for the mode); anything else is "unknown" = stale, no chmod. The new test makes the race
+  deterministic with a `stat` shim that fails the first `-c` call (RED on the old code: wrapper aborted, `_cma_mtime` returned the
+  filesystem text; GREEN with the guard) and carries its own paired mutant (guard removed from a copy, killed). 42 further runs of
+  the previously flaky suite: 42 passed.
+
+- **`scripts/tests/test_jev_hosted_live_fixes.sh` T7a is hermetic about `OPENROUTER_API_KEY`** (found by the full-suite run on a host that
+  exports it): the case asserts "no request at all (OPENROUTER_API_KEY is unset)" but nothing unset the variable, so the gate read it,
+  found it set and legitimately sent the request (sink log: 1 line, `want=0 got=1`). Reproduced on the unmodified v1.33.0 tree: fails
+  with the variable exported, passes under `env -u OPENROUTER_API_KEY`. The suite now unsets it up front (cases that need it set pass it
+  inline). Paired mutant (a dummy key exported instead of the unset) fails exactly that assertion, so it still bites.
+
 ## v1.33.0 (2026-10-24)
 
 Minor release on top of v1.32.0 (tags `v1.32.0` / `claude_toolkit-1.32.0`, both

@@ -31,6 +31,11 @@ KLIB = "scripts/jev-kimi-lib.sh"
 LDIR = "scripts/jev-lockdir-lib.sh"
 KLOCK = "test_jev_kimi_lock.sh"
 LIFE = "test_jev_setup_lifecycle.sh"
+GPLACE = "test_jev_gate_placeholder_key.sh"
+KCONTRACT = "test_jev_key_contract.sh"
+DEMOTE = "test_providers_sync_demote_optin.sh"
+HOSTED = "test_jev_gate_hosted_shadow.sh"
+BASEH = "test_jev_setup_base_homes.sh"
 
 BS = "\\"   # a single backslash (raw strings cannot end with one)
 AUTH = r"""-H @<(printf 'Authorization: Bearer %s\n' "$_key") """.rstrip() + " " + BS
@@ -76,7 +81,7 @@ M = [
  ("mcp: shipped pins looked up via abspath, not realpath (round-5 m1)", MCP, KORIG,
   'os.path.dirname(os.path.realpath(__file__)), "providers", "jev.json")\n        with', 'os.path.dirname(os.path.abspath(__file__)), "providers", "jev.json")\n        with', 1),
  ("mcp: keys-file path interpolated into shell text (round-5 N3)", MCP, KORIG,
-  """["bash", "-c", 'f=$1; v=$2; source "$f" >/dev/null 2>&1; printf %s "${!v:-}"',
+  """["bash", "-c", 'f=$1; v=$2; unset "$v"; source "$f" >/dev/null 2>&1; printf %s "${!v:-}"',
              "_", keys_file, key_var],""", """["bash", "-c", 'source "{0}" >/dev/null 2>&1; printf %s "${{{1}:-}}"'.format(keys_file, key_var)],""", 1),
  ("mcp: bare trusted-origin entry accepts any key variable (round-5 R3)", MCP, KORIG,
   "        if sep and o == origin and k == key_var:", "        if o == origin and (k == key_var or not sep):", 1),
@@ -358,18 +363,18 @@ M = [
   "  if (SHIPPED_ORIGINS.includes(`${origin}=${keyVar}`)) return true;", "  if (SHIPPED_ORIGINS.some((s) => s.startsWith(origin + \"=\"))) return true;", 1),
  ("plugin: key_var unvalidated and interpolated into the shell script text", PLUGIN, KORIG,
   r"""  if (!KEYVAR_RE.test(keyVar)) return "";
-  if (process.env[keyVar]) return process.env[keyVar];
+  if (keyValid(keyVar, process.env[keyVar])) return process.env[keyVar];
   let v = "";
   try {
-    // key_var travels as DATA in the environment, never inside the script text.
+    // key_var travels as DATA in the environment, never inside the script text. The ambient value is unset first so only the keys file answers.
     v = execFileSync("bash", ["-c",
-      'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],""",
+      'unset "$KV"; source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${!KV:-}"'],""",
   r"""  if (process.env[keyVar]) return process.env[keyVar];
   let v = "";
   try {
-    // key_var travels as DATA in the environment, never inside the script text.
+    // key_var travels as DATA in the environment, never inside the script text. The ambient value is unset first so only the keys file answers.
     v = execFileSync("bash", ["-c",
-      'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${' + keyVar + ':-}"'],""", 1),
+      'unset "$KV"; source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${' + keyVar + ':-}"'],""", 1),
  ("plugin: key_var not validated before use", PLUGIN, KORIG,
   "  if (!KEYVAR_RE.test(keyVar)) return \"\";", "", 1),
  ("plugin: providers dir hardcoded (CMA_PROVIDERS_DIR ignored)", PLUGIN, KORIG,
@@ -428,6 +433,75 @@ M = [
   '[ -n "$_pinsd" ] && _pinsf="$_pinsd/providers/jev.json"', '_pinsf="${_pinsd:-$(dirname "$_selfp")}/providers/jev.json"', 1),
  ("gate: pin-directory cd honours an exported CDPATH (round-7 N7)", GATE, KORIG,
   'CDPATH= cd -P -- "$(dirname -- "$_selfp")"', 'cd "$(dirname "$_selfp")"', 1),
+ # --- v1.33.2: LLMCTL_API_KEY format contract, applied in lock-step by every consumer
+ ("gate: LLMCTL key length floor dropped (placeholder accepted)", GATE, GPLACE,
+  '{32,512}$', '{1,512}$', 1),
+ ("gate: format check not applied to the environment value", GATE, GPLACE,
+  '  _key_valid "$_key" || _key=""\n', '  :\n', None),
+ ("mcp: LLMCTL key length floor dropped (placeholder accepted)", MCP, KCONTRACT,
+  '[A-Za-z0-9_-]{32,512}', '[A-Za-z0-9_-]{1,512}', 1),
+ ("mcp: fullmatch weakened to match (trailing-garbage accepted)", MCP, KCONTRACT,
+  '_LLMCTL_KEY_RE.fullmatch(value) is not None', '_LLMCTL_KEY_RE.match(value) is not None', 1),
+ ("mcp: environment value not format-checked", MCP, KCONTRACT,
+  '    if _key_valid(key_var, envv):\n        return envv', '    if envv:\n        return envv', 1),
+ ("mcp: keys-file value not format-checked", MCP, KCONTRACT,
+  '    if _key_valid(key_var, val):\n        return val', '    if val:\n        return val', 1),
+ ("mcp: key-file value not format-checked", MCP, KCONTRACT,
+  '    return kf if _key_valid(key_var, kf) else "local"', '    return kf or "local"', 1),
+ ("plugin: LLMCTL key length floor dropped (placeholder accepted)", PLUGIN, KCONTRACT,
+  '{32,512}$/', '{1,512}$/', 1),
+ ("plugin: environment value not format-checked", PLUGIN, KCONTRACT,
+  'if (keyValid(keyVar, process.env[keyVar])) return process.env[keyVar];', 'if (process.env[keyVar]) return process.env[keyVar];', 1),
+ ("plugin: keys-file value not format-checked", PLUGIN, KCONTRACT,
+  '  if (keyValid(keyVar, v)) return v;', '  if (v) return v;', 1),
+ ("plugin: key-file value not format-checked", PLUGIN, KCONTRACT,
+  '  return keyValid(keyVar, kf) ? kf : "";', '  return kf;', 1),
+ # --- v1.33.2: sync demotion is opt-in
+ ("providers: sync demotes orphans by default (opt-in lost)", CP, DEMOTE,
+  '    if (( ! DEMOTE )); then\n      orphans+=', '    if false; then\n      orphans+=', 1),
+ ("providers: --demote flag not parsed", CP, DEMOTE,
+  '    --demote) DEMOTE=1; shift ;;', '    --demote) shift ;;', 1),
+ ("providers: orphans no longer reported when not demoting", CP, DEMOTE,
+  '  if (( ! DEMOTE )) && [[ -n "$orphans" ]]; then', '  if false; then', 1),
+ # --- v1.33.2: hosted never enforces
+ ("gate: hosted endpoint no longer clamped to shadow", GATE, HOSTED,
+  'if [ "$JEV_MODE" = "enforce" ] && ! _jev_host_is_local "$JEV_BASE_URL"; then', 'if false; then', 1),
+ ("gate: every endpoint treated as hosted (local enforcement lost)", GATE, HOSTED,
+  'if [ "$JEV_MODE" = "enforce" ] && ! _jev_host_is_local "$JEV_BASE_URL"; then', 'if [ "$JEV_MODE" = "enforce" ]; then', 1),
+ ("gate: RFC1918 10/8 not local", GATE, HOSTED,
+  '    [ "$o1" = 10 ] && return 0\n', '', 1),
+ ("gate: 172.16/12 range widened past 31", GATE, HOSTED,
+  '[ "$o2" -le 31 ]', '[ "$o2" -le 255 ]', 1),
+ ("gate: userinfo authority accepted as local", GATE, HOSTED,
+  '  case "$a" in *[@\\\\%[:space:]]*|"") return 1 ;; esac\n', '', 1),
+ ("plugin: hosted endpoint no longer clamped to shadow", PLUGIN, HOSTED,
+  'return MODE === "enforce" && !hostIsLocal(baseUrl) ? "shadow" : MODE;', 'return MODE;', 1),
+ ("plugin: every endpoint treated as hosted", PLUGIN, HOSTED,
+  'return MODE === "enforce" && !hostIsLocal(baseUrl) ? "shadow" : MODE;', 'return MODE === "enforce" ? "shadow" : MODE;', 1),
+ ("plugin: userinfo authority accepted as local", PLUGIN, HOSTED,
+  'if (!a || /[@\\\\%\\s]/.test(a)) return false;', 'if (!a) return false;', 1),
+ ("plugin: enforce throw ignores effective mode", PLUGIN, HOSTED,
+  '    if (mode === "enforce" && answer === "deny") {', '    if (MODE === "enforce" && answer === "deny") {', 1),
+ # --- v1.33.2: base agent homes wired only on opt-in
+ ("jev-setup: --base-homes flag not parsed", SETUPSH, BASEH,
+  '    --base-homes) BASE_HOMES=1; shift ;;', '    --base-homes) shift ;;', 1),
+ ("jev-setup: env JEV_WIRE_AGENT_HOMES ignored", SETUPSH, BASEH,
+  'BASE_HOMES=0; [ "${JEV_WIRE_AGENT_HOMES:-0}" = 1 ] && BASE_HOMES=1', 'BASE_HOMES=0', 1),
+ ("jev-setup: base homes always wired without opt-in", SETUPSH, BASEH,
+  '  [ "$BASE_HOMES" = 1 ] || [ "$UNINSTALL" = 1 ] || [ "${_INVENTORY:-0}" = 1 ] || [ "$1" = 1 ]', '  true', 1),
+ ("jev-setup: uninstall no longer reaches base homes", SETUPSH, BASEH,
+  '  [ "$BASE_HOMES" = 1 ] || [ "$UNINSTALL" = 1 ] ||', '  [ "$BASE_HOMES" = 1 ] ||', 1),
+ ("jev-setup: marked base home not maintained without opt-in", SETUPSH, BASEH,
+  '|| [ "${_INVENTORY:-0}" = 1 ] || [ "$1" = 1 ]', '|| [ "${_INVENTORY:-0}" = 1 ]', 1),
+ ("jev-setup: ~/.kimi-code not treated as a native kimi home", SETUPSH, BASEH,
+  '      */.kimi-code-*|*/.kimi-code)', '      */.kimi-code-*)', 1),
+ ("jev-setup: homes not deduplicated by physical path", SETUPSH, BASEH,
+  '    case "$seen" in *$\'\\n\'"$r"$\'\\n\'*) continue ;; esac', '    :', 1),
+ ("jev-setup: ~/.pi wired without opt-in", SETUPSH, BASEH,
+  '    [ "$BASE_HOMES" = 1 ] && [ -d "$HOME/.pi" ] && printf', '    [ -d "$HOME/.pi" ] && printf', 1),
+ # --- v1.33.2: hermetic sandbox
+ ("sandbox: ambient Jev environment no longer scrubbed", "scripts/tests/lib/sandbox.sh", "test_sandbox_hermetic_jev.sh",
+  'JEV_*|CMA_JEV_*|LLMCTL_API_KEY|TYPESAFE_API_KEY|TYPESAFE_BASE_URL) unset "$_cma_v" ;;', 'JEV_*|CMA_JEV_*|LLMCTL_API_KEY|TYPESAFE_API_KEY|TYPESAFE_BASE_URL) : ;;', 1),
 ]
 
 # Rows whose kill needs an environment capability the owning suite probes itself and honestly SKIPs when it is missing

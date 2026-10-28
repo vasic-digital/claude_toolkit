@@ -29,6 +29,12 @@ make_sandbox
 # shellcheck source=../lib.sh
 source "$SCRIPTS_DIR/lib.sh"
 set +e
+# Hermeticity (test defect, fixed 2026-10-27): T7a asserts "no request at all (OPENROUTER_API_KEY is unset)" for a
+# gate run with JEV_KEY_VAR=OPENROUTER_API_KEY, but nothing unset it. A runner that EXPORTS OPENROUTER_API_KEY - this host
+# does - makes the gate read that variable, find it set and legitimately send the request, so the sink logs 1 line and
+# the case fails for a reason unrelated to the code under test (reproduced on the unmodified v1.33.0 tree: fails with the
+# variable exported, passes under `env -u OPENROUTER_API_KEY`). Cases that need the variable set pass it inline.
+unset OPENROUTER_API_KEY
 
 PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
 GATE="$SCRIPTS_DIR/jev-gate.sh"

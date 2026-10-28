@@ -344,15 +344,18 @@ else
   assert_file "$PDIR/$SERVED_ID.env" "and its env record is still in place"
 fi
 
-it "sync still demotes a genuine orphan (the fix narrows the sweep, not disables it)"
+it "sync --demote still demotes a genuine orphan (the fix narrows the sweep, not disables it)"
 # A record with NO owner marker whose id resolves against nothing must still be
 # demoted — otherwise the fix would have traded one silent-trust bug for another.
 printf "CMA_PROVIDER_ID='ghost-provider'\nCMA_PROVIDER_MODEL='m'\n" > "$PDIR/ghost-provider.env"
 jq '. + {"ghost-provider":{"status":"verified","model":"m","checked_at":"x","failing_layer":""}}' \
   "$PDIR/status.json" > "$PDIR/status.json.tmp" && mv "$PDIR/status.json.tmp" "$PDIR/status.json"
 bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >>"$PROOF" 2>&1
+assert_eq "verified" "$(jq -r '.["ghost-provider"].status' "$PDIR/status.json")" \
+  "a plain sync leaves an unowned, unresolved record alone (demotion is opt-in, v1.33.2)"
+bash "$PROVIDERS_SH" sync --demote --offline --no-verify --keys-file "$KEYS" >>"$PROOF" 2>&1
 assert_eq "orphaned" "$(jq -r '.["ghost-provider"].status' "$PDIR/status.json")" \
-  "an unowned, unresolved record is still demoted"
+  "sync --demote still demotes an unowned, unresolved record"
 
 echo >> "$PROOF"
 echo "=== result: pass=$TESTS_PASSED fail=$TESTS_FAILED ===" >> "$PROOF"
