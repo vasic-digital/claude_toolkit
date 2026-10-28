@@ -250,6 +250,10 @@ union_enabled_plugins_into_template() {
      && printf '%s' "$union" | jq empty 2>/dev/null \
      && cma_jq_edit "$tmpl" --argjson u "$union" '.enabledPlugins = $u'; then
     rm -f "$tmp"
+    # Curated-set policy (v1.34.0): any-true union would re-enable what the
+    # operator disabled; the captured policy is applied on top of it.
+    cma_policy_refresh
+    cma_policy_enforce_settings "$SHARED_DIR" >/dev/null || true
   else
     rm -f "$tmp"
     cma_warn "settings.json: enabledPlugins union NOT applied (jq error above; the shared template is unchanged)"

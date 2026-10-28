@@ -4353,6 +4353,157 @@ cma_all_config_dirs() {
   done
 }
 
+# ---------------------------------------------------------------------------
+# Plugin/MCP policy (v1.34.0) -- one operator-curated enabled set, enforced on
+# every alias.
+#
+# Why: the union/seed machinery above is ADDITIVE (any-true union, template +
+# own with "own wins"), so a plugin the operator DISABLED in one alias was
+# re-enabled by every other alias on the next unify/seed/provider sync -- the
+# operator's token-saving curation never propagated. The policy file makes the
+# curated set authoritative: $SHARED_DIR/plugin-policy.json, captured from ONE
+# source alias (default ~/.claude-claude1) by `claude-sync-plugins capture`.
+#
+#   enabledPlugins       exact map; a plugin key a target carries that the
+#                        policy does not list is forced FALSE (documented
+#                        default: unknown => disabled)
+#   disabledMcpServers   union of the source's per-project disabledMcpServers,
+#                        added (set-union, never removed) to EVERY project entry
+#                        of every other alias's .claude.json
+#
+# The SOURCE alias dir is never written by enforcement (it IS the truth). With
+# no policy file, or CMA_PLUGIN_POLICY=off, every function here is a no-op, so
+# hosts that never ran `capture` behave exactly as before.
+# ---------------------------------------------------------------------------
+cma_policy_file() { printf '%s\n' "${CMA_PLUGIN_POLICY_FILE:-${SHARED_DIR:-$HOME/.claude-shared}/plugin-policy.json}"; }
+
+cma_policy_active() {
+  [[ "${CMA_PLUGIN_POLICY:-on}" != off ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local pf; pf="$(cma_policy_file)"
+  [[ -s "$pf" ]] && jq -e '.schema == 1 and (.enabledPlugins | type == "object")' "$pf" >/dev/null 2>&1
+}
+
+cma_policy_source_dir() { jq -r '.source_dir // empty' "$(cma_policy_file)" 2>/dev/null; }
+
+# cma_policy_is_source DIR -> 0 when DIR is the policy's source alias.
+cma_policy_is_source() {
+  local d src; d="$(cma_realpath "$1" 2>/dev/null || echo "$1")"
+  src="$(cma_policy_source_dir)"; [[ -n "$src" ]] || return 1
+  src="$(cma_realpath "$src" 2>/dev/null || echo "$src")"
+  [[ "$d" == "$src" ]]
+}
+
+# cma_policy_capture SRC_DIR -> (re)write the policy from SRC_DIR. Deterministic
+# (sorted keys, no timestamp): re-capturing an unchanged source leaves the file
+# byte-identical (mtime is touched so the refresh check below settles).
+cma_policy_capture() {
+  local src="$1" pf sf cf tmp
+  pf="$(cma_policy_file)"; sf="$src/settings.json"; cf="$src/.claude.json"
+  command -v jq >/dev/null 2>&1 || { cma_warn "policy capture needs jq"; return 2; }
+  jq -e '.enabledPlugins | type == "object"' "$sf" >/dev/null 2>&1 \
+    || { cma_warn "policy capture: $sf has no enabledPlugins object"; return 2; }
+  [[ -s "$cf" ]] && jq empty "$cf" >/dev/null 2>&1 || cf=/dev/null
+  mkdir -p "$(dirname "$pf")"
+  tmp="$(mktemp "$pf.cmatmp.XXXXXX")" || return 2
+  if [[ "$cf" == /dev/null ]]; then
+    jq -n --arg dir "$src" --slurpfile s "$sf" '
+      {schema:1, source_dir:$dir,
+       enabledPlugins: ($s[0].enabledPlugins | to_entries | sort_by(.key) | from_entries),
+       disabledMcpServers: []}' > "$tmp"
+  else
+    jq -n --arg dir "$src" --slurpfile s "$sf" --slurpfile c "$cf" '
+      {schema:1, source_dir:$dir,
+       enabledPlugins: ($s[0].enabledPlugins | to_entries | sort_by(.key) | from_entries),
+       disabledMcpServers: ([($c[0].projects // {})[] | (.disabledMcpServers // [])[]] | unique)}' > "$tmp"
+  fi
+  if [[ -s "$tmp" ]] && jq empty "$tmp" >/dev/null 2>&1; then
+    if [[ -f "$pf" ]] && cmp -s "$tmp" "$pf"; then rm -f "$tmp"; touch "$pf"
+    else chmod 600 "$tmp" 2>/dev/null; mv -f "$tmp" "$pf"; fi
+  else rm -f "$tmp"; return 2; fi
+}
+
+# cma_policy_refresh -> keep the policy live: when the source alias's
+# settings.json or .claude.json is newer than the policy, re-capture. The source
+# alias (claude1) therefore stays the single place the operator curates.
+cma_policy_refresh() {
+  cma_policy_active || return 0
+  local src; src="$(cma_policy_source_dir)"; [[ -d "$src" ]] || return 0
+  local pf; pf="$(cma_policy_file)"
+  if [[ "$src/settings.json" -nt "$pf" || "$src/.claude.json" -nt "$pf" ]]; then
+    cma_policy_capture "$src" || cma_warn "policy refresh from $src failed; keeping the previous policy"
+  fi
+  return 0
+}
+
+# cma_policy_enforce_settings DIR [check] -> enforce enabledPlugins on
+# DIR/settings.json (or, with FILE-as-DIR/..., a template path). Prints one of
+#   ok | changed | would-change | source | absent | error
+# and returns 0 (ok/changed/source/absent), 11 (would-change), 2 (error).
+cma_policy_enforce_settings() {
+  local dir="$1" mode="${2:-apply}" f pf new_state
+  cma_policy_active || { echo off; return 0; }
+  f="$dir/settings.json"; pf="$(cma_policy_file)"
+  if cma_policy_is_source "$dir"; then echo source; return 0; fi
+  [[ -e "$f" ]] || { echo absent; return 0; }
+  [[ -L "$f" ]] && f="$(cma_realpath "$f")"
+  jq empty "$f" >/dev/null 2>&1 || { echo error; return 2; }
+  local flt='.enabledPlugins = (((.enabledPlugins // {}) | map_values(false)) + $p[0].enabledPlugins)'
+  # compare as key-sorted maps so the insertion ORDER never counts as a change
+  if jq -e --slurpfile p "$pf" "(($flt | .enabledPlugins) | to_entries | sort_by(.key)) == ((.enabledPlugins // {}) | to_entries | sort_by(.key))" "$f" >/dev/null 2>&1; then
+    echo ok; return 0
+  fi
+  if [[ "$mode" == check ]]; then echo would-change; return 11; fi
+  if cma_jq_edit "$f" --slurpfile p "$pf" "$flt"; then echo changed; return 0; fi
+  echo error; return 2
+}
+
+# cma_policy_enforce_claude_json DIR [check] -> add the policy's
+# disabledMcpServers to every project entry of DIR/.claude.json (set-union).
+cma_policy_enforce_claude_json() {
+  local dir="$1" mode="${2:-apply}" f pf
+  cma_policy_active || { echo off; return 0; }
+  f="$dir/.claude.json"; pf="$(cma_policy_file)"
+  # The default config dir keeps its state file at $HOME/.claude.json (Claude Code
+  # puts it beside, not inside, ~/.claude when CLAUDE_CONFIG_DIR is unset).
+  if [[ ! -e "$f" && "$dir" == "${DEFAULT_DIR:-$HOME/.claude}" ]]; then f="$HOME/.claude.json"; fi
+  if cma_policy_is_source "$dir"; then echo source; return 0; fi
+  [[ -s "$f" ]] || { echo absent; return 0; }
+  [[ -L "$f" ]] && f="$(cma_realpath "$f")"
+  jq empty "$f" >/dev/null 2>&1 || { echo error; return 2; }
+  jq -e '(.disabledMcpServers | length) > 0' "$pf" >/dev/null 2>&1 || { echo ok; return 0; }
+  local flt='.projects = ((.projects // {}) | map_values(.disabledMcpServers = (((.disabledMcpServers // []) + $p[0].disabledMcpServers) | unique)))'
+  # idempotence check: every project already carries a superset
+  if jq -e --slurpfile p "$pf" '[(.projects // {})[] | ((.disabledMcpServers // []) as $d | ($p[0].disabledMcpServers - $d | length) == 0)] | all' "$f" >/dev/null 2>&1; then
+    echo ok; return 0
+  fi
+  if [[ "$mode" == check ]]; then echo would-change; return 11; fi
+  if cma_jq_edit "$f" --slurpfile p "$pf" "$flt"; then echo changed; return 0; fi
+  echo error; return 2
+}
+
+# cma_policy_targets -> every dir the policy governs (one per line).
+cma_policy_targets() {
+  cma_all_config_dirs
+  [[ -d "${DEFAULT_DIR:-$HOME/.claude}" ]] && printf '%s\n' "${DEFAULT_DIR:-$HOME/.claude}"
+  return 0
+}
+
+# cma_policy_enforce_all -> refresh the policy, then enforce on the shared
+# template and every target. Quiet; used by the launch-time sync hook and unify.
+cma_policy_enforce_all() {
+  cma_policy_active || return 0
+  cma_policy_refresh
+  local d
+  cma_policy_enforce_settings "${SHARED_DIR:-$HOME/.claude-shared}" >/dev/null || true
+  while IFS= read -r d; do
+    [[ -n "$d" ]] || continue
+    cma_policy_enforce_settings "$d" >/dev/null || true
+    cma_policy_enforce_claude_json "$d" >/dev/null || true
+  done < <(cma_policy_targets)
+  return 0
+}
+
 # Give a config dir its OWN settings.json (§11.4 own-settings). If it is a symlink
 # (legacy shared layout) or absent, seed a REAL copy from the shared template so
 # it inherits enabledPlugins + theme. If already a real file, additively merge the
@@ -4372,6 +4523,7 @@ cma_own_settings_seed() {
   if [[ -L "$own" || ! -e "$own" ]]; then
     rm -f "$own" 2>/dev/null
     cp "$tmpl" "$own" 2>/dev/null || printf '{}\n' > "$own"
+    cma_policy_enforce_settings "$cdir" >/dev/null || true
     return 0
   fi
   tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
@@ -4380,6 +4532,9 @@ cma_own_settings_seed() {
         "$own" "$tmpl" > "$tmp" 2>/dev/null && jq -e . "$tmp" >/dev/null 2>&1; then
     command mv -f "$tmp" "$own"
   else rm -f "$tmp"; fi
+  # Curated-set policy (v1.34.0): the additive merge above can only ADD enabled
+  # plugins; the policy turns off what the operator disabled.
+  cma_policy_enforce_settings "$cdir" >/dev/null || true
 }
 
 # Force-enable the always-on plugins in the shared settings.json enabledPlugins
@@ -4410,6 +4565,8 @@ cma_enable_plugins() {
   else
     rm -f "$tmp"; cma_warn "could not update enabledPlugins in $settings"
   fi
+  # The curated-set policy (when captured) outranks the always-on defaults.
+  cma_policy_enforce_settings "$SHARED_DIR" >/dev/null || true
   # Fan the always-on plugin set out into every managed config dir's OWN
   # settings.json (settings.json is no longer a shared symlink — §11.4
   # own-settings) so enabling a plugin still reaches every alias/provider.

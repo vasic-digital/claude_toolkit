@@ -9,11 +9,11 @@ across all of them. Plus turn any LLM API key into a Claude Code alias, share
 your whole plugin ecosystem with OpenCode, and auto-name a per-project session
 on every launch.
 
-[![version](https://img.shields.io/badge/version-v1.33.0-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-v1.34.0-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#-requirements)
 [![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#-requirements)
 [![tests](https://img.shields.io/badge/tests-132%20suites-informational)](#-testing)
-[![shellcheck](https://img.shields.io/badge/shellcheck-not%20re--run%20for%20v1.33.0-lightgrey)](#-testing)
+[![shellcheck](https://img.shields.io/badge/shellcheck-not%20re--run%20for%20v1.34.0-lightgrey)](#-testing)
 [![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
 [Quick start](#-quick-start) · [Features](#-features) · [Commands](#-daily-commands) · [Guides](#-documentation) · [How it works](#-how-cross-account-sync-works)
@@ -155,6 +155,7 @@ config dir. Both installers are **idempotent**.
 | `claude-remove-account --alias NAME` | Drop an alias; archive (default) or `--delete` its dir. |
 | `claude-unify` | Re-merge state into the shared store (auto-detects `~/.claude-*`). |
 | `claude-sync-state` | Fast `jq` sync of the `.claude.json` session index across accounts. Runs automatically around every launch. |
+| `claude-sync-plugins` | Propagate the plugins / MCP servers you DISABLED in one alias (default `claude1`) to **every** alias, so they stop costing tokens. `capture`, `--dry-run`, `--apply`, `--verify`, `--status`. See [Curated plugin set](#-curated-plugin--mcp-set-claude-sync-plugins). |
 | `claude-session` | Per-project session helper (name/id/color/flags) used by the alias wrappers. See [SESSION_COLOR.md](docs/SESSION_COLOR.md). |
 | `claude-bootstrap` | Clean-slate provisioning on a fresh host. |
 | `claude-providers` | Create/refresh aliases for other LLM providers from your keys file. |
@@ -298,6 +299,36 @@ live in the shared `projects/`. The toolkit fixes this in two layers:
 Auth keys (`userID`, `oauthAccount`, `firstStartTime`, `claudeCodeFirstTokenDate`)
 never cross accounts.
 
+## 🧹 Curated plugin / MCP set (`claude-sync-plugins`)
+
+Disabled plugins (and the skills, MCP tools and agents they bundle) stop costing
+tokens in every session. Claude Code stores the disablement per alias:
+plugins in `<alias>/settings.json` `.enabledPlugins`, MCP servers in
+`<alias>/.claude.json` `.projects[<path>].disabledMcpServers`. The toolkit's
+unify/seed logic is additive (any-true union), which used to re-enable
+everything the operator disabled in one alias. Since v1.34.0:
+
+```bash
+claude-sync-plugins capture              # snapshot claude1's curated set -> ~/.claude-shared/plugin-policy.json
+claude-sync-plugins --dry-run            # what would change, writes nothing
+claude-sync-plugins --apply              # enforce on every alias (backs up + manifest)
+claude-sync-plugins --verify             # exit 0 conformant, 1 drift, 2 no policy
+claude-sync-plugins --status             # enabled/total plugin count per alias
+```
+
+* `enabledPlugins` is applied verbatim; a plugin the policy does not list is set
+  **false** (unknown => disabled). Every other settings key is untouched.
+* `disabledMcpServers` is set-unioned into every project of every other alias.
+* The source alias is never written; when its `settings.json`/`.claude.json` is
+  newer than the policy, the launch-time hook (`claude-sync-state`) re-captures
+  it, so a `/plugin` change in claude1 reaches all aliases on their next launch.
+* New aliases (`claude-add-account`, `claude-providers sync`, `claude-bootstrap`),
+  `claude-unify` and `install.sh` enforce it; `claude-install-verify` fails on drift.
+* Opt out with `CMA_PLUGIN_POLICY=off`; with no captured policy nothing changes.
+* Limits: an MCP server you re-enable in the source is not removed from other
+  aliases (union only); a project directory an alias has never opened gets the
+  list at its next launch.
+
 ## 🧪 Testing
 
 ```bash
@@ -307,7 +338,7 @@ bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evid
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
-touched. The suite is **132 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.33.0
+touched. The suite is **134 test files** (`ls scripts/tests/test_*.sh | wc -l`); a hermetic run on a host without a `claude-code-router` checkout fails the router-backed files (see CHANGELOG v1.32.0), and shellcheck was NOT re-run for v1.34.0
 (UNCONFIRMED; the historical v1.26.x figures were 62 warning-level and 203
 style-level suggestions over an unrecorded file set, and are not a current claim); live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and

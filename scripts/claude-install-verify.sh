@@ -249,6 +249,20 @@ for _kd in "${_kd_root:-$HOME}"/.kimi-prov-*; do
   fi
 done
 
+# --- 4. curated plugin/MCP policy (v1.34.0) --------------------------------
+# When the operator captured a policy (claude-sync-plugins capture), EVERY alias
+# must conform to it -- otherwise disabled plugins silently eat tokens. No
+# captured policy => honest DEGRADED-free skip (the feature is opt-in).
+_pol="${CMA_PLUGIN_POLICY_FILE:-${SHARED_DIR:-$HOME/.claude-shared}/plugin-policy.json}"
+if [[ "${CMA_PLUGIN_POLICY:-on}" != off && -s "$_pol" && -x "$LIB_DIR/claude-sync-plugins.sh" ]]; then
+  if _pv="$("$LIB_DIR/claude-sync-plugins.sh" --verify 2>&1)"; then
+    _ok "plugin policy: every alias conforms ($(printf '%s\n' "$_pv" | grep -m1 'targets scanned'))"
+  else
+    _fail "plugin policy: aliases drift from the captured set. Fix: claude-sync-plugins --apply
+$(printf '%s\n' "$_pv" | head -12)"
+  fi
+fi
+
 # --- verdict -----------------------------------------------------------------
 if (( _fails > 0 )); then
   printf '\n[verify] FAILED — %d required component(s) unusable, %d degraded.\n' \

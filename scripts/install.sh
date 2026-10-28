@@ -281,6 +281,14 @@ else
   cma_warn "no ~/${ACCOUNT_PREFIX}* dirs detected — add one with claude-add-account.sh"
 fi
 
+# 5a. Curated plugin/MCP policy (v1.34.0): when the operator captured one
+# (claude-sync-plugins capture), enforce it on every alias right after unify so
+# a fresh install/upgrade never re-enables what was disabled. Soft + opt-in.
+if [[ -s "${SHARED_DIR:-$HOME/.claude-shared}/plugin-policy.json" && -x "$LIB_DIR/claude-sync-plugins.sh" ]]; then
+  cma_log "enforcing the captured plugin policy (claude-sync-plugins --apply)"
+  "$LIB_DIR/claude-sync-plugins.sh" --apply || cma_warn "plugin policy apply reported drift/errors (continuing; see claude-sync-plugins --verify)"
+fi
+
 # 5b. Same unification for the Kimi family (v1.27.0), over $SHARED_DIR/kimi/.
 # Only when Kimi homes are actually present — a fresh install with none should
 # keep the same single cma_warn the Claude side emits, not two.

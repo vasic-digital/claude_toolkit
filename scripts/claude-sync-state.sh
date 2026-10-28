@@ -91,12 +91,15 @@ case "$mode" in
     # failure modes than the rare scalar-loss it prevents, on a hook that runs
     # on every launch. Revisit only if non-projects scalar state proves lossy.
     if (( ${#ALL_ACCOUNTS[@]} == 1 )); then
+      cma_policy_enforce_all
       exit 0
     fi
     cma_merge_claude_json "${ALL_ACCOUNTS[@]}"
+    cma_policy_enforce_all   # v1.34.0: curated plugin/MCP set (no-op without a captured policy)
     ;;
   all)
     cma_merge_claude_json "${ALL_ACCOUNTS[@]}"
+    cma_policy_enforce_all
     ;;
   *)
     usage; exit 2 ;;

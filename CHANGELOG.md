@@ -2,10 +2,34 @@
 
 All notable changes to the Claude multi-account toolkit.
 
-## Unreleased
+## v1.34.0 (2026-10-28)
+
+Minor release: a new `claude-sync-plugins` feature plus the Jev MCP framing fix
+that was merged after v1.33.0.
+
+### Added
+
+- `scripts/claude-sync-plugins.sh` (`claude-sync-plugins`): propagates the
+  operator's curated plugin / MCP set from one source alias (default
+  `~/.claude-claude1`) to every alias (claude1..N, all `~/.claude-prov-*`,
+  `~/.claude`, the shared template). Commands `capture`, `--dry-run`, `--apply`
+  (timestamped backup dir + `manifest.tsv` with pre-change sha256), `--verify`
+  (exit 0/1/2), `--status`. Policy file: `$SHARED_DIR/plugin-policy.json`.
+- lib.sh `cma_policy_*` functions; policy enforcement hooked into
+  `cma_own_settings_seed` (new aliases inherit), `cma_enable_plugins`,
+  `claude-unify` (the any-true union no longer re-enables disabled plugins),
+  and `claude-sync-state pull|push|all` (runs on every alias launch; also
+  re-captures from the source alias when it changed).
+- `install.sh` step 5a applies a captured policy; `claude-install-verify`
+  fails when any alias drifts from it.
+- Tests: `test_plugin_policy.sh` (50 assertions) and
+  `test_plugin_policy_mutation.sh` (control + 10 mutants, all killed).
 
 ### Fixed
 
+- Operator-disabled plugins were re-enabled on every other alias by the
+  additive unify/seed merge (283 of 285 plugins stayed enabled on all aliases
+  except the one the operator edited). Disablement now propagates and sticks.
 - `scripts/jev_mcp.py`: the `jev` MCP server never connected in Claude Code
   (`CONNECT_TIMEOUT` after 30 s). Root cause: every reply was written with
   LSP-style `Content-Length` framing, while the MCP stdio transport (and Claude
