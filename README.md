@@ -12,7 +12,7 @@ on every launch.
 [![version](https://img.shields.io/badge/version-v1.34.0-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#-requirements)
 [![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#-requirements)
-[![tests](https://img.shields.io/badge/tests-143%20suites-informational)](#-testing)
+[![tests](https://img.shields.io/badge/tests-145%20suites-informational)](#-testing)
 [![shellcheck](https://img.shields.io/badge/shellcheck-not%20re--run%20for%20v1.34.0-lightgrey)](#-testing)
 [![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
