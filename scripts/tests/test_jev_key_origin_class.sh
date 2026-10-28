@@ -32,7 +32,7 @@ set +e
 PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
 GATE="$SCRIPTS_DIR/jev-gate.sh"
 SHIPPED_PINS="$SCRIPTS_DIR/providers/jev.json"
-DUMMY="dum""my-k""ey-$$-0123456789"
+DUMMY="dum""my-k""ey-$$-0123456789abcdefghijklmnop"   # >=32 chars: LLMCTL_API_KEY contract [A-Za-z0-9_-]{32,512}
 KEYS="$HOME/api_keys.sh"
 printf "export TYPESAFE_API_KEY='%s'\nexport LLMCTL_API_KEY='%s'\nexport OPENROUTER_API_KEY='%s'\n" "$DUMMY" "$DUMMY" "$DUMMY" > "$KEYS"
 

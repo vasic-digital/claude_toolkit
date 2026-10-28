@@ -17,6 +17,14 @@
 #                                                   one variable out of it at call time - nothing is copied, nothing is
 #                                                   sourced, the value is never printed. Standalone: no agent home is
 #                                                   touched and no consent is needed)
+#             [--base-homes]                       (ALSO wire the default single-account agent homes ~/.claude,
+#                                                   ~/.kimi-code and ~/.pi. Opt-in per run, or env JEV_WIRE_AGENT_HOMES=1.
+#                                                   Without it those homes are never written; a base home that
+#                                                   already carries our marker is still maintained and --uninstall
+#                                                   always removes our blocks from it. opencode (~/.config/opencode)
+#                                                   is always in scope. Hosted endpoints stay SHADOW (the gate and
+#                                                   the plugin clamp enforce to shadow for non-local hosts) and
+#                                                   JEV_GATE=off is respected by the gate.)
 #             [--check]                            (dry audit — no writes)
 #             [--uninstall]
 #             [--if-stale <seconds>] [--quiet]
@@ -68,6 +76,7 @@ OPENCODE_CONFIG="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
 AGENTS="claude,kimi,pi,opencode"
 AGENTS_EXPLICIT=0
 ALL_AGENTS="claude,kimi,pi,opencode"
+BASE_HOMES=0; [ "${JEV_WIRE_AGENT_HOMES:-0}" = 1 ] && BASE_HOMES=1
 MODE="" KEYFILE="" CHECK=0 UNINSTALL=0 QUIET=0 IF_STALE=0 IF_STALE_ON=0 CONSENT="${JEV_SETUP_CONSENT:-0}"
 _usage_err() { printf 'jev-setup: %s\n' "$*" >&2; exit 2; }
 _need_val() { [ "$1" -ge 2 ] || _usage_err "$2 needs a value"; }
@@ -78,6 +87,7 @@ while [ $# -gt 0 ]; do
     --mode) _need_val $# "$1"; MODE="$2"; shift 2 ;;
     --key-file) _need_val $# "$1"; KEYFILE="$2"; shift 2 ;;
     --key-file=*) KEYFILE="${1#*=}"; shift ;;
+    --base-homes) BASE_HOMES=1; shift ;;
     --check) CHECK=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --if-stale) _need_val $# "$1"; IF_STALE="$2"; IF_STALE_ON=1; shift 2 ;;
@@ -301,7 +311,7 @@ install_common() {
 # Inventory of the wiring that is ACTUALLY present for each agent, read from the
 # agent homes themselves (never from the stamp alone). Prints a canonical csv.
 _inventory_wiring() {
-  local found="" home sf
+  local found="" home sf _INVENTORY=1
   while IFS= read -r home; do
     sf="$home/settings.json"
     [ -f "$sf" ] && jq -e '[ .hooks.PreToolUse[]? | [ .hooks[]?.command? // "" | contains("jev-gate.sh") ] | any ] | any' "$sf" >/dev/null 2>&1 \
@@ -358,13 +368,36 @@ _claude_hook_unmerge='
   .hooks.PreToolUse = [ .hooks.PreToolUse[] |
     select( ( [ .hooks[]?.command? // "" | contains("jev-gate.sh") ] | any ) | not ) ]'
 
-_claude_homes() { # one dir per line: shared seed + all account/provider homes
-  [ -d "$SHARED_DIR" ] && printf '%s\n' "$SHARED_DIR"
-  local d
-  for d in "$HOME"/.claude-* "$HOME"/.claude-prov-*; do
-    case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
-    [ -d "$d" ] && printf '%s\n' "$d"
+# Base (default single-account) homes: ~/.claude ~/.kimi-code ~/.pi. They are
+# written only on explicit opt-in (--base-homes / JEV_WIRE_AGENT_HOMES=1), but
+# a base home that ALREADY carries our marker is kept in sync and every
+# --uninstall / inventory pass reaches it, so nothing wired is ever orphaned.
+_base_in_scope() { # $1 = 0|1 marker present
+  [ "$BASE_HOMES" = 1 ] || [ "$UNINSTALL" = 1 ] || [ "${_INVENTORY:-0}" = 1 ] || [ "$1" = 1 ]
+}
+_claude_marked() { [ -f "$1/settings.json" ] && grep -qF 'jev-gate.sh' "$1/settings.json" 2>/dev/null && echo 1 || echo 0; }
+_kimi_marked() { [ -f "$1/config.toml" ] && grep -qF "$KIMI_HOOK_BEGIN" "$1/config.toml" 2>/dev/null && echo 1 || echo 0; }
+_dedupe_homes() { # stdin dirs -> unique by physical path, order kept
+  local d r seen=$'\n'
+  while IFS= read -r d; do
+    r="$(jev_realpath "$d" 2>/dev/null || printf '%s' "$d")"
+    case "$seen" in *$'\n'"$r"$'\n'*) continue ;; esac
+    seen="$seen$r"$'\n'
+    printf '%s\n' "$d"
   done
+}
+
+_claude_homes() { # one dir per line: shared seed + all account/provider homes (+ ~/.claude when in scope)
+  {
+    [ -d "$SHARED_DIR" ] && printf '%s\n' "$SHARED_DIR"
+    local d
+    for d in "$HOME"/.claude-* "$HOME"/.claude-prov-*; do
+      case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
+      [ -d "$d" ] && printf '%s\n' "$d"
+    done
+    d="$HOME/.claude"
+    [ -d "$d" ] && _base_in_scope "$(_claude_marked "$d")" && printf '%s\n' "$d"
+  } | _dedupe_homes
 }
 
 CLAUDE_MD_BEGIN='<!-- cma-jev:decision-architecture BEGIN -->'
@@ -481,11 +514,15 @@ KIMI_HOOK_BEGIN='# cma-jev:hooks BEGIN'
 KIMI_HOOK_END='# cma-jev:hooks END'
 
 _kimi_homes() {
-  local d _tr="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"
-  for d in "$HOME"/.kimi-code-* "${_tr:-$HOME}"/.kimi-prov-*; do
-    case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
-    [ -d "$d" ] && printf '%s\n' "$d"
-  done
+  {
+    local d _tr="${CMA_PROVIDERS_DIR:+$CMA_PROVIDERS_DIR/kimi-twins}"
+    for d in "$HOME"/.kimi-code-* "${_tr:-$HOME}"/.kimi-prov-*; do
+      case "$d" in *[[:cntrl:]]*) continue ;; esac   # line-oriented list: skip unsafe names
+      [ -d "$d" ] && printf '%s\n' "$d"
+    done
+    d="$HOME/.kimi-code"
+    [ -d "$d" ] && _base_in_scope "$(_kimi_marked "$d")" && printf '%s\n' "$d"
+  } | _dedupe_homes
 }
 
 # Resolve the matcher from the ONE constant file (warns, once, when it is
@@ -576,7 +613,7 @@ EOF
     # differs from the desired one (an older matcher/command, e.g. the v1.31.0
     # `Bash|WriteFile|StrReplaceFile`) is REWRITTEN, not skipped.
     case "$home" in
-      */.kimi-code-*)
+      */.kimi-code-*|*/.kimi-code)
         if [ -f "$conf" ]; then
           if [ "$CHECK" = 1 ]; then
             if ! grep -qF "$KIMI_HOOK_BEGIN" "$conf"; then
@@ -627,6 +664,16 @@ EOF
 
 # ---------------------------------------------------------------------------
 # Pi CLI
+_pi_homes() { # pi has no marker we can read, so ~/.pi needs the explicit opt-in every run
+  {
+    local d
+    for d in "$HOME"/.pi-* "$HOME"/.pi-prov-*; do
+      case "$d" in *[[:cntrl:]]*) continue ;; esac
+      [ -d "$d" ] && printf '%s\n' "$d"
+    done
+    [ "$BASE_HOMES" = 1 ] && [ -d "$HOME/.pi" ] && printf '%s\n' "$HOME/.pi"
+  } | _dedupe_homes
+}
 install_pi() {
   if [ "$UNINSTALL" = 1 ]; then
     _say "jev-setup: pi — nothing to uninstall (env is delivered by cma_jev_env at launch)"
@@ -635,10 +682,8 @@ install_pi() {
   # No pi homes => nothing to install into; skip even the npm probe (keeps
   # installs hermetic on hosts without the pi family).
   local _pi_found=0 d
-  for d in "$HOME"/.pi-* "$HOME"/.pi-prov-*; do
-    [ -d "$d" ] && { _pi_found=1; break; }
-  done
-  [ "$_pi_found" = 0 ] && { _say "jev-setup: pi — SKIP (no ~/.pi-*/ ~/.pi-prov-* homes)"; return 0; }
+  while IFS= read -r d; do _pi_found=1; break; done < <(_pi_homes)
+  [ "$_pi_found" = 0 ] && { _say "jev-setup: pi — SKIP (no ~/.pi-*/ ~/.pi-prov-* homes; ~/.pi needs --base-homes)"; return 0; }
   # Verified package name is @riposta/pi-jev (older jev-pi / jev-pi-orchestrator
   # names are wrong/renamed). Network-guarded: honest SKIP when offline.
   if ! command -v npm >/dev/null 2>&1; then
@@ -647,15 +692,14 @@ install_pi() {
   fi
   if timeout 3 npm view @riposta/pi-jev version >/dev/null 2>&1 7>&-; then
     if [ "$CHECK" = 1 ]; then
-      _say "jev-setup: pi — would run: pi install npm:@riposta/pi-jev for each ~/.pi-*/ ~/.pi-prov-*/"
+      _say "jev-setup: pi — would run: pi install npm:@riposta/pi-jev for each pi home ($(_pi_homes | tr "\n" " "))"
       return 0
     fi
-    for d in "$HOME"/.pi-* "$HOME"/.pi-prov-*; do
-      [ -d "$d" ] || continue
+    while IFS= read -r d; do
       PI_CODING_AGENT_DIR="$d" pi install npm:@riposta/pi-jev >/dev/null 2>&1 7>&- \
         && _say "jev-setup: pi — installed @riposta/pi-jev into $d" \
         || _say "jev-setup: pi — install FAILED for $d; manual: PI_CODING_AGENT_DIR=$d pi install npm:@riposta/pi-jev"
-    done
+    done < <(_pi_homes)
   else
     _say "jev-setup: pi — SKIP (offline or npm registry unreachable). Manual: PI_CODING_AGENT_DIR=<home> pi install npm:@riposta/pi-jev"
   fi

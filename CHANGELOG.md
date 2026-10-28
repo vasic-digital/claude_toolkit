@@ -2,6 +2,38 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.33.2 (2026-10-28)
+
+Patch release on top of v1.33.1 (`5d1c6eb`).
+
+- **`claude-providers sync` no longer demotes by default (operator decision).** Orphaned provider aliases are only REPORTED, with
+  a safe message naming the exact command to demote; demotion needs the explicit `--demote` flag. Documented in README, the User
+  Manual and the Provider FAQ. Test: `test_providers_sync_demote_optin.sh`.
+- **Jev gate placeholder/short-key guard** (patch 0001, re-reviewed): `jev-gate.sh`, and now also `jev_mcp.py` and
+  `opencode-jev-plugin.js`, refuse a placeholder or too-short `LLMCTL_API_KEY` (key contract `^[A-Za-z0-9_-]{32,512}$`) instead of
+  sending it. Hosted endpoints stay SHADOW and can never enforce; `JEV_GATE=off` is respected. Tests: `test_jev_gate_placeholder_key.sh`,
+  `test_jev_key_contract.sh`, `test_jev_gate_hosted_shadow.sh`.
+- **Jev wiring of every supported agent home is opt-in** (`jev-setup.sh --base-homes` or `JEV_WIRE_AGENT_HOMES=1`); the native
+  `~/.kimi-code` case pattern was fixed. Test: `test_jev_setup_base_homes.sh`.
+- **Hermetic tests**: `test_jev_detect_https*.sh` unset ambient `JEV_*`, `CMA_JEV_*`, `LLMCTL_API_KEY` (`test_sandbox_hermetic_jev.sh`);
+  `test_carrier_inherited_heading.sh` rewritten strict.
+- **Alias switch across Anthropic organizations ("Claude can't use thinking from another organization").** Each `claudeN` alias is its own
+  Anthropic organization, but `claude-unify` shares `projects/` and `sessions/`, so resuming a session under another org's alias makes
+  Claude Code discard the org-bound thinking-block signatures and re-read the whole session uncached (slower, more tokens).
+  - **Cannot be fixed at API level**: the signature is server-side and org-bound; for the unmodified session the discard and re-read is
+    unavoidable, and the toolkit cannot change which org an alias belongs to. Provider aliases (`cma_run_provider`) are not Anthropic orgs and
+    are not guarded. The constitution multitrack ruler's own rebind logic lives in the constitution repository, not here.
+  - **What the toolkit now does**: `claude-session org-guard` (wired into the generated `cma_run`) records the org per session under
+    `<shared>/session-orgs/<sid>` and, when the org changes, prints a pre-launch WARNING with the context size, names a same-org alias, and
+    names the opt-in. `CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1` resumes a sanitized COPY (thinking/redacted_thinking dropped, parent chain
+    rewired, original never touched or deleted, 0600, never overwriting). `claude-session sanitize-fork <config_dir> [sid]` does the same by hand.
+  - **Also fixed (root cause of resume misdetection)**: real Claude Code transcripts put `"type":"assistant"` AFTER the large `message`
+    object, so the anchored `^{"type":"assistant"` test treated large real sessions as non-resumable (a fresh `--session-id` instead of
+    `--resume`, so nothing to guard and no continuity). Detection now matches a JSON-object line with an unescaped top-level type and
+    verifies it parses (debris is still rejected); `context-size` uses the same match. Tests: `test_session_realformat.sh`, `test_session_org_switch.sh`
+    (unit, integration, e2e, security, chaos, stress, performance, 4 mutations).
+  - **Review round 1 closures**: runtime `cma_run` org-guard wiring test (`test_cma_run_orgguard_runtime.sh`: failing/missing guard still launches the original flags, replacement flags reach claude, fallback-removal mutation killed); fork tests now assert thinking-only lines are dropped and children are rewired (mutation added); `test_providers_sync_demote_optin.sh` help check made SIGPIPE-proof; fork temp file no longer leaks on a link race.
+
 ## v1.33.1 (2026-10-27)
 
 Patch release on top of v1.33.0 (tags `v1.33.0` / `claude_toolkit-1.33.0`, both at `53bf5fb`). It also carries the two

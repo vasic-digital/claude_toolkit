@@ -1536,6 +1536,11 @@ cma_run() {
   if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
     local _cma_sf
     _cma_sf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+    # org-guard may fail, be missing (older installed claude-session) or print
+    # nothing: only a non-empty successful answer replaces the flags.
+    local _cma_sg
+    _cma_sg="$("$HOME/.local/bin/claude-session" org-guard "$CLAUDE_CONFIG_DIR" "$_cma_sf")" || _cma_sg=""
+    if [ -n "$_cma_sg" ]; then _cma_sf="$_cma_sg"; fi
     _cma_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_label="${_cma_label#.claude-}"
     "$HOME/.local/bin/claude-session" hint "$_cma_label" 2>/dev/null || true
     eval "set -- $_cma_sf"

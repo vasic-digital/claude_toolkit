@@ -1,11 +1,11 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-10-27
+**Last updated:** 2026-10-28
 **Base commit:** `31176b8` (*test(jev): T7a unsets the ambient OPENROUTER_API_KEY it asserts is unset*), which is `origin/main`; the v1.33.1 release sits on top of it as three LOCAL commits before the live-gate refresh (`7cc61d9` carrier pointer sections, `22a1943` the release commit, `fedbe25` the doc refresh), plus the commit that carries this update; read `git log -1` for the commit that carries this file. `31176b8` is an ancestor of `HEAD` (linear, no merges)
 **Working tree:** clean apart from the commit that carries this update
 **Active branch:** `main` (local, 3+ commits ahead of `origin/main` at the time of writing; see `git log origin/main..HEAD` for the exact set). The earlier `fix/portability-2026-10-24` and `fix/hosted-jev-2026-10-24` branch work is already contained in `main` history (1.33.0 is tagged at `53bf5fb`); nothing from those branches is pending here
-**Declared version:** `1.33.1` (`package.json`), prepared locally as `v1.33.1` and `claude_toolkit-1.33.1` (NOT tagged, NOT pushed at the time of writing); `1.33.0` is tagged as `v1.33.0` and `claude_toolkit-1.33.0` (both at `53bf5fb`). 1.33.1 is a patch: constitution carrier pointer sections plus the two post-1.33.0 `main` fixes.
-**Next action:** (conductor) review the 1.33.1 release commit, LIVE leg of `claude-release-gate` was run 2026-10-27 via `--skip-suite --provider deepseek` after re-syncing the deepseek alias (layers 2, 2.5, 2.6 GREEN), then annotated-tag `v1.33.1` and `claude_toolkit-1.33.1` on the same commit, ff-only push to every upstream, bump the hub `submodules/claude_toolkit` pin and land the hub exclusion row for the superspec example fixture; `CHANGELOG.md` has a `## v1.33.1 (2026-10-27)` section. Sections §0.1 and §1-§5 are HISTORICAL and kept as an archive.
+**Declared version:** `1.33.2` (`package.json`); tags `v1.33.2` / `claude_toolkit-1.33.2`. `1.33.1` and `1.33.0` are tagged earlier.
+**Next action:** (conductor) v1.33.2 shipped: demote opt-in, Jev placeholder-key guard, opt-in base-home wiring, org-switch guard + sanitized fork, resumable-detection fix. Open: constitution multitrack ruler should prefer a same-org alias on rebind (lives in the constitution repo).
 
 > **§0.1 is a HISTORICAL snapshot (2026-10-03) — superseded by the header above and §0.2.** It was the current state when written. Sections §1-§5 below describe a `v1.26.7` release cycle from 2026-07-28 that has since actually shipped (the toolkit is now many releases past it) — this file was never updated in between, which is exactly the "stale CONTINUATION is a CRITICAL DEFECT" failure mode §7 warns about. Treat §1-§5 as historical/superseded in their entirety, same as §5's own archive; a future update should fold them into §5 properly rather than leaving them masquerading as current.
 

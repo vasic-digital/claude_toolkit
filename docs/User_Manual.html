@@ -181,7 +181,11 @@ vertical-align: middle;
 <li><a href="#1-orientation" id="toc-1-orientation">1.
 Orientation</a></li>
 <li><a href="#2-provider-aliases-any-llm-as-a-claude-code-alias" id="toc-2-provider-aliases-any-llm-as-a-claude-code-alias">2. Provider
-aliases (any LLM as a Claude Code alias)</a></li>
+aliases (any LLM as a Claude Code alias)</a>
+<ul>
+<li><a href="#21-demotion-and-switching-aliases-across-organizations" id="toc-21-demotion-and-switching-aliases-across-organizations">2.1
+Demotion, and switching aliases across organizations</a></li>
+</ul></li>
 <li><a href="#3-local-models-through-llmctl-and-the-validation-gate" id="toc-3-local-models-through-llmctl-and-the-validation-gate">3. Local
 models through llmctl (and the validation gate)</a></li>
 <li><a href="#4-decision-models-jev--the-114279-layer" id="toc-4-decision-models-jev--the-114279-layer">4. Decision models
@@ -239,6 +243,31 @@ Verification Guide</a></li>
 <li>Kimi Code accounts: <a href="../Kimi_Accounts_User_Guide.md">Kimi
 Accounts User Guide</a></li>
 <li>Diagrams: <a href="diagrams/README.md">index</a> (<a href="diagrams/quota-limits-flow.svg">quota-limits-flow</a>, <a href="diagrams/kimi-family.svg">kimi-family</a>, <a href="diagrams/enable-policy.svg">enable-policy</a>)</li>
+</ul>
+<h3 id="21-demotion-and-switching-aliases-across-organizations">2.1
+Demotion, and switching aliases across organizations</h3>
+<ul>
+<li><code>claude-providers sync</code> only REPORTS orphaned provider
+aliases; to demote them run <code>claude-providers sync --demote</code>
+(opt-in, v1.33.2).</li>
+<li>Each <code>claudeN</code> alias is a separate Anthropic
+organization. <code>claude-unify</code> shares <code>projects/</code>
+and <code>sessions/</code>, so resuming a session under an alias of
+another organization makes Claude Code print &quot;can&#39;t use thinking from
+another organization&quot;: thinking-block signatures are organization-bound,
+so the CLI drops them and re-reads the whole session uncached (slower,
+more tokens). This cannot be avoided at API level for the unmodified
+session. The toolkit warns before launch (with the context size and a
+same-org alias to use instead);
+<code>CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1</code> resumes a sanitized
+copy without thinking blocks (original kept);
+<code>claude-session sanitize-fork &lt;config_dir&gt; [sid]</code> does
+it by hand. Provider aliases are not Anthropic organizations and are not
+guarded.</li>
+<li>Opt-in Jev wiring of every supported agent home:
+<code>jev-setup.sh --base-homes</code> or
+<code>JEV_WIRE_AGENT_HOMES=1</code>; hosted decision endpoints stay
+SHADOW.</li>
 </ul>
 <h2 id="3-local-models-through-llmctl-and-the-validation-gate">3. Local
 models through llmctl (and the validation gate)</h2>

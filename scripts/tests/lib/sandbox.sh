@@ -38,6 +38,15 @@ make_sandbox() {
   # non-hermetic by omission. Suites that need a CA set it INLINE on the
   # command they are testing, which this does not affect.
   unset CMA_PROVIDER_CA_CERT SSL_CERT_FILE NODE_EXTRA_CA_CERTS
+  # Hermeticity (fixed 2026-10-28, v1.33.2): scrub the CALLER's Jev/decision-endpoint environment the same way. A developer shell
+  # that exports JEV_BASE_URL / JEV_KEY_VAR / LLMCTL_API_KEY / TYPESAFE_API_KEY (this host exports 7+) silently changes which endpoint,
+  # key variable and bearer the code under test resolves, so a "no key" or "keys file wins" assertion passes or fails on the ambient
+  # shell, not on the code. Suites that need one of these set it INLINE on the command they are testing.
+  _cma_v=""
+  for _cma_v in $(compgen -v); do
+    case "$_cma_v" in JEV_*|CMA_JEV_*|LLMCTL_API_KEY|TYPESAFE_API_KEY|TYPESAFE_BASE_URL) unset "$_cma_v" ;; esac
+  done
+  unset _cma_v
   # Point at the real vendored Go toolchain so ccr-build/proxy-build work in
   # the sandbox (the sandbox HOME doesn't have ~/.local/share/claude-go).
   if [[ -x "$CMA_REAL_HOME/.local/share/claude-go/bin/go" ]]; then

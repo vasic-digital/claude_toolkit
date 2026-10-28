@@ -346,3 +346,13 @@ By llmctl, not by this toolkit: llmctl's known-answer gate (Constitution §11.4.
 ### Why is there no alias for a decision model?
 
 Constitution §11.4.279 separates decision models (typed answers, no chat) from chat models. They are registered with `classification: decision` and `alias: null` and never become aliases; see [Jev FAQ](jev/Jev_FAQ.md).
+
+## Sessions and organizations
+
+### Why do I get "Claude can't use thinking from another organization" after switching alias, and what does it cost?
+
+Each `claudeN` alias belongs to a different Anthropic organization and `claude-unify` shares the session store between them. Thinking-block signatures are organization-bound, so on resume Claude Code discards them and re-reads the whole session without cache: the next replies are slower and use about the session's full context in tokens. The toolkit prints that size before launch (`claude-session org-guard`), names a same-org alias that avoids the cost, and, with `CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1`, resumes a sanitized COPY (thinking blocks removed, original untouched). It cannot remove the cost for the unmodified session; that is a server-side property. Provider aliases are not affected.
+
+### Does `claude-providers sync` remove aliases I stopped configuring?
+
+Not by default (v1.33.2). Orphans are reported with the exact command; add `--demote` to demote them.

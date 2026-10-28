@@ -22,6 +22,17 @@ order.
 - Kimi Code accounts: [Kimi Accounts User Guide](../Kimi_Accounts_User_Guide.md)
 - Diagrams: [index](diagrams/README.md) ([quota-limits-flow](diagrams/quota-limits-flow.svg), [kimi-family](diagrams/kimi-family.svg), [enable-policy](diagrams/enable-policy.svg))
 
+### 2.1 Demotion, and switching aliases across organizations
+
+- `claude-providers sync` only REPORTS orphaned provider aliases; to demote them run `claude-providers sync --demote` (opt-in, v1.33.2).
+- Each `claudeN` alias is a separate Anthropic organization. `claude-unify` shares `projects/` and `sessions/`, so resuming a session under
+  an alias of another organization makes Claude Code print "can't use thinking from another organization": thinking-block signatures are
+  organization-bound, so the CLI drops them and re-reads the whole session uncached (slower, more tokens). This cannot be avoided at API
+  level for the unmodified session. The toolkit warns before launch (with the context size and a same-org alias to use instead);
+  `CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1` resumes a sanitized copy without thinking blocks (original kept); `claude-session sanitize-fork <config_dir> [sid]` does it by hand.
+  Provider aliases are not Anthropic organizations and are not guarded.
+- Opt-in Jev wiring of every supported agent home: `jev-setup.sh --base-homes` or `JEV_WIRE_AGENT_HOMES=1`; hosted decision endpoints stay SHADOW.
+
 ## 3. Local models through llmctl (and the validation gate)
 
 - Quickstart: [llmctl quickstart](llmctl/quickstart.md)

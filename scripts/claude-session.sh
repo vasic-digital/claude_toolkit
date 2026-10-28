@@ -125,6 +125,13 @@ case "$CMA_SESSION_DEAD_BYTES" in
   ''|0|*[!0-9]*) CMA_SESSION_DEAD_BYTES=65536 ;;
 esac
 
+# Assistant event: a JSON-object line (starts with `{"key":`) carrying an
+# UNESCAPED "type":"assistant". Real Claude Code transcripts put "type" AFTER the
+# large "message" object (and old ones before it), so it cannot be anchored to
+# the line start. Debris that does not start as a JSON object, or that holds the
+# substring only escaped inside a string (\"type\":\"assistant\"), is rejected.
+_CMA_ASSIST_RE='^\{("[A-Za-z]+":.*)?"type":"assistant"'
+
 _cma_session_resumable() {
   local f="$1" sz
   [[ -f "$f" ]] || return 1
@@ -132,7 +139,17 @@ _cma_session_resumable() {
   if [ "$sz" -le "$CMA_SESSION_DEAD_BYTES" ]; then return 0; fi
   # Anchored to the JSONL object start: a pasted/debris line that merely
   # CONTAINS the substring mid-line must not count as an assistant event.
-  grep -q '^{"type":"assistant"' "$f" 2>/dev/null
+  if command -v jq >/dev/null 2>&1; then
+    # Candidate lines must also PARSE as JSON with a top-level type of
+    # assistant: pasted debris that is not a valid event never counts.
+    # pipefail off: head closing the pipe SIGPIPEs grep (141) on many matches,
+    # which must not turn a successful jq verdict into "not resumable".
+    ( set +o pipefail
+      grep -E "$_CMA_ASSIST_RE" "$f" 2>/dev/null | head -200 | \
+        jq -nRe 'first(inputs | fromjson? | select(.type == "assistant")) | true' >/dev/null 2>&1 ) || return 1
+  else
+    grep -Eq "$_CMA_ASSIST_RE" "$f" 2>/dev/null
+  fi
 }
 
 # Print the newest RESUMABLE session id for a session dir, nothing when every
@@ -179,6 +196,142 @@ cma_existing_session_id() {
   return 0
 }
 
+# --- org-switch guard (v1.33.2) ---------------------------------------------
+# Each claudeN alias is a DIFFERENT Anthropic organization, yet claude-unify
+# shares projects/ (so one session JSONL is resumed under another org).
+# Thinking-block signatures are organization-bound: Claude Code discards them
+# on resume and re-reads the whole session uncached ("Claude can't use thinking
+# from another organization"). That cost is UNAVOIDABLE at API level for an
+# unmodified session; the toolkit can only (a) warn BEFORE it happens, with the
+# size, (b) point at a same-org alias, (c) on explicit opt-in resume a
+# sanitized COPY (thinking blocks dropped; original never touched or deleted).
+_cma_valid_sid() { [[ "${1:-}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; }
+
+# Print the organizationUuid of an alias config dir (empty when unknown).
+cma_org_id() {
+  local cd="${1:-}" f="${1:-}/.claude.json" v=""
+  [[ -n "$cd" && -r "$f" ]] && command -v jq >/dev/null 2>&1 || return 0
+  v="$(jq -r '.oauthAccount.organizationUuid // empty' "$f" 2>/dev/null || true)"
+  [[ "$v" =~ ^[A-Za-z0-9-]{8,64}$ ]] && printf '%s\n' "$v"
+  return 0
+}
+
+_cma_org_dir() {
+  local cd="${1:-}" d t
+  if [[ -n "${CMA_SESSION_ORG_DIR:-}" ]]; then d="$CMA_SESSION_ORG_DIR"
+  else
+    # one-level symlink resolution via plain readlink (no `readlink -f`: absent on BSD/macOS)
+    d="$cd/projects"
+    if [[ -L "$d" ]]; then
+      t="$(readlink "$d" 2>/dev/null || true)"
+      if [[ -n "$t" ]]; then case "$t" in /*) d="$t" ;; *) d="$cd/$t" ;; esac; fi
+    fi
+    d="$(dirname "$d")/session-orgs"
+  fi
+  printf '%s\n' "$d"
+}
+
+# Another alias dir whose org equals $2 (first match, excluding $1).
+_cma_same_org_alias() {
+  local self="${1:-}" org="${2:-}" d o
+  for d in "$HOME"/.claude-claude*; do
+    [[ -d "$d" && "$d" != "$self" ]] || continue
+    o="$(cma_org_id "$d")"; [[ -n "$o" && "$o" == "$org" ]] && { basename "$d" | sed 's/^\.claude-//'; return 0; }
+  done
+  return 0
+}
+
+# Non-destructive sanitized fork: <new>.jsonl without thinking blocks.
+# usage: cma_sanitize_fork <src.jsonl> <new_sid>   (prints new path)
+cma_sanitize_fork() {
+  local src="${1:-}" nsid="${2:-}" out
+  _cma_valid_sid "$nsid" && [[ -f "$src" ]] || return 2
+  out="$(dirname "$src")/$nsid.jsonl"
+  [[ -e "$out" ]] && return 3
+  python3 - "$src" "$out" "$nsid" <<'PY' || return 4
+import json,sys,os
+src,out,nsid=sys.argv[1:4]
+lines=[];drop={}
+for raw in open(src,encoding='utf-8',errors='surrogateescape'):
+    raw=raw.rstrip('\n'); o=None
+    try: o=json.loads(raw)
+    except Exception: pass
+    if isinstance(o,dict):
+        m=o.get('message')
+        c=m.get('content') if isinstance(m,dict) else None
+        if isinstance(c,list):
+            k=[b for b in c if not (isinstance(b,dict) and b.get('type') in('thinking','redacted_thinking'))]
+            if len(k)!=len(c):
+                if not k and o.get('uuid'):
+                    drop[o['uuid']]=o.get('parentUuid'); continue
+                m['content']=k
+    lines.append((raw,o))
+tmp=out+'.tmp.%d'%os.getpid()
+fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+with os.fdopen(fd,'w',encoding='utf-8',errors='surrogateescape') as f:
+    for raw,o in lines:
+        if isinstance(o,dict):
+            p=o.get('parentUuid'); n=0
+            while p in drop and n<100000: p=drop[p]; n+=1
+            if 'parentUuid' in o: o['parentUuid']=p
+            if 'sessionId' in o: o['sessionId']=nsid
+            raw=json.dumps(o,ensure_ascii=False,separators=(',',':'))
+        f.write(raw+'\n')
+try:
+    os.link(tmp,out)
+except FileExistsError:
+    os.unlink(tmp); sys.exit(3)
+except OSError:
+    os.unlink(tmp); raise
+os.unlink(tmp)
+PY
+  printf '%s\n' "$out"
+}
+
+# org-guard <config_dir> <flags-string>
+# Prints the (possibly replaced) flags on stdout; warnings on stderr.
+# Never fails the launch: any internal problem returns the flags unchanged.
+cma_org_guard() {
+  local cd="${1:-}" flags="${2:-}" sid="" cur rec dir prev prevalias label root slug src nsid tok same
+  if [[ "$flags" =~ --resume\ ([0-9a-fA-F-]{36}) ]]; then sid="${BASH_REMATCH[1]}"; fi
+  if [[ -z "$sid" ]] || ! _cma_valid_sid "$sid"; then printf '%s\n' "$flags"; return 0; fi
+  cur="$(cma_org_id "$cd")"
+  if [[ -z "$cur" ]]; then printf '%s\n' "$flags"; return 0; fi
+  label="$(basename "$cd")"; label="${label#.claude-}"
+  dir="$(_cma_org_dir "$cd")"; rec="$dir/$sid"
+  if [[ -f "$rec" ]]; then
+    prev="$(sed -n 's/^org=//p' "$rec" | head -1)"; prevalias="$(sed -n 's/^alias=//p' "$rec" | head -1)"
+  fi
+  if [[ -n "${prev:-}" && "$prev" != "$cur" ]]; then
+    root="$(cma_project_root "$PWD")"
+    slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+    tok="$("$0" context-size "$cd" "$sid" 2>/dev/null || true)"
+    {
+      printf 'claude-session: WARNING — this session was last used by alias "%s" (organization %s…) and you are launching "%s" (organization %s…).\n' \
+        "${prevalias:-?}" "${prev:0:8}" "$label" "${cur:0:8}"
+      printf '  Thinking blocks are organization-bound: Claude Code will discard them and re-read the session UNCACHED%s.\n' \
+        "${tok:+ (~$tok tokens of context)}"
+      printf '  This cannot be avoided at API level for the unmodified session.\n'
+      same="$(_cma_same_org_alias "$cd" "$prev")"
+      [[ -n "$same" ]] && printf '  Same-org alias (no penalty): %s\n' "$same"
+      printf '  Opt-in: CMA_SESSION_SANITIZE_ON_ORG_CHANGE=1 resumes a sanitized COPY (thinking dropped, original kept).\n'
+    } >&2
+    if [[ "${CMA_SESSION_SANITIZE_ON_ORG_CHANGE:-0}" == "1" ]]; then
+      src="$cd/projects/$slug/$sid.jsonl"
+      nsid="$(python3 -c 'import uuid;print(uuid.uuid4())' 2>/dev/null || true)"
+      if _cma_valid_sid "$nsid" && cma_sanitize_fork "$src" "$nsid" >/dev/null 2>&1; then
+        printf 'claude-session: resuming sanitized copy %s (original %s untouched).\n' "$nsid" "$sid" >&2
+        flags="${flags//$sid/$nsid}"; sid="$nsid"
+      else
+        printf 'claude-session: sanitized fork failed; resuming the original.\n' >&2
+      fi
+    fi
+  fi
+  # record the org of THIS launch (atomic, private); failure is non-fatal
+  ( umask 077; mkdir -p "$dir" 2>/dev/null && { printf 'org=%s\nalias=%s\nts=%s\n' "$cur" "$label" "$(date +%s)" > "$rec.tmp.$$" && mv -f "$rec.tmp.$$" "$rec"; } ) 2>/dev/null || true
+  printf '%s\n' "$flags"
+}
+
 main() {
   local cmd="${1:-flags}"; shift 2>/dev/null || true
   case "$cmd" in
@@ -215,8 +368,8 @@ main() {
       # 1 — the || true keeps that an empty print, never an abort. Anchored to
       # the JSONL object start, matching _cma_session_resumable, so a mid-line
       # substring (pasted debris) is not mistaken for an assistant event.
-      grep '^{"type":"assistant"' "$sess_file" 2>/dev/null | tail -1 | \
-        jq -r '(.message.usage // {}) | ((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)) | select(. > 0)' 2>/dev/null || true
+      grep -E "$_CMA_ASSIST_RE" "$sess_file" 2>/dev/null | tail -20 | \
+        jq -rR 'fromjson? | select(.type == "assistant") | (.message.usage // {}) | ((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)) | select(. > 0)' 2>/dev/null | tail -1 || true
       ;;
     flags)
       local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" root sid name proj_slug sess_file
@@ -231,6 +384,17 @@ main() {
       else
         printf -- '--session-id %s --name %s\n' "$sid" "$name"
       fi
+      ;;
+    org-id)    cma_org_id "${1:-${CLAUDE_CONFIG_DIR:-}}" ;;
+    org-guard) cma_org_guard "${1:-${CLAUDE_CONFIG_DIR:-}}" "${2:-}" ;;
+    sanitize-fork)
+      # sanitize-fork <config_dir> [sid]: opt-in manual fork; prints new sid.
+      local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" sid="${2:-}" root slug nsid
+      root="$(cma_project_root "$PWD")"; slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+      [[ -n "$sid" ]] || sid="$(cma_existing_session_id "$config_dir" "$root")"
+      _cma_valid_sid "$sid" || { echo "claude-session: no resumable session" >&2; return 2; }
+      nsid="$(python3 -c 'import uuid;print(uuid.uuid4())')"
+      cma_sanitize_fork "$config_dir/projects/$slug/$sid.jsonl" "$nsid" >/dev/null && printf '%s\n' "$nsid"
       ;;
     apply-color)
       local config_dir="${1:-${CLAUDE_CONFIG_DIR:-}}" label="${2:-}" root sid color proj_slug sess_file latest
@@ -252,7 +416,7 @@ main() {
       printf 'claude-session: project "%s" — alias color: %s (auto-applied).\n' \
         "$name" "$color" >&2
       ;;
-    *) printf 'usage: claude-session {flags|name|id|color|apply-color|hint|latest-id|existing-id|context-size} [args]\n' >&2; return 2 ;;
+    *) printf 'usage: claude-session {org-id|org-guard|sanitize-fork|flags|name|id|color|apply-color|hint|latest-id|existing-id|context-size} [args]\n' >&2; return 2 ;;
   esac
 }
 

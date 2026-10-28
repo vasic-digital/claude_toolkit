@@ -23,11 +23,13 @@ globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), auth: a ? "present" : null,
     auth_is_dummy: !!(a && dummy && String(a).includes(dummy)),
     redirect: (init && init.redirect) || null });
-  return { json: async () => ({ answers: { gate: { choice: "allow" }, risky: { noul: 0 } } }) };
+  return { json: async () => ({ answers: { gate: { choice: process.env.JEV_TEST_CHOICE || "allow" }, risky: { noul: 0 } } }) };
 };
 
 const hooks = await JevGate({ client: null });
-await hooks["tool.execute.before"]({ tool: "bash" }, { args: { command: "ls" } });
+let blocked = false;
+try { await hooks["tool.execute.before"]({ tool: "bash" }, { args: { command: "ls" } }); }
+catch { blocked = true; }   // the plugin blocks by throwing (enforce + deny)
 
 const exploitFile = process.env.JEV_TEST_EXPLOIT_FILE || "";
 let log = null;
@@ -36,5 +38,5 @@ try {
   log = JSON.parse(lines[lines.length - 1]);
 } catch { /* no log */ }
 process.stdout.write(JSON.stringify({
-  calls, exploit: exploitFile ? existsSync(exploitFile) : false, log,
+  calls, blocked, exploit: exploitFile ? existsSync(exploitFile) : false, log,
 }) + "\n");

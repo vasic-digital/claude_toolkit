@@ -218,6 +218,39 @@ if [ -z "${JEV_BASE_URL:-}" ]; then
   _emit_passthrough
 fi
 
+# 4b. HOSTED endpoints never enforce. A hosted Jev (any host that is not loopback,
+# RFC1918, link-local, *.local or *.lan) is a third party deciding about this machine's tool calls over the
+# internet: its answers are recorded (shadow) but can never block or force an "ask". JEV_MODE=enforce is clamped to
+# shadow here, before any decision is made. A userinfo/percent/backslash/whitespace authority is ambiguous and
+# therefore counts as hosted. Local endpoints (the operator's own llmctl) keep enforcing.
+_jev_host_is_local() {
+  local u="$1" a h o1 o2 o3 o4 o
+  a="${u#*://}"; a="${a%%[/?#]*}"
+  case "$a" in *[@\\%[:space:]]*|"") return 1 ;; esac
+  case "$a" in \[*\]*) h="${a%%\]*}]" ;; *) h="${a%%:*}" ;; esac
+  h="$(printf '%s' "$h" | tr 'A-Z' 'a-z')"
+  case "$h" in localhost|"[::1]") return 0 ;; esac
+  case "$h" in
+    *.local|*.lan)
+      printf '%s' "$h" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.(local|lan)$' && return 0
+      return 1 ;;
+  esac
+  if printf '%s' "$h" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+    IFS=. read -r o1 o2 o3 o4 <<<"$h"
+    for o in "$o1" "$o2" "$o3" "$o4"; do [ "$((10#$o))" -le 255 ] || return 1; done
+    o1=$((10#$o1)); o2=$((10#$o2))
+    [ "$o1" = 127 ] && return 0
+    [ "$o1" = 10 ] && return 0
+    [ "$o1" = 192 ] && [ "$o2" = 168 ] && return 0
+    [ "$o1" = 172 ] && [ "$o2" -ge 16 ] && [ "$o2" -le 31 ] && return 0
+    [ "$o1" = 169 ] && [ "$o2" = 254 ] && return 0
+  fi
+  return 1
+}
+if [ "$JEV_MODE" = "enforce" ] && ! _jev_host_is_local "$JEV_BASE_URL"; then
+  JEV_MODE=shadow
+fi
+
 # 5. Ask Jev: one request, two questions (choice gate + noul risky) in the
 # verified systemone wire format (research/jev-ecosystem.md §1.2): questions
 # is a MAP of name -> question; all meaning lives in instructions/criteria.
@@ -254,13 +287,19 @@ printf '%s' "$_kvar" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || _kvar=""
 if [ -n "${JEV_API_KEY:-}" ]; then
   _key="$JEV_API_KEY"
 elif [ -n "$_kvar" ]; then
+  # llmctl's own contract: LLMCTL_API_KEY must match [A-Za-z0-9_-]{32,512} (whole string, single line). A shell profile may export
+  # a short placeholder; sending it as the bearer only earns a 401 (fail-open) and hides the real key further down the chain.
+  # A malformed value counts as ABSENT at EVERY source, so the next source in the precedence order is still consulted.
+  _key_valid() { [ "$_kvar" != "LLMCTL_API_KEY" ] || [[ "$1" =~ ^[A-Za-z0-9_-]{32,512}$ ]]; }
   _key="${!_kvar:-}"
+  _key_valid "$_key" || _key=""
   if [ -z "$_key" ] && [ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]; then
     _key="$(bash -c 'source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" >/dev/null 2>&1; printf %s "${'"$_kvar"':-}"')"
+    _key_valid "$_key" || _key=""
   fi
-  # then the key files named by the non-secret pointer ($CMA_JEV_KEY_FILES / ~/.config/jev/key-files,
-  # `jev-setup --key-file`): the value is PARSED out of such a file (never sourced); the origin binding below still applies.
-  [ -n "$_key" ] || _key="$(_jev_keyfile_lookup "$_kvar")"
+  # then the key files named by the non-secret pointer ($CMA_JEV_KEY_FILES / ~/.config/jev/key-files, `jev-setup --key-file`):
+  # the value is PARSED out of such a file (never sourced); the origin binding below still applies.
+  if [ -z "$_key" ]; then _key="$(_jev_keyfile_lookup "$_kvar")"; _key_valid "$_key" || _key=""; fi
   if [ -n "$_key" ] && [[ "$JEV_BASE_URL" == https://* ]]; then
     _origin="$(printf '%s' "$JEV_BASE_URL" | sed -E 's#^(https://[^/?#]+).*#\1#')"
     _key_pinned=0
