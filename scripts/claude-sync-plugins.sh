@@ -22,7 +22,12 @@
 #                         changes + writes a manifest first); the source alias
 #                         is never written
 #   --verify              read-only check; exit 0 conformant, 1 drift, 2 no policy
-#   --status              one line per alias: enabled/total plugin counts
+#   --status              one line per alias: enabled/total plugin counts, plus
+#                         the policy's unloadable plugins (see below)
+#   --unloadable          list policy-enabled plugins that are NOT installed
+#                         (typically their marketplace is not registered); they
+#                         count as "enabled" in settings.json but never load, so
+#                         the EFFECTIVE count is lower. Informational, exit 0.
 # Options: --backup-dir DIR  (default $SHARED_DIR/policy-backups/<timestamp>)
 #
 # Semantics:
@@ -58,7 +63,7 @@ cma_require jq
 SHARED_DIR="${SHARED_DIR:-$HOME/.claude-shared}"
 DEFAULT_DIR="${DEFAULT_DIR:-$HOME/.claude}"
 
-usage() { sed -n '2,46p' "$0"; }
+usage() { sed -n '2,50p' "$0"; }
 
 cmd="" from="$HOME/.claude-claude1" backup_dir=""
 while (( $# )); do
@@ -68,6 +73,7 @@ while (( $# )); do
     --apply) cmd=apply ;;
     --verify) cmd=verify ;;
     --status) cmd=status ;;
+    --unloadable) cmd=unloadable ;;
     --from) from="${2:?--from needs a dir}"; shift ;;
     --backup-dir) backup_dir="${2:?--backup-dir needs a dir}"; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -80,6 +86,22 @@ done
 _count() { jq -r '[(.enabledPlugins // {}) | to_entries[] | select(.value == true)] | length' "$1" 2>/dev/null || echo "?"; }
 _total() { jq -r '(.enabledPlugins // {}) | length' "$1" 2>/dev/null || echo "?"; }
 
+# Policy-enabled plugins absent from the shared installed_plugins.json: they are
+# counted as enabled but cannot load (e.g. marketplace "anthropics" is not
+# registered). Prints one key per line.
+_unloadable() {
+  local inst="$SHARED_DIR/plugins/installed_plugins.json"
+  [[ -f "$inst" ]] || return 0
+  jq -r --slurpfile i "$inst" '[.enabledPlugins | to_entries[] | select(.value == true) | .key
+    | select(. as $k | ($i[0].plugins // {}) | has($k) | not)] | sort[]' "$1" 2>/dev/null
+}
+_unloadable_note() {  # _unloadable_note POLICY
+  local u; u="$(_unloadable "$1")"
+  [[ -n "$u" ]] || return 0
+  echo "NOTE: $(printf '%s\n' "$u" | wc -l | tr -d ' ') enabled plugin(s) are not installed and will NOT load (effective enabled = enabled - unloadable):"
+  printf '  %s\n' $u
+}
+
 if [[ "$cmd" == capture ]]; then
   [[ -d "$from" ]] || { echo "capture: source dir not found: $from" >&2; exit 2; }
   from="$(cd "$from" && pwd)"
@@ -88,6 +110,7 @@ if [[ "$cmd" == capture ]]; then
   echo "policy: $pf"
   echo "source: $from"
   jq -r '"enabled plugins: \([.enabledPlugins[] | select(. == true)] | length) true / \(.enabledPlugins | length) listed; disabledMcpServers: \(.disabledMcpServers | length)"' "$pf"
+  _unloadable_note "$pf"
   exit 0
 fi
 
@@ -102,12 +125,19 @@ src="$(cma_policy_source_dir)"
 targets=("$SHARED_DIR")
 while IFS= read -r d; do [[ -n "$d" ]] && targets+=("$d"); done < <(cma_policy_targets)
 
+if [[ "$cmd" == unloadable ]]; then
+  u="$(_unloadable "$pf")"
+  [[ -n "$u" ]] && printf '%s\n' "$u" || echo "none: every policy-enabled plugin is installed"
+  exit 0
+fi
+
 if [[ "$cmd" == status ]]; then
   printf '%-34s %s\n' "policy ($src)" "$(jq -r '[.enabledPlugins[] | select(. == true)] | length' "$pf")/$(jq -r '.enabledPlugins | length' "$pf") enabled"
   for d in "${targets[@]}"; do
     [[ -f "$d/settings.json" ]] || continue
     printf '%-34s %s/%s enabled\n' "$d" "$(_count "$d/settings.json")" "$(_total "$d/settings.json")"
   done
+  _unloadable_note "$pf"
   exit 0
 fi
 

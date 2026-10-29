@@ -142,6 +142,16 @@ jq '.enabledPlugins["b@m"]=true' "$c1/settings.json" > "$c1/s.tmp" && mv "$c1/s.
 assert_eq "true" "$(jq -r '.enabledPlugins["b@m"]' "$c2/settings.json")" "b@m now enabled in claude2"
 assert_eq "true" "$(jq -r '.enabledPlugins["b@m"]' "$pv/settings.json")" "b@m now enabled in prov-foo"
 
+it "unloadable (enabled but not installed) plugins are reported, not silently counted"
+mkdir -p "$SHARED_DIR/plugins"
+jq -n '{version:2,plugins:{"a@m":[{}],"c@m":[{}]}}' > "$SHARED_DIR/plugins/installed_plugins.json"
+jq '.enabledPlugins["ghost@nomkt"]=true' "$c1/settings.json" > "$c1/s.tmp" && mv "$c1/s.tmp" "$c1/settings.json"
+"$SYNC" capture --from "$c1" > "$SANDBOX_HOME/cap.out" 2>&1; assert_eq 0 "$?" "capture still exits 0"
+assert_file_contains "$SANDBOX_HOME/cap.out" "ghost@nomkt" "capture NOTE names the unloadable plugin"
+assert_eq "b@m ghost@nomkt" "$("$SYNC" --unloadable | tr '\n' ' ' | sed 's/ $//')" "--unloadable lists exactly the enabled-but-uninstalled plugins"
+"$SYNC" --status > "$SANDBOX_HOME/st.out"; assert_file_contains "$SANDBOX_HOME/st.out" "ghost@nomkt" "--status shows the unloadable list"
+rm -f "$SHARED_DIR/plugins/installed_plugins.json"
+
 it "CMA_PLUGIN_POLICY=off is a no-op"
 jq '.enabledPlugins["zz@m"]=true' "$c3/settings.json" > "$c3/s.tmp" && mv "$c3/s.tmp" "$c3/settings.json"
 CMA_PLUGIN_POLICY=off "$SCRIPTS_DIR/claude-sync-state.sh" all >/dev/null 2>&1
