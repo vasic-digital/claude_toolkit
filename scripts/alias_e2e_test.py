@@ -131,7 +131,7 @@ def chat_endpoint_for(base_url, transport):
     return base + "/v1/chat/completions", False
 
 
-def test_provider_direct(url, api_key, model, timeout=30, native=False):
+def probe_provider_direct(url, api_key, model, timeout=30, native=False):
     """Test a provider directly (bypassing ccr) with cache_control in request.
 
     Returns (success, response_content, error_message, latency_ms).
@@ -209,7 +209,7 @@ def test_provider_direct(url, api_key, model, timeout=30, native=False):
         return False, "", str(e)[:200], elapsed
 
 
-def test_alias(alias_name, env, timeout=30, verbose=False):
+def probe_alias(alias_name, env, timeout=30, verbose=False):
     """Test a single alias end-to-end.
 
     Returns dict with test results.
@@ -320,13 +320,13 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     if verbose:
         print(f"  Testing {alias_name} ({model})...", file=sys.stderr)
 
-    success, content, error, latency = test_provider_direct(test_url, api_key, model, timeout, native=native)
+    success, content, error, latency = probe_provider_direct(test_url, api_key, model, timeout, native=native)
     # Reasoning models and flaky free-tier endpoints occasionally return an
     # empty first answer; allow exactly one retry before believing it (same
     # retry policy as providers-verify.sh).
     if not success and error == "Empty response content":
         time.sleep(3)
-        success, content, error, latency = test_provider_direct(test_url, api_key, model, timeout, native=native)
+        success, content, error, latency = probe_provider_direct(test_url, api_key, model, timeout, native=native)
     result["tests"].append({
         "name": "direct_request",
         "pass": success,
@@ -368,7 +368,7 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     has_relevant_content = any(kw in content_lower for kw in EXPECTED_KEYWORDS)
     if not has_relevant_content:
         time.sleep(3)
-        s2, c2, e2, _ = test_provider_direct(test_url, api_key, model, timeout, native=native)
+        s2, c2, e2, _ = probe_provider_direct(test_url, api_key, model, timeout, native=native)
         if s2:
             c2l = c2.lower()
             if any(kw in c2l for kw in EXPECTED_KEYWORDS):
@@ -533,7 +533,7 @@ def main(argv=None):
             continue
 
         env = load_env(env_path)
-        result = test_alias(alias_name, env, timeout=args.timeout, verbose=args.verbose)
+        result = probe_alias(alias_name, env, timeout=args.timeout, verbose=args.verbose)
         results.append(result)
 
         if result["overall_pass"]:
